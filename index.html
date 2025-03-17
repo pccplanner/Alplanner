@@ -344,8 +344,10 @@
     /**********************************************
      * 0) Single Declaration for API_BASE
      **********************************************/
-    // Replace YOUR_VPS_IP with your actual IP or domain
-    const API_BASE = "http://103.91.67.126:5000";
+    // If you have HTTPS set up on your VPS, use "https://" here.
+    // If not, you can do "http://" but your GitHub Pages (HTTPS) might block it as mixed content.
+    // Example: "http://leave-management.th3va.com" or "https://leave-management.th3va.com"
+    const API_BASE = "http://leave-management.th3va.com";
 
     /**********************************************
      * 1) Role-Based Logic & Cookie Handling
@@ -539,7 +541,8 @@
 
           let cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
           const reqsForDay = leaveRequests.filter(req =>
-            cellDateStr >= req.startDate && cellDateStr <= req.endDate
+            cellDateStr >= (req.start_date || req.startDate) &&
+            cellDateStr <= (req.end_date || req.endDate)
           );
           reqsForDay.forEach((req, index) => {
             const flaggedClass = index >= 2 ? 'flagged' : '';
@@ -595,8 +598,8 @@
       requests.forEach(req => {
         html += `<tr>
           <td>${req.staffName} (${req.staffID})</td>
-          <td>${req.start_date}</td>
-          <td>${req.end_date}</td>
+          <td>${req.start_date || req.startDate}</td>
+          <td>${req.end_date || req.endDate}</td>
           <td>${req.status}</td>
           <td>
             ${req.status === 'pending' ? `
@@ -702,7 +705,7 @@
       }
       let message = `Hello ${staffName} (${staffID}),\nHere is your leave summary:\n`;
       staffReqs.forEach(req => {
-        message += `- From ${req.start_date} to ${req.end_date} (Status: ${req.status})\n`;
+        message += `- From ${req.start_date || req.startDate} to ${req.end_date || req.endDate} (Status: ${req.status})\n`;
       });
       let url = "https://api.whatsapp.com/send?text=" + encodeURIComponent(message);
       window.open(url, '_blank');
@@ -721,10 +724,13 @@
           renderManagerSummary();
           renderStaffSummary();
         })
-        .catch(err => console.error("Error fetching leave requests:", err));
+        .catch(err => {
+          console.error("Error fetching leave requests:", err);
+          // If there's an error, it might be due to Mixed Content (HTTP vs. HTTPS) or unreachable server.
+        });
     }
 
-    // On load, we won't fetch unless we do it after we confirm role, but let's do an immediate fetch:
+    // On load, fetch requests so admin can see them if logged in
     fetchLeaveRequests();
   </script>
 </body>
