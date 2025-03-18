@@ -1,86 +1,74 @@
+const apiBase = 'https://leave-management.th3va.com/api';
 
-const API = "https://leave-management.th3va.com/api";
+document.addEventListener('DOMContentLoaded', () => {
+  const role = document.getElementById("role");
+  const calendarSection = document.getElementById("calendarSection");
+  const leaveHistory = document.getElementById("leaveHistory");
 
-function toggleLogin() {
-  const role = document.getElementById("role").value;
-  const pass = document.getElementById("admin-password");
-  const calendar = document.getElementById("calendar-section");
-  if (role === "admin") {
-    pass.style.display = "block";
-    calendar.style.display = "block";
-    loadCalendar();
-  } else {
-    pass.style.display = "none";
-    calendar.style.display = "none";
-  }
-}
+  role.addEventListener("change", () => {
+    const isAdmin = role.value === "admin";
+    calendarSection.style.display = isAdmin ? "block" : "none";
+    if (isAdmin) loadCalendar();
+    else loadLeaveHistory();
+  });
 
-function showPopup(msg, success = true) {
-  const popup = document.getElementById("popup");
-  popup.style.display = "block";
-  popup.style.backgroundColor = success ? "#28a745" : "#dc3545";
-  popup.innerText = msg;
-  setTimeout(() => popup.style.display = "none", 3000);
-}
+  loadLeaveHistory(); // default view for staff
+});
 
 function submitLeave() {
-  const name = document.getElementById("name").value;
-  const staff_id = document.getElementById("staff_id").value;
-  const start = document.getElementById("start").value;
-  const end = document.getElementById("end").value;
+  const staffName = document.getElementById("staffName").value;
+  const staffId = document.getElementById("staffId").value;
+  const startDate = document.getElementById("startDate").value;
+  const endDate = document.getElementById("endDate").value;
 
-  if (!name || !staff_id || !start || !end) {
-    showPopup("Please fill in all fields.", false);
-    return;
-  }
-
-  fetch(`${API}/leave`, {
+  fetch(`${apiBase}/leave`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, staff_id, start_date: start, end_date: end })
+    body: JSON.stringify({ staffName, staffId, startDate, endDate })
   })
   .then(res => res.json())
   .then(data => {
-    showPopup(data.message);
-    loadHistory(staff_id);
-    loadCalendar();
-  }).catch(err => {
-    showPopup("Error submitting leave request.", false);
-    console.error(err);
-  });
+    alert("Leave submitted!");
+    loadLeaveHistory();
+  })
+  .catch(err => alert("Submission failed"));
 }
 
-function loadHistory(staff_id) {
-  if (!staff_id) return;
-  fetch(`${API}/history/${staff_id}`)
+function loadLeaveHistory() {
+  const staffId = document.getElementById("staffId").value;
+  const leaveHistory = document.getElementById("leaveHistory");
+  if (!staffId) {
+    leaveHistory.innerHTML = "Enter Staff ID to view history.";
+    return;
+  }
+  fetch(`${apiBase}/history/${staffId}`)
     .then(res => res.json())
     .then(data => {
-      const container = document.getElementById("history");
-      if (!Array.isArray(data) || data.length === 0) {
-        container.innerHTML = "<p>No leave history found.</p>";
-        return;
-      }
-      container.innerHTML = data.map(
-        r => `<div class="history-entry">${r.start_date} to ${r.end_date}<br/><small>(${r.name})</small></div>`
-      ).join("");
-    }).catch(err => {
-      document.getElementById("history").innerHTML = "<p>Error loading history.</p>";
+      leaveHistory.innerHTML = data.length === 0
+        ? "No leave history."
+        : "<ul>" + data.map(d => `<li>${d.startDate} to ${d.endDate}</li>`).join('') + "</ul>";
+    })
+    .catch(err => {
+      leaveHistory.innerHTML = "Error loading history.";
     });
 }
 
 function loadCalendar() {
-  fetch(`${API}/leave/all`)
+  fetch(`${apiBase}/leave/all`)
     .then(res => res.json())
     .then(data => {
-      const container = document.getElementById("calendar");
-      if (!Array.isArray(data) || data.length === 0) {
-        container.innerHTML = "<p>No leave records found.</p>";
-        return;
-      }
-      container.innerHTML = data.map(
-        r => `<div class="calendar-entry"><b>${r.name}</b><br>${r.start_date} → ${r.end_date}</div>`
-      ).join("");
-    }).catch(err => {
-      document.getElementById("calendar").innerHTML = "<p>Error loading calendar.</p>";
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        events: data.map(d => ({
+          title: `${d.staffName} (${d.staffId})`,
+          start: d.startDate,
+          end: d.endDate
+        }))
+      });
+      calendar.render();
+    })
+    .catch(err => {
+      document.getElementById('calendar').innerHTML = "Error loading calendar.";
     });
 }
