@@ -1,51 +1,49 @@
-const API_BASE = "https://leave-management.th3va.com";
+document.addEventListener('DOMContentLoaded', function () {
+    loadCalendar();
 
-document.getElementById("leaveForm").addEventListener("submit", async function (e) {
-    e.preventDefault();
+    const form = document.getElementById('leaveForm');
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const name = document.getElementById('name').value;
+        const staff_id = document.getElementById('staff_id').value;
+        const start_date = document.getElementById('start_date').value;
+        const end_date = document.getElementById('end_date').value;
 
-    const name = document.getElementById("nameInput").value.trim();
-    const staffId = document.getElementById("staffIdInput").value.trim();
-    const startDate = document.getElementById("startDate").value;
-    const endDate = document.getElementById("endDate").value;
-
-    const payload = {
-        name: name,
-        staff_id: staffId,
-        start_date: startDate,
-        end_date: endDate
-    };
-
-    try {
-        const response = await fetch(`${API_BASE}/api/leave`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        if (response.ok) {
-            alert("Leave request submitted successfully.");
+        fetch('https://leave-management.th3va.com/api/leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, staff_id, start_date, end_date })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || data.error || 'Leave submitted.');
             loadCalendar();
-        } else {
-            alert("Failed to submit leave.");
-        }
-    } catch (error) {
-        console.error("Submission error:", error);
-        alert("Error occurred while submitting.");
-    }
+        })
+        .catch(err => {
+            console.error('Submission error:', err);
+            alert('Failed to submit leave.');
+        });
+    });
 });
 
-async function loadCalendar() {
-    try {
-        const response = await fetch(`${API_BASE}/api/calendar`);
-        if (response.ok) {
-            const data = await response.json();
-            document.getElementById("calendar").innerHTML = JSON.stringify(data, null, 2);
-        } else {
-            document.getElementById("calendar").textContent = "Error loading calendar.";
-        }
-    } catch {
-        document.getElementById("calendar").textContent = "Error loading calendar.";
-    }
+function loadCalendar() {
+    fetch('https://leave-management.th3va.com/api/calendar')
+        .then(response => {
+            if (!response.ok) throw new Error('Calendar fetch failed');
+            return response.json();
+        })
+        .then(data => {
+            const calendar = document.getElementById('calendar');
+            calendar.innerHTML = '';
+            data.forEach(entry => {
+                const item = document.createElement('div');
+                item.textContent = `${entry.name} (${entry.status}): ${entry.start_date} to ${entry.end_date}`;
+                calendar.appendChild(item);
+            });
+        })
+        .catch(error => {
+            console.error('Calendar load error:', error);
+            const calendar = document.getElementById('calendar');
+            calendar.innerHTML = '<p style="color:red;">Error loading calendar.</p>';
+        });
 }
-
-loadCalendar();
