@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Leave Booking System v2.7 – Role-Based Access & Admin History</title>
+  <title>Leave Booking System v2.8 – Unified Staff & Admin</title>
   <style>
     /* General styling */
     body {
@@ -39,6 +39,7 @@
       border: 1px solid #ccc;
       border-radius: 8px;
     }
+
     /* ---------- Staff Area ---------- */
     #staffArea {
       background-color: #fff;
@@ -49,17 +50,6 @@
       max-width: 600px;
       margin: 20px auto;
       display: none; /* hidden by default */
-    }
-    #staffArea form {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    #staffArea form > div {
-      flex: 1 1 45%;
-      display: flex;
-      flex-direction: column;
     }
     #staffArea label {
       margin-bottom: 5px;
@@ -77,6 +67,32 @@
       border-radius: 4px;
       margin-top: 10px;
     }
+    #staffArea form {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #staffArea form > div {
+      flex: 1 1 45%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------- My Leave History (Staff) ---------- */
+    #staffHistory {
+      margin-top: 20px;
+    }
+    #staffHistoryTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #staffHistoryTable th, #staffHistoryTable td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+
     /* ---------- Calendar Area (Admin Only) ---------- */
     #calendarArea {
       background-color: #fff;
@@ -191,6 +207,7 @@
       font-size: 11px;
     }
     .flagged { background-color: #ffdcdc; border: 1px solid #ff0000; }
+
     /* ---------- Manager Summary (Admin Only) ---------- */
     #managerSummary {
       background-color: #fff;
@@ -224,6 +241,7 @@
     .action-btn.approve { background: #4CAF50; }
     .action-btn.reject { background: #FF4444; }
     .delete-btn { background: #888; }
+
     /* ---------- Staff Summary (Admin Only, WhatsApp) ---------- */
     #staffSummary {
       background-color: #fff;
@@ -244,6 +262,7 @@
       padding: 8px;
       text-align: left;
     }
+
     /* ---------- My Leave History Section (Admin Only) ---------- */
     #myLeaveHistory {
       background-color: #fff;
@@ -266,7 +285,7 @@
   </style>
 </head>
 <body>
-  <h1>Leave Booking System v2.7</h1>
+  <h1>Leave Booking System v2.8</h1>
   
   <!-- Role Selection and Login Section -->
   <div id="roleArea">
@@ -288,26 +307,23 @@
     </div>
   </div>
 
-  <!-- Staff Area (shown for both staff and admin) -->
+  <!-- Staff Area (shown if staff or admin, but specifically for staff usage) -->
   <section id="staffArea">
     <h2>Staff Area</h2>
-    <form id="staffDataForm">
-      <div>
+    
+    <!-- Read-Only Staff Profile (populated from backend) -->
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <div style="flex:1;">
         <label for="staffName">Staff Name:</label>
-        <input type="text" id="staffName" placeholder="Enter your name" required>
+        <input type="text" id="staffName" readonly />
       </div>
-      <div>
+      <div style="flex:1;">
         <label for="staffID">Staff ID:</label>
-        <input type="text" id="staffID" placeholder="Enter your ID" required>
+        <input type="text" id="staffID" readonly />
       </div>
-      <div style="flex-basis: 100%; text-align:center;">
-        <button type="submit">Save Staff Data</button>
-      </div>
-    </form>
-    <p id="staffStatus" style="text-align:center;color:green;"></p>
-    
-    <hr>
-    
+    </div>
+
+    <!-- Submit Leave Request Form -->
     <form id="leaveRequestForm">
       <h3 style="text-align:center;">Submit Leave Request</h3>
       <div>
@@ -322,9 +338,17 @@
         <button type="submit">Submit Request</button>
       </div>
     </form>
+
+    <hr>
+
+    <!-- My Leave History (Staff) -->
+    <section id="staffHistory">
+      <h3 style="text-align:center;">My Leave History</h3>
+      <div id="staffHistoryDiv"></div>
+    </section>
   </section>
   
-  <!-- Admin Sections (visible for admin only) -->
+  <!-- Admin Sections (shown if admin) -->
   <section id="adminSections">
     <!-- Calendar Area -->
     <section id="calendarArea">
@@ -357,23 +381,27 @@
       <div id="staffSummaryDiv"></div>
     </section>
   </section>
-  
-  <!-- My Leave History Section (Admin Only) -->
+
+  <!-- My Leave History for Admin -->
   <section id="myLeaveHistory">
-    <h2>My Leave History</h2>
+    <h2>My Leave History (Admin)</h2>
     <div id="myHistoryDiv"></div>
   </section>
 
   <!-- Inline Script -->
   <script>
     /**********************************************
-     * 0) API Base URL
+     * 0) Configuration & Global Variables
      **********************************************/
-    // Use HTTPS if available.
-    const API_BASE = "http://leave-management.th3va.com";
+    const API_BASE = "http://leave-management.th3va.com"; 
+    // ^ Adjust to match your actual backend (use HTTPS if possible)
+
+    let staffProfile = { name: "", id: "" };  // Fetched from backend for staff
+    let staffRequestsData = [];               // Staff's own requests
+    let leaveRequestsData = [];               // All requests (for admin)
 
     /**********************************************
-     * 1) Role-Based Logic & Cookie Handling
+     * 1) Role & Cookie Handling
      **********************************************/
     function setCookie(cname, cvalue, exdays) {
       const d = new Date();
@@ -397,16 +425,23 @@
     window.onload = function() {
       const role = getCookie("role");
       if (role === "admin") {
-        // Show both staff and admin areas for admin
+        // Show staff area (in case admin also wants to submit requests) and admin sections
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("myLeaveHistory").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
-      } else if (role === "staff") {
+        // Admin doesn't necessarily need to fetch staff profile. 
+        // But if you want the admin to have a staffID for personal requests, you can do so:
+        // fetchStaffProfile().then(() => fetchStaffHistory());
+      } 
+      else if (role === "staff") {
+        // Show only staff area for staff
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "none";
         document.getElementById("myLeaveHistory").style.display = "none";
         document.getElementById("roleArea").style.display = "none";
+        // Fetch staff profile, then fetch staff requests
+        fetchStaffProfile().then(() => fetchStaffHistory());
       }
     };
 
@@ -416,10 +451,13 @@
         document.getElementById("adminLoginForm").style.display = "block";
       } else {
         setCookie("role", "staff", 1);
+        // Show staff area, hide admin
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "none";
         document.getElementById("myLeaveHistory").style.display = "none";
         document.getElementById("roleArea").style.display = "none";
+        // Load staff data from backend
+        fetchStaffProfile().then(() => fetchStaffHistory());
       }
     });
 
@@ -433,26 +471,79 @@
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("myLeaveHistory").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
+        // If you want the admin to also have a staff profile for personal requests:
+        // fetchStaffProfile().then(() => fetchStaffHistory());
       } else {
         document.getElementById("loginMessage").textContent = "Invalid credentials.";
       }
     });
 
     /**********************************************
-     * 2) Staff Data & Leave Request
+     * 2) Fetch Staff Profile & History (for Staff)
      **********************************************/
-    document.getElementById("staffDataForm").addEventListener("submit", function(e) {
-      e.preventDefault();
-      const staffName = document.getElementById("staffName").value;
-      const staffID = document.getElementById("staffID").value;
-      console.log("Staff data:", { staffName, staffID });
-      document.getElementById("staffStatus").textContent = "Staff data saved.";
-      // If admin, render their personal leave history
-      if(getCookie("role") === "admin") {
-        renderMyHistory();
-      }
-    });
+    // Adjust to match your actual backend endpoint
+    function fetchStaffProfile() {
+      return fetch(API_BASE + "/api/staff/me", { credentials: "include" })
+        .then(res => res.json())
+        .then(data => {
+          // Suppose data = { staffName: "...", staffID: "..." }
+          staffProfile.name = data.staffName;
+          staffProfile.id = data.staffID;
+          // Populate read-only fields
+          document.getElementById("staffName").value = staffProfile.name;
+          document.getElementById("staffID").value = staffProfile.id;
+        })
+        .catch(err => {
+          console.error("Error fetching staff profile:", err);
+        });
+    }
 
+    // Adjust to match your actual backend endpoint (e.g., /api/staff/:id/leave)
+    function fetchStaffHistory() {
+      if(!staffProfile.id) return;
+      return fetch(API_BASE + "/api/leave?staffID=" + encodeURIComponent(staffProfile.id))
+        .then(res => res.json())
+        .then(data => {
+          staffRequestsData = data;
+          renderStaffHistory();
+        })
+        .catch(err => {
+          console.error("Error fetching staff requests:", err);
+        });
+    }
+
+    function renderStaffHistory() {
+      const staffHistoryDiv = document.getElementById("staffHistoryDiv");
+      if (!staffHistoryDiv) return;
+
+      if (!staffRequestsData || !staffRequestsData.length) {
+        staffHistoryDiv.innerHTML = "<p>No leave history found for your Staff ID.</p>";
+        return;
+      }
+
+      let html = `<table id="staffHistoryTable">
+        <thead>
+          <tr>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      staffRequestsData.forEach(req => {
+        html += `<tr>
+          <td>${req.start_date || req.startDate}</td>
+          <td>${req.end_date || req.endDate}</td>
+          <td>${req.status}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+      staffHistoryDiv.innerHTML = html;
+    }
+
+    /**********************************************
+     * 3) Staff Submits Leave Request
+     **********************************************/
     document.getElementById("leaveRequestForm").addEventListener("submit", function(e) {
       e.preventDefault();
       const startDate = document.getElementById("startDate").value;
@@ -461,10 +552,11 @@
         alert("Start date cannot be after end date.");
         return;
       }
-      const staffName = document.getElementById("staffName").value;
-      const staffID = document.getElementById("staffID").value;
+      // Use staffProfile from the backend
+      const staffName = staffProfile.name;
+      const staffID = staffProfile.id;
       if (!staffName || !staffID) {
-        alert("Please save your staff data first.");
+        alert("Staff profile not loaded. Please refresh or contact admin.");
         return;
       }
       const newRequest = {
@@ -482,7 +574,8 @@
       .then(response => response.json())
       .then(data => {
         alert("Leave request submitted.");
-        fetchLeaveRequests();
+        // Re-fetch staff’s own history
+        fetchStaffHistory();
       })
       .catch(err => {
         console.error("Error submitting leave request:", err);
@@ -491,7 +584,7 @@
     });
 
     /**********************************************
-     * 3) SHIFT PATTERN & CALENDAR RENDERING
+     * 4) SHIFT PATTERN & CALENDAR (Admin Only)
      **********************************************/
     let selectedTeam = 1;
     const TeamPatterns = {
@@ -500,6 +593,7 @@
       3: ["night", "night", "off", "off", "morning", "morning"]
     };
     const referenceDate = new Date(2025, 2, 1);
+
     function daysBetween(d1, d2) {
       const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
@@ -519,15 +613,17 @@
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
+
     function formatDateLocal(dateObj) {
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
+
     function renderCalendar(year, month) {
       const monthTitle = document.getElementById("monthTitle");
-      if (!monthTitle) return; // if admin not logged in, no calendar area
+      if (!monthTitle) return; // if not admin or not loaded
 
       monthTitle.textContent = `${monthNames[month]} ${year}`;
       const container = document.getElementById("plannerContainer");
@@ -552,7 +648,7 @@
       const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
       let currentDay = 1;
 
-      const leaveRequests = window.leaveRequestsData || [];
+      const requests = leaveRequestsData || [];
       for (let i = 0; i < totalCells; i++) {
         if (i % 7 === 0) {
           var row = document.createElement("div");
@@ -571,7 +667,7 @@
           const shift = getShiftForDate(dateObj);
 
           let cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
-          const reqsForDay = leaveRequests.filter(req =>
+          const reqsForDay = requests.filter(req =>
             cellDateStr >= (req.start_date || req.startDate) &&
             cellDateStr <= (req.end_date || req.endDate)
           );
@@ -604,13 +700,13 @@
     }
 
     /**********************************************
-     * 4) MANAGER SUMMARY (Admin Only)
+     * 5) Manager Summary (Admin Only)
      **********************************************/
     function renderManagerSummary() {
       const adminDiv = document.getElementById("adminSummary");
       if (!adminDiv) return;
 
-      const requests = window.leaveRequestsData || [];
+      const requests = leaveRequestsData || [];
       if (!requests.length) {
         adminDiv.innerHTML = "<p>No leave requests found.</p>";
         return;
@@ -649,7 +745,7 @@
         .then(res => res.json())
         .then(data => {
           alert("Leave request deleted.");
-          fetchLeaveRequests();
+          fetchAllLeaveRequests();
         })
         .catch(err => {
           console.error("Error deleting request:", err);
@@ -665,7 +761,7 @@
       .then(res => res.json())
       .then(data => {
         alert("Leave request approved.");
-        fetchLeaveRequests();
+        fetchAllLeaveRequests();
       })
       .catch(err => {
         console.error("Error approving request:", err);
@@ -681,7 +777,7 @@
       .then(res => res.json())
       .then(data => {
         alert("Leave request rejected.");
-        fetchLeaveRequests();
+        fetchAllLeaveRequests();
       })
       .catch(err => {
         console.error("Error rejecting request:", err);
@@ -690,12 +786,13 @@
     }
 
     /**********************************************
-     * 5) STAFF SUMMARY (Admin Only, WhatsApp)
+     * 6) Staff Summary (Admin Only, WhatsApp)
      **********************************************/
     function renderStaffSummary() {
       const summaryDiv = document.getElementById("staffSummaryDiv");
       if (!summaryDiv) return;
-      const requests = window.leaveRequestsData || [];
+
+      const requests = leaveRequestsData || [];
       if (!requests.length) {
         summaryDiv.innerHTML = "<p>No requests found.</p>";
         return;
@@ -728,7 +825,7 @@
       summaryDiv.innerHTML = html;
     }
     function sendWhatsAppForStaff(staffID, staffName) {
-      const requests = window.leaveRequestsData || [];
+      const requests = leaveRequestsData || [];
       const staffReqs = requests.filter(req => req.staffID === staffID);
       if (!staffReqs.length) {
         alert("No leave requests found for this staff.");
@@ -743,21 +840,19 @@
     }
 
     /**********************************************
-     * 6) MY LEAVE HISTORY (Admin Only)
+     * 7) My Leave History (Admin)
      **********************************************/
     function renderMyHistory() {
       const myHistoryDiv = document.getElementById("myHistoryDiv");
-      const staffID = document.getElementById("staffID").value;
-      if (!staffID) {
-        myHistoryDiv.innerHTML = "<p>Please enter your Staff ID in the form above to view your leave history.</p>";
+      if (!myHistoryDiv) return;
+      // If your admin also has a staff ID in staffProfile.id, you can filter:
+      const myID = staffProfile.id; // might be empty if not used
+      const myRequests = (leaveRequestsData || []).filter(req => req.staffID === myID);
+      if (!myID || !myRequests.length) {
+        myHistoryDiv.innerHTML = "<p>No leave history found for your Staff ID (admin).</p>";
         return;
       }
-      const myRequests = (window.leaveRequestsData || []).filter(req => req.staffID === staffID);
-      if (!myRequests.length) {
-        myHistoryDiv.innerHTML = "<p>No leave history found for your Staff ID.</p>";
-        return;
-      }
-      let html = `<table id="myHistoryTable">
+      let html = `<table>
         <thead>
           <tr>
             <th>Start Date</th>
@@ -778,27 +873,34 @@
     }
 
     /**********************************************
-     * 7) FETCH & RENDER Leave Requests
+     * 8) Fetch All Leave Requests (for Admin)
      **********************************************/
-    function fetchLeaveRequests() {
+    function fetchAllLeaveRequests() {
+      // Admin needs the entire list of requests
       fetch(API_BASE + "/api/leave")
         .then(res => res.json())
         .then(data => {
-          window.leaveRequestsData = data;
+          leaveRequestsData = data;
+          // Re-render admin sections
           renderCalendar(currentYear, currentMonth);
           renderManagerSummary();
           renderStaffSummary();
-          if(getCookie("role") === "admin") {
-            renderMyHistory();
-          }
+          renderMyHistory();
         })
         .catch(err => {
-          console.error("Error fetching leave requests:", err);
+          console.error("Error fetching all leave requests:", err);
         });
     }
-    
-    // Initial fetch of leave requests
-    fetchLeaveRequests();
+
+    /**********************************************
+     * 9) Initial Data Loads
+     **********************************************/
+    // For staff, we do fetchStaffProfile & fetchStaffHistory (triggered above).
+    // For admin, we do fetchAllLeaveRequests (manually after login).
+    // If the cookie is already admin, let's fetch all requests immediately:
+    if (getCookie("role") === "admin") {
+      fetchAllLeaveRequests();
+    }
   </script>
 </body>
 </html>
