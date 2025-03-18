@@ -7,6 +7,11 @@ function submitLeave() {
   const start = document.getElementById("start").value;
   const end = document.getElementById("end").value;
 
+  if (!name || !staff_id || !start || !end) {
+    alert("Please fill in all fields.");
+    return;
+  }
+
   fetch(`${API}/leave`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -16,6 +21,9 @@ function submitLeave() {
   .then(data => {
     alert(data.message);
     loadHistory(staff_id);
+  }).catch(err => {
+    alert("Error submitting leave request.");
+    console.error(err);
   });
 }
 
@@ -23,8 +31,15 @@ function loadHistory(staff_id) {
   fetch(`${API}/history/${staff_id}`)
     .then(res => res.json())
     .then(data => {
+      if (!Array.isArray(data) || data.length === 0) {
+        document.getElementById("history").innerHTML = "<p>No leave history found.</p>";
+        return;
+      }
       document.getElementById("history").innerHTML = data.map(
-        r => `<div>${r.start_date} to ${r.end_date} (${r.name})</div>`
+        r => `<div class="history-entry">${r.start_date} to ${r.end_date} <br/><small>(${r.name})</small></div>`
       ).join("");
+    }).catch(err => {
+      document.getElementById("history").innerHTML = "<p>Error loading history.</p>";
+      console.error(err);
     });
 }
