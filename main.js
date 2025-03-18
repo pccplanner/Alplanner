@@ -8,6 +8,7 @@ function toggleLogin() {
   if (role === "admin") {
     pass.style.display = "block";
     calendar.style.display = "block";
+    loadCalendar();
   } else {
     pass.style.display = "none";
     calendar.style.display = "none";
@@ -42,6 +43,7 @@ function submitLeave() {
   .then(data => {
     showPopup(data.message);
     loadHistory(staff_id);
+    loadCalendar();
   }).catch(err => {
     showPopup("Error submitting leave request.", false);
     console.error(err);
@@ -63,6 +65,22 @@ function loadHistory(staff_id) {
       ).join("");
     }).catch(err => {
       document.getElementById("history").innerHTML = "<p>Error loading history.</p>";
-      console.error(err);
+    });
+}
+
+function loadCalendar() {
+  fetch(`${API}/leave/all`)
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("calendar");
+      if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = "<p>No leave records found.</p>";
+        return;
+      }
+      container.innerHTML = data.map(
+        r => `<div class="calendar-entry"><b>${r.name}</b><br>${r.start_date} → ${r.end_date}</div>`
+      ).join("");
+    }).catch(err => {
+      document.getElementById("calendar").innerHTML = "<p>Error loading calendar.</p>";
     });
 }
