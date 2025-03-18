@@ -1,72 +1,77 @@
-
-const API_BASE = "http://103.91.67.126";
+const apiBase = "https://leave-management.th3va.com";
 
 document.addEventListener("DOMContentLoaded", () => {
-    const loginType = document.getElementById("loginType");
-    const adminPassword = document.getElementById("adminPassword");
-    loginType.addEventListener("change", () => {
-        if (loginType.value === "Admin") {
-            adminPassword.classList.remove("d-none");
-        } else {
-            adminPassword.classList.add("d-none");
-        }
-    });
+  const loginType = document.getElementById("loginType");
+  const adminPasswordDiv = document.getElementById("adminPasswordDiv");
+  const leaveHistory = document.getElementById("leaveHistory");
+  const calendarDiv = document.getElementById("adminCalendarSection");
+
+  loginType.addEventListener("change", () => {
+    const isAdmin = loginType.value === "Admin";
+    adminPasswordDiv.style.display = isAdmin ? "block" : "none";
+    calendarDiv.style.display = isAdmin ? "block" : "none";
+  });
+
+  document.getElementById("staffId").addEventListener("blur", loadLeaveHistory);
 });
 
-function submitRequest() {
-    const name = document.getElementById("staffName").value;
-    const id = document.getElementById("staffId").value;
-    const start = document.getElementById("startDate").value;
-    const end = document.getElementById("endDate").value;
-    const payload = { staff_name: name, staff_id: id, start_date: start, end_date: end };
+async function submitRequest() {
+  const staffName = document.getElementById("staffName").value.trim();
+  const staffId = document.getElementById("staffId").value.trim();
+  const startDate = document.getElementById("startDate").value;
+  const endDate = document.getElementById("endDate").value;
 
-    fetch(`${API_BASE}/api/leave`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    })
-    .then(res => res.ok ? alert("Leave submitted!") : Promise.reject(res))
-    .catch(err => {
-        console.error("Submission error:", err);
-        alert("Failed to submit leave.");
+  if (!staffName || !staffId || !startDate || !endDate) {
+    alert("Please fill in all fields.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${apiBase}/api/leave`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_name: staffName,
+        staff_id: staffId,
+        start_date: startDate,
+        end_date: endDate,
+      }),
     });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      alert("Leave request submitted successfully.");
+      loadLeaveHistory();
+    } else {
+      alert("Failed to submit leave: " + result.message);
+    }
+  } catch (error) {
+    console.error("Submission error:", error);
+    alert("Submission failed. Check console.");
+  }
 }
 
-function loadLeaveHistory() {
-    const id = document.getElementById("staffId").value;
-    if (!id) return;
+async function loadLeaveHistory() {
+  const staffId = document.getElementById("staffId").value.trim();
+  const historyContainer = document.getElementById("leaveHistory");
+  if (!staffId) return;
 
-    fetch(`${API_BASE}/api/leave/${id}`)
-    .then(res => res.json())
-    .then(data => {
-        const history = document.getElementById("leaveHistory");
-        if (!data.length) return history.innerText = "No history found.";
-        history.innerHTML = "<ul>" + data.map(l => `<li>${l.start_date} to ${l.end_date} - ${l.status || "pending"}</li>`).join("") + "</ul>";
-    })
-    .catch(() => {
-        document.getElementById("leaveHistory").innerText = "Error loading history.";
-    });
+  try {
+    const res = await fetch(`${apiBase}/api/leave/${staffId}`);
+    const data = await res.json();
+
+    if (Array.isArray(data)) {
+      historyContainer.innerHTML = data
+        .map(
+          (entry) =>
+            `<div>${entry.start_date} to ${entry.end_date} - <strong>${entry.status || "pending"}</strong></div>`
+        )
+        .join("");
+    } else {
+      historyContainer.textContent = "No leave records found.";
+    }
+  } catch (e) {
+    historyContainer.textContent = "Error loading history.";
+  }
 }
-
-function loadCalendar() {
-    fetch(`${API_BASE}/api/leave`)
-    .then(res => res.json())
-    .then(data => {
-        const cal = document.getElementById("leaveCalendar");
-        if (!data.length) return cal.innerText = "No leave records.";
-        cal.innerHTML = "<ul>" + data.map(l => `<li>${l.staff_name} (${l.staff_id}) - ${l.start_date} to ${l.end_date} [${l.status}]</li>`).join("") + "</ul>";
-    })
-    .catch(() => {
-        document.getElementById("leaveCalendar").innerText = "Error loading calendar.";
-    });
-}
-
-// Auto load calendar and history if Admin
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-        if (document.getElementById("loginType").value === "Admin") {
-            loadCalendar();
-        }
-        loadLeaveHistory();
-    }, 1000);
-});
