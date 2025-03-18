@@ -1,77 +1,62 @@
-const apiBase = "https://leave-management.th3va.com";
+const apiUrl = "https://leave-management.th3va.com/api";
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginType = document.getElementById("loginType");
-  const adminPasswordDiv = document.getElementById("adminPasswordDiv");
-  const leaveHistory = document.getElementById("leaveHistory");
-  const calendarDiv = document.getElementById("adminCalendarSection");
-
+  const adminPasswordField = document.getElementById("adminPasswordField");
   loginType.addEventListener("change", () => {
-    const isAdmin = loginType.value === "Admin";
-    adminPasswordDiv.style.display = isAdmin ? "block" : "none";
-    calendarDiv.style.display = isAdmin ? "block" : "none";
+    adminPasswordField.style.display = loginType.value === "Admin" ? "block" : "none";
   });
 
-  document.getElementById("staffId").addEventListener("blur", loadLeaveHistory);
+  loadLeaveHistory();
+  loadCalendar();
 });
 
-async function submitRequest() {
-  const staffName = document.getElementById("staffName").value.trim();
-  const staffId = document.getElementById("staffId").value.trim();
-  const startDate = document.getElementById("startDate").value;
-  const endDate = document.getElementById("endDate").value;
+async function submitLeave() {
+  const name = document.getElementById("staffName").value;
+  const id = document.getElementById("staffId").value;
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+  const role = document.getElementById("loginType").value;
 
-  if (!staffName || !staffId || !startDate || !endDate) {
-    alert("Please fill in all fields.");
-    return;
-  }
+  const response = await fetch(`${apiUrl}/leave`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, user_id: id, start_date: start, end_date: end, role })
+  });
 
-  try {
-    const response = await fetch(`${apiBase}/api/leave`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        staff_name: staffName,
-        staff_id: staffId,
-        start_date: startDate,
-        end_date: endDate,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (response.ok) {
-      alert("Leave request submitted successfully.");
-      loadLeaveHistory();
-    } else {
-      alert("Failed to submit leave: " + result.message);
-    }
-  } catch (error) {
-    console.error("Submission error:", error);
-    alert("Submission failed. Check console.");
+  if (response.ok) {
+    alert("Leave request submitted successfully.");
+    loadLeaveHistory();
+    loadCalendar();
+  } else {
+    alert("Failed to submit leave.");
   }
 }
 
 async function loadLeaveHistory() {
-  const staffId = document.getElementById("staffId").value.trim();
-  const historyContainer = document.getElementById("leaveHistory");
-  if (!staffId) return;
+  const id = document.getElementById("staffId").value;
+  if (!id) return;
+  const res = await fetch(`${apiUrl}/leave/${id}`);
+  const data = await res.json();
+  document.getElementById("leaveHistory").innerHTML = data.map(d =>
+    `<div>${d.start_date} to ${d.end_date} - ${d.status}</div>`
+  ).join("");
+}
 
-  try {
-    const res = await fetch(`${apiBase}/api/leave/${staffId}`);
-    const data = await res.json();
+async function loadCalendar() {
+  const res = await fetch(`${apiUrl}/calendar`);
+  const data = await res.json();
 
-    if (Array.isArray(data)) {
-      historyContainer.innerHTML = data
-        .map(
-          (entry) =>
-            `<div>${entry.start_date} to ${entry.end_date} - <strong>${entry.status || "pending"}</strong></div>`
-        )
-        .join("");
-    } else {
-      historyContainer.textContent = "No leave records found.";
-    }
-  } catch (e) {
-    historyContainer.textContent = "Error loading history.";
-  }
+  const events = data.map(item => ({
+    title: `${item.name} (${item.status})`,
+    start: item.start_date,
+    end: item.end_date
+  }));
+
+  const calendarEl = document.getElementById("calendar");
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: "dayGridMonth",
+    events
+  });
+  calendar.render();
 }
