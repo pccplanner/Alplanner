@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Leave Booking System v2.8 – Unified Staff & Admin</title>
+  <title>Leave Booking System v2.9</title>
   <style>
     /* General styling */
     body {
@@ -285,7 +285,7 @@
   </style>
 </head>
 <body>
-  <h1>Leave Booking System v2.8</h1>
+  <h1>Leave Booking System v2.9</h1>
   
   <!-- Role Selection and Login Section -->
   <div id="roleArea">
@@ -307,7 +307,7 @@
     </div>
   </div>
 
-  <!-- Staff Area (shown if staff or admin, but specifically for staff usage) -->
+  <!-- Staff Area (shown if staff or admin wants to submit requests) -->
   <section id="staffArea">
     <h2>Staff Area</h2>
     
@@ -396,12 +396,15 @@
     const API_BASE = "https://leave-management.th3va.com"; 
     // ^ Adjust to match your actual backend (use HTTPS if possible)
 
-    let staffProfile = { name: "", id: "" };  // Fetched from backend for staff
-    let staffRequestsData = [];               // Staff's own requests
-    let leaveRequestsData = [];               // All requests (for admin)
+    // For staff usage
+    let staffProfile = { name: "", id: "" };  
+    let staffRequestsData = [];  // Staff’s own requests
+
+    // For admin usage
+    let leaveRequestsData = [];  // All requests in the system
 
     /**********************************************
-     * 1) Role & Cookie Handling
+     * 1) Cookie Handling & Initial Display
      **********************************************/
     function setCookie(cname, cvalue, exdays) {
       const d = new Date();
@@ -425,38 +428,41 @@
     window.onload = function() {
       const role = getCookie("role");
       if (role === "admin") {
-        // Show staff area (in case admin also wants to submit requests) and admin sections
+        // Admin sees everything
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("myLeaveHistory").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
-        // Admin doesn't necessarily need to fetch staff profile. 
-        // But if you want the admin to have a staffID for personal requests, you can do so:
-        // fetchStaffProfile().then(() => fetchStaffHistory());
+        // Immediately fetch all requests for admin
+        fetchAllLeaveRequests();
       } 
       else if (role === "staff") {
-        // Show only staff area for staff
+        // Staff sees only the staff area
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "none";
         document.getElementById("myLeaveHistory").style.display = "none";
         document.getElementById("roleArea").style.display = "none";
-        // Fetch staff profile, then fetch staff requests
+        // Fetch staff profile & staff requests
         fetchStaffProfile().then(() => fetchStaffHistory());
       }
     };
 
+    /**********************************************
+     * 2) Role Selection Buttons
+     **********************************************/
     document.getElementById("proceedBtn").addEventListener("click", function() {
       const selectedRole = document.getElementById("roleSelect").value;
       if (selectedRole === "admin") {
+        // Show admin login form
         document.getElementById("adminLoginForm").style.display = "block";
       } else {
+        // Staff
         setCookie("role", "staff", 1);
-        // Show staff area, hide admin
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "none";
         document.getElementById("myLeaveHistory").style.display = "none";
         document.getElementById("roleArea").style.display = "none";
-        // Load staff data from backend
+        // Fetch staff data & staff requests
         fetchStaffProfile().then(() => fetchStaffHistory());
       }
     });
@@ -471,17 +477,17 @@
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("myLeaveHistory").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
-        // If you want the admin to also have a staff profile for personal requests:
-        // fetchStaffProfile().then(() => fetchStaffHistory());
+        // Now fetch all leave requests for admin
+        fetchAllLeaveRequests();
       } else {
         document.getElementById("loginMessage").textContent = "Invalid credentials.";
       }
     });
 
     /**********************************************
-     * 2) Fetch Staff Profile & History (for Staff)
+     * 3) Staff Profile & History
      **********************************************/
-    // Adjust to match your actual backend endpoint
+    // Adjust endpoints to match your actual backend
     function fetchStaffProfile() {
       return fetch(API_BASE + "/api/staff/me", { credentials: "include" })
         .then(res => res.json())
@@ -498,7 +504,6 @@
         });
     }
 
-    // Adjust to match your actual backend endpoint (e.g., /api/staff/:id/leave)
     function fetchStaffHistory() {
       if(!staffProfile.id) return;
       return fetch(API_BASE + "/api/leave?staffID=" + encodeURIComponent(staffProfile.id))
@@ -520,7 +525,6 @@
         staffHistoryDiv.innerHTML = "<p>No leave history found for your Staff ID.</p>";
         return;
       }
-
       let html = `<table id="staffHistoryTable">
         <thead>
           <tr>
@@ -542,7 +546,7 @@
     }
 
     /**********************************************
-     * 3) Staff Submits Leave Request
+     * 4) Staff Submits Leave Request
      **********************************************/
     document.getElementById("leaveRequestForm").addEventListener("submit", function(e) {
       e.preventDefault();
@@ -552,7 +556,6 @@
         alert("Start date cannot be after end date.");
         return;
       }
-      // Use staffProfile from the backend
       const staffName = staffProfile.name;
       const staffID = staffProfile.id;
       if (!staffName || !staffID) {
@@ -584,7 +587,7 @@
     });
 
     /**********************************************
-     * 4) SHIFT PATTERN & CALENDAR (Admin Only)
+     * 5) SHIFT PATTERN & CALENDAR (Admin Only)
      **********************************************/
     let selectedTeam = 1;
     const TeamPatterns = {
@@ -700,7 +703,7 @@
     }
 
     /**********************************************
-     * 5) Manager Summary (Admin Only)
+     * 6) Manager Summary (Admin Only)
      **********************************************/
     function renderManagerSummary() {
       const adminDiv = document.getElementById("adminSummary");
@@ -786,7 +789,7 @@
     }
 
     /**********************************************
-     * 6) Staff Summary (Admin Only, WhatsApp)
+     * 7) Staff Summary (Admin Only, WhatsApp)
      **********************************************/
     function renderStaffSummary() {
       const summaryDiv = document.getElementById("staffSummaryDiv");
@@ -840,14 +843,15 @@
     }
 
     /**********************************************
-     * 7) My Leave History (Admin)
+     * 8) My Leave History (Admin)
      **********************************************/
     function renderMyHistory() {
       const myHistoryDiv = document.getElementById("myHistoryDiv");
       if (!myHistoryDiv) return;
       // If your admin also has a staff ID in staffProfile.id, you can filter:
-      const myID = staffProfile.id; // might be empty if not used
+      const myID = staffProfile.id; 
       const myRequests = (leaveRequestsData || []).filter(req => req.staffID === myID);
+
       if (!myID || !myRequests.length) {
         myHistoryDiv.innerHTML = "<p>No leave history found for your Staff ID (admin).</p>";
         return;
@@ -873,10 +877,9 @@
     }
 
     /**********************************************
-     * 8) Fetch All Leave Requests (for Admin)
+     * 9) Fetch All Requests (Admin)
      **********************************************/
     function fetchAllLeaveRequests() {
-      // Admin needs the entire list of requests
       fetch(API_BASE + "/api/leave")
         .then(res => res.json())
         .then(data => {
@@ -890,16 +893,6 @@
         .catch(err => {
           console.error("Error fetching all leave requests:", err);
         });
-    }
-
-    /**********************************************
-     * 9) Initial Data Loads
-     **********************************************/
-    // For staff, we do fetchStaffProfile & fetchStaffHistory (triggered above).
-    // For admin, we do fetchAllLeaveRequests (manually after login).
-    // If the cookie is already admin, let's fetch all requests immediately:
-    if (getCookie("role") === "admin") {
-      fetchAllLeaveRequests();
     }
   </script>
 </body>
