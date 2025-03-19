@@ -1,4 +1,7 @@
 
-// main.js placeholder - in your real setup, this contains logic for leave request handling,
-// calendar rendering, red dot flags, approval/rejection logic, etc.
-console.log("main.js loaded");
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("app").innerHTML = `
+    <h1>Leave Booking System</h1>
+    <p>Calendar will appear here once logic is restored.</p>
+  `;
+});
