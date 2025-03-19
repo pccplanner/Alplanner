@@ -8,10 +8,8 @@ const TeamPatterns = {
   3: ["night", "night", "off", "off", "morning", "morning"]
 };
 const referenceDate = new Date(2025, 2, 1);
-const monthNames = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
+const monthNames = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
 
 function daysBetween(d1, d2) {
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
@@ -38,10 +36,10 @@ function renderCalendar(year, month) {
   weekdayRow.className = "weekday-row";
   const weekdays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
   weekdays.forEach(day => {
-    const dayHeader = document.createElement("div");
-    dayHeader.className = "weekday-header";
-    dayHeader.textContent = day;
-    weekdayRow.appendChild(dayHeader);
+    const header = document.createElement("div");
+    header.className = "weekday-header";
+    header.textContent = day;
+    weekdayRow.appendChild(header);
   });
   container.appendChild(weekdayRow);
 
@@ -58,6 +56,7 @@ function renderCalendar(year, month) {
       row.className = "calendar-row";
       container.appendChild(row);
     }
+
     const cell = document.createElement("div");
     cell.className = "calendar-cell";
 
@@ -67,13 +66,13 @@ function renderCalendar(year, month) {
     } else if (currentDay <= daysInMonth) {
       const dateObj = new Date(year, month, currentDay);
       const shift = getShiftForDate(dateObj);
-      const cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
-      cell.innerHTML = cellContent;
+      cell.innerHTML = `<div class="date-box ${shift}">${currentDay}</div>`;
       currentDay++;
     } else {
       const dayNum = i - startDay - daysInMonth + 1;
       cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
     }
+
     row.appendChild(cell);
   }
 }
@@ -83,7 +82,6 @@ function prevMonth() {
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
   renderCalendar(currentYear, currentMonth);
 }
-
 function nextMonth() {
   currentMonth++;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
