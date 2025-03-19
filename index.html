@@ -3,41 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Leave Booking System – Role-Based Access</title>
+  <title>Leave Booking System – Staff, Calendar, & Manager Dashboard</title>
   <style>
-    /* General styling */
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background-color: #f5f5f5;
     }
-    h1, h2, h3 {
-      text-align: center;
+    h1, h2 {
       color: #333;
-    }
-    /* ---------- Role Area ---------- */
-    #roleArea {
-      max-width: 400px;
-      margin: 20px auto;
-      padding: 15px;
-      background-color: #eef;
-      border: 1px solid #ccc;
-      border-radius: 8px;
       text-align: center;
-    }
-    #roleArea select, #roleArea button,
-    #adminLoginForm input, #adminLoginForm button {
-      padding: 8px;
-      font-size: 16px;
-      margin: 5px;
-    }
-    #adminLoginForm {
-      display: none;
-      margin-top: 10px;
-      background-color: #ffe;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
     }
     /* ---------- Staff Area ---------- */
     #staffArea {
@@ -49,7 +24,6 @@
       max-width: 600px;
       margin-left: auto;
       margin-right: auto;
-      display: none;
     }
     #staffArea form {
       display: flex;
@@ -78,15 +52,16 @@
       border-radius: 4px;
       margin-top: 10px;
     }
-    /* ---------- Calendar Area (Admin Only) ---------- */
+    /* ---------- Calendar Area ---------- */
     #calendarArea {
       background-color: #fff;
       padding: 10px;
       border-radius: 8px;
       max-width: 1200px;
-      margin: 20px auto;
+      margin-left: auto;
+      margin-right: auto;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      display: none;
+      margin-bottom: 20px;
     }
     .month-navigation {
       display: flex;
@@ -116,7 +91,7 @@
       width: 40px;
       text-align: center;
     }
-    /* Slim cylindrical shift buttons */
+    /* Slim cylindrical shift buttons arranged under month title */
     #shiftButtons {
       display: flex;
       gap: 10px;
@@ -136,6 +111,7 @@
     .Team-btn:hover {
       background-color: #45a049;
     }
+    /* Calendar Grid */
     .planner-container {
       width: 100%;
       overflow: hidden;
@@ -167,6 +143,7 @@
       background-color: #fafafa;
       min-height: 100px;
     }
+    /* Date circle with shift style */
     .date-box {
       position: absolute;
       top: 5px;
@@ -193,15 +170,16 @@
       font-size: 11px;
     }
     .flagged { background-color: #ffdcdc; border: 1px solid #ff0000; }
-    /* ---------- Manager Summary (Admin Only) ---------- */
+    /* ---------- Manager Summary ---------- */
     #managerSummary {
       background-color: #fff;
       padding: 10px;
       border-radius: 8px;
       max-width: 1200px;
-      margin: 20px auto;
+      margin-left: auto;
+      margin-right: auto;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      display: none;
+      margin-bottom: 20px;
     }
     #adminSummaryTable {
       width: 100%;
@@ -226,15 +204,15 @@
     .action-btn.approve { background: #4CAF50; }
     .action-btn.reject { background: #FF4444; }
     .delete-btn { background: #888; }
-    /* ---------- Staff Summary (Admin Only) ---------- */
+    /* ---------- Staff Summary (WhatsApp) ---------- */
     #staffSummary {
       background-color: #fff;
       padding: 10px;
       border-radius: 8px;
       max-width: 1200px;
-      margin: 20px auto;
+      margin-left: auto;
+      margin-right: auto;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      display: none;
     }
     #staffSummaryTable {
       width: 100%;
@@ -251,27 +229,7 @@
 <body>
   <h1>Leave Booking System</h1>
   
-  <!-- Role Selection and Login Section -->
-  <div id="roleArea">
-    <h2>Select Your Role</h2>
-    <select id="roleSelect">
-      <option value="staff">Staff</option>
-      <option value="admin">Admin</option>
-    </select>
-    <button id="proceedBtn">Proceed</button>
-    <!-- Admin Login Form (only shown if admin selected) -->
-    <div id="adminLoginForm">
-      <h3>Admin Login</h3>
-      <input type="text" id="loginId" placeholder="Enter login ID" required>
-      <br>
-      <input type="password" id="loginPassword" placeholder="Enter password" required>
-      <br>
-      <button id="loginBtn">Login</button>
-      <p id="loginMessage" style="color:red;"></p>
-    </div>
-  </div>
-  
-  <!-- Staff Area: Visible to all logged in users -->
+  <!-- Staff Area: Combines Staff Setup & Leave Request Form -->
   <section id="staffArea">
     <h2>Staff Area</h2>
     <form id="staffDataForm">
@@ -307,128 +265,65 @@
     </form>
   </section>
   
-  <!-- Admin Sections (Only visible if role is admin) -->
-  <section id="adminSections">
-    <!-- Calendar Area -->
-    <section id="calendarArea">
-      <div class="month-navigation">
-        <div class="month-header">
-          <div class="nav-arrow" onclick="prevMonth()">‹</div>
-          <div class="month-title" id="monthTitle"></div>
-          <div class="nav-arrow" onclick="nextMonth()">›</div>
-        </div>
-        <div id="shiftButtons">
-          <button class="Team-btn" onclick="selectTeam(1)">Team A</button>
-          <button class="Team-btn" onclick="selectTeam(2)">Team B</button>
-          <button class="Team-btn" onclick="selectTeam(3)">Team C</button>
-        </div>
+  <!-- Calendar Area -->
+  <section id="calendarArea">
+    <div class="month-navigation">
+      <div class="month-header">
+        <div class="nav-arrow" onclick="prevMonth()">‹</div>
+        <div class="month-title" id="monthTitle"></div>
+        <div class="nav-arrow" onclick="nextMonth()">›</div>
       </div>
-      <div class="planner-container" id="plannerContainer">
-        <!-- Calendar grid renders here -->
+      <!-- Slim cylindrical shift buttons -->
+      <div id="shiftButtons">
+        <button class="Team-btn" onclick="selectTeam(1)">Team A</button>
+        <button class="Team-btn" onclick="selectTeam(2)">Team B</button>
+        <button class="Team-btn" onclick="selectTeam(3)">Team C</button>
       </div>
-    </section>
-    
-    <!-- Manager Summary -->
-    <section id="managerSummary">
-      <h2>Manager Summary (Approve / Reject / Delete)</h2>
-      <div id="adminSummary"></div>
-    </section>
-    
-    <!-- Staff Summary (WhatsApp) -->
-    <section id="staffSummary">
-      <h2>Staff Summary (Send via WhatsApp)</h2>
-      <div id="staffSummaryDiv"></div>
-    </section>
+    </div>
+    <div class="planner-container" id="plannerContainer">
+      <!-- Calendar grid renders here -->
+    </div>
+  </section>
+  
+  <!-- Manager Summary Section -->
+  <section id="managerSummary">
+    <h2>Manager Summary (Approve / Reject / Delete)</h2>
+    <div id="adminSummary"></div>
+  </section>
+  
+  <!-- Staff Summary Section (WhatsApp Summary) -->
+  <section id="staffSummary">
+    <h2>Staff Summary (Send via WhatsApp)</h2>
+    <div id="staffSummaryDiv"></div>
   </section>
   
   <script>
-    // Helper functions for cookies
-    function setCookie(cname, cvalue, exdays) {
-      const d = new Date();
-      d.setTime(d.getTime() + (exdays*24*60*60*1000));
-      const expires = "expires=" + d.toUTCString();
-      document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
-    }
-    function getCookie(cname) {
-      const name = cname + "=";
-      const decodedCookie = decodeURIComponent(document.cookie);
-      const ca = decodedCookie.split(';');
-      for(let i = 0; i < ca.length; i++) {
-        let c = ca[i].trim();
-        if (c.indexOf(name) === 0) {
-          return c.substring(name.length, c.length);
-        }
-      }
-      return "";
-    }
-    
-    // Check cookie on page load and display sections accordingly
-    window.onload = function() {
-      const role = getCookie("role");
-      if (role === "admin") {
-        document.getElementById("staffArea").style.display = "block";
-        document.getElementById("adminSections").style.display = "block";
-        document.getElementById("roleArea").style.display = "none";
-      } else if (role === "staff") {
-        document.getElementById("staffArea").style.display = "block";
-        document.getElementById("adminSections").style.display = "none";
-        document.getElementById("roleArea").style.display = "none";
-      }
-    };
-    
-    // Role selection and login handling
-    document.getElementById("proceedBtn").addEventListener("click", function() {
-      const selectedRole = document.getElementById("roleSelect").value;
-      if (selectedRole === "admin") {
-        document.getElementById("adminLoginForm").style.display = "block";
-      } else {
-        setCookie("role", "staff", 1);
-        document.getElementById("staffArea").style.display = "block";
-        document.getElementById("adminSections").style.display = "none";
-        document.getElementById("roleArea").style.display = "none";
-      }
-    });
-    
-    document.getElementById("loginBtn").addEventListener("click", function() {
-      const loginId = document.getElementById("loginId").value;
-      const loginPassword = document.getElementById("loginPassword").value;
-      // Demo credentials: loginId "admin" and password "password"
-      if (loginId === "admin" && loginPassword === "password") {
-        setCookie("role", "admin", 1);
-        document.getElementById("staffArea").style.display = "block";
-        document.getElementById("adminSections").style.display = "block";
-        document.getElementById("roleArea").style.display = "none";
-      } else {
-        document.getElementById("loginMessage").textContent = "Invalid credentials.";
-      }
-    });
-    
     /* ------------------------------
-       STAFF DATA & LEAVE REQUEST
+       1. STAFF DATA & LEAVE REQUEST
        ------------------------------ */
     document.getElementById("staffDataForm").addEventListener("submit", function(e) {
       e.preventDefault();
-      const staffName = document.getElementById("staffName").value;
-      const staffID = document.getElementById("staffID").value;
-      const staffData = { name: staffName, id: staffID };
+      var staffName = document.getElementById("staffName").value;
+      var staffID = document.getElementById("staffID").value;
+      var staffData = { name: staffName, id: staffID };
       localStorage.setItem("staffData", JSON.stringify(staffData));
       document.getElementById("staffStatus").textContent = "Staff data saved.";
     });
     
     document.getElementById("leaveRequestForm").addEventListener("submit", function(e) {
       e.preventDefault();
-      const startDate = document.getElementById("startDate").value;
-      const endDate = document.getElementById("endDate").value;
+      var startDate = document.getElementById("startDate").value;
+      var endDate = document.getElementById("endDate").value;
       if (startDate > endDate) {
         alert("Start date cannot be after end date.");
         return;
       }
-      const staffData = JSON.parse(localStorage.getItem("staffData"));
+      var staffData = JSON.parse(localStorage.getItem("staffData"));
       if (!staffData) {
         alert("Please save your staff data first.");
         return;
       }
-      const newRequest = {
+      var newRequest = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         startDate: startDate,
         endDate: endDate,
@@ -437,7 +332,7 @@
         staffID: staffData.id,
         status: "pending"
       };
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       requests.push(newRequest);
       localStorage.setItem("leaveRequests", JSON.stringify(requests));
       alert("Leave request submitted.");
@@ -448,7 +343,7 @@
     });
     
     /* ------------------------------
-       SHIFT PATTERN & CALENDAR RENDERING
+       2. SHIFT PATTERN & TEAM SELECTION
        ------------------------------ */
     let selectedTeam = 1;
     const TeamPatterns = {
@@ -456,36 +351,47 @@
       2: ["off", "off", "morning", "morning", "night", "night"],
       3: ["night", "night", "off", "off", "morning", "morning"]
     };
-    const referenceDate = new Date(2025, 2, 1);
+    const referenceDate = new Date(2025, 2, 1); // 1 March 2025
+    
     function daysBetween(d1, d2) {
       const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
       return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
     }
+    
     function getShiftForDate(dateObj) {
       const diff = daysBetween(referenceDate, dateObj);
       const dayIndex = ((diff % 6) + 6) % 6;
       return TeamPatterns[selectedTeam][dayIndex];
     }
+    
     function selectTeam(teamNumber) {
       selectedTeam = teamNumber;
       renderCalendar(currentYear, currentMonth);
     }
-    let currentYear = 2025, currentMonth = 2;
+    
+    /* ------------------------------
+       3. CALENDAR RENDERING
+       ------------------------------ */
+    let currentYear = 2025, currentMonth = 2; // March (0-indexed)
     const monthNames = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
+    
     function formatDateLocal(dateObj) {
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
+    
     function renderCalendar(year, month) {
       document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
       const container = document.getElementById("plannerContainer");
       container.innerHTML = "";
+      
+      // Create weekday header
       const weekdayRow = document.createElement("div");
       weekdayRow.className = "weekday-row";
       const weekdays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -496,13 +402,15 @@
         weekdayRow.appendChild(dayHeader);
       });
       container.appendChild(weekdayRow);
+      
       const firstDay = new Date(year, month, 1);
       const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const prevMonthDays = new Date(year, month, 0).getDate();
       const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
       let currentDay = 1;
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      
       for (let i = 0; i < totalCells; i++) {
         if (i % 7 === 0) {
           var row = document.createElement("div");
@@ -533,6 +441,7 @@
         row.appendChild(cell);
       }
     }
+    
     function prevMonth() {
       currentMonth--;
       if (currentMonth < 0) { currentMonth = 11; currentYear--; }
@@ -540,6 +449,7 @@
       renderManagerSummary();
       renderStaffSummary();
     }
+    
     function nextMonth() {
       currentMonth++;
       if (currentMonth > 11) { currentMonth = 0; currentYear++; }
@@ -549,54 +459,60 @@
     }
     
     /* ------------------------------
-       6. MANAGER SUMMARY RENDERING
+       4. MANAGER SUMMARY RENDERING
        ------------------------------ */
     function renderManagerSummary() {
       const adminDiv = document.getElementById("adminSummary");
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       if (requests.length === 0) {
         adminDiv.innerHTML = "<p>No leave requests found.</p>";
         return;
       }
-      let html = `<table id="adminSummaryTable">
-        <thead>
-          <tr>
-            <th>Staff Name (ID)</th>
-            <th>Start Date</th>
-            <th>End Date</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>`;
+      let html = `
+        <table id="adminSummaryTable">
+          <thead>
+            <tr>
+              <th>Staff Name (ID)</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
       requests.forEach(req => {
-        html += `<tr>
-          <td>${req.staffName} (${req.staffID})</td>
-          <td>${req.startDate}</td>
-          <td>${req.endDate}</td>
-          <td>${req.status}</td>
-          <td>
-            ${req.status === 'pending' ? `
-              <button class="action-btn approve" onclick="approveRequest('${req.id}')">Approve</button>
-              <button class="action-btn reject" onclick="rejectRequest('${req.id}')">Reject</button>
-            ` : ''}
-            <button class="delete-btn" onclick="deleteRequest('${req.id}')">Delete</button>
-          </td>
-        </tr>`;
+        html += `
+          <tr>
+            <td>${req.staffName} (${req.staffID})</td>
+            <td>${req.startDate}</td>
+            <td>${req.endDate}</td>
+            <td>${req.status}</td>
+            <td>
+              ${req.status === 'pending' ? `
+                <button class="action-btn approve" onclick="approveRequest('${req.id}')">Approve</button>
+                <button class="action-btn reject" onclick="rejectRequest('${req.id}')">Reject</button>
+              ` : ''}
+              <button class="delete-btn" onclick="deleteRequest('${req.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
       });
       html += `</tbody></table>`;
       adminDiv.innerHTML = html;
     }
+    
     function deleteRequest(requestID) {
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       requests = requests.filter(req => req.id !== requestID);
       localStorage.setItem("leaveRequests", JSON.stringify(requests));
       renderCalendar(currentYear, currentMonth);
       renderManagerSummary();
       renderStaffSummary();
     }
+    
     function approveRequest(requestID) {
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       let index = requests.findIndex(req => req.id === requestID);
       if (index >= 0) {
         requests[index].status = "approved";
@@ -606,8 +522,9 @@
         renderStaffSummary();
       }
     }
+    
     function rejectRequest(requestID) {
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       let index = requests.findIndex(req => req.id === requestID);
       if (index >= 0) {
         requests[index].status = "rejected";
@@ -619,11 +536,11 @@
     }
     
     /* ------------------------------
-       7. STAFF SUMMARY (WhatsApp)
+       5. STAFF SUMMARY (WhatsApp)
        ------------------------------ */
     function renderStaffSummary() {
       const summaryDiv = document.getElementById("staffSummaryDiv");
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       let groups = {};
       requests.forEach(req => {
         if (!groups[req.staffID]) {
@@ -653,7 +570,7 @@
     }
     
     function sendWhatsAppForStaff(staffID, staffName) {
-      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       let staffReqs = requests.filter(req => req.staffID === staffID);
       if (staffReqs.length === 0) {
         alert("No leave requests found for this staff.");
