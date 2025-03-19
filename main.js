@@ -96,3 +96,45 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("nextMonthBtn").addEventListener("click", nextMonth);
   renderCalendar(currentYear, currentMonth);
 });
+
+function submitLeaveRequest(e) {
+  e.preventDefault();
+  const name = document.getElementById("staffName").value.trim();
+  const id = document.getElementById("staffID").value.trim();
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+
+  if (!name || !id || !start || !end) return alert("Please fill all fields.");
+
+  const newRequest = { staffName: name, staffID: id, startDate: start, endDate: end };
+  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  requests.push(newRequest);
+  localStorage.setItem("leaveRequests", JSON.stringify(requests));
+
+  renderCalendar(currentYear, currentMonth);
+  e.target.reset();
+}
+
+document.getElementById("leaveForm").addEventListener("submit", submitLeaveRequest);
+
+// Update calendar to show leave names
+const originalRender = renderCalendar;
+renderCalendar = function(year, month) {
+  originalRender(year, month);
+  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  const cells = document.querySelectorAll(".calendar-cell");
+  cells.forEach(cell => {
+    const dayBox = cell.querySelector(".date-box");
+    if (!dayBox || dayBox.classList.contains("other-month")) return;
+
+    const date = new Date(`${month + 1}/${dayBox.textContent}/${year}`);
+    const dateStr = formatDateLocal(date);
+    const matches = requests.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
+    matches.forEach(req => {
+      const note = document.createElement("div");
+      note.className = "leave-info";
+      note.textContent = `${req.staffName} (${req.staffID})`;
+      cell.appendChild(note);
+    });
+  });
+};
