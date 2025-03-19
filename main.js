@@ -1,96 +1,32 @@
 
-const leaveForm = document.getElementById('leaveForm');
-const calendar = document.getElementById('calendar');
-const adminSummary = document.getElementById('adminSummary');
-let leaveData = [];
+const monthLabel = document.getElementById("monthLabel");
+let currentMonth = new Date();
 
 function renderCalendar() {
-  calendar.innerHTML = '';
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    const cell = document.createElement('div');
-    cell.className = 'date-cell';
-    cell.dataset.date = dateStr;
-
-    const dayNum = document.createElement('div');
-    dayNum.className = 'day-number';
-    dayNum.textContent = day;
-    cell.appendChild(dayNum);
-
-    const entries = leaveData.filter(item =>
-      new Date(item.startDate) <= new Date(dateStr) &&
-      new Date(item.endDate) >= new Date(dateStr)
-    );
-
-    entries.forEach(entry => {
-      const div = document.createElement('div');
-      div.className = `leave-entry ${entry.status.toLowerCase()}`;
-      div.textContent = `${entry.name} (${entry.id})`;
-      cell.appendChild(div);
-    });
-
-    const flagged = entries.filter(e => e.status !== 'Rejected').length > 2;
-    if (flagged) {
-      const redDot = document.createElement('div');
-      redDot.className = 'red-dot';
-      cell.appendChild(redDot);
+  monthLabel.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const calendar = document.getElementById("calendar");
+  calendar.innerHTML = "";
+  for (let i = 1; i <= 31; i++) {
+    const day = document.createElement("div");
+    day.className = "day-cell";
+    if (i % 3 === 0) day.classList.add("shift-early");
+    if (i % 3 === 1) day.classList.add("shift-mid");
+    if (i % 3 === 2) day.classList.add("shift-late");
+    if (i === 23 || i === 25 || i === 28) {
+      const dot = document.createElement("div");
+      dot.className = "red-dot";
+      day.appendChild(dot);
     }
-
-    calendar.appendChild(cell);
+    day.textContent += i;
+    calendar.appendChild(day);
   }
-  renderSummary();
 }
 
-function renderSummary() {
-  adminSummary.innerHTML = '<h2>Admin Summary</h2>';
-  leaveData.forEach((entry, index) => {
-    const card = document.createElement('div');
-    card.innerHTML = `
-      <p><strong>${entry.name}</strong> (${entry.id})<br>${entry.startDate} to ${entry.endDate}</p>
-      <label>Status:
-        <select data-index="${index}">
-          <option value="Pending"${entry.status === 'Pending' ? ' selected' : ''}>Pending</option>
-          <option value="Approved"${entry.status === 'Approved' ? ' selected' : ''}>Approved</option>
-          <option value="Rejected"${entry.status === 'Rejected' ? ' selected' : ''}>Rejected</option>
-        </select>
-      </label>
-      <button data-del="${index}">Delete</button>
-    `;
-    adminSummary.appendChild(card);
-  });
-
-  document.querySelectorAll('select').forEach(sel => {
-    sel.addEventListener('change', e => {
-      const idx = e.target.dataset.index;
-      leaveData[idx].status = e.target.value;
-      renderCalendar();
-    });
-  });
-
-  document.querySelectorAll('button[data-del]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = e.target.dataset.del;
-      leaveData.splice(idx, 1);
-      renderCalendar();
-    });
-  });
-}
-
-leaveForm.addEventListener('submit', e => {
-  e.preventDefault();
-  const name = document.getElementById('staffName').value;
-  const id = document.getElementById('staffId').value;
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-
-  leaveData.push({ name, id, startDate, endDate, status: 'Pending' });
-  leaveForm.reset();
+function changeMonth(offset) {
+  currentMonth.setMonth(currentMonth.getMonth() + offset);
   renderCalendar();
-});
+}
 
-renderCalendar();
+window.onload = () => {
+  renderCalendar();
+}
