@@ -50,13 +50,7 @@ function renderCalendar(year, month) {
   });
   container.appendChild(weekdayRow);
 
-  let requests = [];
-  try {
-    requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
-  } catch (e) {
-    console.warn("Invalid stored leave data. Resetting...");
-    localStorage.setItem("leaveRequests", "[]");
-  }
+  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
 
   const firstDay = new Date(year, month, 1);
   const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
@@ -87,9 +81,7 @@ function renderCalendar(year, month) {
 
       const matches = requests.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
       matches.forEach(req => {
-        const name = req.staffName || "";
-        const sid = req.staffID || "";
-        html += `<div class="leave-info">${name} (${sid})</div>`;
+        html += `<div class="leave-info">${req.staffName} (${req.staffID})</div>`;
       });
 
       cell.innerHTML = html;
@@ -116,13 +108,12 @@ function nextMonth() {
 
 function submitLeaveRequest(e) {
   e.preventDefault();
-  const name = document.getElementById("staffName").value.trim().replace(/[^a-zA-Z0-9 ]/g, '');
-  const id = document.getElementById("staffID").value.trim().replace(/[^a-zA-Z0-9]/g, '');
+  const name = document.getElementById("staffName").value.trim();
+  const id = document.getElementById("staffID").value.trim();
   const start = document.getElementById("startDate").value;
   const end = document.getElementById("endDate").value;
 
   if (!name || !id || !start || !end) return alert("Please fill all fields.");
-  if (end < start) return alert("End date must be after or same as start date.");
 
   const newRequest = { staffName: name, staffID: id, startDate: start, endDate: end };
   const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
@@ -131,7 +122,6 @@ function submitLeaveRequest(e) {
 
   renderCalendar(currentYear, currentMonth);
   e.target.reset();
-  alert("Leave request submitted!");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
