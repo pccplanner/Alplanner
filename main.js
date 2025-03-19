@@ -28,6 +28,13 @@ function selectTeam(teamNumber) {
   renderCalendar(currentYear, currentMonth);
 }
 
+function formatDateLocal(dateObj) {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function renderCalendar(year, month) {
   document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
   const container = document.getElementById("plannerContainer");
@@ -42,6 +49,8 @@ function renderCalendar(year, month) {
     weekdayRow.appendChild(header);
   });
   container.appendChild(weekdayRow);
+
+  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
 
   const firstDay = new Date(year, month, 1);
   const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
@@ -65,8 +74,17 @@ function renderCalendar(year, month) {
       cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
     } else if (currentDay <= daysInMonth) {
       const dateObj = new Date(year, month, currentDay);
+      const dateStr = formatDateLocal(dateObj);
       const shift = getShiftForDate(dateObj);
-      cell.innerHTML = `<div class="date-box ${shift}">${currentDay}</div>`;
+
+      let html = `<div class="date-box ${shift}">${currentDay}</div>`;
+
+      const matches = requests.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
+      matches.forEach(req => {
+        html += `<div class="leave-info">${req.staffName} (${req.staffID})</div>`;
+      });
+
+      cell.innerHTML = html;
       currentDay++;
     } else {
       const dayNum = i - startDay - daysInMonth + 1;
@@ -88,11 +106,30 @@ function nextMonth() {
   renderCalendar(currentYear, currentMonth);
 }
 
+function submitLeaveRequest(e) {
+  e.preventDefault();
+  const name = document.getElementById("staffName").value.trim();
+  const id = document.getElementById("staffID").value.trim();
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+
+  if (!name || !id || !start || !end) return alert("Please fill all fields.");
+
+  const newRequest = { staffName: name, staffID: id, startDate: start, endDate: end };
+  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  requests.push(newRequest);
+  localStorage.setItem("leaveRequests", JSON.stringify(requests));
+
+  renderCalendar(currentYear, currentMonth);
+  e.target.reset();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".Team-btn").forEach((btn, index) => {
     btn.addEventListener("click", () => selectTeam(index + 1));
   });
   document.getElementById("prevMonthBtn").addEventListener("click", prevMonth);
   document.getElementById("nextMonthBtn").addEventListener("click", nextMonth);
+  document.getElementById("leaveForm").addEventListener("submit", submitLeaveRequest);
   renderCalendar(currentYear, currentMonth);
 });
