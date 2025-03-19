@@ -1,38 +1,246 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Leave Booking System</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leave Booking System</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#f5f5f5; margin:20px }
+  h1,h2 { text-align:center; color:#333 }
+  section { background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); padding:15px; max-width:1200px; margin:20px auto }
+
+  /* ---------- STAFF AREA ---------- */
+  #staffArea form { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between }
+  #staffArea label { font-weight:bold }
+  #staffArea input, #staffArea button { padding:8px; font-size:14px }
+  #staffArea button { background:#4CAF50; color:#fff; border:none; border-radius:4px }
+
+  /* ---------- CALENDAR AREA ---------- */
+  .planner-container { display:flex; flex-direction:column; border:2px solid #999; background:#fff; }
+  .weekday-row { display:flex; background:#ddd }
+  .weekday-header { flex:1; text-align:center; padding:8px; border:1px solid #bbb; font-weight:bold }
+  .calendar-row { display:flex }
+  .calendar-cell {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    border:1px solid #bbb;
+    padding:4px;
+    box-sizing:border-box;
+  }
+  .shift-block {
+    padding:8px;
+    text-align:center;
+    font-weight:bold;
+    border-radius:4px;
+    margin-bottom:4px;
+  }
+  .shift-block.morning { background:#006400; color:#fff }
+  .shift-block.night   { background:#90EE90; color:#000 }
+  .shift-block.off     { background:#ccc }
+  .shift-block.other-month { background:#eee; color:#888 }
+  .leave-info {
+    background:#fff8dc;
+    border:1px solid #ddd;
+    border-radius:4px;
+    padding:4px;
+    margin-bottom:4px;
+    font-size:12px;
+  }
+
+  /* ---------- SHIFT BUTTONS ---------- */
+  #shiftButtons { display:flex; justify-content:center; gap:10px; margin:10px 0 }
+  .Team-btn { padding:6px 12px; background:#4CAF50; color:#fff; border:none; border-radius:20px; cursor:pointer }
+  .Team-btn:hover { background:#45a049 }
+
+  /* ---------- SUMMARY TABLES ---------- */
+  table { width:100%; border-collapse:collapse; margin-top:10px }
+  th,td { border:1px solid #ccc; padding:8px; text-align:left }
+  .action-btn { padding:4px 8px; border:none; border-radius:3px; color:#fff; cursor:pointer }
+  .approve { background:#4CAF50 }
+  .reject  { background:#FF4444 }
+  .delete-btn { background:#888 }
+</style>
 </head>
 <body>
-  <h1>Leave Booking System</h1>
 
-  <form id="leaveForm">
-    <label>Staff Name: <input type="text" id="staffName" required></label>
-    <label>Staff ID: <input type="text" id="staffID" required></label><br>
-    <label>Start Date: <input type="date" id="startDate" required></label>
-    <label>End Date: <input type="date" id="endDate" required></label>
-    <button type="submit">Submit Leave Request</button>
+<h1>Leave Booking System</h1>
+
+<section id="staffArea">
+  <h2>Staff Area</h2>
+  <form id="staffDataForm">
+    <div style="flex:1">
+      <label for="staffName">Staff Name:</label>
+      <input type="text" id="staffName" required>
+    </div>
+    <div style="flex:1">
+      <label for="staffID">Staff ID:</label>
+      <input type="text" id="staffID" required>
+    </div>
+    <div style="flex-basis:100%; text-align:center">
+      <button type="submit">Save Staff Data</button>
+    </div>
   </form>
 
+  <form id="leaveRequestForm" style="margin-top:20px">
+    <h3>Submit Leave Request</h3>
+    <div style="flex:1">
+      <label for="startDate">Start Date:</label>
+      <input type="date" id="startDate" required>
+    </div>
+    <div style="flex:1">
+      <label for="endDate">End Date:</label>
+      <input type="date" id="endDate" required>
+    </div>
+    <div style="flex-basis:100%; text-align:center; margin-top:10px">
+      <button type="submit">Submit Request</button>
+    </div>
+  </form>
+</section>
+
+<section id="calendarArea">
   <div class="month-navigation">
     <div class="month-header">
-      <div class="nav-arrow" id="prevMonthBtn">&lsaquo;</div>
+      <div class="nav-arrow" onclick="prevMonth()">‹</div>
       <div class="month-title" id="monthTitle"></div>
-      <div class="nav-arrow" id="nextMonthBtn">&rsaquo;</div>
+      <div class="nav-arrow" onclick="nextMonth()">›</div>
     </div>
     <div id="shiftButtons">
-      <button class="Team-btn">Team A</button>
-      <button class="Team-btn">Team B</button>
-      <button class="Team-btn">Team C</button>
+      <button class="Team-btn" onclick="selectTeam(1)">Team A</button>
+      <button class="Team-btn" onclick="selectTeam(2)">Team B</button>
+      <button class="Team-btn" onclick="selectTeam(3)">Team C</button>
     </div>
   </div>
-
   <div class="planner-container" id="plannerContainer"></div>
+</section>
 
-  <script src="main.js"></script>
+<section id="managerSummary">
+  <h2>Manager Summary</h2>
+  <div id="adminSummary"></div>
+</section>
+
+<section id="staffSummary">
+  <h2>Staff Summary</h2>
+  <div id="staffSummaryDiv"></div>
+</section>
+
+<script>
+// ** SECTION: Staff Data & Leave Requests **
+document.getElementById('staffDataForm').addEventListener('submit', handleStaffData);
+document.getElementById('leaveRequestForm').addEventListener('submit', handleLeaveRequest);
+
+function handleStaffData(e) {
+  e.preventDefault();
+  const staff = { name: document.getElementById('staffName').value, id: document.getElementById('staffID').value };
+  localStorage.setItem('staffData', JSON.stringify(staff));
+  alert('Staff data saved.');
+}
+
+function handleLeaveRequest(e) {
+  e.preventDefault();
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if(start > end) return alert('Start date cannot be after end date.');
+  const staff = JSON.parse(localStorage.getItem('staffData'));
+  if(!staff) return alert('Save your staff data first.');
+  const newReq = { id: Date.now().toString(), staffName: staff.name, staffID: staff.id, startDate: start, endDate: end, status:'pending' };
+  const reqs = JSON.parse(localStorage.getItem('leaveRequests')||'[]');
+  reqs.push(newReq);
+  localStorage.setItem('leaveRequests', JSON.stringify(reqs));
+  renderCalendar(currentYear, currentMonth);
+  renderManagerSummary();
+  renderStaffSummary();
+  e.target.reset();
+}
+
+// ** SECTION: Shift Pattern & Team **
+const TeamPatterns = { 1:["morning","morning","night","night","off","off"], 2:["off","off","morning","morning","night","night"], 3:["night","night","off","off","morning","morning"] };
+const referenceDate = new Date(2025,2,1);
+let selectedTeam = 1;
+function daysBetween(d1,d2){ return Math.floor((Date.UTC(d2.getFullYear(),d2.getMonth(),d2.getDate())-Date.UTC(d1.getFullYear(),d1.getMonth(),d1.getDate()))/(1000*60*60*24)); }
+function getShift(date){ const diff=daysBetween(referenceDate,date); return TeamPatterns[selectedTeam][((diff%6)+6)%6]; }
+function selectTeam(team){ selectedTeam=team; renderCalendar(currentYear,currentMonth); }
+
+// ** SECTION: Calendar Rendering **
+let currentYear=2025, currentMonth=2;
+const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function formatDateLocal(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+function renderCalendar(year,month) {
+  document.getElementById('monthTitle').textContent=`${monthNames[month]} ${year}`;
+  const container=document.getElementById('plannerContainer'); container.innerHTML='';
+  const header=document.createElement('div'); header.className='weekday-row';
+  ["MON","TUE","WED","THU","FRI","SAT","SUN"].forEach(d=>{ const e=document.createElement('div'); e.className='weekday-header'; e.textContent=d; header.appendChild(e); });
+  container.appendChild(header);
+
+  const firstDay=new Date(year,month,1), startDay= firstDay.getDay()===0?6:firstDay.getDay()-1;
+  const daysInMonth=new Date(year,month+1,0).getDate(), prevDays=new Date(year,month,0).getDate();
+  const totalCells=Math.ceil((startDay+daysInMonth)/7)*7;
+  let day=1,row; const requests=JSON.parse(localStorage.getItem('leaveRequests')||'[]');
+
+  for(let i=0;i<totalCells;i++){
+    if(i%7===0){ row=document.createElement('div'); row.className='calendar-row'; container.appendChild(row) }
+    const cell=document.createElement('div'); cell.className='calendar-cell';
+    if(i<startDay){
+      const num=prevDays-startDay+i+1;
+      const block=document.createElement('div'); block.className='shift-block other-month'; block.textContent=num;
+      cell.appendChild(block);
+    } else if(day<=daysInMonth){
+      const dateObj=new Date(year,month,day), iso=formatDateLocal(dateObj), shift=getShift(dateObj);
+      const block=document.createElement('div'); block.className=`shift-block ${shift}`; block.textContent=day;
+      cell.appendChild(block);
+      requests.filter(r=>iso>=r.startDate && iso<=r.endDate).forEach(r=>{
+        const info=document.createElement('div'); info.className='leave-info'; info.textContent=`${r.staffName} (${r.staffID})`; cell.appendChild(info);
+      });
+      day++;
+    } else {
+      const num=i-startDay-daysInMonth+1;
+      const block=document.createElement('div'); block.className='shift-block other-month'; block.textContent=num;
+      cell.appendChild(block);
+    }
+    row.appendChild(cell);
+  }
+}
+
+function prevMonth(){ currentMonth--; if(currentMonth<0){currentMonth=11; currentYear--} renderCalendar(currentYear,currentMonth); renderManagerSummary(); renderStaffSummary(); }
+function nextMonth(){ currentMonth++; if(currentMonth>11){currentMonth=0; currentYear++} renderCalendar(currentYear,currentMonth); renderManagerSummary(); renderStaffSummary(); }
+
+// ** SECTION: Manager Summary **
+function renderManagerSummary(){
+  const admin=document.getElementById('adminSummary'), reqs=JSON.parse(localStorage.getItem('leaveRequests')||'[]');
+  if(!reqs.length){ admin.innerHTML='<p>No requests</p>'; return }
+  let html=`<table><thead><tr><th>Staff</th><th>Start</th><th>End</th><th>Status</th><th>Actions</th></tr></thead><tbody>`;
+  reqs.forEach(r=>{
+    html+=`<tr><td>${r.staffName} (${r.staffID})</td><td>${r.startDate}</td><td>${r.endDate}</td><td>${r.status}</td><td>`;
+    if(r.status==='pending') html+=`<button class="action-btn approve" onclick="updateStatus('${r.id}','approved')">Approve</button><button class="action-btn reject" onclick="updateStatus('${r.id}','rejected')">Reject</button>`;
+    html+=`<button class="delete-btn" onclick="deleteRequest('${r.id}')">Delete</button></td></tr>`;
+  });
+  admin.innerHTML=html+'</tbody></table>';
+}
+function updateStatus(id,status){ const arr=JSON.parse(localStorage.getItem('leaveRequests')||'[]'); const i=arr.findIndex(x=>x.id===id); if(i>=0){arr[i].status=status; localStorage.setItem('leaveRequests',JSON.stringify(arr)); renderCalendar(currentYear,currentMonth); renderManagerSummary(); renderStaffSummary()} }
+function deleteRequest(id){ const arr=JSON.parse(localStorage.getItem('leaveRequests')||'[]').filter(x=>x.id!==id); localStorage.setItem('leaveRequests',JSON.stringify(arr)); renderCalendar(currentYear,currentMonth); renderManagerSummary(); renderStaffSummary(); }
+
+// ** SECTION: Staff Summary **
+function renderStaffSummary(){
+  const div=document.getElementById('staffSummaryDiv'), reqs=JSON.parse(localStorage.getItem('leaveRequests')||'[]');
+  const groups=reqs.reduce((g,r)=>{ g[r.staffID]=g[r.staffID]||{name:r.staffName,reqs:[]}; g[r.staffID].reqs.push(r); return g }, {});
+  let html=`<table><thead><tr><th>Staff</th><th>WhatsApp</th></tr></thead><tbody>`;
+  Object.entries(groups).forEach(([id,data])=>{ html+=`<tr><td>${data.name} (${id})</td><td><button onclick="sendWhatsApp('${id}','${data.name}')">WhatsApp</button></td></tr>` });
+  div.innerHTML=html+'</tbody></table>';
+}
+function sendWhatsApp(id,name){
+  const arr=JSON.parse(localStorage.getItem('leaveRequests')||'[]').filter(x=>x.staffID===id);
+  if(!arr.length) return alert('No leave for this staff');
+  let msg=`Hello ${name} (${id}), your leave summary:\n`;
+  arr.forEach(r=> msg+=`- ${r.startDate} to ${r.endDate} (${r.status})\n`);
+  window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(msg));
+}
+
+// ** INITIALIZE **
+renderCalendar(currentYear,currentMonth);
+renderManagerSummary();
+renderStaffSummary();
+</script>
 </body>
 </html>
