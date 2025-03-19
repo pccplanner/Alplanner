@@ -42,7 +42,20 @@ function renderCalendar(year, month) {
   document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
   container.innerHTML = "";
 
-  const approved = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  const all = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  const approved = all.filter(req => req.status === "Approved");
+
+  const dateCounts = {};
+  approved.forEach(req => {
+    let d = new Date(req.startDate);
+    const end = new Date(req.endDate);
+    while (d <= end) {
+      const dateStr = formatDateLocal(d);
+      dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
+      d.setDate(d.getDate() + 1);
+    }
+  });
+
   const firstDay = new Date(year, month, 1);
   const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -73,6 +86,10 @@ function renderCalendar(year, month) {
         html += `<div class="leave-info">${req.staffName} (${req.staffID})</div>`;
       });
 
+      if (dateCounts[dateStr] > 2) {
+        html += `<div class="flag" title="More than 2 on leave"></div>`;
+      }
+
       cell.innerHTML = html;
       currentDay++;
     } else {
@@ -93,7 +110,7 @@ function submitLeaveRequest(e) {
   if (!name || !id || !start || !end) return alert("Please fill all fields.");
   if (end < start) return alert("End date must be after or same as start date.");
 
-  const req = { staffName: name, staffID: id, startDate: start, endDate: end };
+  const req = { staffName: name, staffID: id, startDate: start, endDate: end, status: "Pending" };
   const all = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
   all.push(req);
   localStorage.setItem("leaveRequests", JSON.stringify(all));
@@ -113,9 +130,25 @@ function renderAdminSummary() {
     card.innerHTML = `
       <b>${req.staffName}</b> (${req.staffID})<br>
       ${req.startDate} to ${req.endDate}<br>
+      Status: <select class="status-select" data-index="${index}">
+        <option value="Pending" ${req.status === "Pending" ? "selected" : ""}>Pending</option>
+        <option value="Approved" ${req.status === "Approved" ? "selected" : ""}>Approved</option>
+        <option value="Rejected" ${req.status === "Rejected" ? "selected" : ""}>Rejected</option>
+      </select>
       <button onclick="deleteRequest(${index})">Delete</button>
     `;
     adminDiv.appendChild(card);
+  });
+
+  document.querySelectorAll(".status-select").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      const idx = parseInt(e.target.getAttribute("data-index"));
+      const val = e.target.value;
+      const all = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+      all[idx].status = val;
+      localStorage.setItem("leaveRequests", JSON.stringify(all));
+      renderCalendar(currentYear, currentMonth);
+    });
   });
 }
 
@@ -130,9 +163,9 @@ function deleteRequest(index) {
 function generateWhatsAppMessage() {
   const all = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
   const today = formatDateLocal(new Date());
-  const todayLeaves = all.filter(req => today >= req.startDate && today <= req.endDate);
+  const todayLeaves = all.filter(req => req.status === "Approved" && today >= req.startDate && today <= req.endDate);
   const names = todayLeaves.map(req => `${req.staffName} (${req.staffID})`).join(", ");
-  const message = names ? `Leave Today: ${names}` : "No leaves today.";
+  const message = names ? `Leave Today: ${names}` : "No approved leaves today.";
   const link = `https://wa.me/?text=${encodeURIComponent(message)}`;
   window.open(link, "_blank");
 }
