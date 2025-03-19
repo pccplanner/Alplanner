@@ -1,14 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Leave Booking System</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Leave Booking System</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; }
+    h1 { text-align: center; margin-top: 15px; font-size: 24px; }
+    #calendar { width: 100%; max-width: 700px; margin: 10px auto; border-collapse: collapse; }
+    #calendar th, #calendar td { width: 14.28%; border: 1px solid #ccc; vertical-align: top; text-align: center; font-size: 12px; padding: 3px; position: relative; }
+    .date { font-weight: bold; margin-bottom: 5px; }
+    .leave-entry { background: #fff8c6; margin: 2px 0; font-size: 11px; border-radius: 3px; padding: 1px; }
+    .status-pending .leave-entry { background-color: #fff8c6; }
+    .status-approved .leave-entry { background-color: #c6f6c6; font-weight: bold; }
+    .status-rejected .leave-entry { background-color: #f6c6c6; text-decoration: line-through; }
+    .red-dot::after {
+      content: '●'; color: red; font-size: 10px; position: absolute; top: 2px; right: 4px;
+    }
+    .nav-btns { text-align: center; margin: 10px 0; }
+    button { padding: 5px 10px; font-size: 12px; margin: 0 5px; }
+    .admin-panel { max-width: 700px; margin: 20px auto; background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 10px; }
+    .entry-card { background: #f1f1f1; border: 1px solid #ccc; border-radius: 4px; padding: 6px; margin: 6px 0; }
+    select { margin-left: 5px; }
+    .version { font-size: 10px; text-align: center; color: gray; margin-top: 10px; }
+  </style>
 </head>
 <body>
-    <h1>Leave Booking System</h1>
-    <div id="calendar"></div>
-    <script src="main.js"></script>
+  <h1>Leave Booking System</h1>
+  <div class="nav-btns">
+    <button onclick="prevMonth()">←</button>
+    <strong id="monthYearLabel">Loading...</strong>
+    <button onclick="nextMonth()">→</button>
+  </div>
+  <table id="calendar"></table>
+
+  <div class="admin-panel">
+    <h3>Admin Summary</h3>
+    <div id="adminSummary"></div>
+    <button onclick="sendWhatsAppSummary()">Send via WhatsApp</button>
+  </div>
+
+  <div class="version">v2.1.1 — Calendar Enhanced with Status & Shift Alerts</div>
+
+  <script>
+    const leaveRequests = [
+      { name: "Fan", id: 8282, start: "2025-03-23", end: "2025-03-23", status: "Pending" },
+      { name: "Theb", id: 1727, start: "2025-03-23", end: "2025-03-23", status: "Approved" },
+      { name: "Amy", id: 2833, start: "2025-03-23", end: "2025-03-23", status: "Rejected" },
+    ];
+
+    let currentMonth = new Date().getMonth();
+    let currentYear = new Date().getFullYear();
+
+    function renderCalendar(month, year) {
+      const calendar = document.getElementById("calendar");
+      const monthYearLabel = document.getElementById("monthYearLabel");
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"];
+      monthYearLabel.innerText = `${monthNames[month]} ${year}`;
+
+      const firstDay = new Date(year, month).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      let html = "<tr>";
+      ["MON","TUE","WED","THU","FRI","SAT","SUN"].forEach(d => html += `<th>${d}</th>`);
+      html += "</tr><tr>";
+
+      let day = 1;
+      let startOffset = (firstDay + 6) % 7;
+      for (let i = 0; i < startOffset; i++) html += "<td></td>";
+
+      const dayData = {};
+
+      while (day <= daysInMonth) {
+        const cellDate = `${year}-${(month+1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        const todayEntries = leaveRequests.filter(r => cellDate >= r.start && cellDate <= r.end);
+        const statusClasses = todayEntries.map(e => `status-${e.status.toLowerCase()}`);
+        const classNames = [...new Set(statusClasses)].join(" ");
+        const redDot = todayEntries.filter(e => e.status !== "Rejected").length > 2 ? " red-dot" : "";
+
+        html += `<td class="${classNames}${redDot}"><div class="date">${day}</div>`;
+        todayEntries.forEach(e => {
+          html += `<div class="leave-entry">${e.name} (${e.id})</div>`;
+        });
+        html += "</td>";
+
+        if ((day + startOffset) % 7 === 0) html += "</tr><tr>";
+        day++;
+      }
+
+      while ((day + startOffset) % 7 !== 0) {
+        html += "<td></td>";
+        day++;
+      }
+
+      html += "</tr>";
+      calendar.innerHTML = html;
+      renderAdminSummary();
+    }
+
+    function renderAdminSummary() {
+      const adminDiv = document.getElementById("adminSummary");
+      adminDiv.innerHTML = "";
+      leaveRequests.forEach((req, index) => {
+        const div = document.createElement("div");
+        div.className = "entry-card";
+        div.innerHTML = `
+          <strong>${req.name} (${req.id})</strong><br>
+          ${req.start} to ${req.end}<br>
+          Status: 
+          <select onchange="updateStatus(${index}, this.value)">
+            <option${req.status === "Pending" ? " selected" : ""}>Pending</option>
+            <option${req.status === "Approved" ? " selected" : ""}>Approved</option>
+            <option${req.status === "Rejected" ? " selected" : ""}>Rejected</option>
+          </select>
+          <button onclick="deleteRequest(${index})">Delete</button>
+        `;
+        adminDiv.appendChild(div);
+      });
+    }
+
+    function updateStatus(index, status) {
+      leaveRequests[index].status = status;
+      renderCalendar(currentMonth, currentYear);
+    }
+
+    function deleteRequest(index) {
+      leaveRequests.splice(index, 1);
+      renderCalendar(currentMonth, currentYear);
+    }
+
+    function sendWhatsAppSummary() {
+      const lines = leaveRequests.map(r => `${r.name} (${r.id}): ${r.start} to ${r.end} - ${r.status}`);
+      const msg = encodeURIComponent("Leave Summary:\n" + lines.join("\n"));
+      window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+
+    function prevMonth() {
+      currentMonth--;
+      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+      renderCalendar(currentMonth, currentYear);
+    }
+
+    function nextMonth() {
+      currentMonth++;
+      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+      renderCalendar(currentMonth, currentYear);
+    }
+
+    renderCalendar(currentMonth, currentYear);
+  </script>
 </body>
 </html>
