@@ -104,9 +104,16 @@ function nextMonth() {
   renderStaffSummary();
 }
 
-window.selectTeam = selectTeam;
-window.prevMonth = prevMonth;
-window.nextMonth = nextMonth;
-window.renderCalendar = renderCalendar;
-window.currentYear = currentYear;
-window.currentMonth = currentMonth;
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".Team-btn").forEach((btn, index) => {
+    btn.addEventListener("click", () => selectTeam(index + 1));
+  });
+
+  const arrows = document.querySelectorAll(".nav-arrow");
+  if (arrows.length === 2) {
+    arrows[0].addEventListener("click", prevMonth);
+    arrows[1].addEventListener("click", nextMonth);
+  }
+
+  renderCalendar(currentYear, currentMonth);
+});
