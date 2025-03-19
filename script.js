@@ -1,1 +1,0 @@
-console.log('Restored script loaded.');
