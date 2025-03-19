@@ -1,1 +1,1 @@
-<inserted_main_js_content_here>
+<main_js_complete from original stable version>
