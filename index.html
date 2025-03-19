@@ -8,7 +8,7 @@
     /* ====== BASIC PAGE STYLES ====== */
     body {
       font-family: Arial, sans-serif;
-      margin: 0; 
+      margin: 0;
       padding: 10px;
       background: #f4f4f4;
       color: #333;
@@ -19,10 +19,7 @@
       margin: 0.5em 0;
       font-size: 20px;
     }
-    .top-bar {
-      text-align: center;
-      margin-bottom: 10px;
-    }
+
     /* ====== FORM AREA ====== */
     #leaveForm {
       display: flex; 
@@ -94,11 +91,27 @@
       border: 1px solid #ccc;
       font-size: 12px; 
       padding: 4px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
     }
+
+    /* SHIFT BOX AT TOP */
+    .shift-box {
+      font-weight: bold;
+      color: #fff;
+      padding: 2px 4px;
+      margin-bottom: 3px;
+      border-radius: 3px;
+    }
+    .shift-morning { background-color: #228B22; } /* Forest Green */
+    .shift-night   { background-color: #90EE90; color:#000; } /* Light Green */
+    .shift-off     { background-color: #ddd; color:#000; }
+
     .day-num {
-      font-weight: bold; 
-      margin-bottom: 2px;
+      margin-left: 4px;
     }
+
     .leave-entry {
       background: #fff9c4;
       margin: 2px 0; 
@@ -122,19 +135,6 @@
       position: absolute; 
       top: 4px; 
       right: 4px;
-    }
-    /* SHIFT COLORS from screenshot */
-    .shift-morning {
-      background-color: #228B22; /* forest green */
-      color: #fff;
-    }
-    .shift-night {
-      background-color: #90EE90; /* light green */
-      color: #000;
-    }
-    .shift-off {
-      background-color: #ddd; 
-      color: #000;
     }
 
     /* ====== ADMIN SUMMARY ====== */
@@ -170,9 +170,6 @@
 <body>
 
   <h1>Leave Booking System (Single File)</h1>
-  <div class="top-bar">
-    <p style="margin:5px 0;">v2.2 - Shift Colors + Red Dot + Admin</p>
-  </div>
 
   <!-- LEAVE REQUEST FORM -->
   <form id="leaveForm">
@@ -206,7 +203,9 @@
     <div id="adminList"></div>
   </div>
 
-  <div class="footer">© 2025. Single-File. Shift-based colors. Red dot for >2. Smaller fonts for mobile.</div>
+  <div class="footer">
+    v2.3 - Shift box at top, red dot for >2, smaller fonts, single file
+  </div>
 
   <script>
     /* ===== SHIFT PATTERNS (TEAM) ===== */
@@ -218,7 +217,6 @@
     let selectedTeam = 1; 
     const referenceDate = new Date(2025,2,1);
 
-    /* SHIFT LOGIC */
     function daysBetween(a,b){
       const A=Date.UTC(a.getFullYear(),a.getMonth(),a.getDate());
       const B=Date.UTC(b.getFullYear(),b.getMonth(),b.getDate());
@@ -230,22 +228,21 @@
       return TeamPatterns[selectedTeam][dayIndex]; // "morning","night","off"
     }
 
-    /* LEAVE STORAGE */
+    /* LEAVE REQUESTS STORAGE */
     function loadRequests(){
       return JSON.parse(localStorage.getItem("leaveRequests")||"[]");
     }
     function saveRequests(arr){
-      localStorage.setItem("leaveRequests",JSON.stringify(arr));
+      localStorage.setItem("leaveRequests", JSON.stringify(arr));
     }
 
-    /* GLOBAL MONTH STATE */
     let currentYear=2025, currentMonth=2; // 2=March
 
-    /* RENDER CALENDAR */
     function renderCalendar(){
       const monthNames=["January","February","March","April","May","June",
         "July","August","September","October","November","December"];
       document.getElementById("monthYear").textContent= monthNames[currentMonth]+" "+currentYear;
+
       const calendar=document.getElementById("calendar");
       calendar.innerHTML="";
 
@@ -259,35 +256,35 @@
         blank.className="day-cell";
         calendar.appendChild(blank);
       }
+
       for(let d=1; d<=daysInMonth; d++){
         const dateObj=new Date(currentYear,currentMonth,d);
         const dateStr=dateObj.toISOString().split("T")[0];
         const cell=document.createElement("div");
         cell.className="day-cell";
 
-        // SHIFT color
+        // SHIFT BOX at top
         const shift=getShift(dateObj);
-        if(shift==="morning") cell.classList.add("shift-morning");
-        if(shift==="night")   cell.classList.add("shift-night");
-        if(shift==="off")     cell.classList.add("shift-off");
-
-        // day num
-        const dayNum=document.createElement("div");
-        dayNum.className="day-num";
-        dayNum.textContent=d;
-        cell.appendChild(dayNum);
+        const shiftBox=document.createElement("div");
+        shiftBox.className="shift-box";
+        if(shift==="morning") shiftBox.classList.add("shift-morning");
+        if(shift==="night")   shiftBox.classList.add("shift-night");
+        if(shift==="off")     shiftBox.classList.add("shift-off");
+        shiftBox.textContent=d; // day number in the shift color box
+        cell.appendChild(shiftBox);
 
         // filter requests
-        const dailyReqs=requests.filter(r=>dateStr>=r.startDate && dateStr<=r.endDate);
+        const dailyReqs= requests.filter(r=> dateStr>=r.startDate && dateStr<=r.endDate);
 
         // red dot if >2 non-rejected
-        const nonRejected=dailyReqs.filter(r=>r.status!=="Rejected").length;
+        const nonRejected= dailyReqs.filter(r=> r.status!=="Rejected").length;
         if(nonRejected>2){
           const dot=document.createElement("div");
           dot.className="red-dot";
           cell.appendChild(dot);
         }
-        // add each
+
+        // add each request
         dailyReqs.forEach(r=>{
           const e=document.createElement("div");
           e.className="leave-entry";
@@ -296,12 +293,13 @@
           e.textContent=`${r.staffName} (${r.staffID})`;
           cell.appendChild(e);
         });
+
         calendar.appendChild(cell);
       }
       renderAdmin();
     }
 
-    /* RENDER ADMIN */
+    /* ADMIN SUMMARY */
     function renderAdmin(){
       const adminList=document.getElementById("adminList");
       if(!adminList) return;
@@ -326,9 +324,9 @@
       // handle status changes
       adminList.querySelectorAll("select").forEach(sel=>{
         sel.onchange=()=>{
-          const i=sel.dataset.idx;
-          let all=loadRequests();
-          all[i].status=sel.value;
+          const i= sel.dataset.idx;
+          let all= loadRequests();
+          all[i].status= sel.value;
           saveRequests(all);
           renderCalendar();
         };
@@ -337,7 +335,7 @@
       adminList.querySelectorAll("button[data-del]").forEach(btn=>{
         btn.onclick=()=>{
           const i=btn.dataset.del;
-          let all=loadRequests();
+          let all= loadRequests();
           all.splice(i,1);
           saveRequests(all);
           renderCalendar();
@@ -382,6 +380,7 @@
     }
 
     /* INIT */
+    let currentYear=2025, currentMonth=2; // 2=March
     renderCalendar();
   </script>
 </body>
