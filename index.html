@@ -1,1 +1,408 @@
-<!DOCTYPE html><html><head><title>Leave Booking</title></head><body><h1>Leave Booking System Restored</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leave Booking System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    /* ---------- Basic Layout ---------- */
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+      color: #333;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 1em;
+    }
+    /* ---------- Form Styles ---------- */
+    #leaveForm {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    #leaveForm input, #leaveForm button {
+      padding: 8px;
+      font-size: 16px;
+    }
+    #leaveForm button {
+      background: #4caf50;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #leaveForm button:hover {
+      background: #45a049;
+    }
+    /* ---------- Calendar Area ---------- */
+    #calendarArea {
+      max-width: 800px;
+      margin: 0 auto 20px auto;
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .month-navigation {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .nav-arrow {
+      font-size: 28px;
+      cursor: pointer;
+      user-select: none;
+      margin: 0 10px;
+    }
+    .month-title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    /* Calendar Grid */
+    .weekday-row, .calendar-row {
+      display: flex;
+    }
+    .weekday-header, .calendar-cell {
+      flex: 1 1 14%;
+      border: 1px solid #ccc;
+      text-align: center;
+      padding: 6px;
+      box-sizing: border-box;
+    }
+    .weekday-header {
+      background: #e0e0e0;
+      font-weight: bold;
+    }
+    .date-box {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .morning { background-color: #c8e6c9; }
+    .night   { background-color: #ffecb3; }
+    .off     { background-color: #ddd; }
+    .other-month { opacity: 0.4; }
+    .leave-info {
+      background: #fff9c4;
+      margin: 2px 0;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      text-align: left;
+    }
+    /* ---------- Admin Summary ---------- */
+    #adminSummary {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .admin-card {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 8px;
+      margin-bottom: 10px;
+      text-align: left;
+    }
+    .admin-card select {
+      margin-left: 8px;
+    }
+    /* ---------- Status Colors ---------- */
+    /* We'll color-code by status in admin summary, not in calendar (yet) */
+    .pending     { background: #fff9c4; }
+    .approved    { background: #c8e6c9; font-weight: bold; }
+    .rejected    { background: #eeeeee; color: #999; text-decoration: line-through; }
+    /* ---------- Red Dot for >2 Requests ---------- */
+    .red-dot {
+      width: 10px; height: 10px;
+      background: red;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 4px;
+    }
+    /* ---------- Footer Version ---------- */
+    footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>Leave Booking System</h1>
+
+  <!-- LEAVE REQUEST FORM -->
+  <form id="leaveForm">
+    <input type="text" id="staffName" placeholder="Staff Name" required>
+    <input type="text" id="staffID" placeholder="Staff ID" required>
+    <input type="date" id="startDate" required>
+    <input type="date" id="endDate" required>
+    <button type="submit">Submit Leave Request</button>
+  </form>
+
+  <!-- CALENDAR AREA -->
+  <section id="calendarArea">
+    <div class="month-navigation">
+      <span class="nav-arrow" id="prevMonthBtn">&#10094;</span>
+      <span class="month-title" id="monthTitle"></span>
+      <span class="nav-arrow" id="nextMonthBtn">&#10095;</span>
+    </div>
+    <div id="plannerContainer"></div>
+  </section>
+
+  <!-- ADMIN SUMMARY -->
+  <section id="adminSummary">
+    <h2>Admin Summary</h2>
+    <div id="adminCards"></div>
+  </section>
+
+  <footer>
+    v1.3.6 - Single-File Edition
+  </footer>
+
+  <script>
+    /* ------------------------------
+       1. BASIC STATE + INITIALIZATION
+       ------------------------------ */
+    let selectedTeam = 1; // If you want multiple teams, keep this. Otherwise we can remove.
+    let currentYear  = 2025;
+    let currentMonth = 2; // 0-based (0=Jan, 1=Feb, 2=Mar, etc.)
+
+    const monthNames = ["January","February","March","April","May","June",
+                        "July","August","September","October","November","December"];
+    const referenceDate = new Date(2025, 2, 1); // for shift pattern
+
+    /* SHIFT PATTERNS */
+    const TeamPatterns = {
+      1: ["morning","morning","night","night","off","off"],
+      2: ["off","off","morning","morning","night","night"],
+      3: ["night","night","off","off","morning","morning"]
+    };
+
+    /* LEAVE REQUESTS: stored in localStorage */
+    // Each request: { staffName, staffID, startDate, endDate, status }
+    // We'll track status in the admin summary (Pending/Approved/Rejected).
+    // For now we keep them simple.
+
+    /* ------------------------------
+       2. SHIFT + DATE UTILITIES
+       ------------------------------ */
+    function daysBetween(d1, d2) {
+      const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+      const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+      return Math.floor((utc2 - utc1) / (1000*60*60*24));
+    }
+
+    function getShiftForDate(dateObj) {
+      const diff = daysBetween(referenceDate, dateObj);
+      const dayIndex = ((diff % 6) + 6) % 6; // cycle of 6
+      return TeamPatterns[selectedTeam][dayIndex];
+    }
+
+    function formatDateLocal(dateObj) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth()+1).padStart(2,"0");
+      const d = String(dateObj.getDate()).padStart(2,"0");
+      return `${y}-${m}-${d}`;
+    }
+
+    /* ------------------------------
+       3. LEAVE REQUEST FORM
+       ------------------------------ */
+    document.getElementById("leaveForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const name  = document.getElementById("staffName").value.trim();
+      const id    = document.getElementById("staffID").value.trim();
+      const start = document.getElementById("startDate").value;
+      const end   = document.getElementById("endDate").value;
+
+      if (!name || !id || !start || !end) {
+        alert("Please fill all fields.");
+        return;
+      }
+      if (end < start) {
+        alert("End date cannot be before start date.");
+        return;
+      }
+
+      let requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+      requests.push({
+        id: Date.now().toString(36), // unique ID
+        staffName: name,
+        staffID: id,
+        startDate: start,
+        endDate: end,
+        status: "Pending"
+      });
+      localStorage.setItem("leaveRequests", JSON.stringify(requests));
+
+      // Clear form
+      e.target.reset();
+      renderCalendar(currentYear, currentMonth);
+      renderAdminSummary();
+      alert("Leave request submitted!");
+    });
+
+    /* ------------------------------
+       4. CALENDAR RENDERING
+       ------------------------------ */
+    function renderCalendar(year, month) {
+      document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
+      const container = document.getElementById("plannerContainer");
+      container.innerHTML = "";
+
+      // create weekday header
+      const weekdayRow = document.createElement("div");
+      weekdayRow.className = "weekday-row";
+      const weekdays = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+      weekdays.forEach(day => {
+        const hd = document.createElement("div");
+        hd.className = "weekday-header";
+        hd.textContent = day;
+        weekdayRow.appendChild(hd);
+      });
+      container.appendChild(weekdayRow);
+
+      // retrieve all requests
+      let requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+
+      // prepare iteration
+      const firstDay   = new Date(year, month, 1);
+      const startDay   = (firstDay.getDay() === 0) ? 6 : firstDay.getDay() - 1;
+      const daysInMonth= new Date(year, month+1, 0).getDate();
+      const totalCells = Math.ceil((startDay + daysInMonth)/7)*7;
+      let currentDay   = 1;
+
+      for (let i=0; i<totalCells; i++) {
+        if (i%7 === 0) {
+          var row = document.createElement("div");
+          row.className = "calendar-row";
+          container.appendChild(row);
+        }
+        const cell = document.createElement("div");
+        cell.className = "calendar-cell";
+
+        if (i < startDay) {
+          // previous month
+          const dayNum = new Date(year, month, 0).getDate() - startDay + i + 1;
+          cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
+        } else if (currentDay <= daysInMonth) {
+          const dateObj = new Date(year, month, currentDay);
+          const dateStr = formatDateLocal(dateObj);
+          const shift   = getShiftForDate(dateObj);
+
+          let html = `<div class="date-box ${shift}">${currentDay}</div>`;
+          // find requests for this day
+          let dailyReqs = requests.filter(r => dateStr >= r.startDate && dateStr <= r.endDate);
+
+          // color-code requests by status, or show red dot if >2 pending or approved
+          let pendingOrApprovedCount = 0;
+          dailyReqs.forEach(req => {
+            if (req.status === "Pending" || req.status === "Approved") {
+              pendingOrApprovedCount++;
+            }
+          });
+          if (pendingOrApprovedCount > 2) {
+            html += `<span class="red-dot"></span>`;
+          }
+
+          dailyReqs.forEach(req => {
+            let colorClass = "pending";
+            if (req.status === "Approved") colorClass = "approved";
+            if (req.status === "Rejected") colorClass = "rejected";
+            html += `<div class="leave-info ${colorClass}">${req.staffName} (${req.staffID})</div>`;
+          });
+
+          cell.innerHTML = html;
+          currentDay++;
+        } else {
+          // next month
+          const dayNum = i - startDay - daysInMonth + 1;
+          cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
+        }
+        row.appendChild(cell);
+      }
+    }
+
+    /* ------------------------------
+       5. ADMIN SUMMARY RENDERING
+       ------------------------------ */
+    function renderAdminSummary() {
+      const adminDiv = document.getElementById("adminCards");
+      adminDiv.innerHTML = "";
+      let requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+
+      requests.forEach(req => {
+        const card = document.createElement("div");
+        card.className = "admin-card";
+        card.innerHTML = `
+          <strong>${req.staffName}</strong> (${req.staffID})<br>
+          ${req.startDate} → ${req.endDate}<br>
+          Status:
+          <select data-id="${req.id}">
+            <option value="Pending"  ${req.status==="Pending" ? "selected" : ""}>Pending</option>
+            <option value="Approved" ${req.status==="Approved" ? "selected" : ""}>Approved</option>
+            <option value="Rejected" ${req.status==="Rejected" ? "selected" : ""}>Rejected</option>
+          </select>
+          <button data-del="${req.id}" style="margin-left:10px;">Delete</button>
+        `;
+        adminDiv.appendChild(card);
+      });
+
+      // handle status change
+      adminDiv.querySelectorAll("select").forEach(sel => {
+        sel.addEventListener("change", e => {
+          const id = e.target.dataset.id;
+          let requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+          let idx = requests.findIndex(r => r.id === id);
+          if (idx >= 0) {
+            requests[idx].status = e.target.value;
+            localStorage.setItem("leaveRequests", JSON.stringify(requests));
+            renderCalendar(currentYear, currentMonth);
+            renderAdminSummary();
+          }
+        });
+      });
+      // handle delete
+      adminDiv.querySelectorAll("button[data-del]").forEach(btn => {
+        btn.addEventListener("click", e => {
+          const delID = e.target.dataset.del;
+          let requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+          requests = requests.filter(r => r.id !== delID);
+          localStorage.setItem("leaveRequests", JSON.stringify(requests));
+          renderCalendar(currentYear, currentMonth);
+          renderAdminSummary();
+        });
+      });
+    }
+
+    /* ------------------------------
+       6. MONTH NAVIGATION
+       ------------------------------ */
+    document.getElementById("prevMonthBtn").addEventListener("click", () => {
+      currentMonth--;
+      if (currentMonth < 0) { currentMonth=11; currentYear--; }
+      renderCalendar(currentYear, currentMonth);
+    });
+    document.getElementById("nextMonthBtn").addEventListener("click", () => {
+      currentMonth++;
+      if (currentMonth > 11) { currentMonth=0; currentYear++; }
+      renderCalendar(currentYear, currentMonth);
+    });
+
+    /* ------------------------------
+       INITIAL RENDER
+       ------------------------------ */
+    renderCalendar(currentYear, currentMonth);
+    renderAdminSummary();
+  </script>
+</body>
+</html>
