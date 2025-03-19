@@ -1,1 +1,1 @@
-// main.js will be filled in next step
+<inserted_main_js_content_here>
