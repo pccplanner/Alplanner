@@ -1,4 +1,5 @@
 
+// Calendar logic
 let selectedTeam = 1;
 let currentYear = 2025, currentMonth = 2;
 
@@ -30,6 +31,13 @@ function selectTeam(teamNumber) {
   renderCalendar(currentYear, currentMonth);
 }
 
+function formatDateLocal(dateObj) {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function renderCalendar(year, month) {
   document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
   const container = document.getElementById("plannerContainer");
@@ -44,14 +52,13 @@ function renderCalendar(year, month) {
     weekdayRow.appendChild(dayHeader);
   });
   container.appendChild(weekdayRow);
-
   const firstDay = new Date(year, month, 1);
   const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const prevMonthDays = new Date(year, month, 0).getDate();
   const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
   let currentDay = 1;
-
+  var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
   for (let i = 0; i < totalCells; i++) {
     if (i % 7 === 0) {
       var row = document.createElement("div");
@@ -60,14 +67,19 @@ function renderCalendar(year, month) {
     }
     const cell = document.createElement("div");
     cell.className = "calendar-cell";
-
     if (i < startDay) {
       const dayNum = prevMonthDays - startDay + i + 1;
       cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
     } else if (currentDay <= daysInMonth) {
       const dateObj = new Date(year, month, currentDay);
+      const cellDateStr = formatDateLocal(dateObj);
       const shift = getShiftForDate(dateObj);
-      const cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
+      let cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
+      let reqsForDay = requests.filter(req => cellDateStr >= req.startDate && cellDateStr <= req.endDate);
+      reqsForDay.forEach((req, index) => {
+        let flaggedClass = index >= 2 ? 'flagged' : '';
+        cellContent += `<div class="leave-info ${flaggedClass}">${req.staffName} (${req.staffID})</div>`;
+      });
       cell.innerHTML = cellContent;
       currentDay++;
     } else {
@@ -82,14 +94,19 @@ function prevMonth() {
   currentMonth--;
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
   renderCalendar(currentYear, currentMonth);
+  renderManagerSummary?.();
+  renderStaffSummary?.();
 }
 
 function nextMonth() {
   currentMonth++;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   renderCalendar(currentYear, currentMonth);
+  renderManagerSummary?.();
+  renderStaffSummary?.();
 }
 
+// Minimal calendar-ready init
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".Team-btn").forEach((btn, index) => {
     btn.addEventListener("click", () => selectTeam(index + 1));
