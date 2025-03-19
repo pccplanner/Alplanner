@@ -1,6 +1,8 @@
 
 let selectedTeam = 1;
-let currentYear = 2025, currentMonth = 2;
+window.currentYear = 2025;
+window.currentMonth = 2;
+
 const TeamPatterns = {
   1: ["morning", "morning", "night", "night", "off", "off"],
   2: ["off", "off", "morning", "morning", "night", "night"],
@@ -24,10 +26,10 @@ function getShiftForDate(dateObj) {
   return TeamPatterns[selectedTeam][dayIndex];
 }
 
-function selectTeam(teamNumber) {
+window.selectTeam = function(teamNumber) {
   selectedTeam = teamNumber;
-  renderCalendar(currentYear, currentMonth);
-}
+  window.renderCalendar(window.currentYear, window.currentMonth);
+};
 
 function formatDateLocal(dateObj) {
   const year = dateObj.getFullYear();
@@ -36,7 +38,7 @@ function formatDateLocal(dateObj) {
   return `${year}-${month}-${day}`;
 }
 
-function renderCalendar(year, month) {
+window.renderCalendar = function(year, month) {
   document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
   const container = document.getElementById("plannerContainer");
   container.innerHTML = "";
@@ -86,34 +88,31 @@ function renderCalendar(year, month) {
     }
     row.appendChild(cell);
   }
-}
+};
 
-function prevMonth() {
-  currentMonth--;
-  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-  renderCalendar(currentYear, currentMonth);
-  renderManagerSummary();
-  renderStaffSummary();
-}
+window.prevMonth = function() {
+  window.currentMonth--;
+  if (window.currentMonth < 0) { window.currentMonth = 11; window.currentYear--; }
+  window.renderCalendar(window.currentYear, window.currentMonth);
+  window.renderManagerSummary?.();
+  window.renderStaffSummary?.();
+};
 
-function nextMonth() {
-  currentMonth++;
-  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-  renderCalendar(currentYear, currentMonth);
-  renderManagerSummary();
-  renderStaffSummary();
-}
+window.nextMonth = function() {
+  window.currentMonth++;
+  if (window.currentMonth > 11) { window.currentMonth = 0; window.currentYear++; }
+  window.renderCalendar(window.currentYear, window.currentMonth);
+  window.renderManagerSummary?.();
+  window.renderStaffSummary?.();
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".Team-btn").forEach((btn, index) => {
-    btn.addEventListener("click", () => selectTeam(index + 1));
+    btn.addEventListener("click", () => window.selectTeam(index + 1));
   });
 
-  const arrows = document.querySelectorAll(".nav-arrow");
-  if (arrows.length === 2) {
-    arrows[0].addEventListener("click", prevMonth);
-    arrows[1].addEventListener("click", nextMonth);
-  }
+  document.getElementById("prevMonthBtn").addEventListener("click", window.prevMonth);
+  document.getElementById("nextMonthBtn").addEventListener("click", window.nextMonth);
 
-  renderCalendar(currentYear, currentMonth);
+  window.renderCalendar(window.currentYear, window.currentMonth);
 });
