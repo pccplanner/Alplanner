@@ -1,4 +1,5 @@
 
+// Calendar logic
 let selectedTeam = 1;
 let currentYear = 2025, currentMonth = 2;
 
@@ -8,8 +9,10 @@ const TeamPatterns = {
   3: ["night", "night", "off", "off", "morning", "morning"]
 };
 const referenceDate = new Date(2025, 2, 1);
-const monthNames = ["January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"];
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
 function daysBetween(d1, d2) {
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
@@ -43,62 +46,46 @@ function renderCalendar(year, month) {
   weekdayRow.className = "weekday-row";
   const weekdays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
   weekdays.forEach(day => {
-    const header = document.createElement("div");
-    header.className = "weekday-header";
-    header.textContent = day;
-    weekdayRow.appendChild(header);
+    const dayHeader = document.createElement("div");
+    dayHeader.className = "weekday-header";
+    dayHeader.textContent = day;
+    weekdayRow.appendChild(dayHeader);
   });
   container.appendChild(weekdayRow);
-
-  let requests = [];
-  try {
-    requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
-  } catch (e) {
-    console.warn("Invalid stored leave data. Resetting...");
-    localStorage.setItem("leaveRequests", "[]");
-  }
-
   const firstDay = new Date(year, month, 1);
   const startDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const prevMonthDays = new Date(year, month, 0).getDate();
   const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
   let currentDay = 1;
-
+  var requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
   for (let i = 0; i < totalCells; i++) {
     if (i % 7 === 0) {
       var row = document.createElement("div");
       row.className = "calendar-row";
       container.appendChild(row);
     }
-
     const cell = document.createElement("div");
     cell.className = "calendar-cell";
-
     if (i < startDay) {
       const dayNum = prevMonthDays - startDay + i + 1;
       cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
     } else if (currentDay <= daysInMonth) {
       const dateObj = new Date(year, month, currentDay);
-      const dateStr = formatDateLocal(dateObj);
+      const cellDateStr = formatDateLocal(dateObj);
       const shift = getShiftForDate(dateObj);
-
-      let html = `<div class="date-box ${shift}">${currentDay}</div>`;
-
-      const matches = requests.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
-      matches.forEach(req => {
-        const name = req.staffName || "";
-        const sid = req.staffID || "";
-        html += `<div class="leave-info">${name} (${sid})</div>`;
+      let cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
+      let reqsForDay = requests.filter(req => cellDateStr >= req.startDate && cellDateStr <= req.endDate);
+      reqsForDay.forEach((req, index) => {
+        let flaggedClass = index >= 2 ? 'flagged' : '';
+        cellContent += `<div class="leave-info ${flaggedClass}">${req.staffName} (${req.staffID})</div>`;
       });
-
-      cell.innerHTML = html;
+      cell.innerHTML = cellContent;
       currentDay++;
     } else {
       const dayNum = i - startDay - daysInMonth + 1;
       cell.innerHTML = `<div class="date-box other-month">${dayNum}</div>`;
     }
-
     row.appendChild(cell);
   }
 }
@@ -107,39 +94,24 @@ function prevMonth() {
   currentMonth--;
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
   renderCalendar(currentYear, currentMonth);
+  renderManagerSummary?.();
+  renderStaffSummary?.();
 }
+
 function nextMonth() {
   currentMonth++;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   renderCalendar(currentYear, currentMonth);
+  renderManagerSummary?.();
+  renderStaffSummary?.();
 }
 
-function submitLeaveRequest(e) {
-  e.preventDefault();
-  const name = document.getElementById("staffName").value.trim().replace(/[^a-zA-Z0-9 ]/g, '');
-  const id = document.getElementById("staffID").value.trim().replace(/[^a-zA-Z0-9]/g, '');
-  const start = document.getElementById("startDate").value;
-  const end = document.getElementById("endDate").value;
-
-  if (!name || !id || !start || !end) return alert("Please fill all fields.");
-  if (end < start) return alert("End date must be after or same as start date.");
-
-  const newRequest = { staffName: name, staffID: id, startDate: start, endDate: end };
-  const requests = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
-  requests.push(newRequest);
-  localStorage.setItem("leaveRequests", JSON.stringify(requests));
-
-  renderCalendar(currentYear, currentMonth);
-  e.target.reset();
-  alert("Leave request submitted!");
-}
-
+// Minimal calendar-ready init
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".Team-btn").forEach((btn, index) => {
     btn.addEventListener("click", () => selectTeam(index + 1));
   });
   document.getElementById("prevMonthBtn").addEventListener("click", prevMonth);
   document.getElementById("nextMonthBtn").addEventListener("click", nextMonth);
-  document.getElementById("leaveForm").addEventListener("submit", submitLeaveRequest);
   renderCalendar(currentYear, currentMonth);
 });
