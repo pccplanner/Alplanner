@@ -43,10 +43,9 @@ function renderCalendar(year, month) {
   container.innerHTML = "";
 
   const all = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
-  const approved = all.filter(req => req.status === "Approved");
-
   const dateCounts = {};
-  approved.forEach(req => {
+
+  all.forEach(req => {
     let d = new Date(req.startDate);
     const end = new Date(req.endDate);
     while (d <= end) {
@@ -81,13 +80,15 @@ function renderCalendar(year, month) {
       const shift = getShiftForDate(dateObj);
 
       let html = `<div class="date-box ${shift}">${currentDay}</div>`;
-      const matches = approved.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
+      const matches = all.filter(req => dateStr >= req.startDate && dateStr <= req.endDate);
+
       matches.forEach(req => {
-        html += `<div class="leave-info">${req.staffName} (${req.staffID})</div>`;
+        const statusClass = req.status === "Approved" ? "" : "pending";
+        html += `<div class="leave-info ${statusClass}">${req.staffName} (${req.staffID})</div>`;
       });
 
       if (dateCounts[dateStr] > 2) {
-        html += `<div class="flag" title="More than 2 on leave"></div>`;
+        html += `<div class="flag" title="More than 2 leave requests"></div>`;
       }
 
       cell.innerHTML = html;
