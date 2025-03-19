@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Leave Booking System – Role-Based Access (No LocalStorage)</title>
+  <title>Leave Booking System – Role-Based Access</title>
   <style>
     /* General styling */
     body {
@@ -251,7 +251,7 @@
 <body>
   <h1>Leave Booking System</h1>
   
-  <!-- Role Area -->
+  <!-- Role Selection and Login Section -->
   <div id="roleArea">
     <h2>Select Your Role</h2>
     <select id="roleSelect">
@@ -342,9 +342,7 @@
   </section>
   
   <script>
-    // ------------------------------
     // Helper functions for cookies
-    // ------------------------------
     function setCookie(cname, cvalue, exdays) {
       const d = new Date();
       d.setTime(d.getTime() + (exdays*24*60*60*1000));
@@ -364,24 +362,13 @@
       return "";
     }
     
-    // ------------------------------
-    // Global variables for data (in-memory)
-    // ------------------------------
-    let leaveRequests = [];   // All leave requests stored in memory
-    let staffData = null;     // Staff info
-    
-    // ------------------------------
-    // Check cookie on page load
-    // ------------------------------
+    // Check cookie on page load and display sections accordingly
     window.onload = function() {
       const role = getCookie("role");
       if (role === "admin") {
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
-        renderCalendar(currentYear, currentMonth);
-        renderManagerSummary();
-        renderStaffSummary();
       } else if (role === "staff") {
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "none";
@@ -389,9 +376,7 @@
       }
     };
     
-    // ------------------------------
     // Role selection and login handling
-    // ------------------------------
     document.getElementById("proceedBtn").addEventListener("click", function() {
       const selectedRole = document.getElementById("roleSelect").value;
       if (selectedRole === "admin") {
@@ -407,29 +392,26 @@
     document.getElementById("loginBtn").addEventListener("click", function() {
       const loginId = document.getElementById("loginId").value;
       const loginPassword = document.getElementById("loginPassword").value;
-      // Demo credentials: "admin" / "password"
+      // Demo credentials: loginId "admin" and password "password"
       if (loginId === "admin" && loginPassword === "password") {
         setCookie("role", "admin", 1);
         document.getElementById("staffArea").style.display = "block";
         document.getElementById("adminSections").style.display = "block";
         document.getElementById("roleArea").style.display = "none";
-        renderCalendar(currentYear, currentMonth);
-        renderManagerSummary();
-        renderStaffSummary();
       } else {
         document.getElementById("loginMessage").textContent = "Invalid credentials.";
       }
     });
     
-    // ------------------------------
-    // Staff Data and Leave Request Submission
-    // ------------------------------
+    /* ------------------------------
+       STAFF DATA & LEAVE REQUEST
+       ------------------------------ */
     document.getElementById("staffDataForm").addEventListener("submit", function(e) {
       e.preventDefault();
-      staffData = {
-        name: document.getElementById("staffName").value,
-        id: document.getElementById("staffID").value
-      };
+      const staffName = document.getElementById("staffName").value;
+      const staffID = document.getElementById("staffID").value;
+      const staffData = { name: staffName, id: staffID };
+      localStorage.setItem("staffData", JSON.stringify(staffData));
       document.getElementById("staffStatus").textContent = "Staff data saved.";
     });
     
@@ -441,6 +423,7 @@
         alert("Start date cannot be after end date.");
         return;
       }
+      const staffData = JSON.parse(localStorage.getItem("staffData"));
       if (!staffData) {
         alert("Please save your staff data first.");
         return;
@@ -454,7 +437,9 @@
         staffID: staffData.id,
         status: "pending"
       };
-      leaveRequests.push(newRequest);
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      requests.push(newRequest);
+      localStorage.setItem("leaveRequests", JSON.stringify(requests));
       alert("Leave request submitted.");
       renderCalendar(currentYear, currentMonth);
       renderManagerSummary();
@@ -462,16 +447,16 @@
       e.target.reset();
     });
     
-    // ------------------------------
-    // Calendar and Shift Pattern
-    // ------------------------------
+    /* ------------------------------
+       SHIFT PATTERN & CALENDAR RENDERING
+       ------------------------------ */
     let selectedTeam = 1;
     const TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["off", "off", "morning", "morning", "night", "night"],
       3: ["night", "night", "off", "off", "morning", "morning"]
     };
-    const referenceDate = new Date(2025, 2, 1); // 1 March 2025
+    const referenceDate = new Date(2025, 2, 1);
     function daysBetween(d1, d2) {
       const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
@@ -517,6 +502,7 @@
       const prevMonthDays = new Date(year, month, 0).getDate();
       const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
       let currentDay = 1;
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       for (let i = 0; i < totalCells; i++) {
         if (i % 7 === 0) {
           var row = document.createElement("div");
@@ -533,7 +519,7 @@
           const cellDateStr = formatDateLocal(dateObj);
           const shift = getShiftForDate(dateObj);
           let cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
-          let reqsForDay = leaveRequests.filter(req => cellDateStr >= req.startDate && cellDateStr <= req.endDate);
+          let reqsForDay = requests.filter(req => cellDateStr >= req.startDate && cellDateStr <= req.endDate);
           reqsForDay.forEach((req, index) => {
             let flaggedClass = index >= 2 ? 'flagged' : '';
             cellContent += `<div class="leave-info ${flaggedClass}">${req.staffName} (${req.staffID})</div>`;
@@ -562,12 +548,13 @@
       renderStaffSummary();
     }
     
-    // ------------------------------
-    // Manager Summary Rendering (Admin Only)
-    // ------------------------------
+    /* ------------------------------
+       6. MANAGER SUMMARY RENDERING
+       ------------------------------ */
     function renderManagerSummary() {
       const adminDiv = document.getElementById("adminSummary");
-      if (leaveRequests.length === 0) {
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      if (requests.length === 0) {
         adminDiv.innerHTML = "<p>No leave requests found.</p>";
         return;
       }
@@ -582,7 +569,7 @@
           </tr>
         </thead>
         <tbody>`;
-      leaveRequests.forEach(req => {
+      requests.forEach(req => {
         html += `<tr>
           <td>${req.staffName} (${req.staffID})</td>
           <td>${req.startDate}</td>
@@ -601,37 +588,44 @@
       adminDiv.innerHTML = html;
     }
     function deleteRequest(requestID) {
-      leaveRequests = leaveRequests.filter(req => req.id !== requestID);
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      requests = requests.filter(req => req.id !== requestID);
+      localStorage.setItem("leaveRequests", JSON.stringify(requests));
       renderCalendar(currentYear, currentMonth);
       renderManagerSummary();
       renderStaffSummary();
     }
     function approveRequest(requestID) {
-      let index = leaveRequests.findIndex(req => req.id === requestID);
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      let index = requests.findIndex(req => req.id === requestID);
       if (index >= 0) {
-        leaveRequests[index].status = "approved";
+        requests[index].status = "approved";
+        localStorage.setItem("leaveRequests", JSON.stringify(requests));
         renderCalendar(currentYear, currentMonth);
         renderManagerSummary();
         renderStaffSummary();
       }
     }
     function rejectRequest(requestID) {
-      let index = leaveRequests.findIndex(req => req.id === requestID);
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      let index = requests.findIndex(req => req.id === requestID);
       if (index >= 0) {
-        leaveRequests[index].status = "rejected";
+        requests[index].status = "rejected";
+        localStorage.setItem("leaveRequests", JSON.stringify(requests));
         renderCalendar(currentYear, currentMonth);
         renderManagerSummary();
         renderStaffSummary();
       }
     }
     
-    // ------------------------------
-    // Staff Summary (WhatsApp) Rendering (Admin Only)
-    // ------------------------------
+    /* ------------------------------
+       7. STAFF SUMMARY (WhatsApp)
+       ------------------------------ */
     function renderStaffSummary() {
       const summaryDiv = document.getElementById("staffSummaryDiv");
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
       let groups = {};
-      leaveRequests.forEach(req => {
+      requests.forEach(req => {
         if (!groups[req.staffID]) {
           groups[req.staffID] = { name: req.staffName, requests: [] };
         }
@@ -657,8 +651,10 @@
       html += `</tbody></table>`;
       summaryDiv.innerHTML = html;
     }
+    
     function sendWhatsAppForStaff(staffID, staffName) {
-      let staffReqs = leaveRequests.filter(req => req.staffID === staffID);
+      let requests = JSON.parse(localStorage.getItem("leaveRequests")) || [];
+      let staffReqs = requests.filter(req => req.staffID === staffID);
       if (staffReqs.length === 0) {
         alert("No leave requests found for this staff.");
         return;
@@ -671,9 +667,9 @@
       window.open(url, '_blank');
     }
     
-    // ------------------------------
-    // INITIAL RENDER
-    // ------------------------------
+    /* ------------------------------
+       INITIAL RENDER
+       ------------------------------ */
     renderCalendar(currentYear, currentMonth);
     renderManagerSummary();
     renderStaffSummary();
