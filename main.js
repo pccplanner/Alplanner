@@ -30,13 +30,6 @@ function selectTeam(teamNumber) {
   renderCalendar(currentYear, currentMonth);
 }
 
-function formatDateLocal(dateObj) {
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function renderCalendar(year, month) {
   document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
   const container = document.getElementById("plannerContainer");
@@ -74,7 +67,6 @@ function renderCalendar(year, month) {
     } else if (currentDay <= daysInMonth) {
       const dateObj = new Date(year, month, currentDay);
       const shift = getShiftForDate(dateObj);
-      console.log("Date:", dateObj.toDateString(), "Shift:", shift);  // Debug log
       const cellContent = `<div class="date-box ${shift}">${currentDay}</div>`;
       cell.innerHTML = cellContent;
       currentDay++;
