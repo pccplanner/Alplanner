@@ -5,12 +5,9 @@
   <title>Leave Booking System (Single File)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
-    /* ====== PAGE / LAYOUT ====== */
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      margin: 0; padding: 10px;
-      background: #f4f4f4; color: #333;
-      font-size: 14px;
+      font-family: Arial, sans-serif; margin: 0; padding: 10px;
+      background: #f4f4f4; color: #333; font-size: 14px;
     }
     h1 {
       text-align: center; margin: 0.5em 0; font-size: 22px;
@@ -20,11 +17,8 @@
       background: #fff; padding: 10px; border-radius: 6px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    .header {
-      text-align: center; margin-bottom: 10px;
-    }
 
-    /* ====== FORM STYLES ====== */
+    /* FORM */
     #leaveForm {
       display: flex; flex-wrap: wrap;
       gap: 8px; justify-content: center;
@@ -45,7 +39,7 @@
       border: 1px solid #ccc; border-radius: 4px;
     }
 
-    /* ====== TEAM BUTTONS ====== */
+    /* TEAM BUTTONS */
     .team-buttons {
       text-align: center; margin: 10px 0;
     }
@@ -55,36 +49,31 @@
       cursor: pointer; color: #fff; 
       transition: opacity 0.2s;
     }
-    .team-buttons button:hover { 
-      opacity: 0.9;
-    }
-    .team-a { background:#228B22; } /* Forest Green */
+    .team-buttons button:hover { opacity: 0.9; }
+    .team-a { background:#228B22; }
     .team-b { background:#0066cc; }
     .team-c { background:#9C27B0; }
 
-    /* ====== NAVIGATION / LABEL ====== */
+    /* NAVIGATION */
     .month-nav {
       display: flex; justify-content: center; align-items: center; 
-      margin: 10px 0;
-      gap: 10px;
+      margin: 10px 0; gap: 10px;
     }
     .month-nav button {
       padding: 4px 12px; font-size: 14px; cursor: pointer;
       border: none; border-radius: 4px; background: #666; color: #fff;
     }
     .month-nav button:hover { opacity: 0.9; }
-    #monthLabel {
-      font-weight: bold; font-size: 14px;
-    }
+    #monthLabel { font-weight: bold; font-size: 14px; }
 
-    /* ====== CALENDAR ====== */
+    /* CALENDAR */
     .calendar-header {
       text-align: center; margin: 10px 0;
       font-weight: bold; font-size: 16px;
     }
     #calendarGrid {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(7,1fr);
       gap: 2px;
       max-width: 700px; margin: 0 auto 10px auto;
     }
@@ -116,7 +105,7 @@
       position: absolute; top: 4px; right: 4px;
     }
 
-    /* ====== ADMIN SUMMARY ====== */
+    /* ADMIN SUMMARY */
     #adminSummary {
       margin-top: 10px; 
       background: #fff; 
@@ -132,6 +121,14 @@
     .admin-card select {
       margin-left: 6px;
     }
+    .whatsapp-btn {
+      background: #25D366; color: #fff;
+      border: none; border-radius: 4px;
+      padding: 6px 12px; cursor: pointer;
+      margin-top: 6px;
+      display: inline-block;
+    }
+    .whatsapp-btn:hover { opacity: 0.9; }
 
     .footer {
       text-align: center; color: #999; font-size: 11px; margin-top: 10px;
@@ -140,10 +137,8 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>Leave Booking System (Single File)</h1>
-      <p style="font-size:12px; color:#666; margin:0;">v2.4 — Shift box top only, date fix, improved UI</p>
-    </div>
+    <h1>Leave Booking System (Single File)</h1>
+    <p style="font-size:12px; color:#666; margin:0;">v2.5 — WhatsApp future leaves, shift top bar, date fix</p>
 
     <!-- LEAVE REQUEST FORM -->
     <form id="leaveForm">
@@ -164,7 +159,7 @@
     <!-- MONTH NAVIGATION -->
     <div class="month-nav">
       <button onclick="prevMonth()">←</button>
-      <span id="monthLabel"></span>
+      <span id="monthLabel">Loading...</span>
       <button onclick="nextMonth()">→</button>
     </div>
 
@@ -176,9 +171,10 @@
     <div id="adminSummary">
       <h3>Admin Summary</h3>
       <div id="adminList"></div>
+      <button class="whatsapp-btn" onclick="sendWhatsApp()">Send Future Leaves via WhatsApp</button>
     </div>
     <div class="footer">
-      &copy; 2025. Single-file. All features intact.
+      &copy; 2025. Single-file. All features + WhatsApp.
     </div>
   </div>
 
@@ -201,7 +197,7 @@
     function getShift(d){
       const diff=daysBetween(referenceDate,d);
       const dayIndex=((diff%6)+6)%6;
-      return TeamPatterns[selectedTeam][dayIndex]; // "morning","night","off"
+      return TeamPatterns[selectedTeam][dayIndex]; 
     }
 
     /* LEAVE REQUESTS STORAGE */
@@ -220,7 +216,6 @@
       grid.innerHTML="";
 
       const requests=loadRequests();
-      // offset
       const firstDay=new Date(currentYear,currentMonth,1);
       const offset=(firstDay.getDay()+6)%7;
       const daysInMonth=new Date(currentYear,currentMonth+1,0).getDate();
@@ -233,7 +228,6 @@
 
       for(let d=1; d<=daysInMonth; d++){
         const dateObj=new Date(currentYear,currentMonth,d);
-        // build dateStr manually to avoid timezone shift
         const dateStr= `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
 
         const cell=document.createElement("div");
@@ -249,7 +243,7 @@
         shiftBox.textContent=d;
         cell.appendChild(shiftBox);
 
-        // requests for that day
+        // filter requests
         const dailyReqs= requests.filter(r=> dateStr>=r.startDate && dateStr<=r.endDate);
         const nonRejected= dailyReqs.filter(r=> r.status!=="Rejected").length;
         if(nonRejected>2){
@@ -291,7 +285,8 @@
         `;
         adminList.appendChild(div);
       });
-      // handle status
+
+      // handle status changes
       adminList.querySelectorAll("select").forEach(sel=>{
         sel.onchange=()=>{
           const i= sel.dataset.idx;
@@ -347,6 +342,29 @@
       currentMonth++;
       if(currentMonth>11){ currentMonth=0; currentYear++; }
       renderCalendar();
+    }
+
+    // WHATSAPP FUTURE LEAVES
+    function sendWhatsApp(){
+      const arr=loadRequests();
+      const today=new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth()+1).padStart(2,'0');
+      const dd = String(today.getDate()).padStart(2,'0');
+      const todayStr=`${yyyy}-${mm}-${dd}`;
+
+      // Filter: endDate >= today
+      const future = arr.filter(r=> r.endDate >= todayStr);
+      if(future.length===0) {
+        alert("No current/future leave requests found.");
+        return;
+      }
+      let msg="Current/Future Leaves:\n";
+      future.forEach(r=>{
+        msg+=`${r.staffName} (${r.staffID}): ${r.startDate} → ${r.endDate} [${r.status}]\n`;
+      });
+      const link="https://wa.me/?text="+encodeURIComponent(msg);
+      window.open(link,"_blank");
     }
 
     // INIT
