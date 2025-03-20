@@ -5,95 +5,182 @@
   <title>Leave Booking System (Single File)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
+    /* ====== PAGE / LAYOUT ====== */
     body {
-      font-family: Arial, sans-serif; margin: 0; padding: 10px;
-      background: #f4f4f4; color: #333; font-size: 14px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 0; padding: 10px;
+      background: #f4f4f4; color: #333;
+      font-size: 14px;
     }
     h1 {
-      text-align: center; margin: 0.5em 0; font-size: 20px;
+      text-align: center; margin: 0.5em 0; font-size: 22px;
     }
-    form {
-      display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px;
+    .container {
+      max-width: 800px; margin: 0 auto;
+      background: #fff; padding: 10px; border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    form input, form button {
+    .header {
+      text-align: center; margin-bottom: 10px;
+    }
+
+    /* ====== FORM STYLES ====== */
+    #leaveForm {
+      display: flex; flex-wrap: wrap;
+      gap: 8px; justify-content: center;
+      margin-bottom: 10px;
+    }
+    #leaveForm input, #leaveForm button {
       font-size: 14px; padding: 6px;
     }
-    form button {
-      background: #4CAF50; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    #leaveForm button {
+      background: #4CAF50; color: #fff;
+      border: none; border-radius: 4px;
+      cursor: pointer; transition: background 0.2s;
     }
-    .team-buttons { text-align: center; margin: 6px 0; }
+    #leaveForm button:hover {
+      background: #45a049;
+    }
+    #leaveForm input {
+      border: 1px solid #ccc; border-radius: 4px;
+    }
+
+    /* ====== TEAM BUTTONS ====== */
+    .team-buttons {
+      text-align: center; margin: 10px 0;
+    }
     .team-buttons button {
-      margin: 0 5px; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; color: #fff; background: #555;
+      margin: 0 5px; padding: 6px 12px;
+      border: none; border-radius: 4px;
+      cursor: pointer; color: #fff; 
+      transition: opacity 0.2s;
     }
-    .month-nav { text-align: center; margin: 10px 0; }
-    .month-nav button { padding: 4px 10px; margin: 0 8px; font-size: 14px; }
-    #monthLabel { font-weight: bold; margin: 0 5px; }
-    #calendar {
-      display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; max-width: 700px; margin: 0 auto 10px auto;
+    .team-buttons button:hover { 
+      opacity: 0.9;
+    }
+    .team-a { background:#228B22; } /* Forest Green */
+    .team-b { background:#0066cc; }
+    .team-c { background:#9C27B0; }
+
+    /* ====== NAVIGATION / LABEL ====== */
+    .month-nav {
+      display: flex; justify-content: center; align-items: center; 
+      margin: 10px 0;
+      gap: 10px;
+    }
+    .month-nav button {
+      padding: 4px 12px; font-size: 14px; cursor: pointer;
+      border: none; border-radius: 4px; background: #666; color: #fff;
+    }
+    .month-nav button:hover { opacity: 0.9; }
+    #monthLabel {
+      font-weight: bold; font-size: 14px;
+    }
+
+    /* ====== CALENDAR ====== */
+    .calendar-header {
+      text-align: center; margin: 10px 0;
+      font-weight: bold; font-size: 16px;
+    }
+    #calendarGrid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      max-width: 700px; margin: 0 auto 10px auto;
     }
     .day-cell {
-      background: #fff; position: relative; min-height: 70px; border: 1px solid #ccc;
-      font-size: 12px; padding: 4px; display: flex; flex-direction: column; justify-content: flex-start;
+      background: #fff; position: relative;
+      min-height: 70px; border: 1px solid #ccc;
+      font-size: 12px; padding: 4px;
+      display: flex; flex-direction: column;
+      justify-content: flex-start;
+      border-radius: 4px;
     }
     .shift-box {
-      font-weight: bold; color: #fff; padding: 2px 4px; margin-bottom: 3px; border-radius: 3px;
+      font-weight: bold; color: #fff;
+      padding: 2px 4px; margin-bottom: 3px;
+      border-radius: 3px; text-align: center;
     }
     .shift-morning { background-color: #228B22; }
     .shift-night   { background-color: #90EE90; color:#000; }
     .shift-off     { background-color: #ddd; color:#000; }
     .leave-entry {
-      background: #fff9c4; margin: 2px 0; padding: 2px 4px; border-radius: 3px;
+      background: #fff9c4; margin: 2px 0; 
+      padding: 2px 4px; border-radius: 3px;
     }
     .leave-entry.approved { background: #c8e6c9; font-weight: bold; }
     .leave-entry.rejected { background: #f8d7da; color: #721c24; text-decoration: line-through; }
     .red-dot {
-      width: 8px; height: 8px; background: red; border-radius: 50%; position: absolute; top: 4px; right: 4px;
+      width: 8px; height: 8px;
+      background: red; border-radius: 50%;
+      position: absolute; top: 4px; right: 4px;
     }
+
+    /* ====== ADMIN SUMMARY ====== */
     #adminSummary {
-      max-width: 700px; margin: 0 auto; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 8px;
+      margin-top: 10px; 
+      background: #fff; 
+      border: 1px solid #ccc;
+      border-radius: 4px; 
+      padding: 8px;
     }
     .admin-card {
-      background: #f1f1f1; margin: 4px 0; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;
+      background: #f1f1f1; margin: 4px 0;
+      padding: 6px; border: 1px solid #ddd;
+      border-radius: 4px; font-size: 12px;
     }
-    .footer { text-align: center; color: #999; font-size: 11px; margin-top: 10px; }
+    .admin-card select {
+      margin-left: 6px;
+    }
+
+    .footer {
+      text-align: center; color: #999; font-size: 11px; margin-top: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Leave Booking System (Single File)</h1>
+  <div class="container">
+    <div class="header">
+      <h1>Leave Booking System (Single File)</h1>
+      <p style="font-size:12px; color:#666; margin:0;">v2.4 — Shift box top only, date fix, improved UI</p>
+    </div>
 
-  <!-- LEAVE REQUEST FORM -->
-  <form id="leaveForm">
-    <input type="text" id="staffName" placeholder="Staff Name" required>
-    <input type="text" id="staffID" placeholder="Staff ID" required>
-    <input type="date" id="startDate" required>
-    <input type="date" id="endDate" required>
-    <button type="submit">Submit</button>
-  </form>
+    <!-- LEAVE REQUEST FORM -->
+    <form id="leaveForm">
+      <input type="text" id="staffName" placeholder="Staff Name" required>
+      <input type="text" id="staffID" placeholder="Staff ID" required>
+      <input type="date" id="startDate" required>
+      <input type="date" id="endDate" required>
+      <button type="submit">Submit</button>
+    </form>
 
-  <!-- TEAM SHIFT BUTTONS -->
-  <div class="team-buttons">
-    <button style="background:#228B22" onclick="selectTeam(1)">Team A</button>
-    <button style="background:#0066cc" onclick="selectTeam(2)">Team B</button>
-    <button style="background:#9C27B0" onclick="selectTeam(3)">Team C</button>
+    <!-- TEAM SHIFT BUTTONS -->
+    <div class="team-buttons">
+      <button class="team-a" onclick="selectTeam(1)">Team A</button>
+      <button class="team-b" onclick="selectTeam(2)">Team B</button>
+      <button class="team-c" onclick="selectTeam(3)">Team C</button>
+    </div>
+
+    <!-- MONTH NAVIGATION -->
+    <div class="month-nav">
+      <button onclick="prevMonth()">←</button>
+      <span id="monthLabel"></span>
+      <button onclick="nextMonth()">→</button>
+    </div>
+
+    <!-- CALENDAR -->
+    <div class="calendar-header">Shift Calendar</div>
+    <div id="calendarGrid"></div>
+
+    <!-- ADMIN SUMMARY -->
+    <div id="adminSummary">
+      <h3>Admin Summary</h3>
+      <div id="adminList"></div>
+    </div>
+    <div class="footer">
+      &copy; 2025. Single-file. All features intact.
+    </div>
   </div>
-
-  <!-- MONTH NAVIGATION -->
-  <div class="month-nav">
-    <button onclick="prevMonth()">←</button>
-    <span id="monthLabel">Loading...</span>
-    <button onclick="nextMonth()">→</button>
-  </div>
-
-  <!-- CALENDAR -->
-  <div id="calendar"></div>
-
-  <!-- ADMIN SUMMARY -->
-  <div id="adminSummary">
-    <h3>Admin Summary</h3>
-    <div id="adminList"></div>
-  </div>
-
-  <div class="footer">v2.4 - Single file, shift top box, all features intact</div>
 
   <script>
     /* SHIFT PATTERNS */
@@ -114,71 +201,72 @@
     function getShift(d){
       const diff=daysBetween(referenceDate,d);
       const dayIndex=((diff%6)+6)%6;
-      return TeamPatterns[selectedTeam][dayIndex];
+      return TeamPatterns[selectedTeam][dayIndex]; // "morning","night","off"
     }
 
-    /* LOCAL STORAGE for leave requests */
+    /* LEAVE REQUESTS STORAGE */
     function loadRequests(){ return JSON.parse(localStorage.getItem("leaveRequests")||"[]"); }
     function saveRequests(arr){ localStorage.setItem("leaveRequests", JSON.stringify(arr)); }
 
     /* MONTH STATE */
-    let currentYear = 2025;
-    let currentMonth= 2; // March
+    let currentYear=2025;
+    let currentMonth=2; // 2=March
 
     function renderCalendar(){
       const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
-      document.getElementById("monthLabel").textContent = monthNames[currentMonth]+" "+currentYear;
+      document.getElementById("monthLabel").textContent= monthNames[currentMonth]+" "+currentYear;
 
-      const calendar=document.getElementById("calendar");
-      calendar.innerHTML="";
+      const grid=document.getElementById("calendarGrid");
+      grid.innerHTML="";
 
       const requests=loadRequests();
+      // offset
       const firstDay=new Date(currentYear,currentMonth,1);
       const offset=(firstDay.getDay()+6)%7;
       const daysInMonth=new Date(currentYear,currentMonth+1,0).getDate();
 
-      // fill blank
       for(let i=0;i<offset;i++){
         const blank=document.createElement("div");
         blank.className="day-cell";
-        calendar.appendChild(blank);
+        grid.appendChild(blank);
       }
 
       for(let d=1; d<=daysInMonth; d++){
         const dateObj=new Date(currentYear,currentMonth,d);
-        const dateStr=dateObj.toISOString().split("T")[0];
-        const dayCell=document.createElement("div");
-        dayCell.className="day-cell";
+        // build dateStr manually to avoid timezone shift
+        const dateStr= `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+
+        const cell=document.createElement("div");
+        cell.className="day-cell";
 
         // SHIFT BOX
-        const shift=getShift(dateObj);
         const shiftBox=document.createElement("div");
         shiftBox.className="shift-box";
+        const shift=getShift(dateObj);
         if(shift==="morning") shiftBox.classList.add("shift-morning");
         if(shift==="night")   shiftBox.classList.add("shift-night");
         if(shift==="off")     shiftBox.classList.add("shift-off");
         shiftBox.textContent=d;
-        dayCell.appendChild(shiftBox);
+        cell.appendChild(shiftBox);
 
-        // find requests for that day
-        const dailyReqs=requests.filter(r=> dateStr>=r.startDate && dateStr<=r.endDate);
-        const nonRejected=dailyReqs.filter(r=> r.status!=="Rejected").length;
+        // requests for that day
+        const dailyReqs= requests.filter(r=> dateStr>=r.startDate && dateStr<=r.endDate);
+        const nonRejected= dailyReqs.filter(r=> r.status!=="Rejected").length;
         if(nonRejected>2){
           const dot=document.createElement("div");
           dot.className="red-dot";
-          dayCell.appendChild(dot);
+          cell.appendChild(dot);
         }
-        // add each request
         dailyReqs.forEach(r=>{
           const e=document.createElement("div");
           e.className="leave-entry";
           if(r.status==="Approved") e.classList.add("approved");
           if(r.status==="Rejected") e.classList.add("rejected");
           e.textContent=`${r.staffName} (${r.staffID})`;
-          dayCell.appendChild(e);
+          cell.appendChild(e);
         });
 
-        calendar.appendChild(dayCell);
+        grid.appendChild(cell);
       }
       renderAdmin();
     }
@@ -203,13 +291,12 @@
         `;
         adminList.appendChild(div);
       });
-
       // handle status
       adminList.querySelectorAll("select").forEach(sel=>{
         sel.onchange=()=>{
-          const i=sel.dataset.idx;
-          let all=loadRequests();
-          all[i].status=sel.value;
+          const i= sel.dataset.idx;
+          let all= loadRequests();
+          all[i].status= sel.value;
           saveRequests(all);
           renderCalendar();
         };
@@ -218,7 +305,7 @@
       adminList.querySelectorAll("button[data-del]").forEach(btn=>{
         btn.onclick=()=>{
           const i=btn.dataset.del;
-          let all=loadRequests();
+          let all= loadRequests();
           all.splice(i,1);
           saveRequests(all);
           renderCalendar();
@@ -262,7 +349,7 @@
       renderCalendar();
     }
 
-    // ON LOAD
+    // INIT
     renderCalendar();
   </script>
 </body>
