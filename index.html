@@ -6,19 +6,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body {
-      font-family: Arial, sans-serif; background: #f5f7fa; margin: 0; padding: 10px; font-size: 13px; color: #333; display: flex;
+      font-family: Arial, sans-serif; background: #f5f7fa; margin: 0; padding: 10px; font-size: 13px; color: #333;
     }
-    .container { display: flex; max-width: 1200px; margin: 0 auto; gap: 10px; }
+    .container { max-width: 1200px; margin: 0 auto; display: flex; gap: 10px; }
+    .user-view, .admin-view { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
-    /* Sidebar */
-    .sidebar { width: 250px; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .sidebar h2 { font-size: 16px; margin: 0 0 10px; color: #2c3e50; }
-    .staff-list { max-height: 200px; overflow-y: auto; }
-    .staff-item { padding: 5px; background: #ecf0f1; margin: 2px 0; border-radius: 4px; cursor: move; display: flex; align-items: center; gap: 5px; }
-    .staff-item span { font-weight: 600; }
-    .staff-initials { width: 20px; height: 20px; background: #3498db; color: #fff; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; }
-    .admin-panel { margin-top: 10px; }
-    .admin-panel h3 { font-size: 14px; margin: 0 0 5px; }
+    /* User View */
+    .user-view { width: 400px; }
+    h1 { text-align: center; font-size: 18px; margin: 5px 0; color: #2c3e50; }
+    p.version { text-align: center; font-size: 11px; color: #7f8c8d; margin: 0 0 10px; }
+    #leaveForm { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: #ecf0f1; border-radius: 6px; }
+    #leaveForm label { font-weight: 600; margin-right: 4px; color: #34495e; }
+    #leaveForm input { padding: 5px 8px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 13px; width: 100px; }
+    #leaveForm input::placeholder { color: #95a5a6; }
+    #leaveForm button { padding: 6px 12px; background: #3498db; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+    #leaveForm button:hover { background: #2980b9; }
+
+    /* Admin View */
+    .admin-view { flex: 1; }
+    .team-buttons { text-align: center; margin: 8px 0; }
+    .team-buttons button { padding: 5px 10px; margin: 0 4px; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 12px; }
+    .team-a { background: #27ae60; } .team-b { background: #2980b9; } .team-c { background: #8e44ad; }
+    .team-buttons button:hover { opacity: 0.85; }
+    .month-nav { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 8px 0; }
+    .month-nav button { padding: 4px 10px; background: #7f8c8d; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    .month-nav button:hover { background: #6c7a89; }
+    #monthLabel { font-weight: 600; color: #2c3e50; }
+
+    /* Calendar */
+    #calendarGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .day-cell { background: #fff; border: 1px solid #e0e0e0; min-height: 80px; padding: 3px; border-radius: 4px; position: relative; }
+    .shift-box { font-weight: 600; padding: 2px 4px; border-radius: 3px; text-align: center; margin-bottom: 3px; }
+    .shift-morning { background: #27ae60; color: #fff; }
+    .shift-night { background: #a9dfbf; color: #2c3e50; }
+    .shift-off { background: #dcdcdc; color: #7f8c8d; }
+    .status-bar { height: 8px; display: flex; border-radius: 2px; overflow: hidden; margin-top: 5px; }
+    .status-segment { height: 100%; }
+    .status-segment.pending { background: #e67e22; }
+    .status-segment.approved { background: #27ae60; }
+    .status-segment.rejected { background: #e74c3c; }
+    .status-segment.management { background: #f1c40f; }
+    .red-dot { width: 6px; height: 6px; background: #e74c3c; border-radius: 50%; position: absolute; top: 3px; right: 3px; }
+    .popover { display: none; position: absolute; background: #fff; border: 1px solid #e0e0e0; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 10; font-size: 11px; max-width: 200px; }
+    .popover div { margin: 2px 0; }
+    .popover .approved { color: #27ae60; font-weight: 600; }
+    .popover .rejected { color: #e74c3c; text-decoration: line-through; }
+    .popover .management { color: #f1c40f; }
+
+    /* Admin Sidebar */
+    .admin-sidebar { width: 300px; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); max-height: 600px; overflow-y: auto; }
+    .admin-sidebar h3 { font-size: 14px; margin: 0 0 5px; color: #2c3e50; }
     .request-item { padding: 5px; border: 1px solid #e0e0e0; margin: 5px 0; border-radius: 4px; }
     .request-item span { font-weight: 600; }
     .timeline { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
@@ -30,52 +67,51 @@
     .status-dot.rejected { background: #e74c3c; }
     .status-dot.management { background: #f1c40f; }
 
-    /* Main Content */
-    .main-content { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    h1 { text-align: center; font-size: 18px; margin: 5px 0; color: #2c3e50; }
-    p.version { text-align: center; font-size: 11px; color: #7f8c8d; margin: 0 0 10px; }
-    .month-nav { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 8px 0; }
-    .month-nav button { padding: 4px 10px; background: #7f8c8d; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    .month-nav button:hover { background: #6c7a89; }
-    #monthLabel { font-weight: 600; color: #2c3e50; }
-
-    /* Calendar */
-    #calendarGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-    .day-cell { background: #fff; border: 1px solid #e0e0e0; min-height: 80px; padding: 3px; border-radius: 4px; position: relative; }
-    .day-cell.drop-target { border: 2px dashed #3498db; }
-    .shift-box { font-weight: 600; padding: 2px 4px; border-radius: 3px; text-align: center; margin-bottom: 3px; }
-    .shift-morning { background: #27ae60; color: #fff; }
-    .shift-night { background: #a9dfbf; color: #2c3e50; }
-    .shift-off { background: #dcdcdc; color: #7f8c8d; }
-    .staff-avatars { display: flex; flex-wrap: wrap; gap: 2px; }
-    .avatar { width: 18px; height: 18px; background: #3498db; color: #fff; border-radius: 50%; text-align: center; line-height: 18px; font-size: 10px; }
-    .request-count { position: absolute; top: 3px; right: 3px; background: #e74c3c; color: #fff; border-radius: 50%; width: 16px; height: 16px; line-height: 16px; text-align: center; font-size: 10px; }
-    .popover { display: none; position: absolute; background: #fff; border: 1px solid #e0e0e0; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 10; font-size: 11px; max-width: 200px; }
-    .popover div { margin: 2px 0; }
-    .popover .approved { color: #27ae60; font-weight: 600; }
-    .popover .rejected { color: #e74c3c; text-decoration: line-through; }
-    .popover .management { color: #f1c40f; }
+    .footer { text-align: center; font-size: 10px; color: #95a5a6; margin-top: 10px; }
   </style>
 </head>
 <body>
 <div class="container">
-  <div class="sidebar">
-    <h2>Staff</h2>
-    <div class="staff-list" id="staffList"></div>
-    <div class="admin-panel">
-      <h3>Pending Requests</h3>
-      <div id="adminList"></div>
-    </div>
+  <!-- User View -->
+  <div class="user-view">
+    <h1>Submit Leave Request</h1>
+    <p class="version">v4.1 — User Form Only</p>
+    <form id="leaveForm">
+      <label for="staffName">Name</label>
+      <input type="text" id="staffName" placeholder="Enter full name" required>
+      <label for="staffID">ID</label>
+      <input type="text" id="staffID" placeholder="e.g., S123" required>
+      <label for="startDate">From</label>
+      <input type="date" id="startDate" required>
+      <label for="endDate">To</label>
+      <input type="date" id="endDate" required>
+      <button type="submit">Request Leave</button>
+    </form>
+    <div class="footer">© 2025. For staff use only.</div>
   </div>
-  <div class="main-content">
-    <h1>Staff Leave Calendar</h1>
-    <p class="version">v4.0 — Drag-and-Drop with Avatar Display</p>
+
+  <!-- Admin View -->
+  <div class="admin-view">
+    <h1>Admin Leave Calendar</h1>
+    <p class="version">v4.1 — Status Bars & Sidebar</p>
+    <div class="team-buttons">
+      <button class="team-a" onclick="selectTeam(1)">Team A</button>
+      <button class="team-b" onclick="selectTeam(2)">Team B</button>
+      <button class="team-c" onclick="selectTeam(3)">Team C</button>
+    </div>
     <div class="month-nav">
       <button onclick="prevMonth()">←</button>
       <span id="monthLabel">Loading...</span>
       <button onclick="nextMonth()">→</button>
     </div>
     <div id="calendarGrid"></div>
+    <div class="footer">© 2025. Admin view with status visualization.</div>
+  </div>
+
+  <!-- Admin Sidebar -->
+  <div class="admin-sidebar">
+    <h3>Leave Requests</h3>
+    <div id="adminList"></div>
   </div>
 </div>
 
@@ -90,7 +126,6 @@ var selectedTeam = 1;
 var referenceDate = new Date(2025, 2, 1);
 var requests = [];
 var currentYear = 2025, currentMonth = 2;
-var staffList = ["John Doe (JD01)", "Jane Smith (JS02)", "Mike Tan (MT03)"]; // Example staff, expand as needed
 
 function daysBetween(a, b) {
   var A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -109,20 +144,6 @@ function getShift(d) {
   var diff = daysBetween(referenceDate, d);
   var idx = ((diff % 6) + 6) % 6;
   return TeamPatterns[selectedTeam][idx];
-}
-
-function renderStaffList() {
-  var staffListDiv = document.getElementById("staffList");
-  staffListDiv.innerHTML = "";
-  staffList.forEach(staff => {
-    var [name, id] = staff.match(/(.+) \((.+)\)/).slice(1);
-    var item = document.createElement("div");
-    item.className = "staff-item";
-    item.draggable = true;
-    item.innerHTML = `<div class="staff-initials">${name.split(" ").map(n => n[0]).join("")}</div><span>${name} (${id})</span>`;
-    item.ondragstart = (e) => e.dataTransfer.setData("staff", staff);
-    staffListDiv.appendChild(item);
-  });
 }
 
 function renderCalendar() {
@@ -144,7 +165,6 @@ function renderCalendar() {
     var dateStr = formatDate(dateObj);
     var cell = document.createElement("div");
     cell.className = "day-cell";
-    cell.dataset.date = dateStr;
 
     var shift = getShift(dateObj);
     var shiftBox = document.createElement("div");
@@ -152,8 +172,6 @@ function renderCalendar() {
     shiftBox.textContent = d;
     cell.appendChild(shiftBox);
 
-    var avatars = document.createElement("div");
-    avatars.className = "staff-avatars";
     var dayEntries = [];
     requests.forEach(req => {
       req.days.forEach(day => {
@@ -163,49 +181,37 @@ function renderCalendar() {
       });
     });
 
-    var nonRejected = dayEntries.filter(e => e.status !== "Rejected");
-    if (nonRejected.length > 2) {
-      var count = document.createElement("div");
-      count.className = "request-count";
-      count.textContent = nonRejected.length;
-      cell.appendChild(count);
+    // Status Bar
+    if (dayEntries.length > 0) {
+      var statusCounts = { Pending: 0, Approved: 0, Rejected: 0, Management: 0 };
+      dayEntries.forEach(e => statusCounts[e.status]++);
+      var total = dayEntries.length;
+      var statusBar = document.createElement("div");
+      statusBar.className = "status-bar";
+      for (var status in statusCounts) {
+        if (statusCounts[status] > 0) {
+          var segment = document.createElement("div");
+          segment.className = `status-segment ${status.toLowerCase()}`;
+          segment.style.width = `${(statusCounts[status] / total) * 100}%`;
+          statusBar.appendChild(segment);
+        }
+      }
+      cell.appendChild(statusBar);
     }
 
-    nonRejected.forEach(e => {
-      var avatar = document.createElement("div");
-      avatar.className = "avatar";
-      avatar.textContent = e.staffName.split(" ").map(n => n[0]).join("");
-      avatars.appendChild(avatar);
-    });
-    cell.appendChild(avatars);
+    // Red Dot for > 2 non-rejected
+    var nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
+    if (nonRejected > 2) {
+      cell.appendChild(document.createElement("div")).className = "red-dot";
+    }
 
+    // Popover
     var popover = document.createElement("div");
     popover.className = "popover";
     popover.innerHTML = dayEntries.map(e => `<div class="${e.status.toLowerCase()}">${e.staffName} (${e.staffID}): ${e.status}</div>`).join("");
     cell.appendChild(popover);
-
     cell.onmouseover = () => dayEntries.length > 0 && (popover.style.display = "block");
     cell.onmouseout = () => popover.style.display = "none";
-    cell.ondragover = (e) => { e.preventDefault(); cell.classList.add("drop-target"); };
-    cell.ondragleave = () => cell.classList.remove("drop-target");
-    cell.ondrop = (e) => {
-      e.preventDefault();
-      cell.classList.remove("drop-target");
-      var staff = e.dataTransfer.getData("staff");
-      var [name, id] = staff.match(/(.+) \((.+)\)/).slice(1);
-      var endDate = prompt(`Leave for ${name} (${id}) starting ${dateStr}. Enter end date (YYYY-MM-DD):`, dateStr);
-      if (endDate && endDate >= dateStr) {
-        var d = new Date(dateStr);
-        var end = new Date(endDate);
-        var dayArr = [];
-        while (d <= end) {
-          dayArr.push({ date: formatDate(d), status: "Pending" });
-          d.setDate(d.getDate() + 1);
-        }
-        requests.push({ staffName: name, staffID: id, fromDate: dateStr, toDate: endDate, days: dayArr });
-        renderCalendar();
-      }
-    };
 
     grid.appendChild(cell);
   }
@@ -248,6 +254,35 @@ function renderAdmin() {
   });
 }
 
+function selectTeam(num) {
+  selectedTeam = num;
+  renderCalendar();
+}
+
+document.getElementById("leaveForm").onsubmit = function(e) {
+  e.preventDefault();
+  var name = document.getElementById("staffName").value.trim();
+  var id = document.getElementById("staffID").value.trim();
+  var start = document.getElementById("startDate").value;
+  var end = document.getElementById("endDate").value;
+
+  if (!name || !id || !start || !end) { alert("Please fill all fields."); return; }
+  if (end < start) { alert("End date cannot be before start date."); return; }
+
+  var d = new Date(start);
+  var endDate = new Date(end);
+  var dayArr = [];
+  while (d <= endDate) {
+    dayArr.push({ date: formatDate(d), status: "Pending" });
+    d.setDate(d.getDate() + 1);
+  }
+
+  requests.push({ staffName: name, staffID: id, fromDate: start, toDate: end, days: dayArr });
+  e.target.reset();
+  renderCalendar();
+  alert("Leave request submitted successfully.");
+};
+
 function prevMonth() {
   currentMonth--;
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
@@ -260,10 +295,7 @@ function nextMonth() {
   renderCalendar();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  renderStaffList();
-  renderCalendar();
-});
+document.addEventListener("DOMContentLoaded", renderCalendar);
 </script>
 </body>
 </html>
