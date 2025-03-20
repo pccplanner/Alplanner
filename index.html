@@ -2,218 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Booking System (Single File)</title>
+  <title>Leave Booking System (Day-by-Day Status)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     /* ========== Basic Styles ========== */
     body {
       font-family: "Segoe UI", Arial, sans-serif;
-      margin: 0;
-      padding: 10px;
-      background: #f4f4f4;
-      color: #333;
+      margin: 0; padding: 10px;
+      background: #f4f4f4; color: #333;
       font-size: 14px;
     }
     .container {
-      max-width: 800px;
-      margin: 0 auto;
-      background: #fff;
-      padding: 15px;
-      border-radius: 6px;
+      max-width: 800px; margin: 0 auto;
+      background: #fff; padding: 15px; border-radius: 6px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     h1 { text-align: center; margin-top: 10px; font-size: 20px; }
-    .header p { text-align: center; font-size: 12px; color: #666; margin: 4px 0; }
-    
-    /* ========== Leave Request Form ========== */
+
+    /* ========== Form ========== */
     #leaveForm {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
       margin-bottom: 12px;
     }
     #leaveForm input, #leaveForm button {
-      padding: 6px;
-      font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      padding: 6px; font-size: 14px; border-radius: 4px;
     }
+    #leaveForm input { border: 1px solid #ccc; }
     #leaveForm button {
-      background: #4CAF50;
-      color: #fff;
-      border: none;
-      cursor: pointer;
+      background: #4CAF50; color: #fff; border: none; cursor: pointer;
       transition: background 0.2s;
     }
-    #leaveForm button:hover {
-      background: #45a049;
-    }
-    
-    /* ========== Team Shift Buttons ========== */
+    #leaveForm button:hover { background: #45a049; }
+
+    /* ========== Team Buttons ========== */
     .team-buttons {
-      text-align: center;
-      margin-bottom: 12px;
+      text-align: center; margin-bottom: 12px;
     }
     .team-buttons button {
-      margin: 0 5px;
-      padding: 6px 12px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      color: #fff;
-      transition: opacity 0.2s;
+      margin: 0 5px; padding: 6px 12px; border: none; border-radius: 4px;
+      cursor: pointer; color: #fff; transition: opacity 0.2s;
     }
     .team-buttons button:hover { opacity: 0.9; }
-    .team-a { background: #228B22; } /* Forest Green */
+    .team-a { background: #228B22; }
     .team-b { background: #0066cc; }
     .team-c { background: #9C27B0; }
-    
-    /* ========== Month Navigation ========== */
+
+    /* ========== Month Nav ========== */
     .month-nav {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
+      display: flex; justify-content: center; align-items: center;
+      gap: 10px; margin-bottom: 12px;
     }
     .month-nav button {
-      padding: 4px 12px;
-      font-size: 14px;
-      cursor: pointer;
-      border: none;
-      border-radius: 4px;
-      background: #666;
-      color: #fff;
+      padding: 4px 12px; font-size: 14px; cursor: pointer;
+      border: none; border-radius: 4px; background: #666; color: #fff;
     }
     .month-nav button:hover { opacity: 0.9; }
     #monthLabel { font-weight: bold; font-size: 14px; }
-    
+
     /* ========== Calendar ========== */
     .calendar-header {
-      text-align: center;
-      margin: 10px 0;
-      font-weight: bold;
-      font-size: 16px;
+      text-align: center; margin: 10px 0; font-weight: bold; font-size: 16px;
     }
     #calendarGrid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 2px;
-      max-width: 700px;
-      margin: 0 auto 10px auto;
+      display: grid; grid-template-columns: repeat(7,1fr);
+      gap: 2px; max-width: 700px; margin: 0 auto 10px auto;
     }
     .day-cell {
-      background: #fff;
-      border: 1px solid #ccc;
-      min-height: 70px;
-      padding: 4px;
-      border-radius: 4px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
+      background: #fff; border: 1px solid #ccc; min-height: 70px; padding: 4px;
+      border-radius: 4px; position: relative; display: flex; flex-direction: column;
     }
     .shift-box {
-      font-weight: bold;
-      color: #fff;
-      padding: 2px 4px;
-      border-radius: 3px;
-      text-align: center;
-      margin-bottom: 4px;
-      font-size: 12px;
+      font-weight: bold; color: #fff; padding: 2px 4px;
+      border-radius: 3px; text-align: center; margin-bottom: 4px; font-size: 12px;
     }
     .shift-morning { background-color: #228B22; }
     .shift-night   { background-color: #90EE90; color: #000; }
     .shift-off     { background-color: #ddd; color: #000; }
     .leave-entry {
-      background: #fff9c4;
-      margin: 2px 0;
-      padding: 2px 4px;
-      border-radius: 3px;
-      font-size: 11px;
-      width: 100%;
-      box-sizing: border-box;
+      background: #fff9c4; margin: 2px 0; padding: 2px 4px; border-radius: 3px;
+      font-size: 11px; text-align: left;
     }
-    .leave-entry.approved {
-      background: #c8e6c9;
-      font-weight: bold;
-    }
-    .leave-entry.rejected {
-      background: #f8d7da;
-      color: #721c24;
-      text-decoration: line-through;
-    }
+    .leave-entry.approved    { background: #c8e6c9; font-weight: bold; }
+    .leave-entry.rejected    { background: #f8d7da; color: #721c24; text-decoration: line-through; }
+    .leave-entry.management  { background: #ffeeba; /* optional color for 'Management' */ }
     .red-dot {
-      width: 8px;
-      height: 8px;
-      background: red;
-      border-radius: 50%;
-      position: absolute;
-      top: 4px;
-      right: 4px;
+      width: 8px; height: 8px; background: red; border-radius: 50%;
+      position: absolute; top: 4px; right: 4px;
     }
-    
+
     /* ========== Admin Summary ========== */
     #adminSummary {
-      max-width: 700px;
-      margin: 0 auto;
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 8px;
+      max-width: 700px; margin: 0 auto; background: #fff;
+      border: 1px solid #ccc; border-radius: 4px; padding: 8px;
     }
     .admin-card {
-      background: #f1f1f1;
-      border: 1px solid #ddd;
-      margin: 4px 0;
-      padding: 6px;
-      border-radius: 4px;
-      font-size: 12px;
+      background: #f1f1f1; border: 1px solid #ddd; margin: 4px 0; padding: 6px;
+      border-radius: 4px; font-size: 12px;
     }
-    .admin-card select {
-      margin-left: 6px;
+    .admin-card h4 { margin: 4px 0; font-size: 13px; }
+    .day-row {
+      display: flex; gap: 5px; margin: 4px 0;
+      align-items: center; 
+    }
+    .day-row select {
+      font-size: 12px; padding: 2px; border-radius: 4px; margin-left: 4px;
     }
     .admin-card button {
-      margin-left: 6px;
-      padding: 2px 6px;
-      font-size: 12px;
-      border: none;
-      border-radius: 4px;
-      background: #d9534f;
-      color: #fff;
-      cursor: pointer;
+      margin-left: 6px; padding: 2px 6px; font-size: 12px; border: none;
+      border-radius: 4px; background: #d9534f; color: #fff; cursor: pointer;
     }
     .admin-card button:hover { opacity: 0.9; }
     .whatsapp-btn {
-      background: #25D366;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 12px;
-      cursor: pointer;
-      margin-left: 6px;
+      background: #25D366; color: #fff; border: none; border-radius: 4px;
+      padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 6px;
     }
     .whatsapp-btn:hover { opacity: 0.9; }
-    
-    /* ========== Footer ========== */
-    .footer {
-      text-align: center;
-      color: #999;
-      font-size: 11px;
-      margin-top: 10px;
-    }
+
+    .footer { text-align: center; color: #999; font-size: 11px; margin-top: 10px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>Leave Booking System (Single File)</h1>
-      <p style="font-size:12px; color:#666; margin:0;">v2.4 - Shift box at top only, WhatsApp per request</p>
-    </div>
-    
-    <!-- LEAVE REQUEST FORM -->
+    <h1>Leave Booking System (Day-by-Day)</h1>
+    <p style="text-align:center; font-size:12px; color:#666; margin:0;">
+      v2.5 - Day-level statuses, partial approvals, no auto-approval
+    </p>
+
+    <!-- LEAVE FORM -->
     <form id="leaveForm">
       <input type="text" id="staffName" placeholder="Staff Name" required>
       <input type="text" id="staffID" placeholder="Staff ID" required>
@@ -221,244 +136,279 @@
       <input type="date" id="endDate" required>
       <button type="submit">Submit</button>
     </form>
-    
-    <!-- TEAM SHIFT BUTTONS -->
+
+    <!-- TEAM BUTTONS -->
     <div class="team-buttons">
       <button class="team-a" onclick="selectTeam(1)">Team A</button>
       <button class="team-b" onclick="selectTeam(2)">Team B</button>
       <button class="team-c" onclick="selectTeam(3)">Team C</button>
     </div>
-    
+
     <!-- MONTH NAVIGATION -->
     <div class="month-nav">
       <button onclick="prevMonth()">←</button>
       <span id="monthLabel">Loading...</span>
       <button onclick="nextMonth()">→</button>
     </div>
-    
-    <!-- CALENDAR -->
+
     <div class="calendar-header">Shift Calendar</div>
     <div id="calendarGrid"></div>
-    
-    <!-- ADMIN SUMMARY -->
+
     <div id="adminSummary">
       <h3>Admin Summary</h3>
       <div id="adminList"></div>
     </div>
-    
-    <div class="footer">&copy; 2025. Single-file. v2.4</div>
+
+    <div class="footer">&copy; 2025. Single-file partial approvals, day-by-day statuses.</div>
   </div>
-  
+
   <script>
-    /* ==== SHIFT PATTERNS ==== */
+    /* SHIFT PATTERNS */
     const TeamPatterns = {
       1: ["morning","morning","night","night","off","off"],
       2: ["off","off","morning","morning","night","night"],
       3: ["night","night","off","off","morning","morning"]
     };
     let selectedTeam = 1;
-    const referenceDate = new Date(2025, 2, 1);
-    
-    /* ==== UTILS ==== */
-    function daysBetween(a, b) {
-      const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-      const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
-      return Math.floor((B - A) / (1000 * 60 * 60 * 24));
+    const referenceDate = new Date(2025,2,1);
+
+    function daysBetween(a,b){
+      const A=Date.UTC(a.getFullYear(),a.getMonth(),a.getDate());
+      const B=Date.UTC(b.getFullYear(),b.getMonth(),b.getDate());
+      return Math.floor((B-A)/(1000*60*60*24));
     }
-    function formatDate(dateObj) {
-      const y = dateObj.getFullYear();
-      const m = String(dateObj.getMonth() + 1).padStart(2, "0");
-      const d = String(dateObj.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    }
-    function getShift(dateObj) {
-      const diff = daysBetween(referenceDate, dateObj);
-      const index = ((diff % 6) + 6) % 6;
+    function getShift(d){
+      const diff=daysBetween(referenceDate,d);
+      const index=((diff%6)+6)%6;
       return TeamPatterns[selectedTeam][index];
     }
-    
-    /* ==== LOCAL STORAGE ==== */
-    function loadRequests() {
-      return JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+    function formatDate(d){
+      const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,"0");
+      const dd=String(d.getDate()).padStart(2,"0");
+      return `${y}-${m}-${dd}`;
     }
-    function saveRequests(arr) {
+
+    /* ========== Data Model: day-by-day statuses ========== */
+    /*
+      requests[]: {
+        staffName, staffID, fromDate, toDate,
+        days: [
+          { date: '2025-03-23', status: 'Pending' },
+          { date: '2025-03-24', status: 'Pending' },
+          ...
+        ]
+      }
+    */
+
+    function loadRequests(){
+      return JSON.parse(localStorage.getItem("leaveRequests")||"[]");
+    }
+    function saveRequests(arr){
       localStorage.setItem("leaveRequests", JSON.stringify(arr));
     }
-    
-    /* ==== GLOBAL MONTH STATE ==== */
-    let currentYear = 2025, currentMonth = 2; // March
-    
-    /* ==== RENDER CALENDAR ==== */
-    function renderCalendar() {
-      const monthNames = ["January","February","March","April","May","June",
-                          "July","August","September","October","November","December"];
-      document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
-      const grid = document.getElementById("calendarGrid");
-      grid.innerHTML = "";
-      
-      const requests = loadRequests();
-      const firstDay = new Date(currentYear, currentMonth, 1);
-      const offset = (firstDay.getDay() + 6) % 7;
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      
-      // Fill blank cells
-      for (let i = 0; i < offset; i++) {
-        const blank = document.createElement("div");
-        blank.className = "day-cell";
+
+    /* MONTH STATE */
+    let currentYear=2025, currentMonth=2; // 2=March
+
+    function renderCalendar(){
+      const monthNames=["January","February","March","April","May","June",
+                        "July","August","September","October","November","December"];
+      document.getElementById("monthLabel").textContent= monthNames[currentMonth]+" "+currentYear;
+      const grid=document.getElementById("calendarGrid");
+      grid.innerHTML="";
+
+      const all= loadRequests();
+      const firstDay= new Date(currentYear, currentMonth, 1);
+      const offset= (firstDay.getDay()+6)%7;
+      const daysInMonth= new Date(currentYear, currentMonth+1, 0).getDate();
+
+      // blanks
+      for(let i=0;i<offset;i++){
+        const blank=document.createElement("div");
+        blank.className="day-cell";
         grid.appendChild(blank);
       }
-      
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateObj = new Date(currentYear, currentMonth, d);
-        const dateStr = formatDate(dateObj);
-        const cell = document.createElement("div");
-        cell.className = "day-cell";
-        
-        // SHIFT BOX at top (only small colored box)
-        const shift = getShift(dateObj);
-        const shiftBox = document.createElement("div");
-        shiftBox.className = "shift-box";
-        if (shift === "morning") shiftBox.classList.add("shift-morning");
-        if (shift === "night") shiftBox.classList.add("shift-night");
-        if (shift === "off") shiftBox.classList.add("shift-off");
-        shiftBox.textContent = d; // day number in the box
+
+      for(let d=1; d<=daysInMonth; d++){
+        const dateObj= new Date(currentYear, currentMonth, d);
+        const dateStr= formatDate(dateObj);
+        const cell= document.createElement("div");
+        cell.className="day-cell";
+
+        // SHIFT BOX
+        const shift= getShift(dateObj);
+        const shiftBox= document.createElement("div");
+        shiftBox.className="shift-box";
+        if(shift==="morning") shiftBox.classList.add("shift-morning");
+        if(shift==="night")   shiftBox.classList.add("shift-night");
+        if(shift==="off")     shiftBox.classList.add("shift-off");
+        shiftBox.textContent= d;
         cell.appendChild(shiftBox);
-        
-        // Filter requests for this day
-        const dailyReqs = requests.filter(r => dateStr >= r.startDate && dateStr <= r.endDate);
-        const nonRejectedCount = dailyReqs.filter(r => r.status !== "Rejected").length;
-        if (nonRejectedCount > 2) {
-          const dot = document.createElement("div");
-          dot.className = "red-dot";
+
+        // gather day-level statuses from each request
+        let dayEntries= [];
+        all.forEach(req=>{
+          const dayInfo= req.days.find(dayObj=> dayObj.date===dateStr);
+          if(dayInfo){
+            dayEntries.push({
+              staffName: req.staffName,
+              staffID: req.staffID,
+              status: dayInfo.status
+            });
+          }
+        });
+
+        // red dot if >2 non-rejected
+        const nonRejected= dayEntries.filter(e=> e.status!=="Rejected").length;
+        if(nonRejected>2){
+          const dot= document.createElement("div");
+          dot.className="red-dot";
           cell.appendChild(dot);
         }
-        
-        dailyReqs.forEach(r => {
-          const entry = document.createElement("div");
-          entry.className = "leave-entry";
-          if (r.status === "Approved") entry.classList.add("approved");
-          if (r.status === "Rejected") entry.classList.add("rejected");
-          entry.textContent = `${r.staffName} (${r.staffID})`;
-          cell.appendChild(entry);
+
+        // add each day entry
+        dayEntries.forEach(e=>{
+          const entryDiv= document.createElement("div");
+          entryDiv.className= "leave-entry";
+          if(e.status==="Approved") entryDiv.classList.add("approved");
+          if(e.status==="Rejected") entryDiv.classList.add("rejected");
+          // optional "management" style
+          if(e.status==="Management") entryDiv.classList.add("management");
+          entryDiv.textContent= `${e.staffName} (${e.staffID})`;
+          cell.appendChild(entryDiv);
         });
-        
+
         grid.appendChild(cell);
       }
       renderAdmin();
     }
-    
-    /* ==== RENDER ADMIN SUMMARY ==== */
-    function renderAdmin() {
-      const adminList = document.getElementById("adminList");
-      adminList.innerHTML = "";
-      const arr = loadRequests();
-      arr.forEach((r, idx) => {
-        const card = document.createElement("div");
-        card.className = "admin-card";
-        card.innerHTML = `
-          <strong>${r.staffName}</strong> (${r.staffID})<br>
-          ${r.startDate} → ${r.endDate}<br>
-          Status:
-          <select data-idx="${idx}">
-            <option value="Pending" ${r.status === "Pending" ? "selected" : ""}>Pending</option>
-            <option value="Approved" ${r.status === "Approved" ? "selected" : ""}>Approved</option>
-            <option value="Partially Approved" ${r.status === "Partially Approved" ? "selected" : ""}>Partially Approved</option>
-            <option value="Rejected" ${r.status === "Rejected" ? "selected" : ""}>Rejected</option>
-          </select>
-          <button data-del="${idx}" style="margin-left:6px;">Delete</button>
+
+    function renderAdmin(){
+      const adminList= document.getElementById("adminList");
+      adminList.innerHTML="";
+      const requests= loadRequests();
+      requests.forEach((req, idx)=>{
+        const card= document.createElement("div");
+        card.className="admin-card";
+        let html= `<strong>${req.staffName}</strong> (${req.staffID})<br>
+                   ${req.fromDate} → ${req.toDate}<br>`;
+        html+= `<h4>Day-by-Day Status</h4>`;
+        req.days.forEach((dayObj, i)=>{
+          html+= `
+            <div class="day-row">
+              <span>${dayObj.date}</span>
+              <select data-req="${idx}" data-day="${i}">
+                <option value="Pending"    ${dayObj.status==="Pending"?"selected":""}>Pending</option>
+                <option value="Approved"   ${dayObj.status==="Approved"?"selected":""}>Approved</option>
+                <option value="Rejected"   ${dayObj.status==="Rejected"?"selected":""}>Rejected</option>
+                <option value="Management" ${dayObj.status==="Management"?"selected":""}>Management</option>
+              </select>
+            </div>
+          `;
+        });
+        html+= `
+          <button data-del="${idx}">Delete Request</button>
           <button class="whatsapp-btn" data-ws="${idx}">WhatsApp</button>
         `;
+        card.innerHTML= html;
         adminList.appendChild(card);
       });
-      
-      // Handle status change
-      adminList.querySelectorAll("select").forEach(sel => {
-        sel.onchange = () => {
-          const i = sel.dataset.idx;
-          let all = loadRequests();
-          // If admin sets to Approved, mark entire range as approved.
-          if (sel.value === "Approved") {
-            all[i].status = "Approved";
-          } else if (sel.value === "Rejected") {
-            all[i].status = "Rejected";
-          } else if (sel.value === "Partially Approved") {
-            all[i].status = "Partially Approved";
-          } else {
-            all[i].status = "Pending";
-          }
+
+      // day-level status changes
+      adminList.querySelectorAll("select").forEach(sel=>{
+        sel.onchange= e=>{
+          const reqIndex= e.target.dataset.req;
+          const dayIndex= e.target.dataset.day;
+          let all= loadRequests();
+          all[reqIndex].days[dayIndex].status= e.target.value;
           saveRequests(all);
           renderCalendar();
         };
       });
-      
-      // Handle delete
-      adminList.querySelectorAll("button[data-del]").forEach(btn => {
-        btn.onclick = () => {
-          const i = btn.dataset.del;
-          let all = loadRequests();
-          all.splice(i, 1);
+      // handle delete
+      adminList.querySelectorAll("button[data-del]").forEach(btn=>{
+        btn.onclick= e=>{
+          const i= btn.dataset.del;
+          let all= loadRequests();
+          all.splice(i,1);
           saveRequests(all);
           renderCalendar();
         };
       });
-      
-      // Handle individual WhatsApp button for each request
-      adminList.querySelectorAll("button.whatsapp-btn").forEach(btn => {
-        btn.onclick = () => {
-          const i = btn.dataset.ws;
-          let all = loadRequests();
-          const req = all[i];
-          const msg = `Hello ${req.staffName} (${req.staffID}), your leave from ${req.startDate} to ${req.endDate} is currently "${req.status}".`;
-          const link = "https://wa.me/?text=" + encodeURIComponent(msg);
+      // handle individual WhatsApp
+      adminList.querySelectorAll("button.whatsapp-btn").forEach(btn=>{
+        btn.onclick= e=>{
+          const i= btn.dataset.ws;
+          let all= loadRequests();
+          const req= all[i];
+          // build day-by-day summary
+          let msg= `Hello ${req.staffName} (${req.staffID}), your day-by-day leave status:\\n`;
+          req.days.forEach(dayObj=>{
+            msg+= `• ${dayObj.date}: ${dayObj.status}\\n`;
+          });
+          const link= "https://wa.me/?text="+ encodeURIComponent(msg);
           window.open(link, "_blank");
         };
       });
     }
-    
-    /* ==== FORM SUBMISSION ==== */
-    document.getElementById("leaveForm").addEventListener("submit", e => {
+
+    // SHIFT TEAM SELECT
+    function selectTeam(num){
+      selectedTeam= num;
+      renderCalendar();
+    }
+
+    // FORM SUBMIT
+    document.getElementById("leaveForm").onsubmit= e=>{
       e.preventDefault();
-      const name = document.getElementById("staffName").value.trim();
-      const id = document.getElementById("staffID").value.trim();
-      const start = document.getElementById("startDate").value;
-      const end = document.getElementById("endDate").value;
-      if (!name || !id || !start || !end) {
-        alert("All fields required");
-        return;
+      const name= document.getElementById("staffName").value.trim();
+      const id= document.getElementById("staffID").value.trim();
+      const start= document.getElementById("startDate").value;
+      const end= document.getElementById("endDate").value;
+      if(!name||!id||!start||!end) return alert("All fields required.");
+      if(end<start) return alert("End date must not be before start date.");
+
+      let all= loadRequests();
+      // build day-level array
+      const daysArr= [];
+      let d= new Date(start);
+      while(d<= new Date(end)){
+        daysArr.push({ date: formatDate(d), status: "Pending" });
+        d.setDate(d.getDate()+1);
       }
-      if (end < start) {
-        alert("End date must not be before start date.");
-        return;
-      }
-      
-      let arr = loadRequests();
-      arr.push({ staffName: name, staffID: id, startDate: start, endDate: end, status: "Pending" });
-      saveRequests(arr);
+      const newReq= {
+        staffName: name,
+        staffID: id,
+        fromDate: start,
+        toDate: end,
+        days: daysArr
+      };
+      all.push(newReq);
+      saveRequests(all);
       e.target.reset();
       renderCalendar();
-      alert("Leave request submitted!");
-    });
-    
-    /* ==== TEAM SELECTION ==== */
-    function selectTeam(teamNum) {
-      selectedTeam = teamNum;
-      renderCalendar();
-    }
-    
-    /* ==== MONTH NAVIGATION ==== */
-    function prevMonth() {
+      alert("Leave request submitted (all days pending).");
+    };
+
+    // MONTH NAV
+    let currentYear= 2025, currentMonth= 2; // 2=March
+    function prevMonth(){
       currentMonth--;
-      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+      if(currentMonth<0){ currentMonth=11; currentYear--; }
       renderCalendar();
     }
-    function nextMonth() {
+    function nextMonth(){
       currentMonth++;
-      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+      if(currentMonth>11){ currentMonth=0; currentYear++; }
       renderCalendar();
     }
-    
-    /* ==== INITIAL RENDER ==== */
-    renderCalendar();
+
+    // INITIAL
+    function init(){
+      renderCalendar();
+    }
+    init();
   </script>
 </body>
 </html>
