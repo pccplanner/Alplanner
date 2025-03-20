@@ -128,10 +128,11 @@ var TeamPatterns = {
 };
 var selectedTeam = 1;
 var referenceDate = new Date(2025, 2, 1);
-var requests = [];
+var requests = [];  // This array will be populated by the backend data
 var currentYear = 2025, currentMonth = 2;
 var openAccordions = new Set(); // Track open accordion states
 
+// Utility functions
 function daysBetween(a, b) {
   var A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   var B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
@@ -151,6 +152,7 @@ function getShift(d) {
   return TeamPatterns[selectedTeam][idx];
 }
 
+// Render the calendar and admin summary
 function renderCalendar() {
   var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
@@ -297,6 +299,18 @@ function selectTeam(num) {
   renderCalendar();
 }
 
+// Fetch existing leave requests from backend
+function loadLeaves() {
+  fetch('/api/get_leaves')
+    .then(response => response.json())
+    .then(data => {
+      requests = data;
+      renderCalendar();
+    })
+    .catch(error => console.error("Error fetching leaves:", error));
+}
+
+// Handle leave form submission using backend API
 document.getElementById("leaveForm").onsubmit = function(e) {
   e.preventDefault();
   var name = document.getElementById("staffName").value.trim();
@@ -307,20 +321,27 @@ document.getElementById("leaveForm").onsubmit = function(e) {
   if (!name || !id || !start || !end) { alert("Please fill all fields."); return; }
   if (end < start) { alert("End date cannot be before start date."); return; }
 
-  var d = new Date(start);
-  var endDate = new Date(end);
-  var dayArr = [];
-  while (d <= endDate) {
-    dayArr.push({ date: formatDate(d), status: "Pending" });
-    d.setDate(d.getDate() + 1);
-  }
+  // Send the leave request to the backend API
+  fetch('/api/submit_leave', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ staffName: name, staffID: id, fromDate: start, toDate: end })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("Leave request submitted successfully.");
+      loadLeaves(); // Refresh calendar by reloading data from the backend
+    } else {
+      alert("Error: " + data.message);
+    }
+  })
+  .catch(error => {
+    console.error("Error submitting leave request:", error);
+    alert("An error occurred. Please try again later.");
+  });
 
-  var newReqIndex = requests.length;
-  requests.push({ staffName: name, staffID: id, fromDate: start, toDate: end, days: dayArr });
-  openAccordions.add(String(newReqIndex)); // Open new request by default
   e.target.reset();
-  renderCalendar();
-  alert("Leave request submitted successfully.");
 };
 
 function prevMonth() {
@@ -335,7 +356,8 @@ function nextMonth() {
   renderCalendar();
 }
 
-document.addEventListener("DOMContentLoaded", renderCalendar);
+// On page load, fetch leaves from the backend
+document.addEventListener("DOMContentLoaded", loadLeaves);
 </script>
 </body>
 </html>
