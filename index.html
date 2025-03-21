@@ -27,7 +27,7 @@
       margin: 5px 0; 
       color: #2c3e50;
     }
-    p.version { 
+    p.version {
       text-align: center; 
       font-size: 11px; 
       color: #7f8c8d; 
@@ -154,6 +154,8 @@
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
     .leave-entry.management { background: #ffeeba; }
+    .leave-entry.write-in   { background: #ffeeba; } /* same style if you want */
+
     .red-dot {
       width: 6px; 
       height: 6px; 
@@ -241,6 +243,8 @@
     .status-dot.approved    { background: #27ae60; }
     .status-dot.rejected    { background: #e74c3c; }
     .status-dot.management  { background: #f1c40f; }
+    .status-dot.write-in    { background: #f1c40f; } /* same color if you want */
+
     .action-buttons {
       margin-top: 6px; 
       text-align: right;
@@ -325,10 +329,8 @@
 // ---------------------------------------------------------
 //   UPDATE THIS TO YOUR ACTUAL VPS DOMAIN OR IP + PROTOCOL
 // ---------------------------------------------------------
-//const API_BASE_URL = "http://YOUR_VPS_DOMAIN"; 
-const API_BASE_URL = "https://leave-management.th3va.com";
-// e.g. "http://leave-management.th3va.com" or
-// if you have HTTPS: "https://leave-management.th3va.com"
+const API_BASE_URL = "https://YOUR_VPS_DOMAIN"; 
+// e.g. "https://leave-management.th3va.com"
 
 // SHIFT PATTERNS
 var TeamPatterns = {
@@ -415,11 +417,9 @@ function renderCalendar() {
 
     dayEntries.forEach(e => {
       let entry = document.createElement("div");
-      entry.className = "leave-entry " + (
-        e.status === "Approved"   ? "approved" :
-        e.status === "Rejected"   ? "rejected" :
-        e.status === "Management" ? "management" : ""
-      );
+      // If the day status is "Write-in", let's give it the "management" style or a new style
+      let statusClass = e.status.toLowerCase();
+      entry.className = "leave-entry " + statusClass;
       entry.textContent = e.staffName + " (" + e.staffID + ")";
       cell.appendChild(entry);
     });
@@ -456,7 +456,7 @@ function renderAdmin() {
                 <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
                 <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
                 <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
-                <option value="Management" ${day.status === "Management" ? "selected" : ""}>Management</option>
+                <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
               </select>
             </div>
           `).join('')}
@@ -490,23 +490,62 @@ function renderAdmin() {
     };
   });
 
-  // Status updates
+  // Day Status Updates (persistent)
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
       let reqIndex = sel.getAttribute("data-req");
       let dayIndex = sel.getAttribute("data-day");
-      requests[reqIndex].days[dayIndex].status = sel.value;
-      renderCalendar();
+      let newStatus = sel.value; // "Pending", "Approved", "Rejected", "Write-in"
+
+      // We need the day.id from requests array
+      let day_id = requests[reqIndex].days[dayIndex].id;
+
+      fetch(`${API_BASE_URL}/api/update_day_status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ day_id: day_id, status: newStatus })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success") {
+          // Update local array
+          requests[reqIndex].days[dayIndex].status = newStatus;
+          renderCalendar();
+        } else {
+          alert("Error updating day: " + data.message);
+        }
+      })
+      .catch(err => {
+        console.error("Error updating day:", err);
+        alert("An error occurred updating the day status.");
+      });
     };
   });
 
-  // Delete
+  // Delete entire request (persistent)
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
       let i = btn.getAttribute("data-del");
-      openAccordions.delete(i);
-      requests.splice(i, 1);
-      renderCalendar();
+      let reqId = requests[i].id; // Must exist in your get_leaves output
+
+      fetch(`${API_BASE_URL}/api/delete_request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: reqId })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success") {
+          requests.splice(i, 1);
+          renderCalendar();
+        } else {
+          alert("Error deleting request: " + data.message);
+        }
+      })
+      .catch(err => {
+        console.error("Delete error:", err);
+        alert("An error occurred while deleting. Please try again.");
+      });
     };
   });
 
@@ -528,7 +567,7 @@ function selectTeam(num) {
   renderCalendar();
 }
 
-// LOAD LEAVES FROM BACKEND (with full domain)
+// LOAD LEAVES FROM BACKEND
 function loadLeaves() {
   fetch(`${API_BASE_URL}/api/get_leaves`)
     .then(response => response.json())
