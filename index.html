@@ -5,7 +5,275 @@
   <title>Leave Booking System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
-    /* (unchanged CSS omitted for brevity) */
+    body {
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
+      margin: 0; 
+      padding: 10px; 
+      font-size: 13px; 
+      color: #333;
+    }
+    .container {
+      max-width: 900px; 
+      margin: 0 auto; 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    h1 {
+      text-align: center; 
+      font-size: 18px; 
+      margin: 5px 0; 
+      color: #2c3e50;
+    }
+    p.version { 
+      text-align: center; 
+      font-size: 11px; 
+      color: #7f8c8d; 
+      margin: 0 0 10px;
+    }
+
+    /* Leave Form */
+    #leaveForm {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      padding: 10px; 
+      background: #ecf0f1; 
+      border-radius: 6px; 
+      margin-bottom: 10px;
+    }
+    #leaveForm label {
+      font-weight: 600; 
+      margin-right: 4px; 
+      color: #34495e;
+    }
+    #leaveForm input {
+      padding: 5px 8px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px; 
+      font-size: 13px; 
+      width: 120px;
+    }
+    #leaveForm input::placeholder {
+      color: #95a5a6;
+    }
+    #leaveForm button {
+      padding: 6px 12px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    #leaveForm button:hover {
+      background: #2980b9;
+    }
+
+    /* Team Buttons */
+    .team-buttons {
+      text-align: center; 
+      margin: 8px 0;
+    }
+    .team-buttons button {
+      padding: 5px 10px; 
+      margin: 0 4px; 
+      border: none; 
+      border-radius: 4px; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 12px;
+    }
+    .team-a { background: #27ae60; } 
+    .team-b { background: #2980b9; } 
+    .team-c { background: #8e44ad; }
+    .team-buttons button:hover {
+      opacity: 0.85;
+    }
+
+    /* Month Navigation */
+    .month-nav {
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      gap: 8px; 
+      margin: 8px 0;
+    }
+    .month-nav button {
+      padding: 4px 10px; 
+      background: #7f8c8d; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    .month-nav button:hover {
+      background: #6c7a89;
+    }
+    #monthLabel {
+      font-weight: 600; 
+      color: #2c3e50;
+    }
+
+    /* Calendar */
+    #calendarGrid {
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 3px; 
+      max-width: 850px; 
+      margin: 0 auto 10px;
+    }
+    .day-cell {
+      background: #fff; 
+      border: 1px solid #e0e0e0; 
+      min-height: 60px; 
+      padding: 3px; 
+      border-radius: 4px; 
+      font-size: 11px; 
+      position: relative;
+    }
+    .shift-box {
+      font-weight: 600; 
+      color: #fff; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      text-align: center; 
+      margin-bottom: 3px;
+    }
+    .shift-morning { background: #27ae60; }
+    .shift-night   { background: #a9dfbf; color: #2c3e50; }
+    .shift-off     { background: #dcdcdc; color: #7f8c8d; }
+    .leave-entry {
+      background: #fff3cd; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      margin: 1px 0;
+    }
+    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
+    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
+    .leave-entry.management { background: #ffeeba; }
+    .red-dot {
+      width: 6px; 
+      height: 6px; 
+      background: #e74c3c; 
+      border-radius: 50%; 
+      position: absolute; 
+      top: 3px; 
+      right: 3px;
+    }
+
+    /* Admin Summary */
+    #adminSummary {
+      padding: 10px; 
+      border-radius: 6px; 
+      background: #fff; 
+      max-height: 400px; 
+      overflow-y: auto;
+    }
+    #adminSummary h3 {
+      font-size: 15px; 
+      margin: 0 0 8px; 
+      color: #2c3e50;
+    }
+    .accordion-item {
+      border: 1px solid #e0e0e0; 
+      margin-bottom: 5px; 
+      border-radius: 4px;
+    }
+    .accordion-header {
+      padding: 8px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    .accordion-header:hover {
+      background: #eef2f5;
+    }
+    .accordion-header span {
+      font-weight: 600; 
+      color: #34495e;
+    }
+    .badge {
+      background: #3498db; 
+      color: #fff; 
+      padding: 2px 6px; 
+      border-radius: 12px; 
+      font-size: 11px;
+    }
+    .badge.pending { background: #e67e22; }
+    .accordion-content {
+      padding: 8px; 
+      background: #fff;
+    }
+    .timeline {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 6px;
+    }
+    .day-block {
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      background: #f1f1f1; 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
+      transition: transform 0.2s;
+    }
+    .day-block:hover {
+      transform: scale(1.02);
+    }
+    .day-block select {
+      font-size: 11px; 
+      padding: 2px; 
+      border-radius: 3px; 
+      border: 1px solid #bdc3c7;
+    }
+    .status-dot {
+      width: 8px; 
+      height: 8px; 
+      border-radius: 50%;
+    }
+    .status-dot.pending     { background: #e67e22; }
+    .status-dot.approved    { background: #27ae60; }
+    .status-dot.rejected    { background: #e74c3c; }
+    .status-dot.management  { background: #f1c40f; }
+    .action-buttons {
+      margin-top: 6px; 
+      text-align: right;
+    }
+    .delete-btn, .whatsapp-btn {
+      padding: 3px 8px; 
+      font-size: 11px; 
+      border: none; 
+      border-radius: 3px; 
+      cursor: pointer; 
+      margin-left: 4px;
+    }
+    .delete-btn {
+      background: #e74c3c; 
+      color: #fff;
+    }
+    .delete-btn:hover {
+      background: #c0392b;
+    }
+    .whatsapp-btn {
+      background: #25D366; 
+      color: #fff;
+    }
+    .whatsapp-btn:hover {
+      background: #20b958;
+    }
+
+    .footer {
+      text-align: center; 
+      font-size: 10px; 
+      color: #95a5a6; 
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -54,14 +322,15 @@
 </div>
 
 <script>
-// -----------------------------
-//    ADJUST THIS FOR YOUR VPS
-// -----------------------------
-// If your VPS domain is "leave-management.th3va.com", use:
-const API_BASE_URL = "https://leave-management.th3va.com"; 
-// If you're using HTTP only, do: "http://leave-management.th3va.com"
+// ---------------------------------------------------------
+//   UPDATE THIS TO YOUR ACTUAL VPS DOMAIN OR IP + PROTOCOL
+// ---------------------------------------------------------
+//const API_BASE_URL = "http://YOUR_VPS_DOMAIN"; 
+const API_BASE_URL = "https://leave-management.th3va.com";
+// e.g. "http://leave-management.th3va.com" or
+// if you have HTTPS: "https://leave-management.th3va.com"
 
-// Shift Patterns
+// SHIFT PATTERNS
 var TeamPatterns = {
   1: ["morning", "morning", "night", "night", "off", "off"],
   2: ["off", "off", "morning", "morning", "night", "night"],
@@ -69,59 +338,63 @@ var TeamPatterns = {
 };
 var selectedTeam = 1;
 var referenceDate = new Date(2025, 2, 1);
-var requests = [];  // This array will be populated by the backend
+var requests = [];
 var currentYear = 2025, currentMonth = 2;
-var openAccordions = new Set(); // Track open accordion states
+var openAccordions = new Set();
 
+// UTILITY FUNCTIONS
 function daysBetween(a, b) {
   var A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   var B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
   return Math.floor((B - A) / (1000 * 60 * 60 * 24));
 }
-
 function formatDate(d) {
   var y = d.getFullYear();
   var m = String(d.getMonth() + 1).padStart(2, "0");
   var dd = String(d.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + dd;
 }
-
 function getShift(d) {
   var diff = daysBetween(referenceDate, d);
   var idx = ((diff % 6) + 6) % 6;
   return TeamPatterns[selectedTeam][idx];
 }
 
+// RENDER CALENDAR
 function renderCalendar() {
-  var monthNames = ["January", "February", "March", "April", "May", "June",
-                    "July", "August", "September", "October", "November", "December"];
-  document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+  document.getElementById("monthLabel").textContent =
+    monthNames[currentMonth] + " " + currentYear;
 
-  var grid = document.getElementById("calendarGrid");
+  let grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
-  var firstDay = new Date(currentYear, currentMonth, 1);
-  var offset = (firstDay.getDay() + 6) % 7;
-  var daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  let firstDay = new Date(currentYear, currentMonth, 1);
+  let offset = (firstDay.getDay() + 6) % 7;
+  let daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  for (var i = 0; i < offset; i++) {
+  for (let i = 0; i < offset; i++) {
     grid.appendChild(document.createElement("div")).className = "day-cell";
   }
 
-  for (var d = 1; d <= daysInMonth; d++) {
-    var dateObj = new Date(currentYear, currentMonth, d);
-    var dateStr = formatDate(dateObj);
-    var cell = document.createElement("div");
+  for (let d = 1; d <= daysInMonth; d++) {
+    let dateObj = new Date(currentYear, currentMonth, d);
+    let dateStr = formatDate(dateObj);
+    let cell = document.createElement("div");
     cell.className = "day-cell";
 
-    var shift = getShift(dateObj);
-    var shiftBox = document.createElement("div");
-    shiftBox.className = "shift-box " + 
-      (shift === "morning" ? "shift-morning" :
-       shift === "night" ? "shift-night" : "shift-off");
+    let shift = getShift(dateObj);
+    let shiftBox = document.createElement("div");
+    shiftBox.className = "shift-box " + (
+      shift === "morning" ? "shift-morning" :
+      shift === "night"   ? "shift-night"   : "shift-off"
+    );
     shiftBox.textContent = d;
     cell.appendChild(shiftBox);
 
-    var dayEntries = [];
+    let dayEntries = [];
     requests.forEach(req => {
       req.days.forEach(day => {
         if (day.date === dateStr) {
@@ -134,36 +407,38 @@ function renderCalendar() {
       });
     });
 
-    // Red dot if >2 non-rejected entries
-    var nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
+    // Show a red dot if >2 non-rejected entries
+    let nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
     if (nonRejected > 2) {
       cell.appendChild(document.createElement("div")).className = "red-dot";
     }
 
     dayEntries.forEach(e => {
-      var entry = document.createElement("div");
-      entry.className = "leave-entry " +
-        (e.status === "Approved" ? "approved" :
-         e.status === "Rejected" ? "rejected" :
-         e.status === "Management" ? "management" : "");
+      let entry = document.createElement("div");
+      entry.className = "leave-entry " + (
+        e.status === "Approved"   ? "approved" :
+        e.status === "Rejected"   ? "rejected" :
+        e.status === "Management" ? "management" : ""
+      );
       entry.textContent = e.staffName + " (" + e.staffID + ")";
       cell.appendChild(entry);
     });
 
     grid.appendChild(cell);
   }
-
   renderAdmin();
 }
 
+// RENDER ADMIN
 function renderAdmin() {
-  var adminList = document.getElementById("adminList");
+  let adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
   requests.forEach((req, reqIndex) => {
-    var item = document.createElement("div");
+    let item = document.createElement("div");
     item.className = "accordion-item";
-    var pendingCount = req.days.filter(d => d.status === "Pending").length;
+    let pendingCount = req.days.filter(d => d.status === "Pending").length;
+
     item.innerHTML = `
       <div class="accordion-header" data-index="${reqIndex}">
         <span>${req.staffName} (${req.staffID})</span>
@@ -178,9 +453,9 @@ function renderAdmin() {
               <span>${day.date}</span>
               <div class="status-dot ${day.status.toLowerCase()}"></div>
               <select data-req="${reqIndex}" data-day="${dayIndex}">
-                <option value="Pending" ${day.status === "Pending" ? "selected" : ""}>Pending</option>
-                <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
-                <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
+                <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
+                <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
+                <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
                 <option value="Management" ${day.status === "Management" ? "selected" : ""}>Management</option>
               </select>
             </div>
@@ -195,10 +470,10 @@ function renderAdmin() {
     adminList.appendChild(item);
   });
 
-  // Restore accordion states
+  // Accordion toggle
   adminList.querySelectorAll(".accordion-header").forEach(header => {
-    var index = header.getAttribute("data-index");
-    var content = header.nextElementSibling;
+    let index = header.getAttribute("data-index");
+    let content = header.nextElementSibling;
     if (openAccordions.has(index)) {
       content.style.display = "block";
     } else {
@@ -218,17 +493,17 @@ function renderAdmin() {
   // Status updates
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
-      var reqIndex = sel.getAttribute("data-req");
-      var dayIndex = sel.getAttribute("data-day");
+      let reqIndex = sel.getAttribute("data-req");
+      let dayIndex = sel.getAttribute("data-day");
       requests[reqIndex].days[dayIndex].status = sel.value;
-      renderCalendar(); // Re-render
+      renderCalendar();
     };
   });
 
   // Delete
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
-      var i = btn.getAttribute("data-del");
+      let i = btn.getAttribute("data-del");
       openAccordions.delete(i);
       requests.splice(i, 1);
       renderCalendar();
@@ -238,23 +513,24 @@ function renderAdmin() {
   // WhatsApp
   adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
     btn.onclick = function() {
-      var i = btn.getAttribute("data-ws");
-      var req = requests[i];
-      var msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
+      let i = btn.getAttribute("data-ws");
+      let req = requests[i];
+      let msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
                 req.days.map(d => `${d.date}: ${d.status}`).join('\n');
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
   });
 }
 
+// SELECT TEAM
 function selectTeam(num) {
   selectedTeam = num;
   renderCalendar();
 }
 
-// Fetch existing leave requests from the BACKEND
+// LOAD LEAVES FROM BACKEND (with full domain)
 function loadLeaves() {
-  fetch(`${API_BASE_URL}/api/get_leaves`)  // <--- using full URL
+  fetch(`${API_BASE_URL}/api/get_leaves`)
     .then(response => response.json())
     .then(data => {
       requests = data;
@@ -263,13 +539,13 @@ function loadLeaves() {
     .catch(error => console.error("Error fetching leaves:", error));
 }
 
-// Submit a new leave request
+// SUBMIT LEAVE
 document.getElementById("leaveForm").onsubmit = function(e) {
   e.preventDefault();
-  var name = document.getElementById("staffName").value.trim();
-  var id = document.getElementById("staffID").value.trim();
-  var start = document.getElementById("startDate").value;
-  var end = document.getElementById("endDate").value;
+  let name  = document.getElementById("staffName").value.trim();
+  let id    = document.getElementById("staffID").value.trim();
+  let start = document.getElementById("startDate").value;
+  let end   = document.getElementById("endDate").value;
 
   if (!name || !id || !start || !end) {
     alert("Please fill all fields.");
@@ -280,7 +556,7 @@ document.getElementById("leaveForm").onsubmit = function(e) {
     return;
   }
 
-  fetch(`${API_BASE_URL}/api/submit_leave`, {  // <--- using full URL
+  fetch(`${API_BASE_URL}/api/submit_leave`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -294,7 +570,7 @@ document.getElementById("leaveForm").onsubmit = function(e) {
   .then(data => {
     if (data.status === "success") {
       alert("Leave request submitted successfully.");
-      loadLeaves(); // Reload data from backend
+      loadLeaves(); 
     } else {
       alert("Error: " + data.message);
     }
@@ -307,6 +583,7 @@ document.getElementById("leaveForm").onsubmit = function(e) {
   e.target.reset();
 };
 
+// MONTH NAV
 function prevMonth() {
   currentMonth--;
   if (currentMonth < 0) {
@@ -315,7 +592,6 @@ function prevMonth() {
   }
   renderCalendar();
 }
-
 function nextMonth() {
   currentMonth++;
   if (currentMonth > 11) {
@@ -325,7 +601,7 @@ function nextMonth() {
   renderCalendar();
 }
 
-// On page load, fetch data
+// INIT
 document.addEventListener("DOMContentLoaded", loadLeaves);
 </script>
 </body>
