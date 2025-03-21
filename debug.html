@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Minimal Fetch Debug</title>
+</head>
+<body>
+  <h1>Minimal API Debug</h1>
+  <button id="testFetchBtn">Test Fetch</button>
+
+  <pre id="output" style="border:1px solid #ccc; padding:8px;"></pre>
+
+  <script>
+    // Replace with your actual domain or IP + route
+    const DEBUG_API_URL = "https://YOUR_VPS_DOMAIN/api/get_leaves";
+
+    document.getElementById("testFetchBtn").onclick = function() {
+      const outputEl = document.getElementById("output");
+      outputEl.textContent = "Fetching: " + DEBUG_API_URL + "\n";
+
+      fetch(DEBUG_API_URL)
+        .then(response => {
+          outputEl.textContent += "Status: " + response.status + " " + response.statusText + "\n";
+          if (!response.ok) {
+            throw new Error("HTTP error, status = " + response.status);
+          }
+          return response.json();
+        })
+        .then(data => {
+          // If JSON parse is fine, log the data
+          outputEl.textContent += "Data:\n" + JSON.stringify(data, null, 2);
+        })
+        .catch(err => {
+          // Catch network errors, CORS issues, etc.
+          outputEl.textContent += "ERROR: " + err + "\n";
+        });
+    };
+  </script>
+</body>
+</html>
