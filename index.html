@@ -285,7 +285,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.2 (Revamped) — Old Accordion UI + Persistent Day Updates + "Write-in"</p>
+  <p class="version">v3.3 (Revamped) — Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in"</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -323,7 +323,7 @@
   </div>
 
   <div class="footer">
-    © 2025. Old accordion UI with persistent updates & "Write-in" rename
+    © 2025. Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename
   </div>
 </div>
 
@@ -420,43 +420,70 @@ function renderCalendar() {
   renderAdmin();
 }
 
+// Group requests by staffID
+function groupRequestsByStaffID(requests) {
+  const grouped = {};
+  requests.forEach((req, reqIndex) => {
+    const staffID = req.staffID;
+    if (!grouped[staffID]) {
+      grouped[staffID] = {
+        staffName: req.staffName, // Use the name from the first request
+        staffID: staffID,
+        requests: [],
+      };
+    }
+    grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
+  });
+  return Object.values(grouped);
+}
+
 function renderAdmin() {
   const adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  requests.forEach((req, reqIndex) => {
+  // Group requests by staffID
+  const groupedRequests = groupRequestsByStaffID(requests);
+
+  groupedRequests.forEach((group, groupIndex) => {
     const item = document.createElement("div");
     item.className = "accordion-item";
 
-    // pending count
-    const pendingCount = req.days.filter(d => d.status === "Pending").length;
+    // Calculate total days and pending days across all requests for this staff
+    const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
+    const pendingCount = group.requests.reduce(
+      (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
+      0
+    );
 
+    // Create the accordion item
     item.innerHTML = `
-      <div class="accordion-header" data-index="${reqIndex}">
-        <span>${req.staffName} (${req.staffID})</span>
+      <div class="accordion-header" data-index="${groupIndex}">
+        <span>${group.staffName} (${group.staffID})</span>
         <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
-          ${req.days.length} days (${pendingCount} pending)
+          ${totalDays} days (${pendingCount} pending)
         </span>
       </div>
-      <div class="accordion-content" data-index="${reqIndex}">
-        <div class="timeline">
-          ${req.days.map((day, dayIndex) => `
-            <div class="day-block">
-              <span>${day.date}</span>
-              <div class="status-dot ${day.status.toLowerCase()}"></div>
-              <select data-req="${reqIndex}" data-day="${dayIndex}">
-                <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
-                <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
-                <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
-                <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
-              </select>
-            </div>
-          `).join('')}
-        </div>
-        <div class="action-buttons">
-          <button class="delete-btn" data-del="${reqIndex}">Delete</button>
-          <button class="whatsapp-btn" data-ws="${reqIndex}">WhatsApp</button>
-        </div>
+      <div class="accordion-content" data-index="${groupIndex}">
+        ${group.requests.map((req, reqIndexWithinGroup) => `
+          <div class="timeline">
+            ${req.days.map((day, dayIndex) => `
+              <div class="day-block">
+                <span>${day.date}</span>
+                <div class="status-dot ${day.status.toLowerCase()}"></div>
+                <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}">
+                  <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
+                  <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
+                  <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
+                  <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
+                </select>
+              </div>
+            `).join('')}
+          </div>
+          <div class="action-buttons">
+            <button class="delete-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">Delete</button>
+            <button class="whatsapp-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">WhatsApp</button>
+          </div>
+        `).join('')}
       </div>
     `;
     adminList.appendChild(item);
@@ -467,7 +494,6 @@ function renderAdmin() {
     const index = header.getAttribute("data-index");
     const content = header.nextElementSibling;
 
-    // If previously open, show it
     if (openAccordions.has(index)) {
       content.style.display = "block";
     } else {
@@ -488,10 +514,13 @@ function renderAdmin() {
   // Day status updates (persistent)
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
-      const reqIndex = sel.getAttribute("data-req");
+      const groupIndex = sel.getAttribute("data-group");
+      const reqIndexWithinGroup = sel.getAttribute("data-req");
       const dayIndex = sel.getAttribute("data-day");
-      const newStatus = sel.value; 
-      const day_id = requests[reqIndex].days[dayIndex].id; // from DB
+      const newStatus = sel.value;
+      const group = groupedRequests[groupIndex];
+      const req = group.requests[reqIndexWithinGroup];
+      const day_id = req.days[dayIndex].id; // from DB
 
       fetch(`${API_BASE_URL}/api/update_day_status`, {
         method: 'POST',
@@ -501,9 +530,8 @@ function renderAdmin() {
       .then(r => r.json())
       .then(data => {
         if (data.status === "success") {
-          requests[reqIndex].days[dayIndex].status = newStatus;
-          // Re-render without collapsing expansions
-          renderCalendar(); 
+          requests[req.originalIndex].days[dayIndex].status = newStatus;
+          renderCalendar();
         } else {
           alert("Error: " + data.message);
         }
@@ -518,9 +546,14 @@ function renderAdmin() {
   // Delete functionality
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
-      const i = btn.getAttribute("data-del");
-      openAccordions.delete(i);
-      const reqId = requests[i].id; // must match DB
+      const groupIndex = btn.getAttribute("data-group");
+      const reqIndexWithinGroup = btn.getAttribute("data-req");
+      const group = groupedRequests[groupIndex];
+      const req = group.requests[reqIndexWithinGroup];
+      const originalIndex = req.originalIndex;
+
+      openAccordions.delete(groupIndex); // Close accordion on delete
+      const reqId = req.id; // must match DB
 
       fetch(`${API_BASE_URL}/api/delete_request`, {
         method: 'POST',
@@ -530,7 +563,15 @@ function renderAdmin() {
       .then(r => r.json())
       .then(data => {
         if (data.status === "success") {
-          requests.splice(i, 1);
+          requests.splice(originalIndex, 1);
+          // Update original indices of remaining requests
+          requests.forEach((r, i) => {
+            const group = groupedRequests.find(g => g.staffID === r.staffID);
+            if (group) {
+              const reqWithinGroup = group.requests.find(req => req.id === r.id);
+              if (reqWithinGroup) reqWithinGroup.originalIndex = i;
+            }
+          });
           renderCalendar();
         } else {
           alert("Error deleting: " + data.message);
@@ -543,13 +584,16 @@ function renderAdmin() {
     };
   });
 
-  // WhatsApp
+  // WhatsApp (send message for all requests of this staff)
   adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
     btn.onclick = function() {
-      const i = btn.getAttribute("data-ws");
-      const req = requests[i];
-      const msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
-                  req.days.map(d => `${d.date}: ${d.status}`).join('\n');
+      const groupIndex = btn.getAttribute("data-group");
+      const group = groupedRequests[groupIndex];
+      const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
+                  group.requests.map((req, reqIndex) =>
+                    `Request ${reqIndex + 1}:\n` +
+                    req.days.map(d => `${d.date}: ${d.status}`).join('\n')
+                  ).join('\n\n');
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
   });
