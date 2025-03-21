@@ -256,7 +256,7 @@
       text-align: right; 
       margin-top: 6px;
     }
-    .delete-btn, .whatsapp-btn {
+    .delete-btn, .whatsapp-btn, .close-btn {
       padding: 3px 8px; 
       font-size: 11px; 
       border: none; 
@@ -278,6 +278,13 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
+    .close-btn {
+      background: #95a5a6; 
+      color: #fff;
+    }
+    .close-btn:hover {
+      background: #7f8c8d;
+    }
 
     .footer {
       text-align: center; 
@@ -290,7 +297,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.4 — Group Bookings + Previous UI + “Write-in”</p>
+  <p class="version">v3.4 — Collapsible Bookings + Write-in + Grouped</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -328,12 +335,11 @@
   </div>
 
   <div class="footer">
-    © 2025. Persistent accordion with day-by-day approvals.
+    © 2025. Collapsible bookings with “Write-in” status & group by staff
   </div>
 </div>
 
 <script>
-// Where your backend is hosted
 const API_BASE_URL = "https://leave-management.th3va.com";
 
 // SHIFT PATTERNS
@@ -348,7 +354,7 @@ var requests = [];
 var currentYear = 2025, currentMonth = 2;
 var openAccordions = new Set();
 
-// UTILITY FUNCTIONS
+// UTILITY
 function daysBetween(a, b) {
   let A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   let B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
@@ -400,7 +406,7 @@ function renderCalendar() {
     shiftBox.textContent = d;
     cell.appendChild(shiftBox);
 
-    // For each request/day that matches dateStr
+    // gather day entries
     let dayEntries = [];
     requests.forEach(req => {
       req.days.forEach(day => {
@@ -432,12 +438,12 @@ function renderCalendar() {
   renderAdmin();
 }
 
-// GROUP REQUESTS BY STAFF + RENDER
+// GROUP BY STAFF + RENDER
 function renderAdmin() {
   let adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  // Build staff map
+  // build staff map
   let staffMap = {};
   requests.forEach((req, reqIndex) => {
     let staffKey = req.staffID;
@@ -448,11 +454,10 @@ function renderAdmin() {
         bookings: []
       };
     }
-    // Store this request (with index so we know how to handle updates)
     staffMap[staffKey].bookings.push({ ...req, requestIndex: reqIndex });
   });
 
-  // For each staff
+  // for each staff
   Object.values(staffMap).forEach(staffObj => {
     let staffContainer = document.createElement("div");
     staffContainer.className = "staff-container";
@@ -462,22 +467,20 @@ function renderAdmin() {
     staffHeader.textContent = `${staffObj.staffName} (${staffObj.staffID})`;
     staffContainer.appendChild(staffHeader);
 
-    // For each booking
+    // each booking is an accordion
     staffObj.bookings.forEach(booking => {
-      // Count pending
-      let pendingCount = booking.days.filter(d => d.status === "Pending").length;
       let bookingItem = document.createElement("div");
       bookingItem.className = "booking-item";
 
-      // booking header
+      // pending count
+      let pendingCount = booking.days.filter(d => d.status === "Pending").length;
+
       let bookingHeader = document.createElement("div");
       bookingHeader.className = "booking-header";
       bookingHeader.innerHTML = `
         <span>${booking.from_date} to ${booking.to_date} - ${booking.days.length} days (${pendingCount} pending)</span>
       `;
-      bookingItem.appendChild(bookingHeader);
 
-      // booking days detail
       let bookingDays = document.createElement("div");
       bookingDays.className = "booking-days";
 
@@ -499,7 +502,6 @@ function renderAdmin() {
         selectEl.setAttribute("data-req", booking.requestIndex);
         selectEl.setAttribute("data-day", dayIndex);
 
-        // build statuses
         ["Pending", "Approved", "Rejected", "Write-in"].forEach(st => {
           let opt = document.createElement("option");
           opt.value = st;
@@ -516,18 +518,23 @@ function renderAdmin() {
 
       bookingDays.appendChild(timeline);
 
-      // Action buttons
+      // action buttons
       let actionDiv = document.createElement("div");
       actionDiv.className = "action-buttons";
       actionDiv.innerHTML = `
+        <button class="close-btn">Close Booking</button>
         <button class="delete-btn" data-del="${booking.requestIndex}">Delete</button>
         <button class="whatsapp-btn" data-ws="${booking.requestIndex}">WhatsApp</button>
       `;
       bookingDays.appendChild(actionDiv);
 
+      bookingItem.appendChild(bookingHeader);
       bookingItem.appendChild(bookingDays);
 
-      // Toggle bookingDays on click
+      // collapse details by default
+      bookingDays.style.display = "none";
+
+      // expand/collapse on header click
       bookingHeader.onclick = () => {
         bookingDays.style.display = (bookingDays.style.display === "block") ? "none" : "block";
       };
@@ -538,7 +545,7 @@ function renderAdmin() {
     adminList.appendChild(staffContainer);
   });
 
-  // Hook up day status changes
+  // HOOK UP day status changes
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
       let reqIndex = sel.getAttribute("data-req");
@@ -567,11 +574,19 @@ function renderAdmin() {
     };
   });
 
-  // Hook up Delete
+  // HOOK UP close booking
+  adminList.querySelectorAll(".close-btn").forEach(btn => {
+    btn.onclick = function() {
+      let bookingDays = btn.closest(".booking-days");
+      if (bookingDays) bookingDays.style.display = "none";
+    };
+  });
+
+  // HOOK UP delete
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
       let i = btn.getAttribute("data-del");
-      let reqId = requests[i].id; // must match DB
+      let reqId = requests[i].id;
 
       fetch(`${API_BASE_URL}/api/delete_request`, {
         method: 'POST',
@@ -594,7 +609,7 @@ function renderAdmin() {
     };
   });
 
-  // Hook up WhatsApp
+  // HOOK UP WhatsApp
   adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
     btn.onclick = function() {
       let i = btn.getAttribute("data-ws");
