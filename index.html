@@ -181,47 +181,42 @@
       color: #2c3e50;
     }
 
-    .staff-container {
-      margin-bottom: 10px; 
+    .accordion-item {
       border: 1px solid #e0e0e0; 
-      border-radius: 4px; 
-      padding: 8px;
-    }
-    .staff-header {
-      font-weight: 600; 
-      margin: 4px 0; 
-      font-size: 14px; 
-      color: #34495e;
-    }
-
-    /* Each booking is an accordion item */
-    .booking-item {
-      border: 1px solid #e0e0e0; 
-      margin: 5px 0; 
-      border-radius: 4px; 
-      padding: 4px;
-    }
-    .booking-header {
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      padding: 4px; 
-      background: #f7f9fb; 
-      cursor: pointer; 
+      margin-bottom: 5px; 
       border-radius: 4px;
     }
-    .booking-header:hover {
+    .accordion-header {
+      padding: 8px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    .accordion-header:hover {
       background: #eef2f5;
     }
-    .booking-days {
-      padding: 4px; 
-      display: none;
+    .accordion-header span {
+      font-weight: 600; 
+      color: #34495e;
+    }
+    .badge {
+      background: #3498db; 
+      color: #fff; 
+      padding: 2px 6px; 
+      border-radius: 12px; 
+      font-size: 11px;
+    }
+    .badge.pending { background: #e67e22; }
+    .accordion-content {
+      padding: 8px; 
+      background: #fff;
     }
     .timeline {
       display: flex; 
       flex-wrap: wrap; 
-      gap: 6px; 
-      margin-top: 4px;
+      gap: 6px;
     }
     .day-block {
       padding: 4px 8px; 
@@ -253,10 +248,10 @@
     .status-dot.write-in    { background: #f1c40f; }
 
     .action-buttons {
-      text-align: right; 
-      margin-top: 6px;
+      margin-top: 6px; 
+      text-align: right;
     }
-    .delete-btn, .whatsapp-btn, .close-btn {
+    .delete-btn, .whatsapp-btn {
       padding: 3px 8px; 
       font-size: 11px; 
       border: none; 
@@ -278,13 +273,6 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    .close-btn {
-      background: #95a5a6; 
-      color: #fff;
-    }
-    .close-btn:hover {
-      background: #7f8c8d;
-    }
 
     .footer {
       text-align: center; 
@@ -297,7 +285,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.4 — Collapsible Bookings + Write-in + Grouped</p>
+  <p class="version">v3.2 (Revamped) — Old Accordion UI + Persistent Day Updates + "Write-in"</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -335,11 +323,12 @@
   </div>
 
   <div class="footer">
-    © 2025. Collapsible bookings with “Write-in” status & group by staff
+    © 2025. Old accordion UI with persistent updates & "Write-in" rename
   </div>
 </div>
 
 <script>
+// Where your backend is hosted
 const API_BASE_URL = "https://leave-management.th3va.com";
 
 // SHIFT PATTERNS
@@ -352,53 +341,51 @@ var selectedTeam = 1;
 var referenceDate = new Date(2025, 2, 1);
 var requests = [];
 var currentYear = 2025, currentMonth = 2;
-var openAccordions = new Set();
+var openAccordions = new Set(); // Track open accordion states
 
-// UTILITY
 function daysBetween(a, b) {
-  let A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  let B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
   return Math.floor((B - A) / (1000 * 60 * 60 * 24));
 }
+
 function formatDate(d) {
-  let y = d.getFullYear();
-  let m = String(d.getMonth() + 1).padStart(2, "0");
-  let dd = String(d.getDate()).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + dd;
 }
+
 function getShift(d) {
-  let diff = daysBetween(referenceDate, d);
-  let idx = ((diff % 6) + 6) % 6;
+  const diff = daysBetween(referenceDate, d);
+  const idx = ((diff % 6) + 6) % 6;
   return TeamPatterns[selectedTeam][idx];
 }
 
 // RENDER CALENDAR
 function renderCalendar() {
-  const monthNames = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
-  ];
-  document.getElementById("monthLabel").textContent =
-    monthNames[currentMonth] + " " + currentYear;
+  const monthNames = ["January","February","March","April","May","June",
+                      "July","August","September","October","November","December"];
+  document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
 
-  let grid = document.getElementById("calendarGrid");
+  const grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
-  let firstDay = new Date(currentYear, currentMonth, 1);
-  let offset = (firstDay.getDay() + 6) % 7;
-  let daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const offset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
   for (let i = 0; i < offset; i++) {
     grid.appendChild(document.createElement("div")).className = "day-cell";
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
-    let dateObj = new Date(currentYear, currentMonth, d);
-    let dateStr = formatDate(dateObj);
-    let cell = document.createElement("div");
+    const dateObj = new Date(currentYear, currentMonth, d);
+    const dateStr = formatDate(dateObj);
+    const cell = document.createElement("div");
     cell.className = "day-cell";
 
-    let shift = getShift(dateObj);
-    let shiftBox = document.createElement("div");
+    const shift = getShift(dateObj);
+    const shiftBox = document.createElement("div");
     shiftBox.className = "shift-box " + (
       shift === "morning" ? "shift-morning" :
       shift === "night"   ? "shift-night"   : "shift-off"
@@ -406,28 +393,23 @@ function renderCalendar() {
     shiftBox.textContent = d;
     cell.appendChild(shiftBox);
 
-    // gather day entries
-    let dayEntries = [];
+    const dayEntries = [];
     requests.forEach(req => {
       req.days.forEach(day => {
         if (day.date === dateStr) {
-          dayEntries.push({
-            staffName: req.staffName,
-            staffID: req.staffID,
-            status: day.status
-          });
+          dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
         }
       });
     });
 
-    // Red dot if >2 non-rejected
-    let nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
+    // Red dot if >2 non-rejected entries
+    const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
     if (nonRejected > 2) {
       cell.appendChild(document.createElement("div")).className = "red-dot";
     }
 
     dayEntries.forEach(e => {
-      let entry = document.createElement("div");
+      const entry = document.createElement("div");
       entry.className = "leave-entry " + e.status.toLowerCase();
       entry.textContent = e.staffName + " (" + e.staffID + ")";
       cell.appendChild(entry);
@@ -438,120 +420,78 @@ function renderCalendar() {
   renderAdmin();
 }
 
-// GROUP BY STAFF + RENDER
 function renderAdmin() {
-  let adminList = document.getElementById("adminList");
+  const adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  // build staff map
-  let staffMap = {};
   requests.forEach((req, reqIndex) => {
-    let staffKey = req.staffID;
-    if (!staffMap[staffKey]) {
-      staffMap[staffKey] = {
-        staffName: req.staffName,
-        staffID: req.staffID,
-        bookings: []
-      };
+    const item = document.createElement("div");
+    item.className = "accordion-item";
+
+    // pending count
+    const pendingCount = req.days.filter(d => d.status === "Pending").length;
+
+    item.innerHTML = `
+      <div class="accordion-header" data-index="${reqIndex}">
+        <span>${req.staffName} (${req.staffID})</span>
+        <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
+          ${req.days.length} days (${pendingCount} pending)
+        </span>
+      </div>
+      <div class="accordion-content" data-index="${reqIndex}">
+        <div class="timeline">
+          ${req.days.map((day, dayIndex) => `
+            <div class="day-block">
+              <span>${day.date}</span>
+              <div class="status-dot ${day.status.toLowerCase()}"></div>
+              <select data-req="${reqIndex}" data-day="${dayIndex}">
+                <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
+                <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
+                <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
+                <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
+              </select>
+            </div>
+          `).join('')}
+        </div>
+        <div class="action-buttons">
+          <button class="delete-btn" data-del="${reqIndex}">Delete</button>
+          <button class="whatsapp-btn" data-ws="${reqIndex}">WhatsApp</button>
+        </div>
+      </div>
+    `;
+    adminList.appendChild(item);
+  });
+
+  // Restore accordion states & add click handler
+  adminList.querySelectorAll(".accordion-header").forEach(header => {
+    const index = header.getAttribute("data-index");
+    const content = header.nextElementSibling;
+
+    // If previously open, show it
+    if (openAccordions.has(index)) {
+      content.style.display = "block";
+    } else {
+      content.style.display = "none";
     }
-    staffMap[staffKey].bookings.push({ ...req, requestIndex: reqIndex });
+
+    header.onclick = function() {
+      if (content.style.display === "block") {
+        content.style.display = "none";
+        openAccordions.delete(index);
+      } else {
+        content.style.display = "block";
+        openAccordions.add(index);
+      }
+    };
   });
 
-  // for each staff
-  Object.values(staffMap).forEach(staffObj => {
-    let staffContainer = document.createElement("div");
-    staffContainer.className = "staff-container";
-
-    let staffHeader = document.createElement("div");
-    staffHeader.className = "staff-header";
-    staffHeader.textContent = `${staffObj.staffName} (${staffObj.staffID})`;
-    staffContainer.appendChild(staffHeader);
-
-    // each booking is an accordion
-    staffObj.bookings.forEach(booking => {
-      let bookingItem = document.createElement("div");
-      bookingItem.className = "booking-item";
-
-      // pending count
-      let pendingCount = booking.days.filter(d => d.status === "Pending").length;
-
-      let bookingHeader = document.createElement("div");
-      bookingHeader.className = "booking-header";
-      bookingHeader.innerHTML = `
-        <span>${booking.from_date} to ${booking.to_date} - ${booking.days.length} days (${pendingCount} pending)</span>
-      `;
-
-      let bookingDays = document.createElement("div");
-      bookingDays.className = "booking-days";
-
-      // timeline
-      let timeline = document.createElement("div");
-      timeline.className = "timeline";
-
-      booking.days.forEach((day, dayIndex) => {
-        let dayBlock = document.createElement("div");
-        dayBlock.className = "day-block";
-
-        let dateSpan = document.createElement("span");
-        dateSpan.textContent = day.date;
-
-        let dot = document.createElement("div");
-        dot.className = "status-dot " + day.status.toLowerCase();
-
-        let selectEl = document.createElement("select");
-        selectEl.setAttribute("data-req", booking.requestIndex);
-        selectEl.setAttribute("data-day", dayIndex);
-
-        ["Pending", "Approved", "Rejected", "Write-in"].forEach(st => {
-          let opt = document.createElement("option");
-          opt.value = st;
-          opt.textContent = st;
-          if (day.status === st) opt.selected = true;
-          selectEl.appendChild(opt);
-        });
-
-        dayBlock.appendChild(dateSpan);
-        dayBlock.appendChild(dot);
-        dayBlock.appendChild(selectEl);
-        timeline.appendChild(dayBlock);
-      });
-
-      bookingDays.appendChild(timeline);
-
-      // action buttons
-      let actionDiv = document.createElement("div");
-      actionDiv.className = "action-buttons";
-      actionDiv.innerHTML = `
-        <button class="close-btn">Close Booking</button>
-        <button class="delete-btn" data-del="${booking.requestIndex}">Delete</button>
-        <button class="whatsapp-btn" data-ws="${booking.requestIndex}">WhatsApp</button>
-      `;
-      bookingDays.appendChild(actionDiv);
-
-      bookingItem.appendChild(bookingHeader);
-      bookingItem.appendChild(bookingDays);
-
-      // collapse details by default
-      bookingDays.style.display = "none";
-
-      // expand/collapse on header click
-      bookingHeader.onclick = () => {
-        bookingDays.style.display = (bookingDays.style.display === "block") ? "none" : "block";
-      };
-
-      staffContainer.appendChild(bookingItem);
-    });
-
-    adminList.appendChild(staffContainer);
-  });
-
-  // HOOK UP day status changes
+  // Day status updates (persistent)
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
-      let reqIndex = sel.getAttribute("data-req");
-      let dayIndex = sel.getAttribute("data-day");
-      let newStatus = sel.value;
-      let day_id = requests[reqIndex].days[dayIndex].id;
+      const reqIndex = sel.getAttribute("data-req");
+      const dayIndex = sel.getAttribute("data-day");
+      const newStatus = sel.value; 
+      const day_id = requests[reqIndex].days[dayIndex].id; // from DB
 
       fetch(`${API_BASE_URL}/api/update_day_status`, {
         method: 'POST',
@@ -562,31 +502,25 @@ function renderAdmin() {
       .then(data => {
         if (data.status === "success") {
           requests[reqIndex].days[dayIndex].status = newStatus;
-          renderCalendar();
+          // Re-render without collapsing expansions
+          renderCalendar(); 
         } else {
-          alert("Error updating day: " + data.message);
+          alert("Error: " + data.message);
         }
       })
       .catch(err => {
-        console.error("Error updating day:", err);
+        console.error("Day status update error:", err);
         alert("An error occurred updating the day status.");
       });
     };
   });
 
-  // HOOK UP close booking
-  adminList.querySelectorAll(".close-btn").forEach(btn => {
-    btn.onclick = function() {
-      let bookingDays = btn.closest(".booking-days");
-      if (bookingDays) bookingDays.style.display = "none";
-    };
-  });
-
-  // HOOK UP delete
+  // Delete functionality
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
-      let i = btn.getAttribute("data-del");
-      let reqId = requests[i].id;
+      const i = btn.getAttribute("data-del");
+      openAccordions.delete(i);
+      const reqId = requests[i].id; // must match DB
 
       fetch(`${API_BASE_URL}/api/delete_request`, {
         method: 'POST',
@@ -599,7 +533,7 @@ function renderAdmin() {
           requests.splice(i, 1);
           renderCalendar();
         } else {
-          alert("Error deleting request: " + data.message);
+          alert("Error deleting: " + data.message);
         }
       })
       .catch(err => {
@@ -609,13 +543,13 @@ function renderAdmin() {
     };
   });
 
-  // HOOK UP WhatsApp
+  // WhatsApp
   adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
     btn.onclick = function() {
-      let i = btn.getAttribute("data-ws");
-      let req = requests[i];
-      let msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
-        req.days.map(d => `${d.date}: ${d.status}`).join('\n');
+      const i = btn.getAttribute("data-ws");
+      const req = requests[i];
+      const msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
+                  req.days.map(d => `${d.date}: ${d.status}`).join('\n');
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
   });
@@ -627,7 +561,7 @@ function selectTeam(num) {
   renderCalendar();
 }
 
-// LOAD LEAVES FROM BACKEND
+// LOAD LEAVES
 function loadLeaves() {
   fetch(`${API_BASE_URL}/api/get_leaves`)
     .then(response => response.json())
@@ -641,10 +575,10 @@ function loadLeaves() {
 // SUBMIT LEAVE
 document.getElementById("leaveForm").onsubmit = function(e) {
   e.preventDefault();
-  let name  = document.getElementById("staffName").value.trim();
-  let id    = document.getElementById("staffID").value.trim();
-  let start = document.getElementById("startDate").value;
-  let end   = document.getElementById("endDate").value;
+  const name  = document.getElementById("staffName").value.trim();
+  const id    = document.getElementById("staffID").value.trim();
+  const start = document.getElementById("startDate").value;
+  const end   = document.getElementById("endDate").value;
 
   if (!name || !id || !start || !end) {
     alert("Please fill all fields.");
@@ -669,7 +603,7 @@ document.getElementById("leaveForm").onsubmit = function(e) {
   .then(data => {
     if (data.status === "success") {
       alert("Leave request submitted successfully.");
-      loadLeaves(); 
+      loadLeaves();
     } else {
       alert("Error: " + data.message);
     }
