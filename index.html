@@ -194,32 +194,33 @@
       color: #34495e;
     }
 
-    .request-item {
+    /* Each booking is an accordion item */
+    .booking-item {
       border: 1px solid #e0e0e0; 
       margin: 5px 0; 
       border-radius: 4px; 
-      padding: 8px;
+      padding: 4px;
     }
-    .request-header {
+    .booking-header {
       display: flex; 
       justify-content: space-between; 
       align-items: center; 
-      cursor: pointer;
-      background: #f7f9fb;
-      padding: 4px;
+      padding: 4px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
       border-radius: 4px;
     }
-    .request-header:hover {
+    .booking-header:hover {
       background: #eef2f5;
     }
-    .request-days {
+    .booking-days {
       padding: 4px; 
       display: none;
     }
     .timeline {
       display: flex; 
       flex-wrap: wrap; 
-      gap: 6px;
+      gap: 6px; 
       margin-top: 4px;
     }
     .day-block {
@@ -289,7 +290,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.3 — Grouped Bookings & “Write-in” Status</p>
+  <p class="version">v3.4 — Group Bookings + Previous UI + “Write-in”</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -332,7 +333,7 @@
 </div>
 
 <script>
-// Domain pointing to your VPS
+// Where your backend is hosted
 const API_BASE_URL = "https://leave-management.th3va.com";
 
 // SHIFT PATTERNS
@@ -349,19 +350,19 @@ var openAccordions = new Set();
 
 // UTILITY FUNCTIONS
 function daysBetween(a, b) {
-  const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  let A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  let B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
   return Math.floor((B - A) / (1000 * 60 * 60 * 24));
 }
 function formatDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  let y = d.getFullYear();
+  let m = String(d.getMonth() + 1).padStart(2, "0");
+  let dd = String(d.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + dd;
 }
 function getShift(d) {
-  const diff = daysBetween(referenceDate, d);
-  const idx = ((diff % 6) + 6) % 6;
+  let diff = daysBetween(referenceDate, d);
+  let idx = ((diff % 6) + 6) % 6;
   return TeamPatterns[selectedTeam][idx];
 }
 
@@ -374,24 +375,24 @@ function renderCalendar() {
   document.getElementById("monthLabel").textContent =
     monthNames[currentMonth] + " " + currentYear;
 
-  const grid = document.getElementById("calendarGrid");
+  let grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
-  const firstDay = new Date(currentYear, currentMonth, 1);
-  const offset = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  let firstDay = new Date(currentYear, currentMonth, 1);
+  let offset = (firstDay.getDay() + 6) % 7;
+  let daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
   for (let i = 0; i < offset; i++) {
     grid.appendChild(document.createElement("div")).className = "day-cell";
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(currentYear, currentMonth, d);
-    const dateStr = formatDate(dateObj);
-    const cell = document.createElement("div");
+    let dateObj = new Date(currentYear, currentMonth, d);
+    let dateStr = formatDate(dateObj);
+    let cell = document.createElement("div");
     cell.className = "day-cell";
 
-    const shift = getShift(dateObj);
-    const shiftBox = document.createElement("div");
+    let shift = getShift(dateObj);
+    let shiftBox = document.createElement("div");
     shiftBox.className = "shift-box " + (
       shift === "morning" ? "shift-morning" :
       shift === "night"   ? "shift-night"   : "shift-off"
@@ -400,7 +401,7 @@ function renderCalendar() {
     cell.appendChild(shiftBox);
 
     // For each request/day that matches dateStr
-    const dayEntries = [];
+    let dayEntries = [];
     requests.forEach(req => {
       req.days.forEach(day => {
         if (day.date === dateStr) {
@@ -413,15 +414,14 @@ function renderCalendar() {
       });
     });
 
-    // Red dot if >2 non-rejected entries
-    const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
+    // Red dot if >2 non-rejected
+    let nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
     if (nonRejected > 2) {
       cell.appendChild(document.createElement("div")).className = "red-dot";
     }
 
     dayEntries.forEach(e => {
-      const entry = document.createElement("div");
-      // If status is "Write-in", let's treat it similarly to management
+      let entry = document.createElement("div");
       entry.className = "leave-entry " + e.status.toLowerCase();
       entry.textContent = e.staffName + " (" + e.staffID + ")";
       cell.appendChild(entry);
@@ -432,15 +432,15 @@ function renderCalendar() {
   renderAdmin();
 }
 
-// GROUP REQUESTS BY STAFF, THEN RENDER
+// GROUP REQUESTS BY STAFF + RENDER
 function renderAdmin() {
-  const adminList = document.getElementById("adminList");
+  let adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  // 1) Build a staff map: staffID -> { staffName, staffID, requests: [...] }
-  const staffMap = {};
+  // Build staff map
+  let staffMap = {};
   requests.forEach((req, reqIndex) => {
-    const staffKey = req.staffID;
+    let staffKey = req.staffID;
     if (!staffMap[staffKey]) {
       staffMap[staffKey] = {
         staffName: req.staffName,
@@ -448,70 +448,65 @@ function renderAdmin() {
         bookings: []
       };
     }
-    // store this request
+    // Store this request (with index so we know how to handle updates)
     staffMap[staffKey].bookings.push({ ...req, requestIndex: reqIndex });
   });
 
-  // 2) For each staff, create a container. Inside, list each booking as an accordion
+  // For each staff
   Object.values(staffMap).forEach(staffObj => {
-    // staffObj = { staffName, staffID, bookings: [ { ...req, requestIndex } ] }
-    const staffContainer = document.createElement("div");
+    let staffContainer = document.createElement("div");
     staffContainer.className = "staff-container";
 
-    // Staff heading
-    const staffHeader = document.createElement("div");
+    let staffHeader = document.createElement("div");
     staffHeader.className = "staff-header";
     staffHeader.textContent = `${staffObj.staffName} (${staffObj.staffID})`;
     staffContainer.appendChild(staffHeader);
 
-    // For each booking of this staff
+    // For each booking
     staffObj.bookings.forEach(booking => {
-      const requestItem = document.createElement("div");
-      requestItem.className = "request-item";
+      // Count pending
+      let pendingCount = booking.days.filter(d => d.status === "Pending").length;
+      let bookingItem = document.createElement("div");
+      bookingItem.className = "booking-item";
 
-      // Calculate pending days
-      const pendingCount = booking.days.filter(d => d.status === "Pending").length;
-      // Build request heading
-      const requestHeader = document.createElement("div");
-      requestHeader.className = "request-header";
-      requestHeader.innerHTML = `
+      // booking header
+      let bookingHeader = document.createElement("div");
+      bookingHeader.className = "booking-header";
+      bookingHeader.innerHTML = `
         <span>${booking.from_date} to ${booking.to_date} - ${booking.days.length} days (${pendingCount} pending)</span>
       `;
-      requestItem.appendChild(requestHeader);
+      bookingItem.appendChild(bookingHeader);
 
-      // Build day-block container
-      const requestDays = document.createElement("div");
-      requestDays.className = "request-days";
+      // booking days detail
+      let bookingDays = document.createElement("div");
+      bookingDays.className = "booking-days";
 
       // timeline
-      const timeline = document.createElement("div");
+      let timeline = document.createElement("div");
       timeline.className = "timeline";
 
       booking.days.forEach((day, dayIndex) => {
-        const dayBlock = document.createElement("div");
+        let dayBlock = document.createElement("div");
         dayBlock.className = "day-block";
 
-        // Dot
-        const dot = document.createElement("div");
+        let dateSpan = document.createElement("span");
+        dateSpan.textContent = day.date;
+
+        let dot = document.createElement("div");
         dot.className = "status-dot " + day.status.toLowerCase();
-        // Dropdown
-        const selectEl = document.createElement("select");
+
+        let selectEl = document.createElement("select");
         selectEl.setAttribute("data-req", booking.requestIndex);
         selectEl.setAttribute("data-day", dayIndex);
 
-        // Build options
-        const statuses = ["Pending", "Approved", "Rejected", "Write-in"];
-        statuses.forEach(st => {
-          const opt = document.createElement("option");
+        // build statuses
+        ["Pending", "Approved", "Rejected", "Write-in"].forEach(st => {
+          let opt = document.createElement("option");
           opt.value = st;
           opt.textContent = st;
           if (day.status === st) opt.selected = true;
           selectEl.appendChild(opt);
         });
-
-        // Date label
-        const dateSpan = document.createElement("span");
-        dateSpan.textContent = day.date;
 
         dayBlock.appendChild(dateSpan);
         dayBlock.appendChild(dot);
@@ -519,25 +514,25 @@ function renderAdmin() {
         timeline.appendChild(dayBlock);
       });
 
-      requestDays.appendChild(timeline);
+      bookingDays.appendChild(timeline);
 
       // Action buttons
-      const actionDiv = document.createElement("div");
+      let actionDiv = document.createElement("div");
       actionDiv.className = "action-buttons";
       actionDiv.innerHTML = `
         <button class="delete-btn" data-del="${booking.requestIndex}">Delete</button>
         <button class="whatsapp-btn" data-ws="${booking.requestIndex}">WhatsApp</button>
       `;
-      requestDays.appendChild(actionDiv);
+      bookingDays.appendChild(actionDiv);
 
-      requestItem.appendChild(requestDays);
+      bookingItem.appendChild(bookingDays);
 
-      // Toggle requestDays on click
-      requestHeader.onclick = () => {
-        requestDays.style.display = (requestDays.style.display === "block") ? "none" : "block";
+      // Toggle bookingDays on click
+      bookingHeader.onclick = () => {
+        bookingDays.style.display = (bookingDays.style.display === "block") ? "none" : "block";
       };
 
-      staffContainer.appendChild(requestItem);
+      staffContainer.appendChild(bookingItem);
     });
 
     adminList.appendChild(staffContainer);
@@ -546,11 +541,11 @@ function renderAdmin() {
   // Hook up day status changes
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = function() {
-      const reqIndex = sel.getAttribute("data-req");
-      const dayIndex = sel.getAttribute("data-day");
-      const newStatus = sel.value;  // "Pending", "Approved", "Rejected", "Write-in"
+      let reqIndex = sel.getAttribute("data-req");
+      let dayIndex = sel.getAttribute("data-day");
+      let newStatus = sel.value;
+      let day_id = requests[reqIndex].days[dayIndex].id;
 
-      const day_id = requests[reqIndex].days[dayIndex].id; // must exist
       fetch(`${API_BASE_URL}/api/update_day_status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -560,7 +555,7 @@ function renderAdmin() {
       .then(data => {
         if (data.status === "success") {
           requests[reqIndex].days[dayIndex].status = newStatus;
-          renderCalendar(); // re-render to refresh calendar
+          renderCalendar();
         } else {
           alert("Error updating day: " + data.message);
         }
@@ -575,8 +570,8 @@ function renderAdmin() {
   // Hook up Delete
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = function() {
-      const i = btn.getAttribute("data-del");
-      const reqId = requests[i].id; // from the DB
+      let i = btn.getAttribute("data-del");
+      let reqId = requests[i].id; // must match DB
 
       fetch(`${API_BASE_URL}/api/delete_request`, {
         method: 'POST',
@@ -586,7 +581,6 @@ function renderAdmin() {
       .then(r => r.json())
       .then(data => {
         if (data.status === "success") {
-          // Remove from requests array
           requests.splice(i, 1);
           renderCalendar();
         } else {
@@ -603,8 +597,8 @@ function renderAdmin() {
   // Hook up WhatsApp
   adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
     btn.onclick = function() {
-      const i = btn.getAttribute("data-ws");
-      const req = requests[i];
+      let i = btn.getAttribute("data-ws");
+      let req = requests[i];
       let msg = `Hello ${req.staffName} (${req.staffID}), your leave status:\n` +
         req.days.map(d => `${d.date}: ${d.status}`).join('\n');
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
@@ -632,10 +626,10 @@ function loadLeaves() {
 // SUBMIT LEAVE
 document.getElementById("leaveForm").onsubmit = function(e) {
   e.preventDefault();
-  const name  = document.getElementById("staffName").value.trim();
-  const id    = document.getElementById("staffID").value.trim();
-  const start = document.getElementById("startDate").value;
-  const end   = document.getElementById("endDate").value;
+  let name  = document.getElementById("staffName").value.trim();
+  let id    = document.getElementById("staffID").value.trim();
+  let start = document.getElementById("startDate").value;
+  let end   = document.getElementById("endDate").value;
 
   if (!name || !id || !start || !end) {
     alert("Please fill all fields.");
