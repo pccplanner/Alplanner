@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Booking System</title>
+  <title>Leave Management System v4.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- Include jsPDF library for PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -29,11 +29,42 @@
       margin: 5px 0; 
       color: #2c3e50;
     }
-    p.version {
+
+    /* Login Section */
+    #loginSection {
+      max-width: 400px; 
+      margin: 50px auto; 
+      padding: 20px; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    #loginSection h2 {
       text-align: center; 
-      font-size: 11px; 
-      color: #7f8c8d; 
-      margin: 0 0 10px;
+      margin-bottom: 20px;
+    }
+    #loginSection button {
+      padding: 10px; 
+      width: 100%; 
+      margin-bottom: 10px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    #loginSection button:hover {
+      background: #2980b9;
+    }
+    #adminLoginForm, #userLoginForm {
+      margin-top: 10px;
+    }
+    #adminLoginForm input, #userLoginForm input {
+      width: 100%; 
+      padding: 8px; 
+      margin-bottom: 10px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px;
     }
 
     /* Leave Form */
@@ -368,9 +399,22 @@
   </style>
 </head>
 <body>
-<div class="container">
-  <h1>Staff Leave Booking</h1>
-  <p class="version">v3.8 (Revamped) — Approved & Write-in Monthly Summary with Status Labels + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in" + Enhanced Robustness</p>
+<div id="loginSection">
+  <h2>Login</h2>
+  <button onclick="showAdminLogin()">Login as Admin</button>
+  <button onclick="showUserLogin()">Login as User</button>
+  <div id="adminLoginForm" style="display: none;">
+    <input type="text" id="adminUsername" placeholder="Username">
+    <input type="password" id="adminPassword" placeholder="Password">
+    <button onclick="loginAdmin()">Login</button>
+  </div>
+  <div id="userLoginForm" style="display: none;">
+    <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
+    <button onclick="loginUser()">Login</button>
+  </div>
+</div>
+<div class="container" style="display: none;">
+  <h1>Leave Management System v4.0</h1>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -426,13 +470,17 @@
   </div>
 
   <div class="footer">
-    © 2025. Approved & Write-in Monthly Summary with Status Labels + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename + Enhanced Robustness
+    @ 2025; t’va
   </div>
 </div>
 
 <script>
 // Where your backend is hosted
 const API_BASE_URL = "https://leave-management.th3va.com";
+
+// Global variables for user type and staff ID
+let userType = null; // 'admin' or 'user'
+let currentStaffID = null;
 
 // SHIFT PATTERNS
 var TeamPatterns = {
@@ -445,6 +493,71 @@ var referenceDate = new Date(2025, 2, 1);
 var requests = [];
 var currentYear = 2025, currentMonth = 2;
 var openAccordions = new Set(); // Track open accordion states
+
+// Show admin login form
+function showAdminLogin() {
+  document.getElementById("adminLoginForm").style.display = "block";
+  document.getElementById("userLoginForm").style.display = "none";
+}
+
+// Show user login form
+function showUserLogin() {
+  document.getElementById("userLoginForm").style.display = "block";
+  document.getElementById("adminLoginForm").style.display = "none";
+}
+
+// Admin login function
+async function loginAdmin() {
+  const username = document.getElementById("adminUsername").value;
+  const password = document.getElementById("adminPassword").value;
+  if (username === "admin" && password === "password") {
+    userType = "admin";
+    currentStaffID = null;
+    document.getElementById("loginSection").style.display = "none";
+    document.querySelector(".container").style.display = "block";
+    await renderUI();
+  } else {
+    alert("Invalid admin credentials.");
+  }
+}
+
+// User login function
+async function loginUser() {
+  const staffID = document.getElementById("userStaffID").value.trim();
+  if (staffID) {
+    userType = "user";
+    currentStaffID = staffID;
+    document.getElementById("loginSection").style.display = "none";
+    document.querySelector(".container").style.display = "block";
+    await renderUI();
+  } else {
+    alert("Please enter a staff ID.");
+  }
+}
+
+// Render UI based on user type
+async function renderUI() {
+  if (userType === "admin") {
+    document.querySelector(".team-buttons").style.display = "block";
+    document.querySelector(".month-nav").style.display = "flex";
+    document.getElementById("calendarGrid").style.display = "grid";
+    document.getElementById("monthlySummary").style.display = "block";
+    document.getElementById("staffID").readOnly = false;
+    document.getElementById("staffID").value = "";
+    await renderCalendar();
+    renderAdmin();
+    await renderMonthlySummary();
+  } else if (userType === "user") {
+    document.querySelector(".team-buttons").style.display = "none";
+    document.querySelector(".month-nav").style.display = "none";
+    document.getElementById("calendarGrid").style.display = "none";
+    document.getElementById("monthlySummary").style.display = "none";
+    document.getElementById("staffID").value = currentStaffID;
+    document.getElementById("staffID").readOnly = true;
+    await loadLeaves();
+    renderAdmin();
+  }
+}
 
 function daysBetween(a, b) {
   const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -467,13 +580,11 @@ function getShift(d) {
 
 // RENDER CALENDAR
 async function renderCalendar() {
-  // Fetch the latest leave requests from the backend
+  if (userType !== "admin") return;
   await loadLeaves();
-
   const monthNames = ["January", "February", "March", "April", "May", "June",
                       "July", "August", "September", "October", "November", "December"];
   document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
-
   const grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
   const firstDay = new Date(currentYear, currentMonth, 1);
@@ -508,7 +619,6 @@ async function renderCalendar() {
       });
     });
 
-    // Red dot if >2 non-rejected entries
     const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
     if (nonRejected > 2) {
       cell.appendChild(document.createElement("div")).className = "red-dot";
@@ -524,7 +634,7 @@ async function renderCalendar() {
     grid.appendChild(cell);
   }
   renderAdmin();
-  await renderMonthlySummary(); // Ensure this is awaited since it's async
+  await renderMonthlySummary();
 }
 
 // Group requests by staffID
@@ -534,7 +644,7 @@ function groupRequestsByStaffID(requests) {
     const staffID = req.staffID;
     if (!grouped[staffID]) {
       grouped[staffID] = {
-        staffName: req.staffName, // Use the name from the first request
+        staffName: req.staffName,
         staffID: staffID,
         requests: [],
       };
@@ -548,21 +658,18 @@ function renderAdmin() {
   const adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  // Group requests by staffID
   const groupedRequests = groupRequestsByStaffID(requests);
 
   groupedRequests.forEach((group, groupIndex) => {
     const item = document.createElement("div");
     item.className = "accordion-item";
 
-    // Calculate total days and pending days across all requests for this staff
     const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
     const pendingCount = group.requests.reduce(
       (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
       0
     );
 
-    // Create the accordion item
     item.innerHTML = `
       <div class="accordion-header" data-index="${groupIndex}">
         <span>${group.staffName} (${group.staffID})</span>
@@ -577,7 +684,7 @@ function renderAdmin() {
               <div class="day-block">
                 <span>${day.date}</span>
                 <div class="status-dot ${day.status.toLowerCase()}"></div>
-                <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}">
+                <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
                   <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
                   <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
                   <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
@@ -587,7 +694,7 @@ function renderAdmin() {
             `).join('')}
           </div>
           <div class="action-buttons">
-            <button class="delete-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">Delete</button>
+            ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">Delete</button>` : ''}
             <button class="whatsapp-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">WhatsApp</button>
           </div>
         `).join('')}
@@ -621,6 +728,7 @@ function renderAdmin() {
   // Day status updates (persistent)
   adminList.querySelectorAll("select").forEach(sel => {
     sel.onchange = async function() {
+      if (userType !== "admin") return; // Only admins can change status
       const groupIndex = sel.getAttribute("data-group");
       const reqIndexWithinGroup = sel.getAttribute("data-req");
       const dayIndex = sel.getAttribute("data-day");
@@ -652,6 +760,7 @@ function renderAdmin() {
   // Delete functionality
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = async function() {
+      if (userType !== "admin") return; // Only admins can delete
       const groupIndex = btn.getAttribute("data-group");
       const reqIndexWithinGroup = btn.getAttribute("data-req");
       const group = groupedRequests[groupIndex];
@@ -706,10 +815,10 @@ function renderAdmin() {
 
 // RENDER MONTHLY SUMMARY
 async function renderMonthlySummary() {
+  if (userType !== "admin") return; // Only admins can see the summary
   const summaryTableBody = document.getElementById("summaryTableBody");
   summaryTableBody.innerHTML = "";
 
-  // Fetch all leave requests from the backend
   try {
     const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
     if (!response.ok) {
@@ -717,7 +826,6 @@ async function renderMonthlySummary() {
     }
     const allRequests = await response.json();
 
-    // Filter requests for the current month and "Approved" or "Write-in" status
     const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
     const filteredRequests = allRequests.filter(req => 
       req.days.some(day => 
@@ -726,12 +834,9 @@ async function renderMonthlySummary() {
       )
     );
 
-    // Group requests by staffID
     const groupedRequests = groupRequestsByStaffID(filteredRequests);
 
-    // Process each staff member
     groupedRequests.forEach(group => {
-      // Collect all days with "Approved" or "Write-in" status for this month
       const monthlyLeaves = [];
       group.requests.forEach(req => {
         const daysInMonth = req.days.filter(day => 
@@ -743,13 +848,11 @@ async function renderMonthlySummary() {
         }
       });
 
-      if (monthlyLeaves.length === 0) return; // Skip if no approved or write-in leaves in this month
+      if (monthlyLeaves.length === 0) return;
 
-      // Flatten all days into a single array for this staff member
       const allDays = monthlyLeaves.flatMap(leave => leave.days);
-      allDays.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+      allDays.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Group consecutive days into ranges
       const ranges = [];
       let currentRange = [allDays[0]];
       for (let i = 1; i < allDays.length; i++) {
@@ -764,17 +867,15 @@ async function renderMonthlySummary() {
       }
       if (currentRange.length > 0) ranges.push(currentRange);
 
-      // Calculate total days
       const totalDays = allDays.length;
 
-      // Create table row
       const row = document.createElement("tr");
       row.innerHTML = `
         <td class="staff-name">${group.staffName} (${group.staffID})</td>
         <td class="leave-range">
           ${ranges.map(range => {
-            const startDate = range[0].date.split('-')[2]; // Get day (e.g., "24")
-            const endDate = range[range.length - 1].date.split('-')[2]; // Get day (e.g., "26")
+            const startDate = range[0].date.split('-')[2];
+            const endDate = range[range.length - 1].date.split('-')[2];
             const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
             const statusClass = range[0].status.toLowerCase();
             const statusLabel = range[0].status;
@@ -792,7 +893,6 @@ async function renderMonthlySummary() {
       summaryTableBody.appendChild(row);
     });
 
-    // If no leaves, display a message
     if (summaryTableBody.children.length === 0) {
       const row = document.createElement("tr");
       row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
@@ -808,6 +908,7 @@ async function renderMonthlySummary() {
 
 // DOWNLOAD PDF
 async function downloadSummaryPDF() {
+  if (userType !== "admin") return; // Only admins can download PDF
   try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -815,14 +916,12 @@ async function downloadSummaryPDF() {
                         "July", "August", "September", "October", "November", "December"];
     const monthLabel = `${monthNames[currentMonth]} ${currentYear}`;
 
-    // Fetch all leave requests from the backend
     const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
     if (!response.ok) {
       throw new Error('Failed to fetch leave requests');
     }
     const allRequests = await response.json();
 
-    // Filter requests for the current month and "Approved" or "Write-in" status
     const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
     const filteredRequests = allRequests.filter(req => 
       req.days.some(day => 
@@ -831,24 +930,20 @@ async function downloadSummaryPDF() {
       )
     );
 
-    // Group requests by staffID
     const groupedRequests = groupRequestsByStaffID(filteredRequests);
 
-    // Title with Leave Type Status
     doc.setFontSize(14);
-    doc.setTextColor(44, 62, 80); // #2c3e50
+    doc.setTextColor(44, 62, 80);
     doc.text(`Approved & Write-in Leave Summary for ${monthLabel}`, 20, 15);
 
-    // Table Headers
     doc.setFontSize(10);
-    doc.setTextColor(52, 73, 94); // #34495e
-    doc.setFillColor(247, 249, 251); // #f7f9fb
+    doc.setTextColor(52, 73, 94);
+    doc.setFillColor(247, 249, 251);
     doc.rect(20, 20, 170, 8, 'F');
     doc.text("Staff", 22, 26);
     doc.text("Leave Dates", 70, 26);
     doc.text("Total Days", 160, 26);
 
-    // Table Content
     let y = 34;
     groupedRequests.forEach(group => {
       const monthlyLeaves = [];
@@ -864,11 +959,9 @@ async function downloadSummaryPDF() {
 
       if (monthlyLeaves.length === 0) return;
 
-      // Flatten all days into a single array for this staff member
       const allDays = monthlyLeaves.flatMap(leave => leave.days);
-      allDays.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+      allDays.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Group consecutive days into ranges
       const ranges = [];
       let currentRange = [allDays[0]];
       for (let i = 1; i < allDays.length; i++) {
@@ -885,32 +978,26 @@ async function downloadSummaryPDF() {
 
       const totalDays = allDays.length;
 
-      // Staff Name
       doc.setFontSize(9);
       doc.setTextColor(44, 62, 80);
       let staffText = `${group.staffName} (${group.staffID})`;
       if (staffText.length > 20) staffText = staffText.substring(0, 17) + "...";
       doc.text(staffText, 22, y + 4);
 
-      // Leave Ranges with Status
       let rangeText = ranges.map(range => {
         const startDate = range[0].date.split('-')[2];
         const endDate = range[range.length - 1].date.split('-')[2];
         const statusLabel = range[0].status;
         return startDate === endDate ? `${startDate} (${statusLabel})` : `${startDate}-${endDate} (${statusLabel})`;
       }).join(", ");
-      if (rangeText.length > 50) {
-        rangeText = rangeText.substring(0, 47) + "...";
-      }
+      if (rangeText.length > 50) rangeText = rangeText.substring(0, 47) + "...";
       doc.setTextColor(52, 73, 94);
       doc.text(rangeText, 70, y + 4);
 
-      // Total Days
       doc.setTextColor(52, 73, 94);
       doc.text(`${totalDays}`, 160, y + 4);
 
-      // Draw row border
-      doc.setDrawColor(229, 231, 235); // #e5e7eb
+      doc.setDrawColor(229, 231, 235);
       doc.line(20, y + 6, 190, y + 6);
 
       y += 8;
@@ -921,16 +1008,14 @@ async function downloadSummaryPDF() {
     });
 
     if (y === 34) {
-      doc.setTextColor(127, 140, 141); // #7f8c8d
+      doc.setTextColor(127, 140, 141);
       doc.text("No approved or write-in leave requests for this month.", 20, y + 4);
     }
 
-    // Footer
     doc.setFontSize(8);
-    doc.setTextColor(149, 165, 166); // #95a5a6
-    doc.text("Generated by Staff Leave Booking System", 20, 285);
+    doc.setTextColor(149, 165, 166);
+    doc.text("Generated by Leave Management System", 20, 285);
 
-    // Save the PDF
     doc.save(`Leave_Summary_${monthLabel}.pdf`);
   } catch (error) {
     console.error("Error generating PDF:", error);
@@ -940,6 +1025,7 @@ async function downloadSummaryPDF() {
 
 // SELECT TEAM
 async function selectTeam(num) {
+  if (userType !== "admin") return;
   selectedTeam = num;
   await renderCalendar();
 }
@@ -947,14 +1033,18 @@ async function selectTeam(num) {
 // LOAD LEAVES
 async function loadLeaves() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+    let url = `${API_BASE_URL}/api/get_leaves`;
+    if (userType === "user") {
+      url += `?staffID=${currentStaffID}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch leaves');
     }
     requests = await response.json();
   } catch (error) {
     console.error("Error fetching leaves:", error);
-    requests = []; // Reset to empty array on error
+    requests = [];
   }
 }
 
@@ -991,7 +1081,11 @@ document.getElementById("leaveForm").onsubmit = async function(e) {
     if (data.status === "success") {
       alert("Leave request submitted successfully.");
       await loadLeaves();
-      await renderCalendar();
+      if (userType === "admin") {
+        await renderCalendar();
+      } else {
+        renderAdmin();
+      }
     } else {
       alert("Error: " + data.message);
     }
@@ -1005,6 +1099,7 @@ document.getElementById("leaveForm").onsubmit = async function(e) {
 
 // MONTH NAV
 async function prevMonth() {
+  if (userType !== "admin") return;
   currentMonth--;
   if (currentMonth < 0) {
     currentMonth = 11;
@@ -1014,6 +1109,7 @@ async function prevMonth() {
 }
 
 async function nextMonth() {
+  if (userType !== "admin") return;
   currentMonth++;
   if (currentMonth > 11) {
     currentMonth = 0;
@@ -1029,32 +1125,25 @@ document.getElementById("startDate").addEventListener("change", function() {
   const startDateValue = startDateInput.value;
 
   if (startDateValue) {
-    // Parse the "From" date
     const startDate = new Date(startDateValue);
     const year = startDate.getFullYear();
-    const month = String(startDate.getMonth() + 1).padStart(2, "0"); // Months are 0-based in JS
+    const month = String(startDate.getMonth() + 1).padStart(2, "0");
     const day = String(startDate.getDate()).padStart(2, "0");
 
-    // Set the minimum date for "To" to the "From" date
     endDateInput.min = startDateValue;
-
-    // Clear the "To" date to avoid confusion
     endDateInput.value = "";
-
-    // Set a default "To" date to the first day of the same month to influence the calendar view
     const sameMonthDate = `${year}-${month}-01`;
     endDateInput.value = sameMonthDate;
   } else {
-    // If "From" date is cleared, reset the "To" date constraints
     endDateInput.min = "";
     endDateInput.value = "";
   }
 });
 
 // INIT
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadLeaves();
-  await renderCalendar();
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("loginSection").style.display = "block";
+  document.querySelector(".container").style.display = "none";
 });
 </script>
 </body>
