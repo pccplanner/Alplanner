@@ -14,14 +14,20 @@
       padding: 10px; 
       font-size: 13px; 
       color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
     }
     .container {
       max-width: 900px; 
+      width: 100%;
       margin: 0 auto; 
       background: #fff; 
       padding: 15px; 
       border-radius: 8px; 
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
     }
     h1 {
       text-align: center; 
@@ -40,11 +46,13 @@
     /* Login Section */
     #loginSection {
       max-width: 400px; 
-      margin: 50px auto; 
+      width: 90%;
+      margin: 0 auto; 
       padding: 20px; 
       background: #fff; 
       border-radius: 8px; 
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
     }
     #loginSection h2 {
       text-align: center; 
@@ -72,6 +80,7 @@
       margin-bottom: 10px; 
       border: 1px solid #bdc3c7; 
       border-radius: 4px;
+      box-sizing: border-box;
     }
 
     /* Leave Form */
@@ -95,6 +104,7 @@
       border-radius: 4px; 
       font-size: 13px; 
       width: 120px;
+      box-sizing: border-box;
     }
     #leaveForm input::placeholder {
       color: #95a5a6;
@@ -403,6 +413,26 @@
       color: #95a5a6; 
       margin-top: 10px;
     }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .container {
+        padding: 10px;
+      }
+      #leaveForm {
+        flex-direction: column;
+      }
+      #leaveForm input {
+        width: 100%;
+      }
+      #calendarGrid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .day-cell {
+        min-height: 50px;
+        font-size: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -668,7 +698,20 @@ function renderAdmin() {
   let filteredRequests = requests;
   if (userType === "user") {
     filteredRequests = requests.filter(req => req.staffID === currentStaffID);
+  } else if (userType === "admin") {
+    // Filter for current and future months only
+    const currentDate = new Date();
+    const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth(); // Current year-month in total months
+    filteredRequests = requests.filter(req => {
+      // Check if any day in the request is in the current or future months
+      return req.days.some(day => {
+        const [year, month] = day.date.split('-').map(Number);
+        const requestYearMonth = year * 12 + (month - 1); // Convert to total months (month is 1-based)
+        return requestYearMonth >= currentYearMonth;
+      });
+    });
   }
+
   const groupedRequests = groupRequestsByStaffID(filteredRequests);
 
   groupedRequests.forEach((group, groupIndex) => {
@@ -704,11 +747,11 @@ function renderAdmin() {
               </div>
             `).join('')}
           </div>
-          <div class="action-buttons">
-            ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">Delete</button>` : ''}
-            <button class="whatsapp-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">WhatsApp</button>
-          </div>
         `).join('')}
+        <div class="action-buttons">
+          ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ''}
+          <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
+        </div>
       </div>
     `;
     adminList.appendChild(item);
@@ -768,39 +811,33 @@ function renderAdmin() {
     };
   });
 
-  // Delete functionality
+  // Delete functionality (delete all requests for this staff)
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
     btn.onclick = async function() {
       if (userType !== "admin") return; // Only admins can delete
       const groupIndex = btn.getAttribute("data-group");
-      const reqIndexWithinGroup = btn.getAttribute("data-req");
       const group = groupedRequests[groupIndex];
-      const req = group.requests[reqIndexWithinGroup];
-      const originalIndex = req.originalIndex;
 
       openAccordions.delete(groupIndex); // Close accordion on delete
-      const reqId = req.id; // must match DB
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request_id: reqId })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          requests.splice(originalIndex, 1);
-          requests.forEach((r, i) => {
-            const group = groupedRequests.find(g => g.staffID === r.staffID);
-            if (group) {
-              const reqWithinGroup = group.requests.find(req => req.id === r.id);
-              if (reqWithinGroup) reqWithinGroup.originalIndex = i;
-            }
+        // Delete each request for this staff member
+        for (const req of group.requests) {
+          const reqId = req.id; // must match DB
+          const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: reqId })
           });
-          await renderCalendar();
-        } else {
-          alert("Error deleting: " + data.message);
+          const data = await response.json();
+          if (data.status !== "success") {
+            alert("Error deleting request: " + data.message);
+            return;
+          }
         }
+        // Remove all requests for this staff from the requests array
+        requests = requests.filter(req => req.staffID !== group.staffID);
+        await renderCalendar();
       } catch (err) {
         console.error("Delete error:", err);
         alert("An error occurred while deleting. Please try again.");
