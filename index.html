@@ -370,7 +370,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.8 (Revamped) — Approved & Write-in Monthly Summary + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in" + Enhanced Robustness</p>
+  <p class="version">v3.8 (Revamped) — Approved & Write-in Monthly Summary with Status Labels + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in" + Enhanced Robustness</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -426,7 +426,7 @@
   </div>
 
   <div class="footer">
-    © 2025. Approved & Write-in Monthly Summary + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename + Enhanced Robustness
+    © 2025. Approved & Write-in Monthly Summary with Status Labels + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename + Enhanced Robustness
   </div>
 </div>
 
@@ -758,14 +758,13 @@ function renderMonthlySummary() {
           const startDate = range[0].date.split('-')[2]; // Get day (e.g., "24")
           const endDate = range[range.length - 1].date.split('-')[2]; // Get day (e.g., "26")
           const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
-          
-          // Determine the status of the range (all days should be Approved or Write-in)
           const statusClass = range[0].status.toLowerCase();
+          const statusLabel = range[0].status;
 
           return `
             <div class="range-block ${statusClass}">
               <span class="status-dot"></span>
-              ${displayText}
+              ${displayText} (${statusLabel})
             </div>
           `;
         }).join('')}
@@ -851,11 +850,12 @@ function downloadSummaryPDF() {
       if (staffText.length > 20) staffText = staffText.substring(0, 17) + "...";
       doc.text(staffText, 22, y + 4);
 
-      // Leave Ranges
+      // Leave Ranges with Status
       let rangeText = ranges.map(range => {
         const startDate = range[0].date.split('-')[2];
         const endDate = range[range.length - 1].date.split('-')[2];
-        return startDate === endDate ? startDate : `${startDate}-${endDate}`;
+        const statusLabel = range[0].status;
+        return startDate === endDate ? `${startDate} (${statusLabel})` : `${startDate}-${endDate} (${statusLabel})`;
       }).join(", ");
       if (rangeText.length > 50) {
         rangeText = rangeText.substring(0, 47) + "...";
