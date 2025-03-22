@@ -860,7 +860,7 @@ function renderAdmin() {
   });
 }
 
-// RENDER MONTHLY SUMMARY
+// RENDER MONTHLY SUMMARY (Updated)
 async function renderMonthlySummary() {
   if (userType !== "admin") return; // Only admins can see the summary
   const summaryTableBody = document.getElementById("summaryTableBody");
@@ -874,47 +874,54 @@ async function renderMonthlySummary() {
     const allRequests = await response.json();
 
     const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-    const filteredRequests = allRequests.filter(req => 
-      req.days.some(day => 
-        day.date.startsWith(monthStr) && 
-        (day.status === "Approved" || day.status === "Write-in")
-      )
-    );
 
-    const groupedRequests = groupRequestsByStaffID(filteredRequests);
+    // Step 1: Flatten all days from all requests and filter for the current month and status
+    const allDaysByStaff = {};
+    allRequests.forEach(req => {
+      const staffID = req.staffID;
+      const staffName = req.staffName;
 
-    groupedRequests.forEach(group => {
-      const monthlyLeaves = [];
-      group.requests.forEach(req => {
-        const daysInMonth = req.days.filter(day => 
-          day.date.startsWith(monthStr) && 
-          (day.status === "Approved" || day.status === "Write-in")
-        );
-        if (daysInMonth.length > 0) {
-          monthlyLeaves.push({ days: daysInMonth });
+      if (!allDaysByStaff[staffID]) {
+        allDaysByStaff[staffID] = {
+          staffName: staffName,
+          staffID: staffID,
+          days: {}
+        };
+      }
+
+      req.days.forEach(day => {
+        if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
+          // If the day already exists, prioritize "Approved" over "Write-in"
+          if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
+            allDaysByStaff[staffID].days[day.date] = day.status;
+          }
         }
       });
+    });
 
-      if (monthlyLeaves.length === 0) return;
+    // Step 2: Convert the days object into a sorted array and group into ranges
+    const groupedRequests = Object.values(allDaysByStaff).filter(group => Object.keys(group.days).length > 0);
 
-      const allDays = monthlyLeaves.flatMap(leave => leave.days);
-      allDays.sort((a, b) => new Date(a.date) - new Date(b.date));
+    groupedRequests.forEach(group => {
+      const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
+      dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+      // Group into ranges
       const ranges = [];
-      let currentRange = [allDays[0]];
-      for (let i = 1; i < allDays.length; i++) {
+      let currentRange = [dayEntries[0]];
+      for (let i = 1; i < dayEntries.length; i++) {
         const prevDate = new Date(currentRange[currentRange.length - 1].date);
-        const currDate = new Date(allDays[i].date);
-        if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === allDays[i].status) {
-          currentRange.push(allDays[i]);
+        const currDate = new Date(dayEntries[i].date);
+        if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === dayEntries[i].status) {
+          currentRange.push(dayEntries[i]);
         } else {
           ranges.push(currentRange);
-          currentRange = [allDays[i]];
+          currentRange = [dayEntries[i]];
         }
       }
       if (currentRange.length > 0) ranges.push(currentRange);
 
-      const totalDays = allDays.length;
+      const totalDays = dayEntries.length;
 
       const row = document.createElement("tr");
       row.innerHTML = `
