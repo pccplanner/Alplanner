@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <title>Leave Booking System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- Include jsPDF library for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif; 
@@ -274,6 +276,90 @@
       background: #20b958;
     }
 
+    /* Monthly Summary */
+    #monthlySummary {
+      padding: 10px; 
+      border-radius: 6px; 
+      background: #fff; 
+      margin-top: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    #monthlySummary h3 {
+      font-size: 15px; 
+      margin: 0 0 8px; 
+      color: #2c3e50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #monthlySummary .download-btn {
+      padding: 5px 10px;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+    #monthlySummary .download-btn:hover {
+      background: #2980b9;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .summary-table th, .summary-table td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .summary-table th {
+      background: #f7f9fb;
+      color: #34495e;
+      font-weight: 600;
+    }
+    .summary-table tr:hover {
+      background: #f9f9f9;
+    }
+    .summary-table .staff-name {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .summary-table .leave-range {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .summary-table .range-block {
+      padding: 3px 6px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .range-block.approved { background: #27ae60; }
+    .range-block.pending { background: #e67e22; }
+    .range-block.rejected { background: #e74c3c; }
+    .range-block.mixed { background: #7f8c8d; }
+    .range-block .status-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .range-block.approved .status-icon { background: #fff; }
+    .range-block.pending .status-icon { background: #fff; }
+    .range-block.rejected .status-icon { background: #fff; }
+    .range-block.mixed .status-icon { background: #fff; }
+    .summary-table .total-days {
+      font-weight: 600;
+      color: #34495e;
+    }
+
     .footer {
       text-align: center; 
       font-size: 10px; 
@@ -285,7 +371,7 @@
 <body>
 <div class="container">
   <h1>Staff Leave Booking</h1>
-  <p class="version">v3.4 (Revamped) — Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in"</p>
+  <p class="version">v3.5 (Revamped) — Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in"</p>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -322,8 +408,26 @@
     <div id="adminList"></div>
   </div>
 
+  <!-- Monthly Summary -->
+  <div id="monthlySummary">
+    <h3>
+      Monthly Leave Summary
+      <button class="download-btn" onclick="downloadSummaryPDF()">Download PDF</button>
+    </h3>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Staff</th>
+          <th>Leave Dates</th>
+          <th>Total Days</th>
+        </tr>
+      </thead>
+      <tbody id="summaryTableBody"></tbody>
+    </table>
+  </div>
+
   <div class="footer">
-    © 2025. Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename
+    © 2025. Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename
   </div>
 </div>
 
@@ -418,6 +522,7 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
   renderAdmin();
+  renderMonthlySummary();
 }
 
 // Group requests by staffID
@@ -597,6 +702,193 @@ function renderAdmin() {
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     };
   });
+}
+
+// RENDER MONTHLY SUMMARY
+function renderMonthlySummary() {
+  const summaryTableBody = document.getElementById("summaryTableBody");
+  summaryTableBody.innerHTML = "";
+
+  // Filter requests for the current month
+  const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+  const groupedRequests = groupRequestsByStaffID(requests);
+
+  // Process each staff member
+  groupedRequests.forEach(group => {
+    // Filter days that fall within the current month
+    const monthlyLeaves = [];
+    group.requests.forEach(req => {
+      const daysInMonth = req.days.filter(day => day.date.startsWith(monthStr));
+      if (daysInMonth.length > 0) {
+        monthlyLeaves.push({ days: daysInMonth });
+      }
+    });
+
+    if (monthlyLeaves.length === 0) return; // Skip if no leaves in this month
+
+    // Group consecutive days into ranges
+    const ranges = [];
+    monthlyLeaves.forEach(leave => {
+      leave.days.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+      let currentRange = [leave.days[0]];
+      for (let i = 1; i < leave.days.length; i++) {
+        const prevDate = new Date(currentRange[currentRange.length - 1].date);
+        const currDate = new Date(leave.days[i].date);
+        if (daysBetween(prevDate, currDate) === 1) {
+          currentRange.push(leave.days[i]);
+        } else {
+          ranges.push(currentRange);
+          currentRange = [leave.days[i]];
+        }
+      }
+      if (currentRange.length > 0) ranges.push(currentRange);
+    });
+
+    // Calculate total days
+    const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+
+    // Create table row
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td class="staff-name">${group.staffName} (${group.staffID})</td>
+      <td class="leave-range">
+        ${ranges.map(range => {
+          const startDate = range[0].date;
+          const endDate = range[range.length - 1].date;
+          const displayText = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+          
+          // Determine the status of the range
+          const statuses = range.map(day => day.status);
+          const uniqueStatuses = [...new Set(statuses)];
+          let statusClass;
+          if (uniqueStatuses.length === 1) {
+            statusClass = uniqueStatuses[0].toLowerCase();
+          } else {
+            statusClass = "mixed";
+          }
+
+          return `
+            <span class="range-block ${statusClass}">
+              <span class="status-icon"></span>
+              ${displayText}
+            </span>
+          `;
+        }).join('')}
+      </td>
+      <td class="total-days">${totalDays} days</td>
+    `;
+    summaryTableBody.appendChild(row);
+  });
+
+  // If no leaves, display a message
+  if (summaryTableBody.children.length === 0) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d;">No leave requests for this month.</td>`;
+    summaryTableBody.appendChild(row);
+  }
+}
+
+// DOWNLOAD PDF
+function downloadSummaryPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const monthNames = ["January","February","March","April","May","June",
+                      "July","August","September","October","November","December"];
+  const monthLabel = `${monthNames[currentMonth]} ${currentYear}`;
+  
+  // Title
+  doc.setFontSize(16);
+  doc.setTextColor(44, 62, 80); // #2c3e50
+  doc.text(`Leave Summary for ${monthLabel}`, 20, 20);
+
+  // Table Headers
+  doc.setFontSize(12);
+  doc.setTextColor(52, 73, 94); // #34495e
+  doc.setFillColor(247, 249, 251); // #f7f9fb
+  doc.rect(20, 30, 170, 10, 'F');
+  doc.text("Staff", 22, 37);
+  doc.text("Leave Dates", 70, 37);
+  doc.text("Total Days", 160, 37);
+
+  // Table Content
+  let y = 45;
+  const groupedRequests = groupRequestsByStaffID(requests);
+  const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+
+  groupedRequests.forEach(group => {
+    const monthlyLeaves = [];
+    group.requests.forEach(req => {
+      const daysInMonth = req.days.filter(day => day.date.startsWith(monthStr));
+      if (daysInMonth.length > 0) {
+        monthlyLeaves.push({ days: daysInMonth });
+      }
+    });
+
+    if (monthlyLeaves.length === 0) return;
+
+    const ranges = [];
+    monthlyLeaves.forEach(leave => {
+      leave.days.sort((a, b) => new Date(a.date) - new Date(b.date));
+      let currentRange = [leave.days[0]];
+      for (let i = 1; i < leave.days.length; i++) {
+        const prevDate = new Date(currentRange[currentRange.length - 1].date);
+        const currDate = new Date(leave.days[i].date);
+        if (daysBetween(prevDate, currDate) === 1) {
+          currentRange.push(leave.days[i]);
+        } else {
+          ranges.push(currentRange);
+          currentRange = [leave.days[i]];
+        }
+      }
+      if (currentRange.length > 0) ranges.push(currentRange);
+    });
+
+    const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+
+    // Staff Name
+    doc.setFontSize(11);
+    doc.setTextColor(44, 62, 80);
+    doc.text(`${group.staffName} (${group.staffID})`, 22, y + 5);
+
+    // Leave Ranges
+    let rangeText = ranges.map(range => {
+      const startDate = range[0].date;
+      const endDate = range[range.length - 1].date;
+      return startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+    }).join(", ");
+    if (rangeText.length > 80) {
+      rangeText = rangeText.substring(0, 77) + "...";
+    }
+    doc.setTextColor(52, 73, 94);
+    doc.text(rangeText, 70, y + 5);
+
+    // Total Days
+    doc.setTextColor(52, 73, 94);
+    doc.text(`${totalDays} days`, 160, y + 5);
+
+    // Draw row border
+    doc.setDrawColor(224, 224, 224); // #e0e0e0
+    doc.line(20, y + 10, 190, y + 10);
+
+    y += 15;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+  });
+
+  if (y === 45) {
+    doc.setTextColor(127, 140, 141); // #7f8c8d
+    doc.text("No leave requests for this month.", 20, y + 5);
+  }
+
+  // Footer
+  doc.setFontSize(10);
+  doc.setTextColor(149, 165, 166); // #95a5a6
+  doc.text("Generated by Staff Leave Booking System", 20, 280);
+
+  // Save the PDF
+  doc.save(`Leave_Summary_${monthLabel}.pdf`);
 }
 
 // SELECT TEAM
