@@ -466,9 +466,12 @@ function getShift(d) {
 }
 
 // RENDER CALENDAR
-function renderCalendar() {
-  const monthNames = ["January","February","March","April","May","June",
-                      "July","August","September","October","November","December"];
+async function renderCalendar() {
+  // Fetch the latest leave requests from the backend
+  await loadLeaves();
+
+  const monthNames = ["January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December"];
   document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
 
   const grid = document.getElementById("calendarGrid");
@@ -521,7 +524,7 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
   renderAdmin();
-  renderMonthlySummary();
+  await renderMonthlySummary(); // Ensure this is awaited since it's async
 }
 
 // Group requests by staffID
@@ -617,7 +620,7 @@ function renderAdmin() {
 
   // Day status updates (persistent)
   adminList.querySelectorAll("select").forEach(sel => {
-    sel.onchange = function() {
+    sel.onchange = async function() {
       const groupIndex = sel.getAttribute("data-group");
       const reqIndexWithinGroup = sel.getAttribute("data-req");
       const dayIndex = sel.getAttribute("data-day");
@@ -626,30 +629,29 @@ function renderAdmin() {
       const req = group.requests[reqIndexWithinGroup];
       const day_id = req.days[dayIndex].id; // from DB
 
-      fetch(`${API_BASE_URL}/api/update_day_status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ day_id: day_id, status: newStatus })
-      })
-      .then(r => r.json())
-      .then(data => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ day_id: day_id, status: newStatus })
+        });
+        const data = await response.json();
         if (data.status === "success") {
           requests[req.originalIndex].days[dayIndex].status = newStatus;
-          renderCalendar();
+          await renderCalendar();
         } else {
           alert("Error: " + data.message);
         }
-      })
-      .catch(err => {
+      } catch (err) {
         console.error("Day status update error:", err);
         alert("An error occurred updating the day status.");
-      });
+      }
     };
   });
 
   // Delete functionality
   adminList.querySelectorAll(".delete-btn").forEach(btn => {
-    btn.onclick = function() {
+    btn.onclick = async function() {
       const groupIndex = btn.getAttribute("data-group");
       const reqIndexWithinGroup = btn.getAttribute("data-req");
       const group = groupedRequests[groupIndex];
@@ -659,13 +661,13 @@ function renderAdmin() {
       openAccordions.delete(groupIndex); // Close accordion on delete
       const reqId = req.id; // must match DB
 
-      fetch(`${API_BASE_URL}/api/delete_request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: reqId })
-      })
-      .then(r => r.json())
-      .then(data => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: reqId })
+        });
+        const data = await response.json();
         if (data.status === "success") {
           requests.splice(originalIndex, 1);
           // Update original indices of remaining requests
@@ -676,15 +678,14 @@ function renderAdmin() {
               if (reqWithinGroup) reqWithinGroup.originalIndex = i;
             }
           });
-          renderCalendar();
+          await renderCalendar();
         } else {
           alert("Error deleting: " + data.message);
         }
-      })
-      .catch(err => {
+      } catch (err) {
         console.error("Delete error:", err);
         alert("An error occurred while deleting. Please try again.");
-      });
+      }
     };
   });
 
@@ -704,93 +705,134 @@ function renderAdmin() {
 }
 
 // RENDER MONTHLY SUMMARY
-function renderMonthlySummary() {
+async function renderMonthlySummary() {
   const summaryTableBody = document.getElementById("summaryTableBody");
   summaryTableBody.innerHTML = "";
 
-  // Filter requests for the current month
-  const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-  const groupedRequests = groupRequestsByStaffID(requests);
+  // Fetch all leave requests from the backend
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch leave requests');
+    }
+    const allRequests = await response.json();
 
-  // Process each staff member
-  groupedRequests.forEach(group => {
-    // Filter days that fall within the current month and have "Approved" or "Write-in" status
-    const monthlyLeaves = [];
-    group.requests.forEach(req => {
-      const daysInMonth = req.days.filter(day => 
+    // Filter requests for the current month and "Approved" or "Write-in" status
+    const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+    const filteredRequests = allRequests.filter(req => 
+      req.days.some(day => 
         day.date.startsWith(monthStr) && 
         (day.status === "Approved" || day.status === "Write-in")
-      );
-      if (daysInMonth.length > 0) {
-        monthlyLeaves.push({ days: daysInMonth });
-      }
-    });
+      )
+    );
 
-    if (monthlyLeaves.length === 0) return; // Skip if no approved or write-in leaves in this month
+    // Group requests by staffID
+    const groupedRequests = groupRequestsByStaffID(filteredRequests);
 
-    // Group consecutive days into ranges
-    const ranges = [];
-    monthlyLeaves.forEach(leave => {
-      leave.days.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
-      let currentRange = [leave.days[0]];
-      for (let i = 1; i < leave.days.length; i++) {
-        const prevDate = new Date(currentRange[currentRange.length - 1].date);
-        const currDate = new Date(leave.days[i].date);
-        if (daysBetween(prevDate, currDate) === 1) {
-          currentRange.push(leave.days[i]);
-        } else {
-          ranges.push(currentRange);
-          currentRange = [leave.days[i]];
+    // Process each staff member
+    groupedRequests.forEach(group => {
+      // Filter days that fall within the current month and have "Approved" or "Write-in" status
+      const monthlyLeaves = [];
+      group.requests.forEach(req => {
+        const daysInMonth = req.days.filter(day => 
+          day.date.startsWith(monthStr) && 
+          (day.status === "Approved" || day.status === "Write-in")
+        );
+        if (daysInMonth.length > 0) {
+          monthlyLeaves.push({ days: daysInMonth });
         }
-      }
-      if (currentRange.length > 0) ranges.push(currentRange);
+      });
+
+      if (monthlyLeaves.length === 0) return; // Skip if no approved or write-in leaves in this month
+
+      // Group consecutive days into ranges
+      const ranges = [];
+      monthlyLeaves.forEach(leave => {
+        leave.days.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+        let currentRange = [leave.days[0]];
+        for (let i = 1; i < leave.days.length; i++) {
+          const prevDate = new Date(currentRange[currentRange.length - 1].date);
+          const currDate = new Date(leave.days[i].date);
+          if (daysBetween(prevDate, currDate) === 1) {
+            currentRange.push(leave.days[i]);
+          } else {
+            ranges.push(currentRange);
+            currentRange = [leave.days[i]];
+          }
+        }
+        if (currentRange.length > 0) ranges.push(currentRange);
+      });
+
+      // Calculate total days
+      const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+
+      // Create table row
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td class="staff-name">${group.staffName} (${group.staffID})</td>
+        <td class="leave-range">
+          ${ranges.map(range => {
+            const startDate = range[0].date.split('-')[2]; // Get day (e.g., "24")
+            const endDate = range[range.length - 1].date.split('-')[2]; // Get day (e.g., "26")
+            const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
+            const statusClass = range[0].status.toLowerCase();
+            const statusLabel = range[0].status;
+
+            return `
+              <div class="range-block ${statusClass}">
+                <span class="status-dot"></span>
+                ${displayText} (${statusLabel})
+              </div>
+            `;
+          }).join('')}
+        </td>
+        <td class="total-days">${totalDays}</td>
+      `;
+      summaryTableBody.appendChild(row);
     });
 
-    // Calculate total days
-    const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
-
-    // Create table row
+    // If no leaves, display a message
+    if (summaryTableBody.children.length === 0) {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
+      summaryTableBody.appendChild(row);
+    }
+  } catch (error) {
+    console.error("Error fetching monthly summary:", error);
     const row = document.createElement("tr");
-    row.innerHTML = `
-      <td class="staff-name">${group.staffName} (${group.staffID})</td>
-      <td class="leave-range">
-        ${ranges.map(range => {
-          const startDate = range[0].date.split('-')[2]; // Get day (e.g., "24")
-          const endDate = range[range.length - 1].date.split('-')[2]; // Get day (e.g., "26")
-          const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
-          const statusClass = range[0].status.toLowerCase();
-          const statusLabel = range[0].status;
-
-          return `
-            <div class="range-block ${statusClass}">
-              <span class="status-dot"></span>
-              ${displayText} (${statusLabel})
-            </div>
-          `;
-        }).join('')}
-      </td>
-      <td class="total-days">${totalDays}</td>
-    `;
-    summaryTableBody.appendChild(row);
-  });
-
-  // If no leaves, display a message
-  if (summaryTableBody.children.length === 0) {
-    const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
+    row.innerHTML = `<td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">Error loading summary. Please try again later.</td>`;
     summaryTableBody.appendChild(row);
   }
 }
 
 // DOWNLOAD PDF
-function downloadSummaryPDF() {
+async function downloadSummaryPDF() {
   try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const monthNames = ["January","February","March","April","May","June",
-                        "July","August","September","October","November","December"];
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"];
     const monthLabel = `${monthNames[currentMonth]} ${currentYear}`;
-    
+
+    // Fetch all leave requests from the backend
+    const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch leave requests');
+    }
+    const allRequests = await response.json();
+
+    // Filter requests for the current month and "Approved" or "Write-in" status
+    const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+    const filteredRequests = allRequests.filter(req => 
+      req.days.some(day => 
+        day.date.startsWith(monthStr) && 
+        (day.status === "Approved" || day.status === "Write-in")
+      )
+    );
+
+    // Group requests by staffID
+    const groupedRequests = groupRequestsByStaffID(filteredRequests);
+
     // Title with Leave Type Status
     doc.setFontSize(14);
     doc.setTextColor(44, 62, 80); // #2c3e50
@@ -807,9 +849,6 @@ function downloadSummaryPDF() {
 
     // Table Content
     let y = 34;
-    const groupedRequests = groupRequestsByStaffID(requests);
-    const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-
     groupedRequests.forEach(group => {
       const monthlyLeaves = [];
       group.requests.forEach(req => {
@@ -897,24 +936,27 @@ function downloadSummaryPDF() {
 }
 
 // SELECT TEAM
-function selectTeam(num) {
+async function selectTeam(num) {
   selectedTeam = num;
-  renderCalendar();
+  await renderCalendar();
 }
 
 // LOAD LEAVES
-function loadLeaves() {
-  fetch(`${API_BASE_URL}/api/get_leaves`)
-    .then(response => response.json())
-    .then(data => {
-      requests = data;
-      renderCalendar();
-    })
-    .catch(error => console.error("Error fetching leaves:", error));
+async function loadLeaves() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch leaves');
+    }
+    requests = await response.json();
+  } catch (error) {
+    console.error("Error fetching leaves:", error);
+    requests = []; // Reset to empty array on error
+  }
 }
 
 // SUBMIT LEAVE
-document.getElementById("leaveForm").onsubmit = function(e) {
+document.getElementById("leaveForm").onsubmit = async function(e) {
   e.preventDefault();
   const name  = document.getElementById("staffName").value.trim();
   const id    = document.getElementById("staffID").value.trim();
@@ -930,51 +972,51 @@ document.getElementById("leaveForm").onsubmit = function(e) {
     return;
   }
 
-  fetch(`${API_BASE_URL}/api/submit_leave`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: "Pending",
-      staffName: name,
-      staffID: id,
-      fromDate: start,
-      toDate: end
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: "Pending",
+        staffName: name,
+        staffID: id,
+        fromDate: start,
+        toDate: end
+      })
+    });
+    const data = await response.json();
     if (data.status === "success") {
       alert("Leave request submitted successfully.");
-      loadLeaves();
+      await loadLeaves();
+      await renderCalendar();
     } else {
       alert("Error: " + data.message);
     }
-  })
-  .catch(error => {
+  } catch (error) {
     console.error("Error submitting leave request:", error);
     alert("An error occurred. Please try again later.");
-  });
+  }
 
   e.target.reset();
 };
 
 // MONTH NAV
-function prevMonth() {
+async function prevMonth() {
   currentMonth--;
   if (currentMonth < 0) {
     currentMonth = 11;
     currentYear--;
   }
-  renderCalendar();
+  await renderCalendar();
 }
 
-function nextMonth() {
+async function nextMonth() {
   currentMonth++;
   if (currentMonth > 11) {
     currentMonth = 0;
     currentYear++;
   }
-  renderCalendar();
+  await renderCalendar();
 }
 
 // Update "To" date picker to show the same month as "From" date
@@ -1007,7 +1049,10 @@ document.getElementById("startDate").addEventListener("change", function() {
 });
 
 // INIT
-document.addEventListener("DOMContentLoaded", loadLeaves);
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadLeaves();
+  await renderCalendar();
+});
 </script>
 </body>
 </html>
