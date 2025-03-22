@@ -2,1007 +2,380 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Booking System</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- Include jsPDF library for PDF generation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif; 
-      background: #f5f7fa; 
-      margin: 0; 
-      padding: 10px; 
-      font-size: 13px; 
-      color: #333;
-    }
-    .container {
-      max-width: 900px; 
-      margin: 0 auto; 
-      background: #fff; 
-      padding: 15px; 
-      border-radius: 8px; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    h1 {
-      text-align: center; 
-      font-size: 18px; 
-      margin: 5px 0; 
-      color: #2c3e50;
-    }
-    p.version {
-      text-align: center; 
-      font-size: 11px; 
-      color: #7f8c8d; 
-      margin: 0 0 10px;
-    }
-
-    /* Leave Form */
-    #leaveForm {
-      display: flex; 
-      flex-wrap: wrap; 
-      gap: 8px; 
-      padding: 10px; 
-      background: #ecf0f1; 
-      border-radius: 6px; 
-      margin-bottom: 10px;
-    }
-    #leaveForm label {
-      font-weight: 600; 
-      margin-right: 4px; 
-      color: #34495e;
-    }
-    #leaveForm input {
-      padding: 5px 8px; 
-      border: 1px solid #bdc3c7; 
-      border-radius: 4px; 
-      font-size: 13px; 
-      width: 120px;
-    }
-    #leaveForm input::placeholder {
-      color: #95a5a6;
-    }
-    #leaveForm button {
-      padding: 6px 12px; 
-      background: #3498db; 
-      color: #fff; 
-      border: none; 
-      border-radius: 4px; 
-      cursor: pointer; 
-      transition: background 0.2s;
-    }
-    #leaveForm button:hover {
-      background: #2980b9;
-    }
-
-    /* Team Buttons */
-    .team-buttons {
-      text-align: center; 
-      margin: 8px 0;
-    }
-    .team-buttons button {
-      padding: 5px 10px; 
-      margin: 0 4px; 
-      border: none; 
-      border-radius: 4px; 
-      color: #fff; 
-      cursor: pointer; 
-      font-size: 12px;
-    }
-    .team-a { background: #27ae60; } 
-    .team-b { background: #2980b9; } 
-    .team-c { background: #8e44ad; }
-    .team-buttons button:hover {
-      opacity: 0.85;
-    }
-
-    /* Month Navigation */
-    .month-nav {
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      gap: 8px; 
-      margin: 8px 0;
-    }
-    .month-nav button {
-      padding: 4px 10px; 
-      background: #7f8c8d; 
-      color: #fff; 
-      border: none; 
-      border-radius: 4px; 
-      cursor: pointer;
-    }
-    .month-nav button:hover {
-      background: #6c7a89;
-    }
-    #monthLabel {
-      font-weight: 600; 
-      color: #2c3e50;
-    }
-
-    /* Calendar */
-    #calendarGrid {
-      display: grid; 
-      grid-template-columns: repeat(7, 1fr); 
-      gap: 3px; 
-      max-width: 850px; 
-      margin: 0 auto 10px;
-    }
-    .day-cell {
-      background: #fff; 
-      border: 1px solid #e0e0e0; 
-      min-height: 60px; 
-      padding: 3px; 
-      border-radius: 4px; 
-      font-size: 11px; 
-      position: relative;
-    }
-    .shift-box {
-      font-weight: 600; 
-      color: #fff; 
-      padding: 2px 4px; 
-      border-radius: 3px; 
-      text-align: center; 
-      margin-bottom: 3px;
-    }
-    .shift-morning { background: #27ae60; }
-    .shift-night   { background: #a9dfbf; color: #2c3e50; }
-    .shift-off     { background: #dcdcdc; color: #7f8c8d; }
-
-    .leave-entry {
-      background: #fff3cd; 
-      padding: 2px 4px; 
-      border-radius: 3px; 
-      margin: 1px 0;
-    }
-    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
-    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
-    .leave-entry.management { background: #ffeeba; }
-    .leave-entry.write-in   { background: #ffeeba; }
-
-    .red-dot {
-      width: 6px; 
-      height: 6px; 
-      background: #e74c3c; 
-      border-radius: 50%; 
-      position: absolute; 
-      top: 3px; 
-      right: 3px;
-    }
-
-    /* Admin Summary */
-    #adminSummary {
-      padding: 10px; 
-      border-radius: 6px; 
-      background: #fff; 
-      max-height: 400px; 
-      overflow-y: auto;
-    }
-    #adminSummary h3 {
-      font-size: 15px; 
-      margin: 0 0 8px; 
-      color: #2c3e50;
-    }
-
-    .accordion-item {
-      border: 1px solid #e0e0e0; 
-      margin-bottom: 5px; 
-      border-radius: 4px;
-    }
-    .accordion-header {
-      padding: 8px; 
-      background: #f7f9fb; 
-      cursor: pointer; 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center;
-    }
-    .accordion-header:hover {
-      background: #eef2f5;
-    }
-    .accordion-header span {
-      font-weight: 600; 
-      color: #34495e;
-    }
-    .badge {
-      background: #3498db; 
-      color: #fff; 
-      padding: 2px 6px; 
-      border-radius: 12px; 
-      font-size: 11px;
-    }
-    .badge.pending { background: #e67e22; }
-    .accordion-content {
-      padding: 8px; 
-      background: #fff;
-    }
-    .timeline {
-      display: flex; 
-      flex-wrap: wrap; 
-      gap: 6px;
-    }
-    .day-block {
-      padding: 4px 8px; 
-      border-radius: 4px; 
-      background: #f1f1f1; 
-      display: flex; 
-      align-items: center; 
-      gap: 4px; 
-      transition: transform 0.2s;
-    }
-    .day-block:hover {
-      transform: scale(1.02);
-    }
-    .day-block select {
-      font-size: 11px; 
-      padding: 2px; 
-      border-radius: 3px; 
-      border: 1px solid #bdc3c7;
-    }
-    .status-dot {
-      width: 8px; 
-      height: 8px; 
-      border-radius: 50%;
-    }
-    .status-dot.pending     { background: #e67e22; }
-    .status-dot.approved    { background: #27ae60; }
-    .status-dot.rejected    { background: #e74c3c; }
-    .status-dot.management  { background: #f1c40f; }
-    .status-dot.write-in    { background: #f1c40f; }
-
-    .action-buttons {
-      margin-top: 6px; 
-      text-align: right;
-    }
-    .delete-btn, .whatsapp-btn {
-      padding: 3px 8px; 
-      font-size: 11px; 
-      border: none; 
-      border-radius: 3px; 
-      cursor: pointer; 
-      margin-left: 4px;
-    }
-    .delete-btn {
-      background: #e74c3c; 
-      color: #fff;
-    }
-    .delete-btn:hover {
-      background: #c0392b;
-    }
-    .whatsapp-btn {
-      background: #25D366; 
-      color: #fff;
-    }
-    .whatsapp-btn:hover {
-      background: #20b958;
-    }
-
-    /* Monthly Summary */
-    #monthlySummary {
-      padding: 8px; 
-      border-radius: 6px; 
-      background: #fff; 
-      margin-top: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    #monthlySummary h3 {
-      font-size: 14px; 
-      margin: 0 0 6px; 
-      color: #2c3e50;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    #monthlySummary .download-btn {
-      padding: 4px 8px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 11px;
-      transition: background 0.2s;
-    }
-    #monthlySummary .download-btn:hover {
-      background: #2980b9;
-    }
-    .summary-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-    }
-    .summary-table th, .summary-table td {
-      padding: 5px 8px;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .summary-table th {
-      background: #f7f9fb;
-      color: #34495e;
-      font-weight: 600;
-      font-size: 12px;
-    }
-    .summary-table tr:nth-child(even) {
-      background: #f9fafb;
-    }
-    .summary-table tr:hover {
-      background: #f1f5f9;
-    }
-    .summary-table .staff-name {
-      font-weight: 500;
-      color: #2c3e50;
-      white-space: nowrap;
-    }
-    .summary-table .leave-range {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .summary-table .range-block {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 10px;
-      color: #2c3e50;
-    }
-    .range-block .status-dot {
-      width: 6px;
-      height: 6px;
-    }
-    .range-block.approved .status-dot { background: #27ae60; }
-    .range-block.pending .status-dot { background: #e67e22; }
-    .range-block.rejected .status-dot { background: #e74c3c; }
-    .range-block.mixed .status-dot { background: #7f8c8d; }
-    .range-block.write-in .status-dot { background: #f1c40f; }
-    .summary-table .total-days {
-      font-weight: 500;
-      color: #34495e;
-      text-align: right;
-    }
-
-    .footer {
-      text-align: center; 
-      font-size: 10px; 
-      color: #95a5a6; 
-      margin-top: 10px;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employee Leave Management System</title>
 </head>
 <body>
-<div class="container">
-  <h1>Staff Leave Booking</h1>
-  <p class="version">v3.7 (Revamped) — Approved & Write-in Monthly Summary + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old Accordion UI + Persistent Day Updates + "Write-in"</p>
+  <h2>Employee Leave Management System</h2>
 
-  <!-- Leave Form -->
-  <form id="leaveForm">
-    <label for="staffName">Name</label>
-    <input type="text" id="staffName" placeholder="Enter full name" required>
-    <label for="staffID">ID</label>
-    <input type="text" id="staffID" placeholder="e.g., S123" required>
-    <label for="startDate">From</label>
-    <input type="date" id="startDate" required>
-    <label for="endDate">To</label>
-    <input type="date" id="endDate" required>
-    <button type="submit">Request Leave</button>
-  </form>
-
-  <!-- Team Buttons -->
-  <div class="team-buttons">
-    <button class="team-a" onclick="selectTeam(1)">Team A</button>
-    <button class="team-b" onclick="selectTeam(2)">Team B</button>
-    <button class="team-c" onclick="selectTeam(3)">Team C</button>
+  <!-- Time-Off Request Submission Section -->
+  <div>
+    <h3>Submit Time-Off Request</h3>
+    <label for="requestStaffName">Staff Name:</label>
+    <input type="text" id="requestStaffName" placeholder="e.g., James">
+    <label for="requestStaffID">Staff ID:</label>
+    <input type="text" id="requestStaffID" placeholder="e.g., 8283">
+    <label for="fromDate">From Date:</label>
+    <input type="date" id="fromDate" value="2025-04-01">
+    <label for="toDate">To Date:</label>
+    <input type="date" id="toDate" value="2025-04-01">
+    <button onclick="submitRequest()">Submit Request</button>
   </div>
 
-  <!-- Month Navigation -->
-  <div class="month-nav">
-    <button onclick="prevMonth()">←</button>
-    <span id="monthLabel">Loading...</span>
-    <button onclick="nextMonth()">→</button>
+  <!-- Pending Requests Section -->
+  <div id="requestList">
+    <h3>Pending Leave Requests</h3>
+    <ul id="requestListBody"></ul>
   </div>
 
-  <div id="calendarGrid"></div>
-
-  <!-- Admin Summary -->
-  <div id="adminSummary">
-    <h3>Leave Requests</h3>
-    <div id="adminList"></div>
+  <!-- Enhanced Monthly Report Section -->
+  <div>
+    <h3 id="summaryTitle"></h3>
+    <div>
+      <h4>Detailed Leave Summary</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th>Leave Dates</th>
+            <th>Approved Days</th>
+            <th>Write-in Days</th>
+            <th>Total Days</th>
+          </tr>
+        </thead>
+        <tbody id="summaryTableBody"></tbody>
+      </table>
+    </div>
+    <div>
+      <h4>Leave Patterns</h4>
+      <p id="mostCommonLeaveDay"></p>
+    </div>
   </div>
 
-  <!-- Monthly Summary -->
-  <div id="monthlySummary">
-    <h3>
-      Monthly Leave Summary
-      <button class="download-btn" onclick="downloadSummaryPDF()">Download PDF</button>
-    </h3>
-    <table class="summary-table">
-      <thead>
-        <tr>
-          <th style="width: 30%;">Staff</th>
-          <th style="width: 50%;">Leave Dates</th>
-          <th style="width: 20%;">Total Days</th>
-        </tr>
-      </thead>
-      <tbody id="summaryTableBody"></tbody>
-    </table>
-  </div>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h2, h3, h4 {
+      color: #2c3e50;
+    }
+    div {
+      margin-bottom: 20px;
+    }
+    label {
+      margin-right: 5px;
+    }
+    input, select, button {
+      margin: 5px;
+      padding: 5px;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .range-block {
+      margin: 5px 0;
+      display: flex;
+      align-items: center;
+    }
+    .range-block.approved .status-dot {
+      background-color: #27ae60;
+    }
+    .range-block.writein .status-dot {
+      background-color: #e67e22;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      padding: 5px 0;
+    }
+    p {
+      margin: 5px 0;
+    }
+  </style>
 
-  <div class="footer">
-    © 2025. Approved & Write-in Monthly Summary + Monthly Summary with PDF Export + Same Month for "To" Date Picker + Grouped Requests by Staff ID + Old accordion UI with persistent updates & "Write-in" rename
-  </div>
-</div>
+  <script>
+    // Global variables
+    let requests = [];
+    let currentYear = 2025;
+    let currentMonth = 3; // 0-based (3 = April)
 
-<script>
-// Where your backend is hosted
-const API_BASE_URL = "https://leave-management.th3va.com";
+    // Utility function to calculate days between two dates
+    function daysBetween(date1, date2) {
+      const oneDay = 24 * 60 * 60 * 1000;
+      return Math.round(Math.abs((date1 - date2) / oneDay));
+    }
 
-// SHIFT PATTERNS
-var TeamPatterns = {
-  1: ["morning", "morning", "night", "night", "off", "off"],
-  2: ["off", "off", "morning", "morning", "night", "night"],
-  3: ["night", "night", "off", "off", "morning", "morning"]
-};
-var selectedTeam = 1;
-var referenceDate = new Date(2025, 2, 1);
-var requests = [];
-var currentYear = 2025, currentMonth = 2;
-var openAccordions = new Set(); // Track open accordion states
-
-function daysBetween(a, b) {
-  const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
-  return Math.floor((B - A) / (1000 * 60 * 60 * 24));
-}
-
-function formatDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return y + "-" + m + "-" + dd;
-}
-
-function getShift(d) {
-  const diff = daysBetween(referenceDate, d);
-  const idx = ((diff % 6) + 6) % 6;
-  return TeamPatterns[selectedTeam][idx];
-}
-
-// RENDER CALENDAR
-function renderCalendar() {
-  const monthNames = ["January","February","March","April","May","June",
-                      "July","August","September","October","November","December"];
-  document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
-
-  const grid = document.getElementById("calendarGrid");
-  grid.innerHTML = "";
-  const firstDay = new Date(currentYear, currentMonth, 1);
-  const offset = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-  for (let i = 0; i < offset; i++) {
-    grid.appendChild(document.createElement("div")).className = "day-cell";
-  }
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(currentYear, currentMonth, d);
-    const dateStr = formatDate(dateObj);
-    const cell = document.createElement("div");
-    cell.className = "day-cell";
-
-    const shift = getShift(dateObj);
-    const shiftBox = document.createElement("div");
-    shiftBox.className = "shift-box " + (
-      shift === "morning" ? "shift-morning" :
-      shift === "night"   ? "shift-night"   : "shift-off"
-    );
-    shiftBox.textContent = d;
-    cell.appendChild(shiftBox);
-
-    const dayEntries = [];
-    requests.forEach(req => {
-      req.days.forEach(day => {
-        if (day.date === dateStr) {
-          dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
+    // Function to group requests by staff ID
+    function groupRequestsByStaffID(requests) {
+      const grouped = {};
+      requests.forEach(req => {
+        if (!grouped[req.staffID]) {
+          grouped[req.staffID] = {
+            staffID: req.staffID,
+            staffName: req.staffName,
+            requests: []
+          };
         }
+        grouped[req.staffID].requests.push(req);
       });
-    });
-
-    // Red dot if >2 non-rejected entries
-    const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
-    if (nonRejected > 2) {
-      cell.appendChild(document.createElement("div")).className = "red-dot";
+      return Object.values(grouped);
     }
 
-    dayEntries.forEach(e => {
-      const entry = document.createElement("div");
-      entry.className = "leave-entry " + e.status.toLowerCase();
-      entry.textContent = e.staffName + " (" + e.staffID + ")";
-      cell.appendChild(entry);
-    });
-
-    grid.appendChild(cell);
-  }
-  renderAdmin();
-  renderMonthlySummary();
-}
-
-// Group requests by staffID
-function groupRequestsByStaffID(requests) {
-  const grouped = {};
-  requests.forEach((req, reqIndex) => {
-    const staffID = req.staffID;
-    if (!grouped[staffID]) {
-      grouped[staffID] = {
-        staffName: req.staffName, // Use the name from the first request
-        staffID: staffID,
-        requests: [],
-      };
-    }
-    grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
-  });
-  return Object.values(grouped);
-}
-
-function renderAdmin() {
-  const adminList = document.getElementById("adminList");
-  adminList.innerHTML = "";
-
-  // Group requests by staffID
-  const groupedRequests = groupRequestsByStaffID(requests);
-
-  groupedRequests.forEach((group, groupIndex) => {
-    const item = document.createElement("div");
-    item.className = "accordion-item";
-
-    // Calculate total days and pending days across all requests for this staff
-    const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
-    const pendingCount = group.requests.reduce(
-      (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
-      0
-    );
-
-    // Create the accordion item
-    item.innerHTML = `
-      <div class="accordion-header" data-index="${groupIndex}">
-        <span>${group.staffName} (${group.staffID})</span>
-        <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
-          ${totalDays} days (${pendingCount} pending)
-        </span>
-      </div>
-      <div class="accordion-content" data-index="${groupIndex}">
-        ${group.requests.map((req, reqIndexWithinGroup) => `
-          <div class="timeline">
-            ${req.days.map((day, dayIndex) => `
-              <div class="day-block">
-                <span>${day.date}</span>
-                <div class="status-dot ${day.status.toLowerCase()}"></div>
-                <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}">
-                  <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
-                  <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
-                  <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
-                  <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
-                </select>
-              </div>
-            `).join('')}
-          </div>
-          <div class="action-buttons">
-            <button class="delete-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">Delete</button>
-            <button class="whatsapp-btn" data-group="${groupIndex}" data-req="${reqIndexWithinGroup}">WhatsApp</button>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    adminList.appendChild(item);
-  });
-
-  // Restore accordion states & add click handler
-  adminList.querySelectorAll(".accordion-header").forEach(header => {
-    const index = header.getAttribute("data-index");
-    const content = header.nextElementSibling;
-
-    if (openAccordions.has(index)) {
-      content.style.display = "block";
-    } else {
-      content.style.display = "none";
-    }
-
-    header.onclick = function() {
-      if (content.style.display === "block") {
-        content.style.display = "none";
-        openAccordions.delete(index);
-      } else {
-        content.style.display = "block";
-        openAccordions.add(index);
+    // Fetch requests from the backend
+    async function fetchRequests() {
+      try {
+        const response = await fetch('https://api.pccplanner.com/api/get_leaves', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+        return [];
       }
-    };
-  });
+    }
 
-  // Day status updates (persistent)
-  adminList.querySelectorAll("select").forEach(sel => {
-    sel.onchange = function() {
-      const groupIndex = sel.getAttribute("data-group");
-      const reqIndexWithinGroup = sel.getAttribute("data-req");
-      const dayIndex = sel.getAttribute("data-day");
-      const newStatus = sel.value;
-      const group = groupedRequests[groupIndex];
-      const req = group.requests[reqIndexWithinGroup];
-      const day_id = req.days[dayIndex].id; // from DB
+    // Fetch leave patterns from the backend
+    async function fetchLeavePatterns() {
+      try {
+        const response = await fetch(`https://api.pccplanner.com/api/leave-patterns?year=${currentYear}&month=${String(currentMonth + 1).padStart(2, "0")}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching leave patterns:', error);
+        return { mostCommonDay: null, count: 0 };
+      }
+    }
 
-      fetch(`${API_BASE_URL}/api/update_day_status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ day_id: day_id, status: newStatus })
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === "success") {
-          requests[req.originalIndex].days[dayIndex].status = newStatus;
-          renderCalendar();
-        } else {
-          alert("Error: " + data.message);
-        }
-      })
-      .catch(err => {
-        console.error("Day status update error:", err);
-        alert("An error occurred updating the day status.");
-      });
-    };
-  });
+    // Submit a time-off request via the backend
+    async function submitRequest() {
+      const staffName = document.getElementById("requestStaffName").value;
+      const staffID = document.getElementById("requestStaffID").value;
+      const fromDate = document.getElementById("fromDate").value;
+      const toDate = document.getElementById("toDate").value;
 
-  // Delete functionality
-  adminList.querySelectorAll(".delete-btn").forEach(btn => {
-    btn.onclick = function() {
-      const groupIndex = btn.getAttribute("data-group");
-      const reqIndexWithinGroup = btn.getAttribute("data-req");
-      const group = groupedRequests[groupIndex];
-      const req = group.requests[reqIndexWithinGroup];
-      const originalIndex = req.originalIndex;
-
-      openAccordions.delete(groupIndex); // Close accordion on delete
-      const reqId = req.id; // must match DB
-
-      fetch(`${API_BASE_URL}/api/delete_request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: reqId })
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === "success") {
-          requests.splice(originalIndex, 1);
-          // Update original indices of remaining requests
-          requests.forEach((r, i) => {
-            const group = groupedRequests.find(g => g.staffID === r.staffID);
-            if (group) {
-              const reqWithinGroup = group.requests.find(req => req.id === r.id);
-              if (reqWithinGroup) reqWithinGroup.originalIndex = i;
-            }
+      if (staffName && staffID && fromDate && toDate) {
+        try {
+          const response = await fetch('https://api.pccplanner.com/api/submit_leave', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ staffName, staffID, fromDate, toDate })
           });
-          renderCalendar();
-        } else {
-          alert("Error deleting: " + data.message);
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || `HTTP error! status: ${response.status}`);
+          alert('Time-off request submitted successfully.');
+          renderRequestList();
+        } catch (error) {
+          console.error('Error submitting request:', error);
+          alert('Failed to submit request: ' + error.message);
         }
-      })
-      .catch(err => {
-        console.error("Delete error:", err);
-        alert("An error occurred while deleting. Please try again.");
+      } else {
+        alert("Please fill in all fields.");
+      }
+    }
+
+    // Render the pending requests list
+    async function renderRequestList() {
+      const requestListBody = document.getElementById("requestListBody");
+      requestListBody.innerHTML = "";
+      const allRequests = await fetchRequests();
+      const pendingRequests = allRequests.filter(req => req.days.some(day => day.status === 'Pending'));
+      pendingRequests.forEach(req => {
+        const pendingDays = req.days.filter(day => day.status === 'Pending');
+        pendingDays.forEach(day => {
+          const li = document.createElement("li");
+          li.innerHTML = `${req.staffName} (${req.staffID}): ${day.date} 
+            <button onclick="approveDay(${day.id}, 'Approved')">Approve</button>
+            <button onclick="approveDay(${day.id}, 'Write-in')">Write-in</button>
+            <button onclick="approveDay(${day.id}, 'Rejected')">Reject</button>`;
+          requestListBody.appendChild(li);
+        });
       });
-    };
-  });
+    }
 
-  // WhatsApp (send message for all requests of this staff)
-  adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
-    btn.onclick = function() {
-      const groupIndex = btn.getAttribute("data-group");
-      const group = groupedRequests[groupIndex];
-      const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
-                  group.requests.map((req, reqIndex) =>
-                    `Request ${reqIndex + 1}:\n` +
-                    req.days.map(d => `${d.date}: ${d.status}`).join('\n')
-                  ).join('\n\n');
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-    };
-  });
-}
-
-// RENDER MONTHLY SUMMARY
-function renderMonthlySummary() {
-  const summaryTableBody = document.getElementById("summaryTableBody");
-  summaryTableBody.innerHTML = "";
-
-  // Filter requests for the current month
-  const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-  const groupedRequests = groupRequestsByStaffID(requests);
-
-  // Process each staff member
-  groupedRequests.forEach(group => {
-    // Filter days that fall within the current month and have "Approved" or "Write-in" status
-    const monthlyLeaves = [];
-    group.requests.forEach(req => {
-      const daysInMonth = req.days.filter(day => 
-        day.date.startsWith(monthStr) && 
-        (day.status === "Approved" || day.status === "Write-in")
-      );
-      if (daysInMonth.length > 0) {
-        monthlyLeaves.push({ days: daysInMonth });
+    // Approve or reject a day via the backend
+    async function approveDay(dayId, status) {
+      try {
+        const response = await fetch('https://api.pccplanner.com/api/update_day_status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ day_id: dayId, status })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || `HTTP error! status: ${response.status}`);
+        alert(`Day status updated to ${status}.`);
+        // Refresh requests and re-render
+        requests.length = 0;
+        const updatedRequests = await fetchRequests();
+        updatedRequests.forEach(req => requests.push(req));
+        renderRequestList();
+        renderMonthlySummary();
+      } catch (error) {
+        console.error('Error updating day status:', error);
+        alert('Failed to update day status: ' + error.message);
       }
-    });
+    }
 
-    if (monthlyLeaves.length === 0) return; // Skip if no approved or write-in leaves in this month
+    // Render the monthly summary report
+    async function renderMonthlySummary() {
+      const summaryTableBody = document.getElementById("summaryTableBody");
+      const mostCommonLeaveDay = document.getElementById("mostCommonLeaveDay");
+      summaryTableBody.innerHTML = "";
 
-    // Group consecutive days into ranges
-    const ranges = [];
-    monthlyLeaves.forEach(leave => {
-      leave.days.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
-      let currentRange = [leave.days[0]];
-      for (let i = 1; i < leave.days.length; i++) {
-        const prevDate = new Date(currentRange[currentRange.length - 1].date);
-        const currDate = new Date(leave.days[i].date);
-        if (daysBetween(prevDate, currDate) === 1) {
-          currentRange.push(leave.days[i]);
-        } else {
-          ranges.push(currentRange);
-          currentRange = [leave.days[i]];
+      const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+      const groupedRequests = groupRequestsByStaffID(requests);
+
+      // Fetch leave patterns from backend
+      const leavePatterns = await fetchLeavePatterns();
+
+      // Render Detailed Leave Summary
+      groupedRequests.forEach(group => {
+        const monthlyLeaves = [];
+        group.requests.forEach(req => {
+          const daysInMonth = req.days.filter(day => 
+            day.date.startsWith(monthStr) && 
+            (day.status === "Approved" || day.status === "Write-in")
+          );
+          if (daysInMonth.length > 0) {
+            monthlyLeaves.push({ days: daysInMonth });
+          }
+        });
+
+        if (monthlyLeaves.length === 0) return;
+
+        const leavesByStatus = { Approved: [], WriteIn: [] };
+        monthlyLeaves.forEach(leave => {
+          leave.days.forEach(day => {
+            const statusKey = day.status === "Approved" ? "Approved" : "WriteIn";
+            leavesByStatus[statusKey].push(day);
+          });
+        });
+
+        const rangesByStatus = { Approved: [], WriteIn: [] };
+        for (const status of ["Approved", "WriteIn"]) {
+          const days = leavesByStatus[status];
+          if (days.length === 0) continue;
+
+          days.sort((a, b) => new Date(a.date) - new Date(b.date));
+          let currentRange = [days[0]];
+          for (let i = 1; i < days.length; i++) {
+            const prevDate = new Date(currentRange[currentRange.length - 1].date);
+            const currDate = new Date(days[i].date);
+            if (daysBetween(prevDate, currDate) === 1) {
+              currentRange.push(days[i]);
+            } else {
+              rangesByStatus[status].push(currentRange);
+              currentRange = [days[i]];
+            }
+          }
+          if (currentRange.length > 0) rangesByStatus[status].push(currentRange);
         }
-      }
-      if (currentRange.length > 0) ranges.push(currentRange);
-    });
 
-    // Calculate total days
-    const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+        const approvedDays = leavesByStatus.Approved.length;
+        const writeInDays = leavesByStatus.WriteIn.length;
+        const totalDays = approvedDays + writeInDays;
 
-    // Create table row
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td class="staff-name">${group.staffName} (${group.staffID})</td>
-      <td class="leave-range">
-        ${ranges.map(range => {
-          const startDate = range[0].date.split('-')[2]; // Get day (e.g., "24")
-          const endDate = range[range.length - 1].date.split('-')[2]; // Get day (e.g., "26")
-          const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
-          
-          // Determine the status of the range (all days should be Approved or Write-in)
-          const statusClass = range[0].status.toLowerCase();
+        const leaveRangeHTML = [];
+        for (const status of ["Approved", "WriteIn"]) {
+          const ranges = rangesByStatus[status];
+          if (ranges.length === 0) continue;
 
-          return `
+          const statusLabel = status === "Approved" ? "Approved" : "Write-in";
+          const statusClass = status.toLowerCase();
+          const rangeText = ranges.map(range => {
+            const startDate = range[0].date.split('-')[2];
+            const endDate = range[range.length - 1].date.split('-')[2];
+            return startDate === endDate ? startDate : `${startDate}-${endDate}`;
+          }).join(', ');
+
+          leaveRangeHTML.push(`
             <div class="range-block ${statusClass}">
               <span class="status-dot"></span>
-              ${displayText}
+              <strong>${statusLabel}:</strong> ${rangeText}
             </div>
-          `;
-        }).join('')}
-      </td>
-      <td class="total-days">${totalDays}</td>
-    `;
-    summaryTableBody.appendChild(row);
-  });
-
-  // If no leaves, display a message
-  if (summaryTableBody.children.length === 0) {
-    const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
-    summaryTableBody.appendChild(row);
-  }
-}
-
-// DOWNLOAD PDF
-function downloadSummaryPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const monthNames = ["January","February","March","April","May","June",
-                      "July","August","September","October","November","December"];
-  const monthLabel = `${monthNames[currentMonth]} ${currentYear}`;
-  
-  // Title with Leave Type Status
-  doc.setFontSize(14);
-  doc.setTextColor(44, 62, 80); // #2c3e50
-  doc.text(`Approved & Write-in Leave Summary for ${monthLabel}`, 20, 15);
-
-  // Table Headers
-  doc.setFontSize(10);
-  doc.setTextColor(52, 73, 94); // #34495e
-  doc.setFillColor(247, 249, 251); // #f7f9fb
-  doc.rect(20, 20, 170, 8, 'F');
-  doc.text("Staff", 22, 26);
-  doc.text("Leave Dates", 70, 26);
-  doc.text("Total Days", 160, 26);
-
-  // Table Content
-  let y = 34;
-  const groupedRequests = groupRequestsByStaffID(requests);
-  const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-
-  groupedRequests.forEach(group => {
-    const monthlyLeaves = [];
-    group.requests.forEach(req => {
-      const daysInMonth = req.days.filter(day => 
-        day.date.startsWith(monthStr) && 
-        (day.status === "Approved" || day.status === "Write-in")
-      );
-      if (daysInMonth.length > 0) {
-        monthlyLeaves.push({ days: daysInMonth });
-      }
-    });
-
-    if (monthlyLeaves.length === 0) return;
-
-    const ranges = [];
-    monthlyLeaves.forEach(leave => {
-      leave.days.sort((a, b) => new Date(a.date) - new Date(b.date));
-      let currentRange = [leave.days[0]];
-      for (let i = 1; i < leave.days.length; i++) {
-        const prevDate = new Date(currentRange[currentRange.length - 1].date);
-        const currDate = new Date(leave.days[i].date);
-        if (daysBetween(prevDate, currDate) === 1) {
-          currentRange.push(leave.days[i]);
-        } else {
-          ranges.push(currentRange);
-          currentRange = [leave.days[i]];
+          `);
         }
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td class="staff-name">${group.staffName} (${group.staffID})</td>
+          <td class="leave-range">${leaveRangeHTML.join('')}</td>
+          <td class="approved-days">${approvedDays}</td>
+          <td class="writein-days">${writeInDays}</td>
+          <td class="total-days">${totalDays}</td>
+        `;
+        summaryTableBody.appendChild(row);
+      });
+
+      // Render Leave Patterns
+      mostCommonLeaveDay.textContent = leavePatterns.mostCommonDay 
+        ? `Most common leave day: ${leavePatterns.mostCommonDay} (taken by ${leavePatterns.count} staff)`
+        : "No leave data available.";
+
+      if (summaryTableBody.children.length === 0) {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td colspan="5" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
+        summaryTableBody.appendChild(row);
       }
-      if (currentRange.length > 0) ranges.push(currentRange);
-    });
-
-    const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
-
-    // Staff Name
-    doc.setFontSize(9);
-    doc.setTextColor(44, 62, 80);
-    let staffText = `${group.staffName} (${group.staffID})`;
-    if (staffText.length > 20) staffText = staffText.substring(0, 17) + "...";
-    doc.text(staffText, 22, y + 4);
-
-    // Leave Ranges
-    let rangeText = ranges.map(range => {
-      const startDate = range[0].date.split('-')[2];
-      const endDate = range[range.length - 1].date.split('-')[2];
-      return startDate === endDate ? startDate : `${startDate}-${endDate}`;
-    }).join(", ");
-    if (rangeText.length > 50) {
-      rangeText = rangeText.substring(0, 47) + "...";
     }
-    doc.setTextColor(52, 73, 94);
-    doc.text(rangeText, 70, y + 4);
 
-    // Total Days
-    doc.setTextColor(52, 73, 94);
-    doc.text(`${totalDays}`, 160, y + 4);
+    // Initialize the page
+    async function init() {
+      // Fetch initial data
+      requests.length = 0;
+      const fetchedRequests = await fetchRequests();
+      fetchedRequests.forEach(req => requests.push(req));
 
-    // Draw row border
-    doc.setDrawColor(229, 231, 235); // #e5e7eb
-    doc.line(20, y + 6, 190, y + 6);
-
-    y += 8;
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      document.getElementById("summaryTitle").textContent = `Enhanced Monthly Leave Summary Report for ${monthNames[currentMonth]} ${currentYear}`;
+      renderMonthlySummary();
+      renderRequestList();
     }
-  });
 
-  if (y === 34) {
-    doc.setTextColor(127, 140, 141); // #7f8c8d
-    doc.text("No approved or write-in leave requests for this month.", 20, y + 4);
-  }
-
-  // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(149, 165, 166); // #95a5a6
-  doc.text("Generated by Staff Leave Booking System", 20, 285);
-
-  // Save the PDF
-  doc.save(`Leave_Summary_${monthLabel}.pdf`);
-}
-
-// SELECT TEAM
-function selectTeam(num) {
-  selectedTeam = num;
-  renderCalendar();
-}
-
-// LOAD LEAVES
-function loadLeaves() {
-  fetch(`${API_BASE_URL}/api/get_leaves`)
-    .then(response => response.json())
-    .then(data => {
-      requests = data;
-      renderCalendar();
-    })
-    .catch(error => console.error("Error fetching leaves:", error));
-}
-
-// SUBMIT LEAVE
-document.getElementById("leaveForm").onsubmit = function(e) {
-  e.preventDefault();
-  const name  = document.getElementById("staffName").value.trim();
-  const id    = document.getElementById("staffID").value.trim();
-  const start = document.getElementById("startDate").value;
-  const end   = document.getElementById("endDate").value;
-
-  if (!name || !id || !start || !end) {
-    alert("Please fill all fields.");
-    return;
-  }
-  if (end < start) {
-    alert("End date cannot be before start date.");
-    return;
-  }
-
-  fetch(`${API_BASE_URL}/api/submit_leave`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: "Pending",
-      staffName: name,
-      staffID: id,
-      fromDate: start,
-      toDate: end
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("Leave request submitted successfully.");
-      loadLeaves();
-    } else {
-      alert("Error: " + data.message);
-    }
-  })
-  .catch(error => {
-    console.error("Error submitting leave request:", error);
-    alert("An error occurred. Please try again later.");
-  });
-
-  e.target.reset();
-};
-
-// MONTH NAV
-function prevMonth() {
-  currentMonth--;
-  if (currentMonth < 0) {
-    currentMonth = 11;
-    currentYear--;
-  }
-  renderCalendar();
-}
-
-function nextMonth() {
-  currentMonth++;
-  if (currentMonth > 11) {
-    currentMonth = 0;
-    currentYear++;
-  }
-  renderCalendar();
-}
-
-// Update "To" date picker to show the same month as "From" date
-document.getElementById("startDate").addEventListener("change", function() {
-  const startDateInput = document.getElementById("startDate");
-  const endDateInput = document.getElementById("endDate");
-  const startDateValue = startDateInput.value;
-
-  if (startDateValue) {
-    // Parse the "From" date
-    const startDate = new Date(startDateValue);
-    const year = startDate.getFullYear();
-    const month = String(startDate.getMonth() + 1).padStart(2, "0"); // Months are 0-based in JS
-    const day = String(startDate.getDate()).padStart(2, "0");
-
-    // Set the minimum date for "To" to the "From" date
-    endDateInput.min = startDateValue;
-
-    // Clear the "To" date to avoid confusion
-    endDateInput.value = "";
-
-    // Set a default "To" date to the first day of the same month to influence the calendar view
-    const sameMonthDate = `${year}-${month}-01`;
-    endDateInput.value = sameMonthDate;
-  } else {
-    // If "From" date is cleared, reset the "To" date constraints
-    endDateInput.min = "";
-    endDateInput.value = "";
-  }
-});
-
-// INIT
-document.addEventListener("DOMContentLoaded", loadLeaves);
-</script>
+    // Run the script when the page loads
+    window.onload = init;
+  </script>
 </body>
 </html>
