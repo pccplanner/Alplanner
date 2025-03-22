@@ -28,6 +28,13 @@
       font-size: 18px; 
       margin: 5px 0; 
       color: #2c3e50;
+      position: relative;
+    }
+    h1 sup {
+      font-size: 10px;
+      color: #95a5a6;
+      position: absolute;
+      top: -5px;
     }
 
     /* Login Section */
@@ -414,7 +421,7 @@
   </div>
 </div>
 <div class="container" style="display: none;">
-  <h1>Leave Management System v4.0</h1>
+  <h1>Leave Management Syste<sup>v4.0</sup>m</h1>
 
   <!-- Leave Form -->
   <form id="leaveForm">
@@ -658,7 +665,11 @@ function renderAdmin() {
   const adminList = document.getElementById("adminList");
   adminList.innerHTML = "";
 
-  const groupedRequests = groupRequestsByStaffID(requests);
+  let filteredRequests = requests;
+  if (userType === "user") {
+    filteredRequests = requests.filter(req => req.staffID === currentStaffID);
+  }
+  const groupedRequests = groupRequestsByStaffID(filteredRequests);
 
   groupedRequests.forEach((group, groupIndex) => {
     const item = document.createElement("div");
@@ -779,7 +790,6 @@ function renderAdmin() {
         const data = await response.json();
         if (data.status === "success") {
           requests.splice(originalIndex, 1);
-          // Update original indices of remaining requests
           requests.forEach((r, i) => {
             const group = groupedRequests.find(g => g.staffID === r.staffID);
             if (group) {
