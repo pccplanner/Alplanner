@@ -731,7 +731,7 @@ async function renderMonthlySummary() {
 
     // Process each staff member
     groupedRequests.forEach(group => {
-      // Filter days that fall within the current month and have "Approved" or "Write-in" status
+      // Collect all days with "Approved" or "Write-in" status for this month
       const monthlyLeaves = [];
       group.requests.forEach(req => {
         const daysInMonth = req.days.filter(day => 
@@ -745,26 +745,27 @@ async function renderMonthlySummary() {
 
       if (monthlyLeaves.length === 0) return; // Skip if no approved or write-in leaves in this month
 
+      // Flatten all days into a single array for this staff member
+      const allDays = monthlyLeaves.flatMap(leave => leave.days);
+      allDays.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+
       // Group consecutive days into ranges
       const ranges = [];
-      monthlyLeaves.forEach(leave => {
-        leave.days.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
-        let currentRange = [leave.days[0]];
-        for (let i = 1; i < leave.days.length; i++) {
-          const prevDate = new Date(currentRange[currentRange.length - 1].date);
-          const currDate = new Date(leave.days[i].date);
-          if (daysBetween(prevDate, currDate) === 1) {
-            currentRange.push(leave.days[i]);
-          } else {
-            ranges.push(currentRange);
-            currentRange = [leave.days[i]];
-          }
+      let currentRange = [allDays[0]];
+      for (let i = 1; i < allDays.length; i++) {
+        const prevDate = new Date(currentRange[currentRange.length - 1].date);
+        const currDate = new Date(allDays[i].date);
+        if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === allDays[i].status) {
+          currentRange.push(allDays[i]);
+        } else {
+          ranges.push(currentRange);
+          currentRange = [allDays[i]];
         }
-        if (currentRange.length > 0) ranges.push(currentRange);
-      });
+      }
+      if (currentRange.length > 0) ranges.push(currentRange);
 
       // Calculate total days
-      const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+      const totalDays = allDays.length;
 
       // Create table row
       const row = document.createElement("tr");
@@ -863,24 +864,26 @@ async function downloadSummaryPDF() {
 
       if (monthlyLeaves.length === 0) return;
 
-      const ranges = [];
-      monthlyLeaves.forEach(leave => {
-        leave.days.sort((a, b) => new Date(a.date) - new Date(b.date));
-        let currentRange = [leave.days[0]];
-        for (let i = 1; i < leave.days.length; i++) {
-          const prevDate = new Date(currentRange[currentRange.length - 1].date);
-          const currDate = new Date(leave.days[i].date);
-          if (daysBetween(prevDate, currDate) === 1) {
-            currentRange.push(leave.days[i]);
-          } else {
-            ranges.push(currentRange);
-            currentRange = [leave.days[i]];
-          }
-        }
-        if (currentRange.length > 0) ranges.push(currentRange);
-      });
+      // Flatten all days into a single array for this staff member
+      const allDays = monthlyLeaves.flatMap(leave => leave.days);
+      allDays.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
 
-      const totalDays = monthlyLeaves.reduce((sum, leave) => sum + leave.days.length, 0);
+      // Group consecutive days into ranges
+      const ranges = [];
+      let currentRange = [allDays[0]];
+      for (let i = 1; i < allDays.length; i++) {
+        const prevDate = new Date(currentRange[currentRange.length - 1].date);
+        const currDate = new Date(allDays[i].date);
+        if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === allDays[i].status) {
+          currentRange.push(allDays[i]);
+        } else {
+          ranges.push(currentRange);
+          currentRange = [allDays[i]];
+        }
+      }
+      if (currentRange.length > 0) ranges.push(currentRange);
+
+      const totalDays = allDays.length;
 
       // Staff Name
       doc.setFontSize(9);
