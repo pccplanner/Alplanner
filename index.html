@@ -791,22 +791,38 @@ function renderAdmin() {
       const req = group.requests[reqIndexWithinGroup];
       const day_id = req.days[dayIndex].id; // from DB
 
+      // Validate day_id
+      if (!day_id) {
+        alert("Error: Day ID is missing. Please ensure the leave request data includes a valid day ID.");
+        return;
+      }
+
       try {
+        console.log(`Updating status for day_id: ${day_id}, new status: ${newStatus}`);
         const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ day_id: day_id, status: newStatus })
         });
+
+        // Check if the response is OK
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
+        }
+
         const data = await response.json();
+        console.log("API response:", data);
+
         if (data.status === "success") {
           requests[req.originalIndex].days[dayIndex].status = newStatus;
           await renderCalendar();
+          await renderMonthlySummary(); // Update the summary as well
         } else {
-          alert("Error: " + data.message);
+          alert("Error: " + (data.message || "Unknown error occurred"));
         }
       } catch (err) {
         console.error("Day status update error:", err);
-        alert("An error occurred updating the day status.");
+        alert(`An error occurred updating the day status: ${err.message}`);
       }
     };
   });
@@ -860,7 +876,7 @@ function renderAdmin() {
   });
 }
 
-// RENDER MONTHLY SUMMARY (Updated)
+// RENDER MONTHLY SUMMARY
 async function renderMonthlySummary() {
   if (userType !== "admin") return; // Only admins can see the summary
   const summaryTableBody = document.getElementById("summaryTableBody");
