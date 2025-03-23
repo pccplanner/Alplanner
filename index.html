@@ -1,242 +1,1197 @@
-import sqlite3
-from flask import Flask, request, jsonify, render_template
-from datetime import datetime, timedelta
-from waitress import serve
-from flask_cors import CORS  # Enable cross-origin requests
-import jwt
-from passlib.hash import bcrypt
-
-app = Flask(__name__)
-CORS(app)  # Allow requests from any origin (adjust as needed)
-
-# Set your secret key (store securely in production)
-app.config['SECRET_KEY'] = 'YOUR_SECRET_KEY'
-
-# Database for leave management
-DATABASE = 'leave_management.db'
-# Authentication database for user credentials
-AUTH_DATABASE = 'users_password.db'
-
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON;')
-    return conn
-
-def get_auth_db_connection():
-    conn = sqlite3.connect(AUTH_DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-# New JWT login endpoint
-@app.route('/api/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    staff_id = data.get('staff_id')
-    password = data.get('password')
-
-    if not staff_id or not password:
-        return jsonify({'status': 'error', 'message': 'Missing staff_id or password.'}), 400
-
-    conn = get_auth_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE staff_id = ?', (staff_id,))
-    user = cursor.fetchone()
-    conn.close()
-
-    if not user:
-        return jsonify({'status': 'error', 'message': 'Invalid credentials.'}), 401
-
-    stored_hash = user['password_hash']
-    if not bcrypt.verify(password, stored_hash):
-        return jsonify({'status': 'error', 'message': 'Invalid credentials.'}), 401
-
-    # Generate JWT token with an expiration time of 1 hour
-    token_payload = {
-        'staff_id': user['staff_id'],
-        'is_admin': user['is_admin'],
-        'exp': datetime.utcnow() + timedelta(hours=1)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Leave Management System v4.0</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- Include jsPDF library for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
+      margin: 0; 
+      padding: 10px; 
+      font-size: 13px; 
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
     }
-    token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm='HS256')
-
-    return jsonify({'status': 'success', 'token': token})
-
-@app.route('/api/submit_leave', methods=['POST'])
-def submit_leave():
-    data = request.get_json()
-    staff_name = data.get('staffName')
-    staff_id = data.get('staffID')
-    from_date = data.get('fromDate')
-    to_date = data.get('toDate')
-
-    if not all([staff_name, staff_id, from_date, to_date]):
-        return jsonify({'status': 'error', 'message': 'Missing fields.'}), 400
-
-    try:
-        start_dt = datetime.strptime(from_date, '%Y-%m-%d').date()
-        end_dt = datetime.strptime(to_date, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'status': 'error', 'message': 'Invalid date format.'}), 400
-
-    if end_dt < start_dt:
-        return jsonify({'status': 'error', 'message': 'End date cannot be before start date.'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO leave_requests (staff_name, staff_id, from_date, to_date, submission_date)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (staff_name, staff_id, from_date, to_date, datetime.now().isoformat()))
-    request_id = cursor.lastrowid
-
-    # Insert each day in the range
-    current_date = start_dt
-    while current_date <= end_dt:
-        cursor.execute('''
-            INSERT INTO leave_request_days (request_id, date, status)
-            VALUES (?, ?, ?)
-        ''', (request_id, current_date.isoformat(), 'Pending'))
-        current_date += timedelta(days=1)
-
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success', 'message': 'Leave request submitted.'})
-
-@app.route('/api/get_leaves', methods=['GET'])
-def get_leaves():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM leave_requests')
-    requests_rows = cursor.fetchall()
-
-    results = []
-    for req in requests_rows:
-        req_dict = dict(req)
-        request_id = req_dict['id']
-        from_date = datetime.strptime(req_dict['from_date'], '%Y-%m-%d').date()
-        to_date = datetime.strptime(req_dict['to_date'], '%Y-%m-%d').date()
-
-        # Rename database keys to camelCase for the front end
-        req_dict["staffName"] = req_dict.pop("staff_name", None)
-        req_dict["staffID"] = req_dict.pop("staff_id", None)
-
-        # Fetch existing days from the leave_request_days table
-        cursor.execute('SELECT id, date, status FROM leave_request_days WHERE request_id = ?', (request_id,))
-        days_rows = cursor.fetchall()
-        day_dicts = {row['date']: dict(row) for row in days_rows}
-
-        # Generate all days in the range and fill in missing ones
-        day_list = []
-        current_date = from_date
-        while current_date <= to_date:
-            date_str = current_date.isoformat()
-            if date_str in day_dicts:
-                day = day_dicts[date_str]
-                # Rename "Management" to "Write-in" before returning JSON
-                if day.get("status") == "Management":
-                    day["status"] = "Write-in"
-                day_list.append(day)
-            else:
-                # Add a placeholder for missing days
-                day_list.append({
-                    "id": None,
-                    "date": date_str,
-                    "status": "Pending"
-                })
-            current_date += timedelta(days=1)
-
-        req_dict["days"] = day_list
-        results.append(req_dict)
-
-    conn.close()
-    return jsonify(results)
-
-@app.route('/api/update_day_status', methods=['POST'])
-def update_day_status():
-    """
-    Expects JSON: { "day_id": <int>, "status": "Approved"/"Rejected"/"Pending"/"Write-in" }
-    Updates a single day's status in the database.
-    """
-    data = request.get_json()
-    day_id = data.get('day_id')
-    new_status = data.get('status')
-    if not day_id or not new_status:
-        return jsonify({'status': 'error', 'message': 'Missing day_id or status.'}), 400
-
-    # Convert "Management" to "Write-in" if accidentally sent
-    if new_status == "Management":
-        new_status = "Write-in"
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE leave_request_days SET status = ? WHERE id = ?', (new_status, day_id))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success', 'message': 'Day status updated.'})
-
-@app.route('/api/delete_request', methods=['POST'])
-def delete_request():
-    """
-    Expects JSON: { "request_id": <int> }
-    Deletes the leave request (and, if ON DELETE CASCADE is active, its associated days).
-    """
-    data = request.get_json()
-    req_id = data.get('request_id')
-    if not req_id:
-        return jsonify({'status': 'error', 'message': 'Missing request_id.'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM leave_requests WHERE id = ?', (req_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success', 'message': 'Request deleted.'})
-
-@app.route('/api/update_leave_request', methods=['POST'])
-def update_leave_request():
-    """
-    OPTIONAL: Update an entire leave request.
-    Expects JSON: {
-      "request_id": <int>,
-      "staffName": "string",
-      "staffID": "string",
-      "fromDate": "YYYY-MM-DD",
-      "toDate": "YYYY-MM-DD"
+    .container {
+      max-width: 900px; 
+      width: 100%;
+      margin: 0 auto; 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
     }
-    """
-    data = request.get_json()
-    req_id = data.get('request_id')
-    staff_name = data.get('staffName')
-    staff_id = data.get('staffID')
-    from_date = data.get('fromDate')
-    to_date = data.get('toDate')
-    if not req_id or not all([staff_name, staff_id, from_date, to_date]):
-        return jsonify({'status': 'error', 'message': 'Missing fields.'}), 400
-    try:
-        start_dt = datetime.strptime(from_date, '%Y-%m-%d').date()
-        end_dt = datetime.strptime(to_date, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'status': 'error', 'message': 'Invalid date format.'}), 400
-    if end_dt < start_dt:
-        return jsonify({'status': 'error', 'message': 'End date cannot be before start date.'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE leave_requests
-        SET staff_name = ?, staff_id = ?, from_date = ?, to_date = ?
-        WHERE id = ?
-    ''', (staff_name, staff_id, from_date, to_date, req_id))
-    conn.commit()
-    conn.close()
-    return jsonify({'status': 'success', 'message': 'Request updated.'})
-
-if __name__ == '__main__':
-    # For production, run as Administrator on Windows to bind to port 80:
-    serve(app, host='0.0.0.0', port=80)
-    # For development, you can use:
-    # app.run(debug=True, host='0.0.0.0', port=5000)
+    h1 {
+      text-align: center; 
+      font-size: 18px; 
+      margin: 5px 0; 
+      color: #2c3e50;
+      position: relative;
+    }
+    h1 sup {
+      font-size: 10px;
+      color: #95a5a6;
+      position: absolute;
+      top: -5px;
+    }
+    /* Login Section */
+    #loginSection {
+      max-width: 400px; 
+      width: 90%;
+      margin: 0 auto; 
+      padding: 20px; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+    #loginSection h2 {
+      text-align: center; 
+      margin-bottom: 20px;
+    }
+    #loginSection button {
+      padding: 10px; 
+      width: 100%; 
+      margin-bottom: 10px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    #loginSection button:hover {
+      background: #2980b9;
+    }
+    #adminLoginForm, #userLoginForm {
+      margin-top: 10px;
+    }
+    #adminLoginForm input, #userLoginForm input {
+      width: 100%; 
+      padding: 8px; 
+      margin-bottom: 10px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    /* Leave Form */
+    #leaveForm {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      padding: 10px; 
+      background: #ecf0f1; 
+      border-radius: 6px; 
+      margin-bottom: 10px;
+    }
+    #leaveForm label {
+      font-weight: 600; 
+      margin-right: 4px; 
+      color: #34495e;
+    }
+    #leaveForm input {
+      padding: 5px 8px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px; 
+      font-size: 13px; 
+      width: 120px;
+      box-sizing: border-box;
+    }
+    #leaveForm input::placeholder {
+      color: #95a5a6;
+    }
+    #leaveForm button {
+      padding: 6px 12px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    #leaveForm button:hover {
+      background: #2980b9;
+    }
+    /* Team Buttons */
+    .team-buttons {
+      text-align: center; 
+      margin: 8px 0;
+    }
+    .team-buttons button {
+      padding: 5px 10px; 
+      margin: 0 4px; 
+      border: none; 
+      border-radius: 4px; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 12px;
+    }
+    .team-a { background: #27ae60; } 
+    .team-b { background: #2980b9; } 
+    .team-c { background: #8e44ad; }
+    .team-buttons button:hover {
+      opacity: 0.85;
+    }
+    /* Month Navigation */
+    .month-nav {
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      gap: 8px; 
+      margin: 8px 0;
+    }
+    .month-nav button {
+      padding: 4px 10px; 
+      background: #7f8c8d; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    .month-nav button:hover {
+      background: #6c7a89;
+    }
+    #monthLabel {
+      font-weight: 600; 
+      color: #2c3e50;
+    }
+    /* Calendar */
+    #calendarGrid {
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 3px; 
+      max-width: 850px; 
+      margin: 0 auto 10px;
+    }
+    .day-cell {
+      background: #fff; 
+      border: 1px solid #e0e0e0; 
+      min-height: 60px; 
+      padding: 3px; 
+      border-radius: 4px; 
+      font-size: 11px; 
+      position: relative;
+    }
+    .shift-box {
+      font-weight: 600; 
+      color: #fff; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      text-align: center; 
+      margin-bottom: 3px;
+    }
+    .shift-morning { background: #27ae60; }
+    .shift-night   { background: #a9dfbf; color: #2c3e50; }
+    .shift-off     { background: #dcdcdc; color: #7f8c8d; }
+    .leave-entry {
+      background: #fff3cd; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      margin: 1px 0;
+    }
+    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
+    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
+    .leave-entry.management { background: #ffeeba; }
+    .leave-entry.write-in   { background: #ffeeba; }
+    .red-dot {
+      width: 6px; 
+      height: 6px; 
+      background: #e74c3c; 
+      border-radius: 50%; 
+      position: absolute; 
+      top: 3px; 
+      right: 3px;
+    }
+    /* Admin Summary */
+    #adminSummary {
+      padding: 10px; 
+      border-radius: 6px; 
+      background: #fff; 
+      max-height: 400px; 
+      overflow-y: auto;
+    }
+    #adminSummary h3 {
+      font-size: 15px; 
+      margin: 0 0 8px; 
+      color: #2c3e50;
+    }
+    .accordion-item {
+      border: 1px solid #e0e0e0; 
+      margin-bottom: 5px; 
+      border-radius: 4px;
+    }
+    .accordion-header {
+      padding: 8px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    .accordion-header:hover {
+      background: #eef2f5;
+    }
+    .accordion-header span {
+      font-weight: 600; 
+      color: #34495e;
+    }
+    .badge {
+      background: #3498db; 
+      color: #fff; 
+      padding: 2px 6px; 
+      border-radius: 12px; 
+      font-size: 11px;
+    }
+    .badge.pending { background: #e67e22; }
+    .accordion-content {
+      padding: 8px; 
+      background: #fff;
+    }
+    .timeline {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 6px;
+    }
+    .day-block {
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      background: #f1f1f1; 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
+      transition: transform 0.2s;
+    }
+    .day-block:hover {
+      transform: scale(1.02);
+    }
+    .day-block select {
+      font-size: 11px; 
+      padding: 2px; 
+      border-radius: 3px; 
+      border: 1px solid #bdc3c7;
+    }
+    .status-dot {
+      width: 8px; 
+      height: 8px; 
+      border-radius: 50%;
+    }
+    .status-dot.pending     { background: #e67e22; }
+    .status-dot.approved    { background: #27ae60; }
+    .status-dot.rejected    { background: #e74c3c; }
+    .status-dot.management  { background: #f1c40f; }
+    .status-dot.write-in    { background: #f1c40f; }
+    .action-buttons {
+      margin-top: 6px; 
+      text-align: right;
+    }
+    .delete-btn, .whatsapp-btn {
+      padding: 3px 8px; 
+      font-size: 11px; 
+      border: none; 
+      border-radius: 3px; 
+      cursor: pointer; 
+      margin-left: 4px;
+    }
+    .delete-btn {
+      background: #e74c3c; 
+      color: #fff;
+    }
+    .delete-btn:hover {
+      background: #c0392b;
+    }
+    .whatsapp-btn {
+      background: #25D366; 
+      color: #fff;
+    }
+    .whatsapp-btn:hover {
+      background: #20b958;
+    }
+    /* Monthly Summary */
+    #monthlySummary {
+      padding: 8px; 
+      border-radius: 6px; 
+      background: #fff; 
+      margin-top: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    #monthlySummary h3 {
+      font-size: 14px; 
+      margin: 0 0 6px; 
+      color: #2c3e50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #monthlySummary .download-btn {
+      padding: 4px 8px;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+    }
+    #monthlySummary .download-btn:hover {
+      background: #2980b9;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .summary-table th, .summary-table td {
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .summary-table th {
+      background: #f7f9fb;
+      color: #34495e;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .summary-table tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .summary-table tr:hover {
+      background: #f1f5f9;
+    }
+    .summary-table .staff-name {
+      font-weight: 500;
+      color: #2c3e50;
+      white-space: nowrap;
+    }
+    .summary-table .leave-range {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .summary-table .range-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: #2c3e50;
+    }
+    .range-block .status-dot {
+      width: 6px;
+      height: 6px;
+    }
+    .range-block.approved .status-dot { background: #27ae60; }
+    .range-block.pending .status-dot { background: #e67e22; }
+    .range-block.rejected .status-dot { background: #e74c3c; }
+    .range-block.mixed .status-dot { background: #7f8c8d; }
+    .range-block.write-in .status-dot { background: #f1c40f; }
+    .summary-table .total-days {
+      font-weight: 500;
+      color: #34495e;
+      text-align: right;
+    }
+    .footer {
+      text-align: center; 
+      font-size: 10px; 
+      color: #95a5a6; 
+      margin-top: 10px;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 10px;
+      }
+      #leaveForm {
+        flex-direction: column;
+      }
+      #leaveForm input {
+        width: 100%;
+      }
+      #calendarGrid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .day-cell {
+        min-height: 50px;
+        font-size: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginSection">
+    <h2>Login</h2>
+    <button onclick="showAdminLogin()">Login as Admin</button>
+    <button onclick="showUserLogin()">Login as User</button>
+    <div id="adminLoginForm" style="display: none;">
+      <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
+      <input type="password" id="adminPassword" placeholder="Password">
+      <button onclick="loginAdmin()">Login</button>
+    </div>
+    <div id="userLoginForm" style="display: none;">
+      <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
+      <input type="password" id="userPassword" placeholder="Password">
+      <button onclick="loginUser()">Login</button>
+    </div>
+  </div>
+  <div class="container" style="display: none;">
+    <h1>Leave Management Syste<sup>v4.0</sup>m</h1>
+    <!-- Leave Form -->
+    <form id="leaveForm">
+      <label for="staffName">Name</label>
+      <input type="text" id="staffName" placeholder="Enter full name" required>
+      <label for="staffID">ID</label>
+      <input type="text" id="staffID" placeholder="e.g., S123" required>
+      <label for="startDate">From</label>
+      <input type="date" id="startDate" required>
+      <label for="endDate">To</label>
+      <input type="date" id="endDate" required>
+      <button type="submit">Request Leave</button>
+    </form>
+    <!-- Team Buttons -->
+    <div class="team-buttons">
+      <button class="team-a" onclick="selectTeam(1)">Team A</button>
+      <button class="team-b" onclick="selectTeam(2)">Team B</button>
+      <button class="team-c" onclick="selectTeam(3)">Team C</button>
+    </div>
+    <!-- Month Navigation -->
+    <div class="month-nav">
+      <button onclick="prevMonth()">←</button>
+      <span id="monthLabel">Loading...</span>
+      <button onclick="nextMonth()">→</button>
+    </div>
+    <div id="calendarGrid"></div>
+    <!-- Admin Summary -->
+    <div id="adminSummary">
+      <h3>Leave Requests</h3>
+      <div id="adminList"></div>
+    </div>
+    <!-- Monthly Summary -->
+    <div id="monthlySummary">
+      <h3>
+        Monthly Leave Summary
+        <button class="download-btn" onclick="downloadSummaryPDF()">Download PDF</button>
+      </h3>
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Staff</th>
+            <th style="width: 50%;">Leave Dates</th>
+            <th style="width: 20%;">Total Days</th>
+          </tr>
+        </thead>
+        <tbody id="summaryTableBody"></tbody>
+      </table>
+    </div>
+    <div class="footer">
+      @ 2025; t’va
+    </div>
+  </div>
+  <script>
+    const API_BASE_URL = "https://leave-management.th3va.com";
+    let userType = null; // 'admin' or 'user'
+    let currentStaffID = null;
+    var TeamPatterns = {
+      1: ["morning", "morning", "night", "night", "off", "off"],
+      2: ["off", "off", "morning", "morning", "night", "night"],
+      3: ["night", "night", "off", "off", "morning", "morning"]
+    };
+    var selectedTeam = 1;
+    var referenceDate = new Date(2025, 2, 1);
+    var requests = [];
+    var currentYear = 2025, currentMonth = 2;
+    var openAccordions = new Set();
+    
+    function showAdminLogin() {
+      document.getElementById("adminLoginForm").style.display = "block";
+      document.getElementById("userLoginForm").style.display = "none";
+    }
+    
+    function showUserLogin() {
+      document.getElementById("userLoginForm").style.display = "block";
+      document.getElementById("adminLoginForm").style.display = "none";
+    }
+    
+    // Admin login function using JWT
+    async function loginAdmin() {
+      const staff_id = document.getElementById("adminUsername").value.trim();
+      const password = document.getElementById("adminPassword").value;
+      if (!staff_id || !password) {
+        alert("Please fill in both Staff ID and Password.");
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staff_id: staff_id, password: password })
+        });
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+          localStorage.setItem('token', data.token);
+          userType = "admin";
+          currentStaffID = null;
+          document.getElementById("loginSection").style.display = "none";
+          document.querySelector(".container").style.display = "block";
+          await renderUI();
+        } else {
+          alert("Invalid admin credentials.");
+        }
+      } catch (err) {
+        alert("Login error: " + err.message);
+      }
+    }
+    
+    // User login function using JWT
+    async function loginUser() {
+      const staffID = document.getElementById("userStaffID").value.trim();
+      const password = document.getElementById("userPassword").value;
+      if (!staffID || !password) {
+        alert("Please enter your Staff ID and Password.");
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staff_id: staffID, password: password })
+        });
+        const data = await response.json();
+        if (response.ok && data.status === 'success') {
+          localStorage.setItem('token', data.token);
+          userType = "user";
+          currentStaffID = staffID;
+          document.getElementById("loginSection").style.display = "none";
+          document.querySelector(".container").style.display = "block";
+          await renderUI();
+        } else {
+          alert("Invalid user credentials.");
+        }
+      } catch (err) {
+        alert("Login error: " + err.message);
+      }
+    }
+    
+    async function renderUI() {
+      if (userType === "admin") {
+        document.querySelector(".team-buttons").style.display = "block";
+        document.querySelector(".month-nav").style.display = "flex";
+        document.getElementById("calendarGrid").style.display = "grid";
+        document.getElementById("monthlySummary").style.display = "block";
+        document.getElementById("staffID").readOnly = false;
+        document.getElementById("staffID").value = "";
+        await renderCalendar();
+        renderAdmin();
+        await renderMonthlySummary();
+      } else if (userType === "user") {
+        document.querySelector(".team-buttons").style.display = "none";
+        document.querySelector(".month-nav").style.display = "none";
+        document.getElementById("calendarGrid").style.display = "none";
+        document.getElementById("monthlySummary").style.display = "none";
+        document.getElementById("staffID").value = currentStaffID;
+        document.getElementById("staffID").readOnly = true;
+        await loadLeaves();
+        renderAdmin();
+      }
+    }
+    
+    function daysBetween(a, b) {
+      const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+      const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+      return Math.floor((B - A) / (1000 * 60 * 60 * 24));
+    }
+    
+    function formatDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + dd;
+    }
+    
+    function getShift(d) {
+      const diff = daysBetween(referenceDate, d);
+      const idx = ((diff % 6) + 6) % 6;
+      return TeamPatterns[selectedTeam][idx];
+    }
+    
+    async function renderCalendar() {
+      if (userType !== "admin") return;
+      await loadLeaves();
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"];
+      document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
+      const grid = document.getElementById("calendarGrid");
+      grid.innerHTML = "";
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const offset = (firstDay.getDay() + 6) % 7;
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+      for (let i = 0; i < offset; i++) {
+        grid.appendChild(document.createElement("div")).className = "day-cell";
+      }
+    
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateObj = new Date(currentYear, currentMonth, d);
+        const dateStr = formatDate(dateObj);
+        const cell = document.createElement("div");
+        cell.className = "day-cell";
+    
+        const shift = getShift(dateObj);
+        const shiftBox = document.createElement("div");
+        shiftBox.className = "shift-box " + (
+          shift === "morning" ? "shift-morning" :
+          shift === "night"   ? "shift-night"   : "shift-off"
+        );
+        shiftBox.textContent = d;
+        cell.appendChild(shiftBox);
+    
+        const dayEntries = [];
+        requests.forEach(req => {
+          req.days.forEach(day => {
+            if (day.date === dateStr) {
+              dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
+            }
+          });
+        });
+    
+        const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
+        if (nonRejected > 2) {
+          cell.appendChild(document.createElement("div")).className = "red-dot";
+        }
+    
+        dayEntries.forEach(e => {
+          const entry = document.createElement("div");
+          entry.className = "leave-entry " + e.status.toLowerCase();
+          entry.textContent = e.staffName + " (" + e.staffID + ")";
+          cell.appendChild(entry);
+        });
+    
+        grid.appendChild(cell);
+      }
+      renderAdmin();
+      await renderMonthlySummary();
+    }
+    
+    function groupRequestsByStaffID(requests) {
+      const grouped = {};
+      requests.forEach((req, reqIndex) => {
+        const staffID = req.staffID;
+        if (!grouped[staffID]) {
+          grouped[staffID] = {
+            staffName: req.staffName,
+            staffID: staffID,
+            requests: [],
+          };
+        }
+        grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
+      });
+      return Object.values(grouped);
+    }
+    
+    function renderAdmin() {
+      const adminList = document.getElementById("adminList");
+      adminList.innerHTML = "";
+    
+      let filteredRequests = requests;
+      if (userType === "user") {
+        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
+      } else if (userType === "admin") {
+        const currentDate = new Date();
+        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
+        filteredRequests = requests.filter(req => {
+          return req.days.some(day => {
+            const [year, month] = day.date.split('-').map(Number);
+            const requestYearMonth = year * 12 + (month - 1);
+            return requestYearMonth >= currentYearMonth;
+          });
+        });
+      }
+    
+      const groupedRequests = groupRequestsByStaffID(filteredRequests);
+    
+      groupedRequests.forEach((group, groupIndex) => {
+        const item = document.createElement("div");
+        item.className = "accordion-item";
+    
+        const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
+        const pendingCount = group.requests.reduce(
+          (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
+          0
+        );
+    
+        item.innerHTML = `
+          <div class="accordion-header" data-index="${groupIndex}">
+            <span>${group.staffName} (${group.staffID})</span>
+            <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
+              ${totalDays} days (${pendingCount} pending)
+            </span>
+          </div>
+          <div class="accordion-content" data-index="${groupIndex}">
+            ${group.requests.map((req, reqIndexWithinGroup) => `
+              <div class="timeline">
+                ${req.days.map((day, dayIndex) => `
+                  <div class="day-block">
+                    <span>${day.date}</span>
+                    <div class="status-dot ${day.status.toLowerCase()}"></div>
+                    <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
+                      <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
+                      <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
+                      <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
+                      <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
+                    </select>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+            <div class="action-buttons">
+              ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ''}
+              <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
+            </div>
+          </div>
+        `;
+        adminList.appendChild(item);
+      });
+    
+      adminList.querySelectorAll(".accordion-header").forEach(header => {
+        const index = header.getAttribute("data-index");
+        const content = header.nextElementSibling;
+    
+        if (openAccordions.has(index)) {
+          content.style.display = "block";
+        } else {
+          content.style.display = "none";
+        }
+    
+        header.onclick = function() {
+          if (content.style.display === "block") {
+            content.style.display = "none";
+            openAccordions.delete(index);
+          } else {
+            content.style.display = "block";
+            openAccordions.add(index);
+          }
+        };
+      });
+    
+      adminList.querySelectorAll("select").forEach(sel => {
+        sel.onchange = async function() {
+          if (userType !== "admin") return;
+          const groupIndex = sel.getAttribute("data-group");
+          const reqIndexWithinGroup = sel.getAttribute("data-req");
+          const dayIndex = sel.getAttribute("data-day");
+          const newStatus = sel.value;
+          const group = groupedRequests[groupIndex];
+          const req = group.requests[reqIndexWithinGroup];
+          const day_id = req.days[dayIndex].id;
+    
+          if (!day_id) {
+            alert("Error: Day ID is missing. Please ensure the leave request data includes a valid day ID.");
+            return;
+          }
+    
+          try {
+            console.log(`Updating status for day_id: ${day_id}, new status: ${newStatus}`);
+            const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ day_id: day_id, status: newStatus })
+            });
+    
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
+            }
+    
+            const data = await response.json();
+            console.log("API response:", data);
+    
+            if (data.status === "success") {
+              requests[req.originalIndex].days[dayIndex].status = newStatus;
+              await renderCalendar();
+              await renderMonthlySummary();
+            } else {
+              alert("Error: " + (data.message || "Unknown error occurred"));
+            }
+          } catch (err) {
+            console.error("Day status update error:", err);
+            alert(`An error occurred updating the day status: ${err.message}`);
+          }
+        };
+      });
+    
+      adminList.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.onclick = async function() {
+          if (userType !== "admin") return;
+          const groupIndex = btn.getAttribute("data-group");
+          const group = groupedRequests[groupIndex];
+    
+          openAccordions.delete(groupIndex);
+    
+          try {
+            for (const req of group.requests) {
+              const reqId = req.id;
+              const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: reqId })
+              });
+              const data = await response.json();
+              if (data.status !== "success") {
+                alert("Error deleting request: " + data.message);
+                return;
+              }
+            }
+            requests = requests.filter(req => req.staffID !== group.staffID);
+            await renderCalendar();
+          } catch (err) {
+            console.error("Delete error:", err);
+            alert("An error occurred while deleting. Please try again.");
+          }
+        };
+      });
+    
+      adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
+        btn.onclick = function() {
+          const groupIndex = btn.getAttribute("data-group");
+          const group = groupedRequests[groupIndex];
+          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
+                      group.requests.map((req, reqIndex) =>
+                        `Request ${reqIndex + 1}:\n` +
+                        req.days.map(d => `${d.date}: ${d.status}`).join('\n')
+                      ).join('\n\n');
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        };
+      });
+    }
+    
+    async function renderMonthlySummary() {
+      if (userType !== "admin") return;
+      const summaryTableBody = document.getElementById("summaryTableBody");
+      summaryTableBody.innerHTML = "";
+    
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch leave requests');
+        }
+        const allRequests = await response.json();
+    
+        const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+    
+        const allDaysByStaff = {};
+        allRequests.forEach(req => {
+          const staffID = req.staffID;
+          const staffName = req.staffName;
+    
+          if (!allDaysByStaff[staffID]) {
+            allDaysByStaff[staffID] = {
+              staffName: staffName,
+              staffID: staffID,
+              days: {}
+            };
+          }
+    
+          req.days.forEach(day => {
+            if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
+              if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
+                allDaysByStaff[staffID].days[day.date] = day.status;
+              }
+            }
+          });
+        });
+    
+        const groupedRequests = Object.values(allDaysByStaff).filter(group => Object.keys(group.days).length > 0);
+    
+        groupedRequests.forEach(group => {
+          const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
+          dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+          const ranges = [];
+          let currentRange = [dayEntries[0]];
+          for (let i = 1; i < dayEntries.length; i++) {
+            const prevDate = new Date(currentRange[currentRange.length - 1].date);
+            const currDate = new Date(dayEntries[i].date);
+            if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === dayEntries[i].status) {
+              currentRange.push(dayEntries[i]);
+            } else {
+              ranges.push(currentRange);
+              currentRange = [dayEntries[i]];
+            }
+          }
+          if (currentRange.length > 0) ranges.push(currentRange);
+    
+          const totalDays = dayEntries.length;
+    
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td class="staff-name">${group.staffName} (${group.staffID})</td>
+            <td class="leave-range">
+              ${ranges.map(range => {
+                const startDate = range[0].date.split('-')[2];
+                const endDate = range[range.length - 1].date.split('-')[2];
+                const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
+                const statusClass = range[0].status.toLowerCase();
+                const statusLabel = range[0].status;
+                return `
+                  <div class="range-block ${statusClass}">
+                    <span class="status-dot"></span>
+                    ${displayText} (${statusLabel})
+                  </div>
+                `;
+              }).join('')}
+            </td>
+            <td class="total-days">${totalDays}</td>
+          `;
+          summaryTableBody.appendChild(row);
+        });
+    
+        if (summaryTableBody.children.length === 0) {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">No approved or write-in leave requests for this month.</td>`;
+          summaryTableBody.appendChild(row);
+        }
+      } catch (error) {
+        console.error("Error fetching monthly summary:", error);
+        const row = document.createElement("tr");
+        row.innerHTML = `<td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">Error loading summary. Please try again later.</td>`;
+        summaryTableBody.appendChild(row);
+      }
+    }
+    
+    async function downloadSummaryPDF() {
+      if (userType !== "admin") return;
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        const monthLabel = `${monthNames[currentMonth]} ${currentYear}`;
+    
+        const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch leave requests');
+        }
+        const allRequests = await response.json();
+    
+        const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+        const filteredRequests = allRequests.filter(req => 
+          req.days.some(day => 
+            day.date.startsWith(monthStr) && 
+            (day.status === "Approved" || day.status === "Write-in")
+          )
+        );
+    
+        const groupedRequests = groupRequestsByStaffID(filteredRequests);
+    
+        doc.setFontSize(14);
+        doc.setTextColor(44, 62, 80);
+        doc.text(`Approved & Write-in Leave Summary for ${monthLabel}`, 20, 15);
+    
+        doc.setFontSize(10);
+        doc.setTextColor(52, 73, 94);
+        doc.setFillColor(247, 249, 251);
+        doc.rect(20, 20, 170, 8, 'F');
+        doc.text("Staff", 22, 26);
+        doc.text("Leave Dates", 70, 26);
+        doc.text("Total Days", 160, 26);
+    
+        let y = 34;
+        groupedRequests.forEach(group => {
+          const monthlyLeaves = [];
+          group.requests.forEach(req => {
+            const daysInMonth = req.days.filter(day => 
+              day.date.startsWith(monthStr) && 
+              (day.status === "Approved" || day.status === "Write-in")
+            );
+            if (daysInMonth.length > 0) {
+              monthlyLeaves.push({ days: daysInMonth });
+            }
+          });
+    
+          if (monthlyLeaves.length === 0) return;
+    
+          const allDays = monthlyLeaves.flatMap(leave => leave.days);
+          allDays.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+          const ranges = [];
+          let currentRange = [allDays[0]];
+          for (let i = 1; i < allDays.length; i++) {
+            const prevDate = new Date(currentRange[currentRange.length - 1].date);
+            const currDate = new Date(allDays[i].date);
+            if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === allDays[i].status) {
+              currentRange.push(allDays[i]);
+            } else {
+              ranges.push(currentRange);
+              currentRange = [allDays[i]];
+            }
+          }
+          if (currentRange.length > 0) ranges.push(currentRange);
+    
+          const totalDays = allDays.length;
+    
+          doc.setFontSize(9);
+          doc.setTextColor(44, 62, 80);
+          let staffText = `${group.staffName} (${group.staffID})`;
+          if (staffText.length > 20) staffText = staffText.substring(0, 17) + "...";
+          doc.text(staffText, 22, y + 4);
+    
+          let rangeText = ranges.map(range => {
+            const startDate = range[0].date.split('-')[2];
+            const endDate = range[range.length - 1].date.split('-')[2];
+            const statusLabel = range[0].status;
+            return startDate === endDate ? `${startDate} (${statusLabel})` : `${startDate}-${endDate} (${statusLabel})`;
+          }).join(", ");
+          if (rangeText.length > 50) rangeText = rangeText.substring(0, 47) + "...";
+          doc.setTextColor(52, 73, 94);
+          doc.text(rangeText, 70, y + 4);
+    
+          doc.setTextColor(52, 73, 94);
+          doc.text(`${totalDays}`, 160, y + 4);
+    
+          doc.setDrawColor(229, 231, 235);
+          doc.line(20, y + 6, 190, y + 6);
+    
+          y += 8;
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+        });
+    
+        if (y === 34) {
+          doc.setTextColor(127, 140, 141);
+          doc.text("No approved or write-in leave requests for this month.", 20, y + 4);
+        }
+    
+        doc.setFontSize(8);
+        doc.setTextColor(149, 165, 166);
+        doc.text("Generated by Leave Management System", 20, 285);
+    
+        doc.save(`Leave_Summary_${monthLabel}.pdf`);
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        alert("An error occurred while generating the PDF. Please try again or contact support.");
+      }
+    }
+    
+    async function selectTeam(num) {
+      if (userType !== "admin") return;
+      selectedTeam = num;
+      await renderCalendar();
+    }
+    
+    async function loadLeaves() {
+      try {
+        let url = `${API_BASE_URL}/api/get_leaves`;
+        if (userType === "user") {
+          url += `?staffID=${currentStaffID}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to fetch leaves');
+        }
+        requests = await response.json();
+      } catch (error) {
+        console.error("Error fetching leaves:", error);
+        requests = [];
+      }
+    }
+    
+    document.getElementById("leaveForm").onsubmit = async function(e) {
+      e.preventDefault();
+      const name  = document.getElementById("staffName").value.trim();
+      const id    = document.getElementById("staffID").value.trim();
+      const start = document.getElementById("startDate").value;
+      const end   = document.getElementById("endDate").value;
+    
+      if (!name || !id || !start || !end) {
+        alert("Please fill all fields.");
+        return;
+      }
+      if (end < start) {
+        alert("End date cannot be before start date.");
+        return;
+      }
+    
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: "Pending",
+            staffName: name,
+            staffID: id,
+            fromDate: start,
+            toDate: end
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("Leave request submitted successfully.");
+          await loadLeaves();
+          if (userType === "admin") {
+            await renderCalendar();
+          } else {
+            renderAdmin();
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        console.error("Error submitting leave request:", error);
+        alert("An error occurred. Please try again later.");
+      }
+    
+      e.target.reset();
+    };
+    
+    async function prevMonth() {
+      if (userType !== "admin") return;
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      await renderCalendar();
+    }
+    
+    async function nextMonth() {
+      if (userType !== "admin") return;
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      await renderCalendar();
+    }
+    
+    document.getElementById("startDate").addEventListener("change", function() {
+      const startDateInput = document.getElementById("startDate");
+      const endDateInput = document.getElementById("endDate");
+      const startDateValue = startDateInput.value;
+    
+      if (startDateValue) {
+        const startDate = new Date(startDateValue);
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, "0");
+        const day = String(startDate.getDate()).padStart(2, "0");
+    
+        endDateInput.min = startDateValue;
+        endDateInput.value = "";
+        const sameMonthDate = `${year}-${month}-01`;
+        endDateInput.value = sameMonthDate;
+      } else {
+        endDateInput.min = "";
+        endDateInput.value = "";
+      }
+    });
+    
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("loginSection").style.display = "block";
+      document.querySelector(".container").style.display = "none";
+    });
+  </script>
+</body>
+</html>
