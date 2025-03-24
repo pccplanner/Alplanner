@@ -7,8 +7,448 @@
   <!-- Include jsPDF library for PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    /* (styles unchanged) */
-    /* ... */
+    /* ===============================
+       Base Styles
+       =============================== */
+    body {
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
+      margin: 0; 
+      padding: 10px; 
+      font-size: 13px; 
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 900px; 
+      width: 100%;
+      margin: 0 auto; 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+    h1 {
+      text-align: center; 
+      font-size: 18px; 
+      margin: 5px 0; 
+      color: #2c3e50;
+      position: relative;
+    }
+    h1 sup {
+      font-size: 10px;
+      color: #95a5a6;
+      position: absolute;
+      top: -5px;
+    }
+
+    /* ===============================
+       Login Section
+       =============================== */
+    #loginSection {
+      max-width: 400px; 
+      width: 90%;
+      margin: 0 auto; 
+      padding: 20px; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+    #loginSection h2 {
+      text-align: center; 
+      margin-bottom: 20px;
+    }
+    #loginSection button {
+      padding: 10px; 
+      width: 100%; 
+      margin-bottom: 10px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    #loginSection button:hover {
+      background: #2980b9;
+    }
+    #adminLoginForm, #userLoginForm {
+      margin-top: 10px;
+    }
+    #adminLoginForm input, #userLoginForm input {
+      width: 100%; 
+      padding: 8px; 
+      margin-bottom: 10px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    /* ===============================
+       Leave Management Styles
+       =============================== */
+    #leaveForm {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      padding: 10px; 
+      background: #ecf0f1; 
+      border-radius: 6px; 
+      margin-bottom: 10px;
+    }
+    #leaveForm label {
+      font-weight: 600; 
+      margin-right: 4px; 
+      color: #34495e;
+    }
+    #leaveForm input {
+      padding: 5px 8px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px; 
+      font-size: 13px; 
+      width: 120px;
+      box-sizing: border-box;
+    }
+    #leaveForm button {
+      padding: 6px 12px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    #leaveForm button:hover {
+      background: #2980b9;
+    }
+    .team-buttons {
+      text-align: center; 
+      margin: 8px 0;
+    }
+    .team-buttons button {
+      padding: 5px 10px; 
+      margin: 0 4px; 
+      border: none; 
+      border-radius: 4px; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 12px;
+    }
+    .team-a { background: #27ae60; } 
+    .team-b { background: #2980b9; } 
+    .team-c { background: #8e44ad; }
+    .month-nav {
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      gap: 8px; 
+      margin: 8px 0;
+    }
+    .month-nav button {
+      padding: 4px 10px; 
+      background: #7f8c8d; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    .month-nav button:hover {
+      background: #6c7a89;
+    }
+    #monthLabel {
+      font-weight: 600; 
+      color: #2c3e50;
+    }
+    #calendarGrid {
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 3px; 
+      max-width: 850px; 
+      margin: 0 auto 10px;
+    }
+    .day-cell {
+      background: #fff; 
+      border: 1px solid #e0e0e0; 
+      min-height: 60px; 
+      padding: 3px; 
+      border-radius: 4px; 
+      font-size: 11px; 
+      position: relative;
+    }
+    .shift-box {
+      font-weight: 600; 
+      color: #fff; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      text-align: center; 
+      margin-bottom: 3px;
+    }
+    .shift-morning { background: #27ae60; }
+    .shift-night   { background: #a9dfbf; color: #2c3e50; }
+    .shift-off     { background: #dcdcdc; color: #7f8c8d; }
+    .leave-entry {
+      background: #fff3cd; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      margin: 1px 0;
+    }
+    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
+    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
+    .leave-entry.write-in  { background: #ffeeba; }
+    .red-dot {
+      width: 6px; 
+      height: 6px; 
+      background: #e74c3c; 
+      border-radius: 50%; 
+      position: absolute; 
+      top: 3px; 
+      right: 3px;
+    }
+    #adminSummary {
+      padding: 10px; 
+      border-radius: 6px; 
+      background: #fff; 
+      max-height: 400px; 
+      overflow-y: auto;
+    }
+    #adminSummary h3 {
+      font-size: 15px; 
+      margin: 0 0 8px; 
+      color: #2c3e50;
+    }
+    .accordion-item {
+      border: 1px solid #e0e0e0; 
+      margin-bottom: 5px; 
+      border-radius: 4px;
+    }
+    .accordion-header {
+      padding: 8px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    .accordion-header:hover {
+      background: #eef2f5;
+    }
+    .accordion-header span {
+      font-weight: 600; 
+      color: #34495e;
+    }
+    .badge {
+      background: #3498db; 
+      color: #fff; 
+      padding: 2px 6px; 
+      border-radius: 12px; 
+      font-size: 11px;
+    }
+    .badge.pending { background: #e67e22; }
+    .accordion-content {
+      padding: 8px; 
+      background: #fff;
+    }
+    .timeline {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 6px;
+    }
+    .day-block {
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      background: #f1f1f1; 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
+      transition: transform 0.2s;
+    }
+    .day-block:hover {
+      transform: scale(1.02);
+    }
+    .day-block select {
+      font-size: 11px; 
+      padding: 2px; 
+      border-radius: 3px; 
+      border: 1px solid #bdc3c7;
+    }
+    .status-dot {
+      width: 8px; 
+      height: 8px; 
+      border-radius: 50%;
+    }
+    .status-dot.pending     { background: #e67e22; }
+    .status-dot.approved    { background: #27ae60; }
+    .status-dot.rejected    { background: #e74c3c; }
+    .status-dot.write-in    { background: #f1c40f; }
+    .action-buttons {
+      margin-top: 6px; 
+      text-align: right;
+    }
+    .delete-btn, .whatsapp-btn {
+      padding: 3px 8px; 
+      font-size: 11px; 
+      border: none; 
+      border-radius: 3px; 
+      cursor: pointer; 
+      margin-left: 4px;
+    }
+    .delete-btn {
+      background: #e74c3c; 
+      color: #fff;
+    }
+    .delete-btn:hover {
+      background: #c0392b;
+    }
+    .whatsapp-btn {
+      background: #25D366; 
+      color: #fff;
+    }
+    .whatsapp-btn:hover {
+      background: #20b958;
+    }
+    #monthlySummary {
+      padding: 8px; 
+      border-radius: 6px; 
+      background: #fff; 
+      margin-top: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    #monthlySummary h3 {
+      font-size: 14px; 
+      margin: 0 0 6px; 
+      color: #2c3e50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #monthlySummary .download-btn {
+      padding: 4px 8px;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+    }
+    #monthlySummary .download-btn:hover {
+      background: #2980b9;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .summary-table th, .summary-table td {
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .summary-table th {
+      background: #f7f9fb;
+      color: #34495e;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .summary-table tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .summary-table tr:hover {
+      background: #f1f5f9;
+    }
+    .summary-table .staff-name {
+      font-weight: 500;
+      color: #2c3e50;
+      white-space: nowrap;
+    }
+    .summary-table .leave-range {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .summary-table .range-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: #2c3e50;
+    }
+    .range-block .status-dot {
+      width: 6px;
+      height: 6px;
+    }
+    .range-block.approved .status-dot { background: #27ae60; }
+    .range-block.pending .status-dot { background: #e67e22; }
+    .range-block.rejected .status-dot { background: #e74c3c; }
+    .range-block.write-in .status-dot { background: #f1c40f; }
+    .summary-table .total-days {
+      font-weight: 500;
+      color: #34495e;
+      text-align: right;
+    }
+    .footer {
+      text-align: center; 
+      font-size: 10px; 
+      color: #95a5a6; 
+      margin-top: 10px;
+    }
+
+    /* ===============================
+       New Styles for Admin Tabs & User Management
+       =============================== */
+    #adminTabs {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    #adminTabs button {
+      padding: 8px 12px;
+      margin: 0 5px;
+      border: none;
+      border-radius: 4px;
+      background: #3498db;
+      color: #fff;
+      cursor: pointer;
+    }
+    #adminTabs button:hover {
+      background: #2980b9;
+    }
+    #userManagementPanel {
+      padding: 10px;
+      background: #fdfdfd;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    #userManagementPanel h2 {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    #addUserForm input {
+      padding: 5px 8px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+    }
+    #addUserForm button {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      background: #27ae60;
+      color: #fff;
+      cursor: pointer;
+    }
+    #addUserForm button:hover {
+      background: #1e8449;
+    }
+    #usersTable th, #usersTable td {
+      border: 1px solid #ddd;
+      padding: 5px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -127,6 +567,9 @@
   </div>
 
   <script>
+    /* ===============================
+       Global config & variables
+       =============================== */
     const API_BASE_URL = "https://leave-management.th3va.com";
     let userType = null; // 'admin' or 'user'
     let currentStaffID = null;
@@ -141,7 +584,9 @@
     var currentYear = 2025, currentMonth = 2;
     var openAccordions = new Set();
 
-    /* ====== Show/hide login forms ====== */
+    /* ===============================
+       Show/hide login forms
+       =============================== */
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
       document.getElementById("userLoginForm").style.display = "none";
@@ -151,7 +596,9 @@
       document.getElementById("adminLoginForm").style.display = "none";
     }
 
-    /* ====== Admin login using JWT ====== */
+    /* ===============================
+       Admin login using JWT
+       =============================== */
     async function loginAdmin() {
       const staff_id = document.getElementById("adminUsername").value.trim();
       const password = document.getElementById("adminPassword").value;
@@ -181,7 +628,9 @@
       }
     }
 
-    /* ====== User login using JWT ====== */
+    /* ===============================
+       User login using JWT
+       =============================== */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
@@ -211,6 +660,9 @@
       }
     }
 
+    /* ===============================
+       Render UI based on user type
+       =============================== */
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
@@ -251,7 +703,9 @@
       return TeamPatterns[selectedTeam][idx];
     }
 
-    /* ====== RENDER CALENDAR ====== */
+    /* ===============================
+       Render Calendar (Admin only)
+       =============================== */
     async function renderCalendar() {
       if (userType !== "admin") return;
       await loadLeaves();
@@ -327,20 +781,289 @@
       return Object.values(grouped);
     }
 
-    /* ====== RENDER ADMIN LEAVE REQUESTS ====== */
+    /* ===============================
+       Render Admin's Leave Requests
+       =============================== */
     function renderAdmin() {
-      // (unchanged)
-      // ...
+      const adminList = document.getElementById("adminList");
+      adminList.innerHTML = "";
+
+      let filteredRequests = requests;
+      if (userType === "user") {
+        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
+      } else if (userType === "admin") {
+        const currentDate = new Date();
+        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
+        filteredRequests = requests.filter(req => {
+          return req.days.some(day => {
+            const [year, month] = day.date.split('-').map(Number);
+            const requestYearMonth = year * 12 + (month - 1);
+            return requestYearMonth >= currentYearMonth;
+          });
+        });
+      }
+
+      const groupedRequests = groupRequestsByStaffID(filteredRequests);
+
+      groupedRequests.forEach((group, groupIndex) => {
+        const item = document.createElement("div");
+        item.className = "accordion-item";
+
+        const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
+        const pendingCount = group.requests.reduce(
+          (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
+          0
+        );
+
+        item.innerHTML = `
+          <div class="accordion-header" data-index="${groupIndex}">
+            <span>${group.staffName} (${group.staffID})</span>
+            <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
+              ${totalDays} days (${pendingCount} pending)
+            </span>
+          </div>
+          <div class="accordion-content" data-index="${groupIndex}">
+            ${group.requests.map((req, reqIndexWithinGroup) => `
+              <div class="timeline">
+                ${req.days.map((day, dayIndex) => `
+                  <div class="day-block">
+                    <span>${day.date}</span>
+                    <div class="status-dot ${day.status.toLowerCase()}"></div>
+                    <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
+                      <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
+                      <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
+                      <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
+                      <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
+                    </select>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+            <div class="action-buttons">
+              ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ''}
+              <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
+            </div>
+          </div>
+        `;
+        adminList.appendChild(item);
+      });
+
+      // Toggle open/close
+      adminList.querySelectorAll(".accordion-header").forEach(header => {
+        const index = header.getAttribute("data-index");
+        const content = header.nextElementSibling;
+
+        if (openAccordions.has(index)) {
+          content.style.display = "block";
+        } else {
+          content.style.display = "none";
+        }
+
+        header.onclick = function() {
+          if (content.style.display === "block") {
+            content.style.display = "none";
+            openAccordions.delete(index);
+          } else {
+            content.style.display = "block";
+            openAccordions.add(index);
+          }
+        };
+      });
+
+      // Update day status
+      adminList.querySelectorAll("select").forEach(sel => {
+        sel.onchange = async function() {
+          if (userType !== "admin") return;
+          const groupIndex = sel.getAttribute("data-group");
+          const reqIndexWithinGroup = sel.getAttribute("data-req");
+          const dayIndex = sel.getAttribute("data-day");
+          const newStatus = sel.value;
+          const group = groupedRequests[groupIndex];
+          const req = group.requests[reqIndexWithinGroup];
+          const day_id = req.days[dayIndex].id;
+
+          if (!day_id) {
+            alert("Error: Day ID is missing. Please ensure the leave request data includes a valid day ID.");
+            return;
+          }
+
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ day_id, status: newStatus })
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            if (data.status === "success") {
+              // Reload from server to avoid index mismatch
+              await loadLeaves();
+              await renderCalendar();
+              await renderMonthlySummary();
+            } else {
+              alert("Error: " + (data.message || "Unknown error occurred"));
+            }
+          } catch (err) {
+            console.error("Day status update error:", err);
+            alert(`An error occurred updating the day status: ${err.message}`);
+          }
+        };
+      });
+
+      // Delete requests
+      adminList.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.onclick = async function() {
+          if (userType !== "admin") return;
+          const groupIndex = btn.getAttribute("data-group");
+          const group = groupedRequests[groupIndex];
+
+          openAccordions.delete(groupIndex);
+
+          try {
+            for (const req of group.requests) {
+              const reqId = req.id;
+              const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: reqId })
+              });
+              const data = await response.json();
+              if (data.status !== "success") {
+                alert("Error deleting request: " + data.message);
+                return;
+              }
+            }
+            requests = requests.filter(req => req.staffID !== group.staffID);
+            await renderCalendar();
+          } catch (err) {
+            console.error("Delete error:", err);
+            alert("An error occurred while deleting. Please try again.");
+          }
+        };
+      });
+
+      // WhatsApp
+      adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
+        btn.onclick = function() {
+          const groupIndex = btn.getAttribute("data-group");
+          const group = groupedRequests[groupIndex];
+          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
+            group.requests.map((req, i) =>
+              `Request ${i + 1}:\n` +
+              req.days.map(d => `${d.date}: ${d.status}`).join('\n')
+            ).join('\n\n');
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        };
+      });
     }
 
-    /* ====== MONTHLY SUMMARY ====== */
+    /* ===============================
+       Monthly Summary (Admin only)
+       =============================== */
     async function renderMonthlySummary() {
-      // (unchanged)
-      // ...
+      if (userType !== "admin") return;
+      const summaryTableBody = document.getElementById("summaryTableBody");
+      summaryTableBody.innerHTML = "";
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch leave requests');
+        }
+        const allRequests = await response.json();
+
+        const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+        const allDaysByStaff = {};
+
+        allRequests.forEach(req => {
+          const staffID = req.staffID;
+          const staffName = req.staffName;
+          if (!allDaysByStaff[staffID]) {
+            allDaysByStaff[staffID] = {
+              staffName,
+              staffID,
+              days: {}
+            };
+          }
+          req.days.forEach(day => {
+            if (
+              day.date.startsWith(monthStr) &&
+              (day.status === "Approved" || day.status === "Write-in")
+            ) {
+              // prefer "Approved" if there's a conflict
+              if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
+                allDaysByStaff[staffID].days[day.date] = day.status;
+              }
+            }
+          });
+        });
+
+        const groupedRequests = Object.values(allDaysByStaff).filter(g => Object.keys(g.days).length > 0);
+        groupedRequests.forEach(group => {
+          const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
+          dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          // Group consecutive days with same status
+          const ranges = [];
+          let currentRange = [dayEntries[0]];
+          for (let i = 1; i < dayEntries.length; i++) {
+            const prevDate = new Date(currentRange[currentRange.length - 1].date);
+            const currDate = new Date(dayEntries[i].date);
+            if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === dayEntries[i].status) {
+              currentRange.push(dayEntries[i]);
+            } else {
+              ranges.push(currentRange);
+              currentRange = [dayEntries[i]];
+            }
+          }
+          if (currentRange.length > 0) ranges.push(currentRange);
+
+          const totalDays = dayEntries.length;
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td class="staff-name">${group.staffName} (${group.staffID})</td>
+            <td class="leave-range">
+              ${ranges.map(range => {
+                const startDate = range[0].date.split('-')[2];
+                const endDate = range[range.length - 1].date.split('-')[2];
+                const displayText = startDate === endDate ? startDate : `${startDate}-${endDate}`;
+                const statusClass = range[0].status.toLowerCase();
+                const statusLabel = range[0].status;
+                return `
+                  <div class="range-block ${statusClass}">
+                    <span class="status-dot"></span>
+                    ${displayText} (${statusLabel})
+                  </div>
+                `;
+              }).join('')}
+            </td>
+            <td class="total-days">${totalDays}</td>
+          `;
+          summaryTableBody.appendChild(row);
+        });
+
+        if (summaryTableBody.children.length === 0) {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
+            No approved or write-in leave requests for this month.</td>`;
+          summaryTableBody.appendChild(row);
+        }
+      } catch (error) {
+        console.error("Error fetching monthly summary:", error);
+        const row = document.createElement("tr");
+        row.innerHTML = `<td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
+          Error loading summary. Please try again later.</td>`;
+        summaryTableBody.appendChild(row);
+      }
     }
 
     async function downloadSummaryPDF() {
-      // (unchanged)
+      // If you need the PDF logic, place it here
     }
 
     async function selectTeam(num) {
@@ -367,23 +1090,88 @@
     }
 
     document.getElementById("leaveForm").onsubmit = async function(e) {
-      // (unchanged)
-      // ...
+      e.preventDefault();
+      const name  = document.getElementById("staffName").value.trim();
+      const id    = document.getElementById("staffID").value.trim();
+      const start = document.getElementById("startDate").value;
+      const end   = document.getElementById("endDate").value;
+
+      if (!name || !id || !start || !end) {
+        alert("Please fill all fields.");
+        return;
+      }
+      if (end < start) {
+        alert("End date cannot be before start date.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: "Pending",
+            staffName: name,
+            staffID: id,
+            fromDate: start,
+            toDate: end
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("Leave request submitted successfully.");
+          await loadLeaves();
+          if (userType === "admin") {
+            await renderCalendar();
+          } else {
+            renderAdmin();
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        console.error("Error submitting leave request:", error);
+        alert("An error occurred. Please try again later.");
+      }
+
+      e.target.reset();
     };
 
     async function prevMonth() {
-      // (unchanged)
+      if (userType !== "admin") return;
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      await renderCalendar();
     }
 
     async function nextMonth() {
-      // (unchanged)
+      if (userType !== "admin") return;
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      await renderCalendar();
     }
 
     document.getElementById("startDate").addEventListener("change", function() {
-      // (unchanged)
+      const startDateValue = this.value;
+      const endDateInput = document.getElementById("endDate");
+      if (startDateValue) {
+        endDateInput.min = startDateValue;
+        endDateInput.value = "";
+      } else {
+        endDateInput.min = "";
+        endDateInput.value = "";
+      }
     });
 
-    /* ====== USER MANAGEMENT (No Email) ====== */
+    /* ===============================
+       USER MANAGEMENT (No Email)
+       =============================== */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
@@ -477,9 +1265,9 @@
     function editUserPrompt(id, currentUsername, currentStaffID) {
       const newUsername = prompt("Edit Username:", currentUsername);
       if (newUsername === null) return;
-      const newStaffID = prompt("Edit Staff ID:", currentStaffID);
-      if (newStaffID === null) return;
-      editUser(id, newUsername.trim(), newStaffID.trim());
+      const newStaff = prompt("Edit Staff ID:", currentStaffID);
+      if (newStaff === null) return;
+      editUser(id, newUsername.trim(), newStaff.trim());
     }
 
     async function editUser(id, username, staffID) {
@@ -594,4 +1382,16 @@
     });
   </script>
 </body>
-</html>
+</html
+
+**Key points for it to work properly:**
+
+1. **Use the same domain/port** for both front-end and back-end, or ensure proper CORS rules.  
+2. **Include the `Authorization: Bearer <token>` header** for all admin-only endpoints (like `/api/users`). In the script above, you’ll see calls like:
+   ```js
+   const token = localStorage.getItem('token') || '';
+   const response = await fetch(USERS_API_URL, {
+     headers: {
+       'Authorization': 'Bearer ' + token
+     }
+   });
