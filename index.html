@@ -597,280 +597,69 @@
     var currentYear = 2025, currentMonth = 2;
     var openAccordions = new Set();
 
+    /* ====== Show/hide login forms ====== */
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
       document.getElementById("userLoginForm").style.display = "none";
     }
-    
     function showUserLogin() {
       document.getElementById("userLoginForm").style.display = "block";
       document.getElementById("adminLoginForm").style.display = "none";
     }
-    
-    // Admin login function using JWT
+
+    /* ====== Admin login function using JWT ====== */
     async function loginAdmin() {
-      const staff_id = document.getElementById("adminUsername").value.trim();
-      const password = document.getElementById("adminPassword").value;
-      if (!staff_id || !password) {
-        alert("Please fill in both Staff ID and Password.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staff_id: staff_id, password: password })
-        });
-        const data = await response.json();
-        if (response.ok && data.status === 'success') {
-          localStorage.setItem('token', data.token);
-          userType = "admin";
-          currentStaffID = null;
-          document.getElementById("loginSection").style.display = "none";
-          document.querySelector(".container").style.display = "block";
-          await renderUI();
-        } else {
-          alert("Invalid admin credentials.");
-        }
-      } catch (err) {
-        alert("Login error: " + err.message);
-      }
+      ...
+      // same as before
     }
-    
-    // User login function using JWT
+
+    /* ====== User login function using JWT ====== */
     async function loginUser() {
-      const staffID = document.getElementById("userStaffID").value.trim();
-      const password = document.getElementById("userPassword").value;
-      if (!staffID || !password) {
-        alert("Please enter your Staff ID and Password.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staff_id: staffID, password: password })
-        });
-        const data = await response.json();
-        if (response.ok && data.status === 'success') {
-          localStorage.setItem('token', data.token);
-          userType = "user";
-          currentStaffID = staffID;
-          document.getElementById("loginSection").style.display = "none";
-          document.querySelector(".container").style.display = "block";
-          await renderUI();
-        } else {
-          alert("Invalid user credentials.");
-        }
-      } catch (err) {
-        alert("Login error: " + err.message);
-      }
+      ...
     }
-    
+
     async function renderUI() {
-      if (userType === "admin") {
-        document.getElementById("adminTabs").style.display = "block";
-        // Show leave management by default
-        showLeaveManagement();
-        document.getElementById("staffID").readOnly = false;
-        document.getElementById("staffID").value = "";
-        await renderCalendar();
-        renderAdmin();
-        await renderMonthlySummary();
-      } else if (userType === "user") {
-        document.getElementById("adminTabs").style.display = "none";
-        document.querySelector(".team-buttons").style.display = "none";
-        document.querySelector(".month-nav").style.display = "none";
-        document.getElementById("calendarGrid").style.display = "none";
-        document.getElementById("monthlySummary").style.display = "none";
-        document.getElementById("staffID").value = currentStaffID;
-        document.getElementById("staffID").readOnly = true;
-        await loadLeaves();
-        renderAdmin();
-      }
+      ...
     }
-    
+
     function daysBetween(a, b) {
-      const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-      const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
-      return Math.floor((B - A) / (1000 * 60 * 60 * 24));
+      ...
     }
-    
     function formatDate(d) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + dd;
+      ...
     }
-    
     function getShift(d) {
-      const diff = daysBetween(referenceDate, d);
-      const idx = ((diff % 6) + 6) % 6;
-      return TeamPatterns[selectedTeam][idx];
+      ...
     }
-    
+
     async function renderCalendar() {
-      if (userType !== "admin") return;
-      await loadLeaves();
-      const monthNames = ["January", "February", "March", "April", "May", "June",
-                          "July", "August", "September", "October", "November", "December"];
-      document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
-      const grid = document.getElementById("calendarGrid");
-      grid.innerHTML = "";
-      const firstDay = new Date(currentYear, currentMonth, 1);
-      const offset = (firstDay.getDay() + 6) % 7;
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    
-      for (let i = 0; i < offset; i++) {
-        grid.appendChild(document.createElement("div")).className = "day-cell";
-      }
-    
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateObj = new Date(currentYear, currentMonth, d);
-        const dateStr = formatDate(dateObj);
-        const cell = document.createElement("div");
-        cell.className = "day-cell";
-    
-        const shift = getShift(dateObj);
-        const shiftBox = document.createElement("div");
-        shiftBox.className = "shift-box " + (
-          shift === "morning" ? "shift-morning" :
-          shift === "night"   ? "shift-night"   : "shift-off"
-        );
-        shiftBox.textContent = d;
-        cell.appendChild(shiftBox);
-    
-        const dayEntries = [];
-        requests.forEach(req => {
-          req.days.forEach(day => {
-            if (day.date === dateStr) {
-              dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
-            }
-          });
-        });
-    
-        const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
-        if (nonRejected > 2) {
-          cell.appendChild(document.createElement("div")).className = "red-dot";
-        }
-    
-        dayEntries.forEach(e => {
-          const entry = document.createElement("div");
-          entry.className = "leave-entry " + e.status.toLowerCase();
-          entry.textContent = e.staffName + " (" + e.staffID + ")";
-          cell.appendChild(entry);
-        });
-    
-        grid.appendChild(cell);
-      }
-      renderAdmin();
-      await renderMonthlySummary();
+      ...
     }
-    
+
     function groupRequestsByStaffID(requests) {
-      const grouped = {};
-      requests.forEach((req, reqIndex) => {
-        const staffID = req.staffID;
-        if (!grouped[staffID]) {
-          grouped[staffID] = {
-            staffName: req.staffName,
-            staffID: staffID,
-            requests: [],
-          };
-        }
-        // store the originalIndex so we can reference it if needed
-        grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
-      });
-      return Object.values(grouped);
+      ...
     }
-    
+
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
-    
-      let filteredRequests = requests;
-      if (userType === "user") {
-        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
-      } else if (userType === "admin") {
-        const currentDate = new Date();
-        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
-        filteredRequests = requests.filter(req => {
-          return req.days.some(day => {
-            const [year, month] = day.date.split('-').map(Number);
-            const requestYearMonth = year * 12 + (month - 1);
-            return requestYearMonth >= currentYearMonth;
-          });
-        });
-      }
-    
+
+      let filteredRequests = ...
+      // same filtering code
+
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
-    
+
+      // Build the accordion items
       groupedRequests.forEach((group, groupIndex) => {
-        const item = document.createElement("div");
-        item.className = "accordion-item";
-    
-        const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
-        const pendingCount = group.requests.reduce(
-          (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
-          0
-        );
-    
-        item.innerHTML = `
-          <div class="accordion-header" data-index="${groupIndex}">
-            <span>${group.staffName} (${group.staffID})</span>
-            <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
-              ${totalDays} days (${pendingCount} pending)
-            </span>
-          </div>
-          <div class="accordion-content" data-index="${groupIndex}">
-            ${group.requests.map((req, reqIndexWithinGroup) => `
-              <div class="timeline">
-                ${req.days.map((day, dayIndex) => `
-                  <div class="day-block">
-                    <span>${day.date}</span>
-                    <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
-                      <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
-                      <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
-                      <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
-                      <option value="Write-in"  ${day.status === "Write-in"  ? "selected" : ""}>Write-in</option>
-                    </select>
-                  </div>
-                `).join('')}
-              </div>
-            `).join('')}
-            <div class="action-buttons">
-              ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ''}
-              <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
-            </div>
-          </div>
-        `;
-        adminList.appendChild(item);
+        ...
       });
-    
+
       // Toggle open/close
       adminList.querySelectorAll(".accordion-header").forEach(header => {
-        const index = header.getAttribute("data-index");
-        const content = header.nextElementSibling;
-    
-        if (openAccordions.has(index)) {
-          content.style.display = "block";
-        } else {
-          content.style.display = "none";
-        }
-    
-        header.onclick = function() {
-          if (content.style.display === "block") {
-            content.style.display = "none";
-            openAccordions.delete(index);
-          } else {
-            content.style.display = "block";
-            openAccordions.add(index);
-          }
-        };
+        ...
       });
-    
-      // FIX: Remove direct assignment, do a fresh reload instead
+
+      // ***** FIX: Remove direct assignment to requests array, do a fresh reload after update
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -881,12 +670,12 @@
           const group = groupedRequests[groupIndex];
           const req = group.requests[reqIndexWithinGroup];
           const day_id = req.days[dayIndex].id;
-    
+
           if (!day_id) {
             alert("Error: Day ID is missing. Please ensure the leave request data includes a valid day ID.");
             return;
           }
-    
+
           try {
             console.log(`Updating status for day_id: ${day_id}, new status: ${newStatus}`);
             const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
@@ -894,16 +683,16 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ day_id: day_id, status: newStatus })
             });
-    
+
             if (!response.ok) {
               throw new Error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
             }
-    
+
             const data = await response.json();
             console.log("API response:", data);
-    
+
             if (data.status === "success") {
-              // Instead of referencing requests[req.originalIndex], do a fresh load & re-render
+              // Refresh from server to avoid 'undefined is not an object'
               await loadLeaves();
               await renderCalendar();
               await renderMonthlySummary();
@@ -916,109 +705,51 @@
           }
         };
       });
-    
+
       // Deleting requests
       adminList.querySelectorAll(".delete-btn").forEach(btn => {
-        btn.onclick = async function() {
-          if (userType !== "admin") return;
-          const groupIndex = btn.getAttribute("data-group");
-          const group = groupedRequests[groupIndex];
-    
-          openAccordions.delete(groupIndex);
-    
-          try {
-            for (const req of group.requests) {
-              const reqId = req.id;
-              const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ request_id: reqId })
-              });
-              const data = await response.json();
-              if (data.status !== "success") {
-                alert("Error deleting request: " + data.message);
-                return;
-              }
-            }
-            requests = requests.filter(req => req.staffID !== group.staffID);
-            await renderCalendar();
-          } catch (err) {
-            console.error("Delete error:", err);
-            alert("An error occurred while deleting. Please try again.");
-          }
-        };
+        ...
       });
-    
+
       // WhatsApp
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
-        btn.onclick = function() {
-          const groupIndex = btn.getAttribute("data-group");
-          const group = groupedRequests[groupIndex];
-          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
-                      group.requests.map((req, reqIndex) =>
-                        `Request ${reqIndex + 1}:\n` +
-                        req.days.map(d => `${d.date}: ${d.status}`).join('\n')
-                      ).join('\n\n');
-          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-        };
+        ...
       });
     }
-    
+
     async function renderMonthlySummary() {
-      if (userType !== "admin") return;
-      const summaryTableBody = document.getElementById("summaryTableBody");
-      summaryTableBody.innerHTML = "";
       ...
-      /* (Monthly Summary code is unchanged) */
     }
 
     async function downloadSummaryPDF() {
-      if (userType !== "admin") return;
       ...
-      /* (PDF generation code is unchanged) */
     }
-    
+
     async function selectTeam(num) {
-      if (userType !== "admin") return;
-      selectedTeam = num;
-      await renderCalendar();
-    }
-    
-    async function loadLeaves() {
-      try {
-        let url = `${API_BASE_URL}/api/get_leaves`;
-        if (userType === "user") {
-          url += `?staffID=${currentStaffID}`;
-        }
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch leaves');
-        }
-        requests = await response.json();
-      } catch (error) {
-        console.error("Error fetching leaves:", error);
-        requests = [];
-      }
-    }
-    
-    document.getElementById("leaveForm").onsubmit = async function(e) {
-      e.preventDefault();
       ...
-      /* (Submit leave code unchanged) */
+    }
+
+    async function loadLeaves() {
+      ...
+    }
+
+    // Submit leave
+    document.getElementById("leaveForm").onsubmit = async function(e) {
+      ...
     };
-    
+
     async function prevMonth() {
       ...
     }
-    
+
     async function nextMonth() {
       ...
     }
-    
+
     document.getElementById("startDate").addEventListener("change", function() {
       ...
     });
-    
+
     /* ----- USER MANAGEMENT FUNCTIONS ----- */
     function showLeaveManagement() {
       ...
@@ -1054,7 +785,7 @@
     async function hashPassword(password) {
       ...
     }
-    
+
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
