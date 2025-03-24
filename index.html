@@ -555,7 +555,6 @@
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
         <input type="text" id="newUsername" placeholder="Username" required>
-        <input type="email" id="newEmail" placeholder="Email" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
         <label>
@@ -567,7 +566,6 @@
         <thead>
           <tr>
             <th>Username</th>
-            <th>Email</th>
             <th>Staff ID</th>
             <th>Admin</th>
             <th>Actions</th>
@@ -898,9 +896,6 @@
     
             const data = await response.json();
             if (data.status === "success") {
-              // Removed the line below to prevent the error due to index mismatch
-              // requests[req.originalIndex].days[dayIndex].status = newStatus;
-              // Instead, rely on renderCalendar to refresh the UI by reloading data
               await renderCalendar(); // Reloads requests and updates UI
               await renderMonthlySummary(); // Updates summary section
             } else {
@@ -1297,21 +1292,36 @@
     
     // Load users and populate the table
     async function loadUsers() {
+      const tbody = document.querySelector("#usersTable tbody");
+      tbody.innerHTML = ""; // Clear the table
+    
       try {
-        const response = await fetch(USERS_API_URL);
-        if (!response.ok) throw new Error("Failed to fetch users");
+        const token = localStorage.getItem('token'); // Retrieve the JWT token
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+    
+        const response = await fetch(USERS_API_URL, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` // Include the token in the request
+          }
+        });
+    
+        if (!response.ok) {
+          throw new Error(`Failed to fetch users (Status: ${response.status} ${response.statusText})`);
+        }
+    
         const users = await response.json();
-        const tbody = document.querySelector("#usersTable tbody");
-        tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${user.username}</td>
-            <td>${user.email}</td>
             <td>${user.staffID}</td>
             <td>${user.isAdmin ? "Yes" : "No"}</td>
             <td>
-              <button onclick="editUserPrompt('${user.id}', '${user.username}', '${user.email}', '${user.staffID}')">Edit</button>
+              <button onclick="editUserPrompt('${user.id}', '${user.username}', '${user.staffID}')">Edit</button>
               <button onclick="deleteUser('${user.id}')">Delete</button>
               <button onclick="toggleAdminStatus('${user.id}', ${user.isAdmin})">
                 ${user.isAdmin ? "Revoke Admin" : "Make Admin"}
@@ -1321,8 +1331,18 @@
           `;
           tbody.appendChild(tr);
         });
+    
+        if (users.length === 0) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td colspan="4" style="text-align: center; color: #7f8c8d;">No users found.</td>`;
+          tbody.appendChild(tr);
+        }
       } catch (err) {
+        console.error("Error in loadUsers:", err);
         alert("Error loading users: " + err.message);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="4" style="text-align: center; color: #e74c3c;">Failed to load users: ${err.message}</td>`;
+        tbody.appendChild(tr);
       }
     }
     
@@ -1330,12 +1350,11 @@
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
       const newUsername = document.getElementById("newUsername").value.trim();
-      const newEmail = document.getElementById("newEmail").value.trim();
       const newStaffID = document.getElementById("newStaffID").value.trim();
       const newPassword = document.getElementById("newPassword").value;
       const newIsAdmin = document.getElementById("newIsAdmin").checked;
     
-      if (!newUsername || !newEmail || !newStaffID || !newPassword) {
+      if (!newUsername || !newStaffID || !newPassword) {
         alert("Please fill in all fields.");
         return;
       }
@@ -1343,12 +1362,19 @@
       const hashedPassword = await hashPassword(newPassword);
       
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+
         const response = await fetch(USERS_API_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify({
             username: newUsername,
-            email: newEmail,
             staffID: newStaffID,
             password: hashedPassword,
             isAdmin: newIsAdmin
@@ -1368,22 +1394,28 @@
     };
     
     // Prompt to edit user details
-    function editUserPrompt(id, currentUsername, currentEmail, currentStaffID) {
+    function editUserPrompt(id, currentUsername, currentStaffID) {
       const newUsername = prompt("Edit Username:", currentUsername);
       if (newUsername === null) return;
-      const newEmail = prompt("Edit Email:", currentEmail);
-      if (newEmail === null) return;
       const newStaffID = prompt("Edit Staff ID:", currentStaffID);
       if (newStaffID === null) return;
-      editUser(id, newUsername.trim(), newEmail.trim(), newStaffID.trim());
+      editUser(id, newUsername.trim(), newStaffID.trim());
     }
     
-    async function editUser(id, username, email, staffID) {
+    async function editUser(id, username, staffID) {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+
         const response = await fetch(USERS_API_URL + "/" + id, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, staffID })
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ username, staffID })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1400,8 +1432,16 @@
     async function deleteUser(id) {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+
         const response = await fetch(USERS_API_URL + "/" + id, {
-          method: "DELETE"
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1417,8 +1457,16 @@
     
     async function toggleAdminStatus(id, isCurrentlyAdmin) {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+
         const response = await fetch(USERS_API_URL + "/" + id + "/toggle_admin", {
-          method: "POST"
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1441,10 +1489,18 @@
     
     async function resetUserPassword(id, password) {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error("No authentication token found. Please log in again.");
+        }
+
         const hashedPassword = await hashPassword(password);
         const response = await fetch(USERS_API_URL + "/" + id + "/reset_password", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify({ newPassword: hashedPassword })
         });
         const data = await response.json();
