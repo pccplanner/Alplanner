@@ -553,28 +553,30 @@
     <!-- User Management Panel (Admin Only) -->
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
-      <form id="addUserForm" style="margin-bottom: 15px;">
-        <input type="text" id="newUsername" placeholder="Username" required>
-        <input type="text" id="newStaffID" placeholder="Staff ID" required>
-        <input type="password" id="newPassword" placeholder="Password" required>
-        <label>
-          <input type="checkbox" id="newIsAdmin"> Admin?
-        </label>
-        <button type="submit">Add User</button>
-      </form>
-      <table id="usersTable">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Staff ID</th>
-            <th>Admin</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- User rows will be dynamically inserted here -->
-        </tbody>
-      </table>
+      <div id="userManagementContent">
+        <form id="addUserForm" style="margin-bottom: 15px;">
+          <input type="text" id="newUsername" placeholder="Username" required>
+          <input type="text" id="newStaffID" placeholder="Staff ID" required>
+          <input type="password" id="newPassword" placeholder="Password" required>
+          <label>
+            <input type="checkbox" id="newIsAdmin"> Admin?
+          </label>
+          <button type="submit">Add User</button>
+        </form>
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Staff ID</th>
+              <th>Admin</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- User rows will be dynamically inserted here -->
+          </tbody>
+        </table>
+      </div>
     </div>
     <div class="footer">
       @ 2025; t’va
@@ -594,6 +596,7 @@
     var requests = [];
     var currentYear = 2025, currentMonth = 2;
     var openAccordions = new Set();
+    var isUserManagementAvailable = false; // Flag to track if User Management is available
 
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
@@ -1281,6 +1284,7 @@
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
     }
+    
     function showUserManagement() {
       document.getElementById("leaveManagementPanel").style.display = "none";
       document.getElementById("userManagementPanel").style.display = "block";
@@ -1292,6 +1296,7 @@
     
     // Load users and populate the table
     async function loadUsers() {
+      const contentDiv = document.getElementById("userManagementContent");
       const tbody = document.querySelector("#usersTable tbody");
       tbody.innerHTML = ""; // Clear the table
     
@@ -1301,12 +1306,14 @@
           throw new Error("No authentication token found. Please log in again.");
         }
     
+        // Try POST instead of GET, as the server returned 405 for GET
         const response = await fetch(USERS_API_URL, {
-          method: "GET",
+          method: "POST", // Changed to POST
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}` // Include the token in the request
-          }
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({}) // Empty body; adjust if the server expects specific parameters
         });
     
         if (!response.ok) {
@@ -1314,6 +1321,11 @@
         }
     
         const users = await response.json();
+        console.log("Users fetched successfully:", users); // Debug log
+    
+        // Mark User Management as available
+        isUserManagementAvailable = true;
+    
         users.forEach(user => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
@@ -1340,15 +1352,27 @@
       } catch (err) {
         console.error("Error in loadUsers:", err);
         alert("Error loading users: " + err.message);
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="4" style="text-align: center; color: #e74c3c;">Failed to load users: ${err.message}</td>`;
-        tbody.appendChild(tr);
+        // Mark User Management as unavailable
+        isUserManagementAvailable = false;
+        // Display a message in the UI
+        contentDiv.innerHTML = `
+          <p style="text-align: center; color: #e74c3c; font-size: 14px;">
+            User Management is currently unavailable due to a server issue (Error: ${err.message}).<br>
+            Please contact the system administrator to resolve this issue.
+          </p>
+        `;
       }
     }
     
     // Add new user
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
+      // Check if User Management is available
+      if (!isUserManagementAvailable) {
+        alert("User Management is currently unavailable. Please try again later or contact the system administrator.");
+        return;
+      }
+    
       const newUsername = document.getElementById("newUsername").value.trim();
       const newStaffID = document.getElementById("newStaffID").value.trim();
       const newPassword = document.getElementById("newPassword").value;
@@ -1366,7 +1390,7 @@
         if (!token) {
           throw new Error("No authentication token found. Please log in again.");
         }
-
+    
         const response = await fetch(USERS_API_URL, {
           method: "POST",
           headers: { 
@@ -1395,6 +1419,11 @@
     
     // Prompt to edit user details
     function editUserPrompt(id, currentUsername, currentStaffID) {
+      if (!isUserManagementAvailable) {
+        alert("User Management is currently unavailable. Please try again later or contact the system administrator.");
+        return;
+      }
+    
       const newUsername = prompt("Edit Username:", currentUsername);
       if (newUsername === null) return;
       const newStaffID = prompt("Edit Staff ID:", currentStaffID);
@@ -1408,7 +1437,7 @@
         if (!token) {
           throw new Error("No authentication token found. Please log in again.");
         }
-
+    
         const response = await fetch(USERS_API_URL + "/" + id, {
           method: "PUT",
           headers: { 
@@ -1430,13 +1459,18 @@
     }
     
     async function deleteUser(id) {
+      if (!isUserManagementAvailable) {
+        alert("User Management is currently unavailable. Please try again later or contact the system administrator.");
+        return;
+      }
+    
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
         const token = localStorage.getItem('token');
         if (!token) {
           throw new Error("No authentication token found. Please log in again.");
         }
-
+    
         const response = await fetch(USERS_API_URL + "/" + id, {
           method: "DELETE",
           headers: {
@@ -1456,12 +1490,17 @@
     }
     
     async function toggleAdminStatus(id, isCurrentlyAdmin) {
+      if (!isUserManagementAvailable) {
+        alert("User Management is currently unavailable. Please try again later or contact the system administrator.");
+        return;
+      }
+    
       try {
         const token = localStorage.getItem('token');
         if (!token) {
           throw new Error("No authentication token found. Please log in again.");
         }
-
+    
         const response = await fetch(USERS_API_URL + "/" + id + "/toggle_admin", {
           method: "POST",
           headers: {
@@ -1481,6 +1520,11 @@
     }
     
     function resetUserPasswordPrompt(id) {
+      if (!isUserManagementAvailable) {
+        alert("User Management is currently unavailable. Please try again later or contact the system administrator.");
+        return;
+      }
+    
       const newPassword = prompt("Enter new password:");
       if (newPassword) {
         resetUserPassword(id, newPassword);
@@ -1493,7 +1537,7 @@
         if (!token) {
           throw new Error("No authentication token found. Please log in again.");
         }
-
+    
         const hashedPassword = await hashPassword(password);
         const response = await fetch(USERS_API_URL + "/" + id + "/reset_password", {
           method: "POST",
