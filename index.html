@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.1</title>
+  <title>Leave Management System v5.1 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- Optional: Include jsPDF for PDF generation if needed -->
+  <!-- (Optional) Include jsPDF if you want PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
@@ -439,6 +439,7 @@
     /* ===============================
        User Management Panel (Admin Only)
        =============================== */
+    /* Updated in v5.1 to include a separate username field */
     #userManagementPanel {
       padding: 10px;
       background: #fdfdfd;
@@ -449,6 +450,7 @@
       text-align: center;
       margin-bottom: 15px;
     }
+    /* The rest of the styles remain unchanged */
   </style>
 </head>
 <body>
@@ -539,6 +541,7 @@
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
+        <!-- NEW/UPDATED: Add a separate username field -->
         <input type="text" id="newUsername" placeholder="Username" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
@@ -548,6 +551,7 @@
         <button type="submit">Add User</button>
       </form>
 
+      <!-- NEW/UPDATED: Add a Username column in the table header -->
       <table id="usersTable">
         <thead>
           <tr>
@@ -572,7 +576,7 @@
     /* ===============================
        Global config & variables
        =============================== */
-    const API_BASE_URL = "https://leave-management.th3va.com"; // Production URL
+    const API_BASE_URL = "https://leave-management.th3va.com"; // or your own backend URL
     let userType = null;  // 'admin' or 'user'
     let currentStaffID = null;
 
@@ -619,11 +623,14 @@
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "admin";
           currentStaffID = null;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid admin credentials.");
@@ -637,9 +644,9 @@
        User login using JWT
        =============================== */
     async function loginUser() {
-      const staff_id = document.getElementById("userStaffID").value.trim();
+      const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
-      if (!staff_id || !password) {
+      if (!staffID || !password) {
         alert("Please enter your Staff ID and Password.");
         return;
       }
@@ -647,15 +654,18 @@
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staff_id, password })
+          body: JSON.stringify({ staff_id: staffID, password })
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "user";
-          currentStaffID = staff_id;
+          currentStaffID = staffID;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid user credentials.");
@@ -671,9 +681,11 @@
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
+        // By default, show leave management panel
         showLeaveManagement();
         document.getElementById("staffID").readOnly = false;
         document.getElementById("staffID").value = "";
+        // Render calendar, admin, summary
         await renderCalendar();
         renderAdmin();
         await renderMonthlySummary();
@@ -685,6 +697,7 @@
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
+        // Only load leaves relevant to this user
         await loadLeaves();
         renderAdmin();
       }
@@ -715,23 +728,28 @@
        =============================== */
     async function renderCalendar() {
       if (userType !== "admin") return;
-      await loadLeaves();
+      await loadLeaves(); // ensure we have the latest data
 
+      // Update label
       const monthNames = ["January","February","March","April","May","June",
                           "July","August","September","October","November","December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
 
+      // Clear existing
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
 
+      // Calculate offset & days in month
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
+      // Blank cells for offset
       for (let i = 0; i < offset; i++) {
         grid.appendChild(document.createElement("div")).className = "day-cell";
       }
 
+      // Actual days
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
@@ -739,6 +757,7 @@
         const cell = document.createElement("div");
         cell.className = "day-cell";
 
+        // SHIFT BOX
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (
@@ -748,6 +767,7 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
 
+        // Leaves for that day
         const dayEntries = [];
         requests.forEach(req => {
           req.days.forEach(day => {
@@ -761,11 +781,13 @@
           });
         });
 
+        // Red dot if more than 2 non-rejected
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
 
+        // Show them
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
@@ -776,6 +798,7 @@
         grid.appendChild(cell);
       }
 
+      // Also re-render admin summary
       renderAdmin();
       await renderMonthlySummary();
     }
@@ -786,6 +809,7 @@
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
+        // If user, filter by staff ID on the backend
         if (userType === "user") {
           url += `?staffID=${currentStaffID}`;
         }
@@ -826,8 +850,10 @@
       let filteredRequests = requests;
 
       if (userType === "user") {
+        // Show only this user's requests
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
+        // Filter out old requests
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -884,6 +910,7 @@
         adminList.appendChild(item);
       });
 
+      // Accordion toggle
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -905,6 +932,7 @@
         };
       });
 
+      // Update day status
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -932,6 +960,7 @@
             }
             const data = await response.json();
             if (data.status === "success") {
+              // reload leaves & calendar
               await loadLeaves();
               await renderCalendar();
               await renderMonthlySummary();
@@ -945,6 +974,7 @@
         };
       });
 
+      // Delete entire requests
       adminList.querySelectorAll(".delete-btn").forEach(btn => {
         btn.onclick = async function() {
           if (userType !== "admin") return;
@@ -967,6 +997,7 @@
                 return;
               }
             }
+            // Remove them from local array
             requests = requests.filter(r => r.staffID !== group.staffID);
             await renderCalendar();
           } catch (err) {
@@ -976,6 +1007,7 @@
         };
       });
 
+      // WhatsApp
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const groupIndex = btn.getAttribute("data-group");
@@ -1021,6 +1053,7 @@
           req.days.forEach(day => {
             if (day.date.startsWith(monthStr) &&
                (day.status === "Approved" || day.status === "Write-in")) {
+              // prefer "Approved" over "Write-in"
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
@@ -1033,6 +1066,7 @@
           const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
           dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+          // group consecutive days
           const ranges = [];
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
@@ -1206,22 +1240,30 @@
     }
 
     /* ===============================
-       User Management
+       User Management (Only staffID)
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
+    // -------------------------------
+    // Updated in v5.1: Add New Username Field
+    // -------------------------------
+    // Handle adding a new user (now including username)
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
+
+      // NEW/UPDATED: Now we also read the 'username' input
       const newUsername = document.getElementById("newUsername").value.trim();
       const newStaffID  = document.getElementById("newStaffID").value.trim();
       const newPassword = document.getElementById("newPassword").value;
       const newIsAdmin  = document.getElementById("newIsAdmin").checked;
 
+      // Make sure 'username' is also required
       if (!newUsername || !newStaffID || !newPassword) {
         alert("Please fill in Username, Staff ID, and Password.");
         return;
       }
 
+      // Hash the password via SHA-256 (as before)
       const hashedPassword = await hashPassword(newPassword);
 
       try {
@@ -1233,6 +1275,7 @@
             "Authorization": "Bearer " + token
           },
           body: JSON.stringify({
+            // NEW/UPDATED: Pass 'username' to the backend
             username: newUsername,
             staffID: newStaffID,
             password: hashedPassword,
@@ -1243,7 +1286,7 @@
         if (data.status === "success") {
           alert("User added successfully.");
           document.getElementById("addUserForm").reset();
-          loadUsers();
+          loadUsers();  // reload user list
         } else {
           alert("Error adding user: " + (data.message || "Unknown error"));
         }
@@ -1252,6 +1295,7 @@
       }
     };
 
+    // Load user list (admin only)
     async function loadUsers() {
       try {
         const token = localStorage.getItem('token') || '';
@@ -1267,6 +1311,7 @@
         tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
+          // NEW/UPDATED: Insert username into its own column
           tr.innerHTML = `
             <td>${user.username}</td>
             <td>${user.staffID}</td>
@@ -1286,6 +1331,7 @@
       }
     }
 
+    // Delete user
     async function deleteUser(id) {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
@@ -1308,6 +1354,7 @@
       }
     }
 
+    // Toggle admin status
     async function toggleAdminStatus(id, isCurrentlyAdmin) {
       try {
         const token = localStorage.getItem('token') || '';
@@ -1329,6 +1376,7 @@
       }
     }
 
+    // Reset user password
     function resetUserPasswordPrompt(id) {
       const newPassword = prompt("Enter new password:");
       if (newPassword) {
@@ -1358,6 +1406,7 @@
       }
     }
 
+    // Hash password using SHA-256 (Web Crypto)
     async function hashPassword(password) {
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
@@ -1371,6 +1420,7 @@
        On page load
        =============================== */
     document.addEventListener("DOMContentLoaded", () => {
+      // Show login, hide container
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
     });
