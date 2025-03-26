@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.1 (Staff ID Edition)</title>
+  <title>Leave Management System v5.0 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- (Optional) Include jsPDF if you want PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -435,11 +435,6 @@
     #adminTabs button:hover {
       background: #2980b9;
     }
-
-    /* ===============================
-       User Management Panel (Admin Only)
-       =============================== */
-    /* Updated in v5.1 to include a separate username field */
     #userManagementPanel {
       padding: 10px;
       background: #fdfdfd;
@@ -450,7 +445,29 @@
       text-align: center;
       margin-bottom: 15px;
     }
-    /* The rest of the styles remain unchanged */
+    #addUserForm input {
+      padding: 5px 8px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+    }
+    #addUserForm button {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      background: #27ae60;
+      color: #fff;
+      cursor: pointer;
+    }
+    #addUserForm button:hover {
+      background: #1e8449;
+    }
+    #usersTable th, #usersTable td {
+      border: 1px solid #ddd;
+      padding: 5px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -460,12 +477,12 @@
     <button onclick="showAdminLogin()">Login as Admin</button>
     <button onclick="showUserLogin()">Login as User</button>
     <div id="adminLoginForm" style="display: none;">
-      <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
+      <input type="text" id="adminUsernameOrStaffID" placeholder="Username or Staff ID (e.g., ADMIN001)">
       <input type="password" id="adminPassword" placeholder="Password">
       <button onclick="loginAdmin()">Login</button>
     </div>
     <div id="userLoginForm" style="display: none;">
-      <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
+      <input type="text" id="userUsernameOrStaffID" placeholder="Username or Staff ID (e.g., S123)">
       <input type="password" id="userPassword" placeholder="Password">
       <button onclick="loginUser()">Login</button>
     </div>
@@ -473,7 +490,7 @@
 
   <!-- Main Container -->
   <div class="container" style="display: none;">
-    <h1>Leave Management System <sup>v5.1</sup></h1>
+    <h1>Leave Management System <sup>v5.0</sup></h1>
 
     <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
@@ -485,8 +502,8 @@
     <div id="leaveManagementPanel">
       <!-- Leave Form -->
       <form id="leaveForm">
-        <label>Name</label>
-        <input type="text" id="staffName" placeholder="Enter full name" required>
+        <label>Username</label>
+        <input type="text" id="username" placeholder="Enter username" required>
         <label>ID</label>
         <input type="text" id="staffID" placeholder="e.g., S123" required>
         <label>From</label>
@@ -541,7 +558,6 @@
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
-        <!-- NEW/UPDATED: Add a separate username field -->
         <input type="text" id="newUsername" placeholder="Username" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
@@ -550,8 +566,6 @@
         </label>
         <button type="submit">Add User</button>
       </form>
-
-      <!-- NEW/UPDATED: Add a Username column in the table header -->
       <table id="usersTable">
         <thead>
           <tr>
@@ -609,18 +623,17 @@
        Admin login using JWT
        =============================== */
     async function loginAdmin() {
-      const staff_id = document.getElementById("adminUsername").value.trim();
-      const passwordInput = document.getElementById("adminPassword").value;
-      if (!staff_id || !passwordInput) {
-        alert("Please fill in both Staff ID and Password.");
+      const usernameOrStaffID = document.getElementById("adminUsernameOrStaffID").value.trim();
+      const password = document.getElementById("adminPassword").value;
+      if (!usernameOrStaffID || !password) {
+        alert("Please fill in both Username/Staff ID and Password.");
         return;
       }
-      const password = await hashPassword(passwordInput);
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staff_id, password })
+          body: JSON.stringify({ username_or_staff_id: usernameOrStaffID, password })
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
@@ -645,25 +658,24 @@
        User login using JWT
        =============================== */
     async function loginUser() {
-      const staffID = document.getElementById("userStaffID").value.trim();
-      const passwordInput = document.getElementById("userPassword").value;
-      if (!staffID || !passwordInput) {
-        alert("Please enter your Staff ID and Password.");
+      const usernameOrStaffID = document.getElementById("userUsernameOrStaffID").value.trim();
+      const password = document.getElementById("userPassword").value;
+      if (!usernameOrStaffID || !password) {
+        alert("Please enter your Username/Staff ID and Password.");
         return;
       }
-      const password = await hashPassword(passwordInput);
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staff_id: staffID, password })
+          body: JSON.stringify({ username_or_staff_id: usernameOrStaffID, password })
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
           // Store token
           localStorage.setItem('token', data.token);
           userType = "user";
-          currentStaffID = staffID;
+          currentStaffID = usernameOrStaffID; // This might need adjustment based on backend response
           // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
@@ -715,7 +727,13 @@
     }
     function formatDate(d) {
       const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const m = String(d.getMonth() + 1).padStart(2, "0BOOST YOUR PRODUCTIVITY
+
+Take a quick survey to get personalized recommendations
+
+Take Survey
+
+");
       const dd = String(d.getDate()).padStart(2, "0");
       return y + "-" + m + "-" + dd;
     }
@@ -775,7 +793,7 @@
           req.days.forEach(day => {
             if (day.date === dateStr) {
               dayEntries.push({
-                staffName: req.staffName,
+                username: req.username,
                 staffID: req.staffID,
                 status: day.status
               });
@@ -793,7 +811,7 @@
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
-          entry.textContent = e.staffName + " (" + e.staffID + ")";
+          entry.textContent = e.username + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
 
@@ -835,7 +853,7 @@
         const staffID = req.staffID;
         if (!grouped[staffID]) {
           grouped[staffID] = {
-            staffName: req.staffName,
+            username: req.username,
             staffID: staffID,
             requests: []
           };
@@ -881,7 +899,7 @@
 
         item.innerHTML = `
           <div class="accordion-header" data-index="${groupIndex}">
-            <span>${group.staffName} (${group.staffID})</span>
+            <span>${group.username} (${group.staffID})</span>
             <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
               ${totalDays} days (${pendingCount} pending)
             </span>
@@ -1014,7 +1032,7 @@
         btn.onclick = function() {
           const groupIndex = btn.getAttribute("data-group");
           const group = groupedRequests[groupIndex];
-          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
+          const msg = `Hello ${group.username} (${group.staffID}), your leave status:\n` +
             group.requests.map((req, i) =>
               `Request ${i+1}:\n` +
               req.days.map(d => `${d.date}: ${d.status}`).join('\n')
@@ -1044,10 +1062,10 @@
 
         allRequests.forEach(req => {
           const staffID = req.staffID;
-          const staffName = req.staffName;
+          const username = req.username;
           if (!allDaysByStaff[staffID]) {
             allDaysByStaff[staffID] = {
-              staffName,
+              username,
               staffID,
               days: {}
             };
@@ -1087,7 +1105,7 @@
 
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td class="staff-name">${group.staffName} (${group.staffID})</td>
+            <td class="staff-name">${group.username} (${group.staffID})</td>
             <td class="leave-range">
               ${ranges.map(range => {
                 const startDate = range[0].date.split('-')[2];
@@ -1144,12 +1162,12 @@
        =============================== */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
-      const name  = document.getElementById("staffName").value.trim();
+      const username = document.getElementById("username").value.trim();
       const id    = document.getElementById("staffID").value.trim();
       const start = document.getElementById("startDate").value;
       const end   = document.getElementById("endDate").value;
 
-      if (!name || !id || !start || !end) {
+      if (!username || !id || !start || !end) {
         alert("Please fill all fields.");
         return;
       }
@@ -1164,7 +1182,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: "Pending",
-            staffName: name,
+            username: username,
             staffID: id,
             fromDate: start,
             toDate: end
@@ -1246,57 +1264,6 @@
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
-    // -------------------------------
-    // Updated in v5.1: Add New Username Field
-    // -------------------------------
-    // Handle adding a new user (now including username)
-    document.getElementById("addUserForm").onsubmit = async function(e) {
-      e.preventDefault();
-
-      // NEW/UPDATED: Now we also read the 'username' input
-      const newUsername = document.getElementById("newUsername").value.trim();
-      const newStaffID  = document.getElementById("newStaffID").value.trim();
-      const newPassword = document.getElementById("newPassword").value;
-      const newIsAdmin  = document.getElementById("newIsAdmin").checked;
-
-      // Make sure 'username' is also required
-      if (!newUsername || !newStaffID || !newPassword) {
-        alert("Please fill in Username, Staff ID, and Password.");
-        return;
-      }
-
-      // Hash the password via SHA-256 (as before)
-      const hashedPassword = await hashPassword(newPassword);
-
-      try {
-        const token = localStorage.getItem('token') || '';
-        const response = await fetch(USERS_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({
-            // NEW/UPDATED: Pass 'username' to the backend
-            username: newUsername,
-            staffID: newStaffID,
-            password: hashedPassword,
-            isAdmin: newIsAdmin
-          })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("User added successfully.");
-          document.getElementById("addUserForm").reset();
-          loadUsers();  // reload user list
-        } else {
-          alert("Error adding user: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error adding user: " + err.message);
-      }
-    };
-
     // Load user list (admin only)
     async function loadUsers() {
       try {
@@ -1313,7 +1280,6 @@
         tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
-          // NEW/UPDATED: Insert username into its own column
           tr.innerHTML = `
             <td>${user.username}</td>
             <td>${user.staffID}</td>
@@ -1332,6 +1298,49 @@
         alert("Error loading users: " + err.message);
       }
     }
+
+    // Add new user
+    document.getElementById("addUserForm").onsubmit = async function(e) {
+      e.preventDefault();
+      const newUsername = document.getElementById("newUsername").value.trim();
+      const newStaffID  = document.getElementById("newStaffID").value.trim();
+      const newPassword = document.getElementById("newPassword").value;
+      const newIsAdmin  = document.getElementById("newIsAdmin").checked;
+
+      if (!newUsername || !newStaffID || !newPassword) {
+        alert("Please fill in Username, Staff ID, and Password.");
+        return;
+      }
+      // Hash the password via SHA-256 in the browser
+      const hashedPassword = await hashPassword(newPassword);
+
+      try {
+        const token = localStorage.getItem('token') || '';
+        const response = await fetch(USERS_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            username: newUsername,
+            staffID: newStaffID,
+            password: hashedPassword,
+            isAdmin: newIsAdmin
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("User added successfully.");
+          document.getElementById("addUserForm").reset();
+          loadUsers();
+        } else {
+          alert("Error adding user: " + (data.message || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Error adding user: " + err.message);
+      }
+    };
 
     // Delete user
     async function deleteUser(id) {
