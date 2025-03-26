@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.0 (Staff ID Edition)</title>
+  <title>Leave Management System v5.1 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- (Optional) Include jsPDF if you want PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -435,6 +435,11 @@
     #adminTabs button:hover {
       background: #2980b9;
     }
+
+    /* ===============================
+       User Management Panel (Admin Only)
+       =============================== */
+    /* Updated in v5.1 to include a separate username field */
     #userManagementPanel {
       padding: 10px;
       background: #fdfdfd;
@@ -445,29 +450,7 @@
       text-align: center;
       margin-bottom: 15px;
     }
-    #addUserForm input {
-      padding: 5px 8px;
-      margin-right: 5px;
-      margin-bottom: 5px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-    }
-    #addUserForm button {
-      padding: 5px 10px;
-      border: none;
-      border-radius: 4px;
-      background: #27ae60;
-      color: #fff;
-      cursor: pointer;
-    }
-    #addUserForm button:hover {
-      background: #1e8449;
-    }
-    #usersTable th, #usersTable td {
-      border: 1px solid #ddd;
-      padding: 5px;
-      text-align: center;
-    }
+    /* The rest of the styles remain unchanged */
   </style>
 </head>
 <body>
@@ -490,7 +473,7 @@
 
   <!-- Main Container -->
   <div class="container" style="display: none;">
-    <h1>Leave Management System <sup>v5.0</sup></h1>
+    <h1>Leave Management System <sup>v5.1</sup></h1>
 
     <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
@@ -558,7 +541,8 @@
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
-        <!-- We only store staffID & password now; no "username" -->
+        <!-- NEW/UPDATED: Add a separate username field -->
+        <input type="text" id="newUsername" placeholder="Username" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
         <label>
@@ -566,9 +550,12 @@
         </label>
         <button type="submit">Add User</button>
       </form>
+
+      <!-- NEW/UPDATED: Add a Username column in the table header -->
       <table id="usersTable">
         <thead>
           <tr>
+            <th>Username</th>
             <th>Staff ID</th>
             <th>Admin</th>
             <th>Actions</th>
@@ -623,11 +610,12 @@
        =============================== */
     async function loginAdmin() {
       const staff_id = document.getElementById("adminUsername").value.trim();
-      const password = document.getElementById("adminPassword").value;
-      if (!staff_id || !password) {
+      const passwordInput = document.getElementById("adminPassword").value;
+      if (!staff_id || !passwordInput) {
         alert("Please fill in both Staff ID and Password.");
         return;
       }
+      const password = await hashPassword(passwordInput);
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
@@ -658,11 +646,12 @@
        =============================== */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
-      const password = document.getElementById("userPassword").value;
-      if (!staffID || !password) {
+      const passwordInput = document.getElementById("userPassword").value;
+      if (!staffID || !passwordInput) {
         alert("Please enter your Staff ID and Password.");
         return;
       }
+      const password = await hashPassword(passwordInput);
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
@@ -1257,6 +1246,57 @@
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
+    // -------------------------------
+    // Updated in v5.1: Add New Username Field
+    // -------------------------------
+    // Handle adding a new user (now including username)
+    document.getElementById("addUserForm").onsubmit = async function(e) {
+      e.preventDefault();
+
+      // NEW/UPDATED: Now we also read the 'username' input
+      const newUsername = document.getElementById("newUsername").value.trim();
+      const newStaffID  = document.getElementById("newStaffID").value.trim();
+      const newPassword = document.getElementById("newPassword").value;
+      const newIsAdmin  = document.getElementById("newIsAdmin").checked;
+
+      // Make sure 'username' is also required
+      if (!newUsername || !newStaffID || !newPassword) {
+        alert("Please fill in Username, Staff ID, and Password.");
+        return;
+      }
+
+      // Hash the password via SHA-256 (as before)
+      const hashedPassword = await hashPassword(newPassword);
+
+      try {
+        const token = localStorage.getItem('token') || '';
+        const response = await fetch(USERS_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            // NEW/UPDATED: Pass 'username' to the backend
+            username: newUsername,
+            staffID: newStaffID,
+            password: hashedPassword,
+            isAdmin: newIsAdmin
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("User added successfully.");
+          document.getElementById("addUserForm").reset();
+          loadUsers();  // reload user list
+        } else {
+          alert("Error adding user: " + (data.message || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Error adding user: " + err.message);
+      }
+    };
+
     // Load user list (admin only)
     async function loadUsers() {
       try {
@@ -1273,7 +1313,9 @@
         tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
+          // NEW/UPDATED: Insert username into its own column
           tr.innerHTML = `
+            <td>${user.username}</td>
             <td>${user.staffID}</td>
             <td>${user.isAdmin ? "Yes" : "No"}</td>
             <td>
@@ -1290,48 +1332,6 @@
         alert("Error loading users: " + err.message);
       }
     }
-
-    // Add new user
-    document.getElementById("addUserForm").onsubmit = async function(e) {
-      e.preventDefault();
-      const newStaffID  = document.getElementById("newStaffID").value.trim();
-      const newPassword = document.getElementById("newPassword").value;
-      const newIsAdmin  = document.getElementById("newIsAdmin").checked;
-
-      if (!newStaffID || !newPassword) {
-        alert("Please fill in Staff ID and Password.");
-        return;
-      }
-      // Hash the password via SHA-256 in the browser
-      const hashedPassword = await hashPassword(newPassword);
-
-      try {
-        const token = localStorage.getItem('token') || '';
-        const response = await fetch(USERS_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({
-            // We only store staffID, passwordHash, isAdmin
-            staffID: newStaffID,
-            password: hashedPassword,
-            isAdmin: newIsAdmin
-          })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("User added successfully.");
-          document.getElementById("addUserForm").reset();
-          loadUsers();
-        } else {
-          alert("Error adding user: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error adding user: " + err.message);
-      }
-    };
 
     // Delete user
     async function deleteUser(id) {
