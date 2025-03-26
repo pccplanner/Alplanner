@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.0</title>
+  <title>Leave Management System v5.0 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- Include jsPDF library for PDF generation (optional) -->
+  <!-- (Optional) Include jsPDF if you want PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
@@ -130,6 +129,7 @@
     #leaveForm button:hover {
       background: #2980b9;
     }
+
     .team-buttons {
       text-align: center; 
       margin: 8px 0;
@@ -149,6 +149,7 @@
     .team-buttons button:hover {
       opacity: 0.85;
     }
+
     .month-nav {
       display: flex; 
       justify-content: center; 
@@ -171,6 +172,7 @@
       font-weight: 600; 
       color: #2c3e50;
     }
+
     #calendarGrid {
       display: grid; 
       grid-template-columns: repeat(7, 1fr); 
@@ -198,6 +200,7 @@
     .shift-morning { background: #27ae60; }
     .shift-night   { background: #a9dfbf; color: #2c3e50; }
     .shift-off     { background: #dcdcdc; color: #7f8c8d; }
+
     .leave-entry {
       background: #fff3cd; 
       padding: 2px 4px; 
@@ -207,6 +210,7 @@
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
     .leave-entry.write-in  { background: #ffeeba; }
+
     .red-dot {
       width: 6px; 
       height: 6px; 
@@ -216,6 +220,7 @@
       top: 3px; 
       right: 3px;
     }
+
     #adminSummary {
       padding: 10px; 
       border-radius: 6px; 
@@ -228,6 +233,7 @@
       margin: 0 0 8px; 
       color: #2c3e50;
     }
+
     .accordion-item {
       border: 1px solid #e0e0e0; 
       margin-bottom: 5px; 
@@ -256,6 +262,7 @@
       font-size: 11px;
     }
     .badge.pending { background: #e67e22; }
+
     .accordion-content {
       padding: 8px; 
       background: #fff;
@@ -292,6 +299,7 @@
     .status-dot.approved    { background: #27ae60; }
     .status-dot.rejected    { background: #e74c3c; }
     .status-dot.write-in    { background: #f1c40f; }
+
     .action-buttons {
       margin-top: 6px; 
       text-align: right;
@@ -318,6 +326,7 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
+
     #monthlySummary {
       padding: 8px; 
       border-radius: 6px; 
@@ -388,16 +397,18 @@
     .range-block .status-dot {
       width: 6px;
       height: 6px;
+      border-radius: 50%;
     }
-    .range-block.approved .status-dot { background: #27ae60; }
-    .range-block.pending .status-dot { background: #e67e22; }
-    .range-block.rejected .status-dot { background: #e74c3c; }
-    .range-block.write-in .status-dot { background: #f1c40f; }
+    .range-block.approved  .status-dot { background: #27ae60; }
+    .range-block.pending   .status-dot { background: #e67e22; }
+    .range-block.rejected  .status-dot { background: #e74c3c; }
+    .range-block.write-in  .status-dot { background: #f1c40f; }
     .summary-table .total-days {
       font-weight: 500;
       color: #34495e;
       text-align: right;
     }
+
     .footer {
       text-align: center; 
       font-size: 10px; 
@@ -481,7 +492,7 @@
   <div class="container" style="display: none;">
     <h1>Leave Management System <sup>v5.0</sup></h1>
 
-    <!-- Admin Tabs (Visible only for Admin users) -->
+    <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
       <button onclick="showLeaveManagement()">Leave Management</button>
       <button onclick="showUserManagement()">User Management</button>
@@ -547,7 +558,7 @@
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
-        <input type="text" id="newUsername" placeholder="Username" required>
+        <!-- We only store staffID & password now; no "username" -->
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
         <label>
@@ -558,7 +569,6 @@
       <table id="usersTable">
         <thead>
           <tr>
-            <th>Username</th>
             <th>Staff ID</th>
             <th>Admin</th>
             <th>Actions</th>
@@ -579,18 +589,21 @@
     /* ===============================
        Global config & variables
        =============================== */
-    const API_BASE_URL = "https://leave-management.th3va.com"; // Adjust to your backend
+    const API_BASE_URL = "https://leave-management.th3va.com"; // or your own backend URL
     let userType = null;  // 'admin' or 'user'
     let currentStaffID = null;
+
+    // SHIFT PATTERNS (example)
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["off", "off", "morning", "morning", "night", "night"],
       3: ["night", "night", "off", "off", "morning", "morning"]
     };
+
     var selectedTeam = 1;
-    var referenceDate = new Date(2025, 2, 1);
+    var referenceDate = new Date(2025, 2, 1);  // reference date for shift cycles
     var requests = [];
-    var currentYear = 2025, currentMonth = 2;
+    var currentYear = 2025, currentMonth = 2;  // example default
     var openAccordions = new Set();
 
     /* ===============================
@@ -623,11 +636,14 @@
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "admin";
           currentStaffID = null;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid admin credentials.");
@@ -655,11 +671,14 @@
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "user";
           currentStaffID = staffID;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid user credentials.");
@@ -675,10 +694,11 @@
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
-        // Show leave management by default
+        // By default, show leave management panel
         showLeaveManagement();
         document.getElementById("staffID").readOnly = false;
         document.getElementById("staffID").value = "";
+        // Render calendar, admin, summary
         await renderCalendar();
         renderAdmin();
         await renderMonthlySummary();
@@ -690,6 +710,7 @@
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
+        // Only load leaves relevant to this user
         await loadLeaves();
         renderAdmin();
       }
@@ -720,27 +741,36 @@
        =============================== */
     async function renderCalendar() {
       if (userType !== "admin") return;
-      await loadLeaves();
+      await loadLeaves(); // ensure we have the latest data
+
+      // Update label
       const monthNames = ["January","February","March","April","May","June",
                           "July","August","September","October","November","December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
 
+      // Clear existing
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
+
+      // Calculate offset & days in month
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
+      // Blank cells for offset
       for (let i = 0; i < offset; i++) {
         grid.appendChild(document.createElement("div")).className = "day-cell";
       }
 
+      // Actual days
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
+
         const cell = document.createElement("div");
         cell.className = "day-cell";
 
+        // SHIFT BOX
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (
@@ -750,20 +780,27 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
 
+        // Leaves for that day
         const dayEntries = [];
         requests.forEach(req => {
           req.days.forEach(day => {
             if (day.date === dateStr) {
-              dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
+              dayEntries.push({
+                staffName: req.staffName,
+                staffID: req.staffID,
+                status: day.status
+              });
             }
           });
         });
 
+        // Red dot if more than 2 non-rejected
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
 
+        // Show them
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
@@ -773,10 +810,36 @@
 
         grid.appendChild(cell);
       }
+
+      // Also re-render admin summary
       renderAdmin();
       await renderMonthlySummary();
     }
 
+    /* ===============================
+       Load leaves from server
+       =============================== */
+    async function loadLeaves() {
+      try {
+        let url = `${API_BASE_URL}/api/get_leaves`;
+        // If user, filter by staff ID on the backend
+        if (userType === "user") {
+          url += `?staffID=${currentStaffID}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to fetch leaves');
+        }
+        requests = await response.json();
+      } catch (error) {
+        console.error("Error fetching leaves:", error);
+        requests = [];
+      }
+    }
+
+    /* ===============================
+       Render Admin's Leave Requests
+       =============================== */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -785,7 +848,7 @@
           grouped[staffID] = {
             staffName: req.staffName,
             staffID: staffID,
-            requests: [],
+            requests: []
           };
         }
         grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
@@ -793,17 +856,17 @@
       return Object.values(grouped);
     }
 
-    /* ===============================
-       Render Admin's Leave Requests
-       =============================== */
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
 
       let filteredRequests = requests;
+
       if (userType === "user") {
+        // Show only this user's requests
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
+        // Filter out old requests
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -821,9 +884,9 @@
         const item = document.createElement("div");
         item.className = "accordion-item";
 
-        const totalDays = group.requests.reduce((sum, req) => sum + req.days.length, 0);
+        const totalDays = group.requests.reduce((sum, r) => sum + r.days.length, 0);
         const pendingCount = group.requests.reduce(
-          (sum, req) => sum + req.days.filter(d => d.status === "Pending").length,
+          (sum, r) => sum + r.days.filter(d => d.status === "Pending").length,
           0
         );
 
@@ -835,13 +898,13 @@
             </span>
           </div>
           <div class="accordion-content" data-index="${groupIndex}">
-            ${group.requests.map((req, reqIndexWithinGroup) => `
+            ${group.requests.map((req, reqIdx) => `
               <div class="timeline">
                 ${req.days.map((day, dayIndex) => `
                   <div class="day-block">
                     <span>${day.date}</span>
                     <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIndexWithinGroup}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
+                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
                       <option value="Pending"   ${day.status === "Pending"   ? "selected" : ""}>Pending</option>
                       <option value="Approved"  ${day.status === "Approved"  ? "selected" : ""}>Approved</option>
                       <option value="Rejected"  ${day.status === "Rejected"  ? "selected" : ""}>Rejected</option>
@@ -860,7 +923,7 @@
         adminList.appendChild(item);
       });
 
-      // Toggle open/close
+      // Accordion toggle
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -890,12 +953,12 @@
           const reqIndexWithinGroup = sel.getAttribute("data-req");
           const dayIndex = sel.getAttribute("data-day");
           const newStatus = sel.value;
+
           const group = groupedRequests[groupIndex];
           const req = group.requests[reqIndexWithinGroup];
           const day_id = req.days[dayIndex].id;
-
           if (!day_id) {
-            alert("Error: Day ID is missing. Please ensure the leave request data includes a valid day ID.");
+            alert("Error: Day ID missing. Check your DB data.");
             return;
           }
 
@@ -905,28 +968,26 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ day_id, status: newStatus })
             });
-
             if (!response.ok) {
-              throw new Error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
+              throw new Error(`HTTP error! status: ${response.status}`);
             }
-
             const data = await response.json();
             if (data.status === "success") {
-              // Reload from server to avoid index mismatch
+              // reload leaves & calendar
               await loadLeaves();
               await renderCalendar();
               await renderMonthlySummary();
             } else {
-              alert("Error: " + (data.message || "Unknown error occurred"));
+              alert("Error: " + (data.message || "Unknown error"));
             }
           } catch (err) {
             console.error("Day status update error:", err);
-            alert(`An error occurred updating the day status: ${err.message}`);
+            alert("Error updating day status: " + err.message);
           }
         };
       });
 
-      // Delete requests
+      // Delete entire requests
       adminList.querySelectorAll(".delete-btn").forEach(btn => {
         btn.onclick = async function() {
           if (userType !== "admin") return;
@@ -949,11 +1010,12 @@
                 return;
               }
             }
-            requests = requests.filter(req => req.staffID !== group.staffID);
+            // Remove them from local array
+            requests = requests.filter(r => r.staffID !== group.staffID);
             await renderCalendar();
           } catch (err) {
             console.error("Delete error:", err);
-            alert("An error occurred while deleting. Please try again.");
+            alert("Error deleting. Please try again.");
           }
         };
       });
@@ -965,7 +1027,7 @@
           const group = groupedRequests[groupIndex];
           const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
             group.requests.map((req, i) =>
-              `Request ${i + 1}:\n` +
+              `Request ${i+1}:\n` +
               req.days.map(d => `${d.date}: ${d.status}`).join('\n')
             ).join('\n\n');
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
@@ -1004,7 +1066,7 @@
           req.days.forEach(day => {
             if (day.date.startsWith(monthStr) &&
                (day.status === "Approved" || day.status === "Write-in")) {
-              // prefer "Approved" if conflict
+              // prefer "Approved" over "Write-in"
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
@@ -1086,26 +1148,6 @@
       if (userType !== "admin") return;
       selectedTeam = num;
       await renderCalendar();
-    }
-
-    /* ===============================
-       Load leaves from server
-       =============================== */
-    async function loadLeaves() {
-      try {
-        let url = `${API_BASE_URL}/api/get_leaves`;
-        if (userType === "user") {
-          url += `?staffID=${currentStaffID}`;
-        }
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch leaves');
-        }
-        requests = await response.json();
-      } catch (error) {
-        console.error("Error fetching leaves:", error);
-        requests = [];
-      }
     }
 
     /* ===============================
@@ -1211,11 +1253,11 @@
     }
 
     /* ===============================
-       User Management (No Email)
+       User Management (Only staffID)
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
-    // Load user list
+    // Load user list (admin only)
     async function loadUsers() {
       try {
         const token = localStorage.getItem('token') || '';
@@ -1226,16 +1268,15 @@
         });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
+
         const tbody = document.querySelector("#usersTable tbody");
         tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td>${user.username}</td>
             <td>${user.staffID}</td>
             <td>${user.isAdmin ? "Yes" : "No"}</td>
             <td>
-              <button onclick="editUserPrompt('${user.id}', '${user.username}', '${user.staffID}')">Edit</button>
               <button onclick="deleteUser('${user.id}')">Delete</button>
               <button onclick="toggleAdminStatus('${user.id}', ${user.isAdmin})">
                 ${user.isAdmin ? "Revoke Admin" : "Make Admin"}
@@ -1253,13 +1294,12 @@
     // Add new user
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
-      const newUsername = document.getElementById("newUsername").value.trim();
       const newStaffID  = document.getElementById("newStaffID").value.trim();
       const newPassword = document.getElementById("newPassword").value;
       const newIsAdmin  = document.getElementById("newIsAdmin").checked;
 
-      if (!newUsername || !newStaffID || !newPassword) {
-        alert("Please fill in all fields.");
+      if (!newStaffID || !newPassword) {
+        alert("Please fill in Staff ID and Password.");
         return;
       }
       // Hash the password via SHA-256 in the browser
@@ -1274,7 +1314,7 @@
             "Authorization": "Bearer " + token
           },
           body: JSON.stringify({
-            username: newUsername,
+            // We only store staffID, passwordHash, isAdmin
             staffID: newStaffID,
             password: hashedPassword,
             isAdmin: newIsAdmin
@@ -1292,38 +1332,6 @@
         alert("Error adding user: " + err.message);
       }
     };
-
-    // Edit user
-    function editUserPrompt(id, currentUsername, currentStaffID) {
-      const newUsername = prompt("Edit Username:", currentUsername);
-      if (newUsername === null) return;
-      const newStaff = prompt("Edit Staff ID:", currentStaffID);
-      if (newStaff === null) return;
-      editUser(id, newUsername.trim(), newStaff.trim());
-    }
-
-    async function editUser(id, username, staffID) {
-      try {
-        const token = localStorage.getItem('token') || '';
-        const response = await fetch(USERS_API_URL + "/" + id, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({ username, staffID })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("User updated successfully.");
-          loadUsers();
-        } else {
-          alert("Error updating user: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error updating user: " + err.message);
-      }
-    }
 
     // Delete user
     async function deleteUser(id) {
@@ -1377,7 +1385,6 @@
         resetUserPassword(id, newPassword);
       }
     }
-
     async function resetUserPassword(id, password) {
       try {
         const hashedPassword = await hashPassword(password);
@@ -1401,7 +1408,7 @@
       }
     }
 
-    // Hash password using SHA-256 via Web Crypto
+    // Hash password using SHA-256 (Web Crypto)
     async function hashPassword(password) {
       const encoder = new TextEncoder();
       const data = encoder.encode(password);
@@ -1411,8 +1418,11 @@
       return hashHex;
     }
 
-    // On page load
+    /* ===============================
+       On page load
+       =============================== */
     document.addEventListener("DOMContentLoaded", () => {
+      // Show login, hide container
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
     });
