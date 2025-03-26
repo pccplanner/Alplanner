@@ -266,6 +266,7 @@
     .accordion-content {
       padding: 8px; 
       background: #fff;
+      display: none;
     }
     .timeline {
       display: flex; 
@@ -477,12 +478,12 @@
     <button onclick="showAdminLogin()">Login as Admin</button>
     <button onclick="showUserLogin()">Login as User</button>
     <div id="adminLoginForm" style="display: none;">
-      <input type="text" id="adminUsernameOrStaffID" placeholder="Username or Staff ID (e.g., ADMIN001)">
+      <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
       <input type="password" id="adminPassword" placeholder="Password">
       <button onclick="loginAdmin()">Login</button>
     </div>
     <div id="userLoginForm" style="display: none;">
-      <input type="text" id="userUsernameOrStaffID" placeholder="Username or Staff ID (e.g., S123)">
+      <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
       <input type="password" id="userPassword" placeholder="Password">
       <button onclick="loginUser()">Login</button>
     </div>
@@ -502,8 +503,8 @@
     <div id="leaveManagementPanel">
       <!-- Leave Form -->
       <form id="leaveForm">
-        <label>Username</label>
-        <input type="text" id="username" placeholder="Enter username" required>
+        <label>Name</label>
+        <input type="text" id="staffName" placeholder="Enter full name" required>
         <label>ID</label>
         <input type="text" id="staffID" placeholder="e.g., S123" required>
         <label>From</label>
@@ -558,6 +559,7 @@
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
+        <!-- Added a 'Username' field here -->
         <input type="text" id="newUsername" placeholder="Username" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
@@ -569,6 +571,7 @@
       <table id="usersTable">
         <thead>
           <tr>
+            <!-- Now we show Username as well -->
             <th>Username</th>
             <th>Staff ID</th>
             <th>Admin</th>
@@ -623,17 +626,17 @@
        Admin login using JWT
        =============================== */
     async function loginAdmin() {
-      const usernameOrStaffID = document.getElementById("adminUsernameOrStaffID").value.trim();
+      const staff_id = document.getElementById("adminUsername").value.trim();
       const password = document.getElementById("adminPassword").value;
-      if (!usernameOrStaffID || !password) {
-        alert("Please fill in both Username/Staff ID and Password.");
+      if (!staff_id || !password) {
+        alert("Please fill in both Staff ID and Password.");
         return;
       }
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username_or_staff_id: usernameOrStaffID, password })
+          body: JSON.stringify({ staff_id, password })
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
@@ -658,24 +661,24 @@
        User login using JWT
        =============================== */
     async function loginUser() {
-      const usernameOrStaffID = document.getElementById("userUsernameOrStaffID").value.trim();
+      const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
-      if (!usernameOrStaffID || !password) {
-        alert("Please enter your Username/Staff ID and Password.");
+      if (!staffID || !password) {
+        alert("Please enter your Staff ID and Password.");
         return;
       }
       try {
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username_or_staff_id: usernameOrStaffID, password })
+          body: JSON.stringify({ staff_id: staffID, password })
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
           // Store token
           localStorage.setItem('token', data.token);
           userType = "user";
-          currentStaffID = usernameOrStaffID; // This might need adjustment based on backend response
+          currentStaffID = staffID;
           // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
@@ -699,7 +702,7 @@
         showLeaveManagement();
         document.getElementById("staffID").readOnly = false;
         document.getElementById("staffID").value = "";
-        // Render calendar, admin, summary
+        // Render calendar, admin summary, monthly summary
         await renderCalendar();
         renderAdmin();
         await renderMonthlySummary();
@@ -727,13 +730,7 @@
     }
     function formatDate(d) {
       const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0BOOST YOUR PRODUCTIVITY
-
-Take a quick survey to get personalized recommendations
-
-Take Survey
-
-");
+      const m = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       return y + "-" + m + "-" + dd;
     }
@@ -793,7 +790,7 @@ Take Survey
           req.days.forEach(day => {
             if (day.date === dateStr) {
               dayEntries.push({
-                username: req.username,
+                staffName: req.staffName,
                 staffID: req.staffID,
                 status: day.status
               });
@@ -811,7 +808,7 @@ Take Survey
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
-          entry.textContent = e.username + " (" + e.staffID + ")";
+          entry.textContent = e.staffName + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
 
@@ -853,7 +850,7 @@ Take Survey
         const staffID = req.staffID;
         if (!grouped[staffID]) {
           grouped[staffID] = {
-            username: req.username,
+            staffName: req.staffName,
             staffID: staffID,
             requests: []
           };
@@ -899,12 +896,12 @@ Take Survey
 
         item.innerHTML = `
           <div class="accordion-header" data-index="${groupIndex}">
-            <span>${group.username} (${group.staffID})</span>
+            <span>${group.staffName} (${group.staffID})</span>
             <span class="badge ${pendingCount > 0 ? 'pending' : ''}">
               ${totalDays} days (${pendingCount} pending)
             </span>
           </div>
-          <div class="accordion-content" data-index="${groupIndex}">
+          <div class="accordion-content" data-index="${groupIndex}" style="display: none;">
             ${group.requests.map((req, reqIdx) => `
               <div class="timeline">
                 ${req.days.map((day, dayIndex) => `
@@ -934,12 +931,6 @@ Take Survey
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
-
-        if (openAccordions.has(index)) {
-          content.style.display = "block";
-        } else {
-          content.style.display = "none";
-        }
 
         header.onclick = function() {
           if (content.style.display === "block") {
@@ -1032,7 +1023,7 @@ Take Survey
         btn.onclick = function() {
           const groupIndex = btn.getAttribute("data-group");
           const group = groupedRequests[groupIndex];
-          const msg = `Hello ${group.username} (${group.staffID}), your leave status:\n` +
+          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
             group.requests.map((req, i) =>
               `Request ${i+1}:\n` +
               req.days.map(d => `${d.date}: ${d.status}`).join('\n')
@@ -1062,10 +1053,10 @@ Take Survey
 
         allRequests.forEach(req => {
           const staffID = req.staffID;
-          const username = req.username;
+          const staffName = req.staffName;
           if (!allDaysByStaff[staffID]) {
             allDaysByStaff[staffID] = {
-              username,
+              staffName,
               staffID,
               days: {}
             };
@@ -1105,7 +1096,7 @@ Take Survey
 
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td class="staff-name">${group.username} (${group.staffID})</td>
+            <td class="staff-name">${group.staffName} (${group.staffID})</td>
             <td class="leave-range">
               ${ranges.map(range => {
                 const startDate = range[0].date.split('-')[2];
@@ -1162,12 +1153,12 @@ Take Survey
        =============================== */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
-      const username = document.getElementById("username").value.trim();
+      const name  = document.getElementById("staffName").value.trim();
       const id    = document.getElementById("staffID").value.trim();
       const start = document.getElementById("startDate").value;
       const end   = document.getElementById("endDate").value;
 
-      if (!username || !id || !start || !end) {
+      if (!name || !id || !start || !end) {
         alert("Please fill all fields.");
         return;
       }
@@ -1182,7 +1173,7 @@ Take Survey
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: "Pending",
-            username: username,
+            staffName: name,
             staffID: id,
             fromDate: start,
             toDate: end
@@ -1260,7 +1251,7 @@ Take Survey
     }
 
     /* ===============================
-       User Management (Only staffID)
+       User Management
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
@@ -1281,7 +1272,7 @@ Take Survey
         users.forEach(user => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td>${user.username}</td>
+            <td>${user.username || ''}</td>
             <td>${user.staffID}</td>
             <td>${user.isAdmin ? "Yes" : "No"}</td>
             <td>
@@ -1299,7 +1290,7 @@ Take Survey
       }
     }
 
-    // Add new user
+    // Add new user (now includes username)
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
       const newUsername = document.getElementById("newUsername").value.trim();
@@ -1323,7 +1314,7 @@ Take Survey
             "Authorization": "Bearer " + token
           },
           body: JSON.stringify({
-            username: newUsername,
+            username: newUsername,   // <--- pass username
             staffID: newStaffID,
             password: hashedPassword,
             isAdmin: newIsAdmin
