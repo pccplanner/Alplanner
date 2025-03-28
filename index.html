@@ -6,9 +6,451 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- (Optional) Include jsPDF if you want PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
-    /* (All your existing CSS remains unchanged) */
-    /* ... */
+    /* ===============================
+       Base Styles
+       =============================== */
+    body {
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
+      margin: 0; 
+      padding: 10px; 
+      font-size: 13px; 
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 900px; 
+      width: 100%;
+      margin: 0 auto; 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+    h1 {
+      text-align: center; 
+      font-size: 18px; 
+      margin: 5px 0; 
+      color: #2c3e50;
+      position: relative;
+    }
+    h1 sup {
+      font-size: 10px;
+      color: #95a5a6;
+      position: absolute;
+      top: -5px;
+    }
+
+    /* ===============================
+       Login Section
+       =============================== */
+    #loginSection {
+      max-width: 400px; 
+      width: 90%;
+      margin: 0 auto; 
+      padding: 20px; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+    #loginSection h2 {
+      text-align: center; 
+      margin-bottom: 20px;
+    }
+    #loginSection button {
+      padding: 10px; 
+      width: 100%; 
+      margin-bottom: 10px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    #loginSection button:hover {
+      background: #2980b9;
+    }
+    #adminLoginForm, #userLoginForm {
+      margin-top: 10px;
+    }
+    #adminLoginForm input, #userLoginForm input {
+      width: 100%; 
+      padding: 8px; 
+      margin-bottom: 10px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    /* ===============================
+       Leave Management Styles
+       =============================== */
+    #leaveForm {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      padding: 10px; 
+      background: #ecf0f1; 
+      border-radius: 6px; 
+      margin-bottom: 10px;
+    }
+    #leaveForm label {
+      font-weight: 600; 
+      margin-right: 4px; 
+      color: #34495e;
+    }
+    #leaveForm input {
+      padding: 5px 8px; 
+      border: 1px solid #bdc3c7; 
+      border-radius: 4px; 
+      font-size: 13px; 
+      width: 120px;
+      box-sizing: border-box;
+    }
+    #leaveForm input::placeholder {
+      color: #95a5a6;
+    }
+    #leaveForm button {
+      padding: 6px 12px; 
+      background: #3498db; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    #leaveForm button:hover {
+      background: #2980b9;
+    }
+
+    .team-buttons {
+      text-align: center; 
+      margin: 8px 0;
+    }
+    .team-buttons button {
+      padding: 5px 10px; 
+      margin: 0 4px; 
+      border: none; 
+      border-radius: 4px; 
+      color: #fff; 
+      cursor: pointer; 
+      font-size: 12px;
+    }
+    .team-a { background: #27ae60; } 
+    .team-b { background: #2980b9; } 
+    .team-c { background: #8e44ad; }
+    .team-buttons button:hover {
+      opacity: 0.85;
+    }
+
+    .month-nav {
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      gap: 8px; 
+      margin: 8px 0;
+    }
+    .month-nav button {
+      padding: 4px 10px; 
+      background: #7f8c8d; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    .month-nav button:hover {
+      background: #6c7a89;
+    }
+    #monthLabel {
+      font-weight: 600; 
+      color: #2c3e50;
+    }
+
+    #calendarGrid {
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 3px; 
+      max-width: 850px; 
+      margin: 0 auto 10px;
+    }
+    .day-cell {
+      background: #fff; 
+      border: 1px solid #e0e0e0; 
+      min-height: 60px; 
+      padding: 3px; 
+      border-radius: 4px; 
+      font-size: 11px; 
+      position: relative;
+    }
+    .shift-box {
+      font-weight: 600; 
+      color: #fff; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      text-align: center; 
+      margin-bottom: 3px;
+    }
+    .shift-morning { background: #27ae60; }
+    .shift-night   { background: #a9dfbf; color: #2c3e50; }
+    .shift-off     { background: #dcdcdc; color: #7f8c8d; }
+
+    .leave-entry {
+      background: #fff3cd; 
+      padding: 2px 4px; 
+      border-radius: 3px; 
+      margin: 1px 0;
+    }
+    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
+    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
+    .leave-entry.write-in  { background: #ffeeba; }
+
+    .red-dot {
+      width: 6px; 
+      height: 6px; 
+      background: #e74c3c; 
+      border-radius: 50%; 
+      position: absolute; 
+      top: 3px; 
+      right: 3px;
+    }
+
+    #adminSummary {
+      padding: 10px; 
+      border-radius: 6px; 
+      background: #fff; 
+      max-height: 400px; 
+      overflow-y: auto;
+    }
+    #adminSummary h3 {
+      font-size: 15px; 
+      margin: 0 0 8px; 
+      color: #2c3e50;
+    }
+
+    .accordion-item {
+      border: 1px solid #e0e0e0; 
+      margin-bottom: 5px; 
+      border-radius: 4px;
+    }
+    .accordion-header {
+      padding: 8px; 
+      background: #f7f9fb; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    .accordion-header:hover {
+      background: #eef2f5;
+    }
+    .accordion-header span {
+      font-weight: 600; 
+      color: #34495e;
+    }
+    .badge {
+      background: #3498db; 
+      color: #fff; 
+      padding: 2px 6px; 
+      border-radius: 12px; 
+      font-size: 11px;
+    }
+    .badge.pending { background: #e67e22; }
+
+    .accordion-content {
+      padding: 8px; 
+      background: #fff;
+    }
+    .timeline {
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 6px;
+    }
+    .day-block {
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      background: #f1f1f1; 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
+      transition: transform 0.2s;
+    }
+    .day-block:hover {
+      transform: scale(1.02);
+    }
+    .day-block select {
+      font-size: 11px; 
+      padding: 2px; 
+      border-radius: 3px; 
+      border: 1px solid #bdc3c7;
+    }
+    .status-dot {
+      width: 8px; 
+      height: 8px; 
+      border-radius: 50%;
+    }
+    .status-dot.pending     { background: #e67e22; }
+    .status-dot.approved    { background: #27ae60; }
+    .status-dot.rejected    { background: #e74c3c; }
+    .status-dot.write-in    { background: #f1c40f; }
+
+    .action-buttons {
+      margin-top: 6px; 
+      text-align: right;
+    }
+    .delete-btn, .whatsapp-btn {
+      padding: 3px 8px; 
+      font-size: 11px; 
+      border: none; 
+      border-radius: 3px; 
+      cursor: pointer; 
+      margin-left: 4px;
+    }
+    .delete-btn {
+      background: #e74c3c; 
+      color: #fff;
+    }
+    .delete-btn:hover {
+      background: #c0392b;
+    }
+    .whatsapp-btn {
+      background: #25D366; 
+      color: #fff;
+    }
+    .whatsapp-btn:hover {
+      background: #20b958;
+    }
+
+    #monthlySummary {
+      padding: 8px; 
+      border-radius: 6px; 
+      background: #fff; 
+      margin-top: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    #monthlySummary h3 {
+      font-size: 14px; 
+      margin: 0 0 6px; 
+      color: #2c3e50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #monthlySummary .download-btn {
+      padding: 4px 8px;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+    }
+    #monthlySummary .download-btn:hover {
+      background: #2980b9;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .summary-table th, .summary-table td {
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .summary-table th {
+      background: #f7f9fb;
+      color: #34495e;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .summary-table tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .summary-table tr:hover {
+      background: #f1f5f9;
+    }
+    .summary-table .staff-name {
+      font-weight: 500;
+      color: #2c3e50;
+      white-space: nowrap;
+    }
+    .summary-table .leave-range {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .summary-table .range-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: #2c3e50;
+    }
+    .range-block .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .range-block.approved  .status-dot { background: #27ae60; }
+    .range-block.pending   .status-dot { background: #e67e22; }
+    .range-block.rejected  .status-dot { background: #e74c3c; }
+    .range-block.write-in  .status-dot { background: #f1c40f; }
+    .summary-table .total-days {
+      font-weight: 500;
+      color: #34495e;
+      text-align: right;
+    }
+
+    .footer {
+      text-align: center; 
+      font-size: 10px; 
+      color: #95a5a6; 
+      margin-top: 10px;
+    }
+
+    /* ===============================
+       Admin Tabs & User Management
+       =============================== */
+    #adminTabs {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    #adminTabs button {
+      padding: 8px 12px;
+      margin: 0 5px;
+      border: none;
+      border-radius: 4px;
+      background: #3498db;
+      color: #fff;
+      cursor: pointer;
+    }
+    #adminTabs button:hover {
+      background: #2980b9;
+    }
+
+    /* ===============================
+       User Management Panel (Admin Only)
+       =============================== */
+    /* Updated in v5.1 to include a separate username field */
+    #userManagementPanel {
+      padding: 10px;
+      background: #fdfdfd;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    #userManagementPanel h2 {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    /* The rest of the styles remain unchanged */
   </style>
 </head>
 <body>
@@ -32,11 +474,13 @@
   <!-- Main Container -->
   <div class="container" style="display: none;">
     <h1>Leave Management System <sup>v5.1</sup></h1>
+
     <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
       <button onclick="showLeaveManagement()">Leave Management</button>
       <button onclick="showUserManagement()">User Management</button>
     </div>
+
     <!-- Leave Management Panel -->
     <div id="leaveManagementPanel">
       <!-- Leave Form -->
@@ -51,24 +495,29 @@
         <input type="date" id="endDate" required>
         <button type="submit">Request Leave</button>
       </form>
+
       <!-- Team Buttons -->
       <div class="team-buttons">
         <button class="team-a" onclick="selectTeam(1)">Team A</button>
         <button class="team-b" onclick="selectTeam(2)">Team B</button>
         <button class="team-c" onclick="selectTeam(3)">Team C</button>
       </div>
+
       <!-- Month Navigation -->
       <div class="month-nav">
         <button onclick="prevMonth()">←</button>
         <span id="monthLabel">Loading...</span>
         <button onclick="nextMonth()">→</button>
       </div>
+
       <div id="calendarGrid"></div>
+
       <!-- Admin Summary -->
       <div id="adminSummary">
         <h3>Leave Requests</h3>
         <div id="adminList"></div>
       </div>
+
       <!-- Monthly Summary -->
       <div id="monthlySummary">
         <h3>
@@ -87,11 +536,12 @@
         </table>
       </div>
     </div>
+
     <!-- User Management Panel (Admin Only) -->
     <div id="userManagementPanel" style="display: none;">
       <h2>User Management</h2>
       <form id="addUserForm" style="margin-bottom: 15px;">
-        <!-- New username field -->
+        <!-- NEW/UPDATED: Add a separate username field -->
         <input type="text" id="newUsername" placeholder="Username" required>
         <input type="text" id="newStaffID" placeholder="Staff ID" required>
         <input type="password" id="newPassword" placeholder="Password" required>
@@ -100,7 +550,8 @@
         </label>
         <button type="submit">Add User</button>
       </form>
-      <!-- Users Table -->
+
+      <!-- NEW/UPDATED: Add a Username column in the table header -->
       <table id="usersTable">
         <thead>
           <tr>
@@ -115,6 +566,7 @@
         </tbody>
       </table>
     </div>
+
     <div class="footer">
       @ 2025; t’va
     </div>
@@ -124,7 +576,7 @@
     /* ===============================
        Global config & variables
        =============================== */
-    const API_BASE_URL = "https://leave-management.th3va.com"; // your backend URL
+    const API_BASE_URL = "https://leave-management.th3va.com"; // or your own backend URL
     let userType = null;  // 'admin' or 'user'
     let currentStaffID = null;
 
@@ -171,11 +623,14 @@
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "admin";
           currentStaffID = null;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid admin credentials.");
@@ -203,11 +658,14 @@
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') {
+          // Store token
           localStorage.setItem('token', data.token);
           userType = "user";
           currentStaffID = staffID;
+          // Hide login, show container
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // Render
           await renderUI();
         } else {
           alert("Invalid user credentials.");
@@ -223,9 +681,11 @@
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
+        // By default, show leave management panel
         showLeaveManagement();
         document.getElementById("staffID").readOnly = false;
         document.getElementById("staffID").value = "";
+        // Render calendar, admin, summary
         await renderCalendar();
         renderAdmin();
         await renderMonthlySummary();
@@ -237,6 +697,7 @@
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
+        // Only load leaves relevant to this user
         await loadLeaves();
         renderAdmin();
       }
@@ -267,23 +728,36 @@
        =============================== */
     async function renderCalendar() {
       if (userType !== "admin") return;
-      await loadLeaves();
+      await loadLeaves(); // ensure we have the latest data
+
+      // Update label
       const monthNames = ["January","February","March","April","May","June",
                           "July","August","September","October","November","December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
+
+      // Clear existing
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
+
+      // Calculate offset & days in month
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+      // Blank cells for offset
       for (let i = 0; i < offset; i++) {
         grid.appendChild(document.createElement("div")).className = "day-cell";
       }
+
+      // Actual days
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
+
         const cell = document.createElement("div");
         cell.className = "day-cell";
+
+        // SHIFT BOX
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (
@@ -292,6 +766,8 @@
         );
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
+
+        // Leaves for that day
         const dayEntries = [];
         requests.forEach(req => {
           req.days.forEach(day => {
@@ -304,18 +780,25 @@
             }
           });
         });
+
+        // Red dot if more than 2 non-rejected
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
+
+        // Show them
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
           entry.textContent = e.staffName + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
+
         grid.appendChild(cell);
       }
+
+      // Also re-render admin summary
       renderAdmin();
       await renderMonthlySummary();
     }
@@ -326,6 +809,7 @@
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
+        // If user, filter by staff ID on the backend
         if (userType === "user") {
           url += `?staffID=${currentStaffID}`;
         }
@@ -362,10 +846,14 @@
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
+
       let filteredRequests = requests;
+
       if (userType === "user") {
+        // Show only this user's requests
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
+        // Filter out old requests
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -376,15 +864,19 @@
           });
         });
       }
+
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
+
       groupedRequests.forEach((group, groupIndex) => {
         const item = document.createElement("div");
         item.className = "accordion-item";
+
         const totalDays = group.requests.reduce((sum, r) => sum + r.days.length, 0);
         const pendingCount = group.requests.reduce(
           (sum, r) => sum + r.days.filter(d => d.status === "Pending").length,
           0
         );
+
         item.innerHTML = `
           <div class="accordion-header" data-index="${groupIndex}">
             <span>${group.staffName} (${group.staffID})</span>
@@ -417,14 +909,18 @@
         `;
         adminList.appendChild(item);
       });
+
+      // Accordion toggle
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
+
         if (openAccordions.has(index)) {
           content.style.display = "block";
         } else {
           content.style.display = "none";
         }
+
         header.onclick = function() {
           if (content.style.display === "block") {
             content.style.display = "none";
@@ -435,6 +931,8 @@
           }
         };
       });
+
+      // Update day status
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -442,6 +940,7 @@
           const reqIndexWithinGroup = sel.getAttribute("data-req");
           const dayIndex = sel.getAttribute("data-day");
           const newStatus = sel.value;
+
           const group = groupedRequests[groupIndex];
           const req = group.requests[reqIndexWithinGroup];
           const day_id = req.days[dayIndex].id;
@@ -449,6 +948,7 @@
             alert("Error: Day ID missing. Check your DB data.");
             return;
           }
+
           try {
             const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
               method: 'POST',
@@ -460,6 +960,7 @@
             }
             const data = await response.json();
             if (data.status === "success") {
+              // reload leaves & calendar
               await loadLeaves();
               await renderCalendar();
               await renderMonthlySummary();
@@ -472,12 +973,16 @@
           }
         };
       });
+
+      // Delete entire requests
       adminList.querySelectorAll(".delete-btn").forEach(btn => {
         btn.onclick = async function() {
           if (userType !== "admin") return;
           const groupIndex = btn.getAttribute("data-group");
           const group = groupedRequests[groupIndex];
+
           openAccordions.delete(groupIndex);
+
           try {
             for (const req of group.requests) {
               const reqId = req.id;
@@ -492,6 +997,7 @@
                 return;
               }
             }
+            // Remove them from local array
             requests = requests.filter(r => r.staffID !== group.staffID);
             await renderCalendar();
           } catch (err) {
@@ -500,6 +1006,8 @@
           }
         };
       });
+
+      // WhatsApp
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const groupIndex = btn.getAttribute("data-group");
@@ -521,14 +1029,17 @@
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
       summaryTableBody.innerHTML = "";
+
       try {
         const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
         if (!response.ok) {
           throw new Error('Failed to fetch leave requests');
         }
         const allRequests = await response.json();
+
         const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
         const allDaysByStaff = {};
+
         allRequests.forEach(req => {
           const staffID = req.staffID;
           const staffName = req.staffName;
@@ -542,16 +1053,20 @@
           req.days.forEach(day => {
             if (day.date.startsWith(monthStr) &&
                (day.status === "Approved" || day.status === "Write-in")) {
+              // prefer "Approved" over "Write-in"
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
             }
           });
         });
+
         const groupedRequests = Object.values(allDaysByStaff).filter(g => Object.keys(g.days).length > 0);
         groupedRequests.forEach(group => {
           const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
           dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          // group consecutive days
           const ranges = [];
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
@@ -565,7 +1080,9 @@
             }
           }
           if (currentRange.length > 0) ranges.push(currentRange);
+
           const totalDays = dayEntries.length;
+
           const row = document.createElement("tr");
           row.innerHTML = `
             <td class="staff-name">${group.staffName} (${group.staffID})</td>
@@ -587,6 +1104,7 @@
           `;
           summaryTableBody.appendChild(row);
         });
+
         if (summaryTableBody.children.length === 0) {
           const row = document.createElement("tr");
           row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
@@ -628,6 +1146,7 @@
       const id    = document.getElementById("staffID").value.trim();
       const start = document.getElementById("startDate").value;
       const end   = document.getElementById("endDate").value;
+
       if (!name || !id || !start || !end) {
         alert("Please fill all fields.");
         return;
@@ -636,6 +1155,7 @@
         alert("End date cannot be before start date.");
         return;
       }
+
       try {
         const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
           method: 'POST',
@@ -664,6 +1184,7 @@
         console.error("Error submitting leave request:", error);
         alert("An error occurred. Please try again later.");
       }
+
       e.target.reset();
     };
 
@@ -679,6 +1200,7 @@
       }
       await renderCalendar();
     }
+
     async function nextMonth() {
       if (userType !== "admin") return;
       currentMonth++;
@@ -718,24 +1240,32 @@
     }
 
     /* ===============================
-       User Management (Admin Only)
+       User Management (Only staffID)
        =============================== */
     const USERS_API_URL = API_BASE_URL + "/api/users";
 
     // -------------------------------
-    // Handle adding a new user (sending plain text password)
+    // Updated in v5.1: Add New Username Field
     // -------------------------------
+    // Handle adding a new user (now including username)
     document.getElementById("addUserForm").onsubmit = async function(e) {
       e.preventDefault();
+
+      // NEW/UPDATED: Now we also read the 'username' input
       const newUsername = document.getElementById("newUsername").value.trim();
       const newStaffID  = document.getElementById("newStaffID").value.trim();
       const newPassword = document.getElementById("newPassword").value;
       const newIsAdmin  = document.getElementById("newIsAdmin").checked;
+
+      // Make sure 'username' is also required
       if (!newUsername || !newStaffID || !newPassword) {
         alert("Please fill in Username, Staff ID, and Password.");
         return;
       }
-      // Send the plain text password directly
+
+      // Hash the password via SHA-256 (as before)
+      const hashedPassword = await hashPassword(newPassword);
+
       try {
         const token = localStorage.getItem('token') || '';
         const response = await fetch(USERS_API_URL, {
@@ -745,9 +1275,10 @@
             "Authorization": "Bearer " + token
           },
           body: JSON.stringify({
+            // NEW/UPDATED: Pass 'username' to the backend
             username: newUsername,
             staffID: newStaffID,
-            password: newPassword,
+            password: hashedPassword,
             isAdmin: newIsAdmin
           })
         });
@@ -755,7 +1286,7 @@
         if (data.status === "success") {
           alert("User added successfully.");
           document.getElementById("addUserForm").reset();
-          loadUsers();
+          loadUsers();  // reload user list
         } else {
           alert("Error adding user: " + (data.message || "Unknown error"));
         }
@@ -764,21 +1295,23 @@
       }
     };
 
-    // -------------------------------
-    // Load user list (Admin Only)
-    // -------------------------------
+    // Load user list (admin only)
     async function loadUsers() {
       try {
         const token = localStorage.getItem('token') || '';
         const response = await fetch(USERS_API_URL, {
-          headers: { 'Authorization': 'Bearer ' + token }
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
         });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
+
         const tbody = document.querySelector("#usersTable tbody");
         tbody.innerHTML = "";
         users.forEach(user => {
           const tr = document.createElement("tr");
+          // NEW/UPDATED: Insert username into its own column
           tr.innerHTML = `
             <td>${user.username}</td>
             <td>${user.staffID}</td>
@@ -798,16 +1331,16 @@
       }
     }
 
-    // -------------------------------
-    // Delete user (Admin Only)
-    // -------------------------------
+    // Delete user
     async function deleteUser(id) {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
         const token = localStorage.getItem('token') || '';
         const response = await fetch(USERS_API_URL + "/" + id, {
           method: "DELETE",
-          headers: { "Authorization": "Bearer " + token }
+          headers: {
+            "Authorization": "Bearer " + token
+          }
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -821,15 +1354,15 @@
       }
     }
 
-    // -------------------------------
-    // Toggle admin status (Admin Only)
-    // -------------------------------
+    // Toggle admin status
     async function toggleAdminStatus(id, isCurrentlyAdmin) {
       try {
         const token = localStorage.getItem('token') || '';
         const response = await fetch(USERS_API_URL + "/" + id + "/toggle_admin", {
           method: "POST",
-          headers: { "Authorization": "Bearer " + token }
+          headers: {
+            "Authorization": "Bearer " + token
+          }
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -843,9 +1376,7 @@
       }
     }
 
-    // -------------------------------
-    // Reset user password (Admin Only) – now sending plain text password
-    // -------------------------------
+    // Reset user password
     function resetUserPasswordPrompt(id) {
       const newPassword = prompt("Enter new password:");
       if (newPassword) {
@@ -854,6 +1385,7 @@
     }
     async function resetUserPassword(id, password) {
       try {
+        const hashedPassword = await hashPassword(password);
         const token = localStorage.getItem('token') || '';
         const response = await fetch(USERS_API_URL + "/" + id + "/reset_password", {
           method: "POST",
@@ -861,8 +1393,7 @@
             "Content-Type": "application/json",
             "Authorization": "Bearer " + token
           },
-          // Send the plain text new password directly
-          body: JSON.stringify({ newPassword: password })
+          body: JSON.stringify({ newPassword: hashedPassword })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -875,10 +1406,21 @@
       }
     }
 
+    // Hash password using SHA-256 (Web Crypto)
+    async function hashPassword(password) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+      return hashHex;
+    }
+
     /* ===============================
        On page load
        =============================== */
     document.addEventListener("DOMContentLoaded", () => {
+      // Show login, hide container
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
     });
