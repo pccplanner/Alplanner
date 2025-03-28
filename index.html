@@ -1053,31 +1053,34 @@
        PDF Download (Optional)
        =============================== */
   async function downloadSummaryPDF() {
-  if (userType !== "admin") return;
-
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Gather table data
-  const rows = [];
-  document.querySelectorAll("#summaryTableBody tr").forEach(tr => {
-    const cells = tr.querySelectorAll("td");
-    if (cells.length === 3) {
-      rows.push([
-        cells[0].innerText.trim(), // Staff
-        cells[1].innerText.trim(), // Dates
-        cells[2].innerText.trim()  // Total Days or Status
-      ]);
-    }
-  });
+  // Title
+  doc.setFontSize(14);
+  doc.text("Monthly Leave Summary", 14, 20);
 
-  // Build autoTable
-  doc.autoTable({
-    head: [["Staff", "Leave Dates", "Total Days"]], // Column headers
-    body: rows,                                     // The data from your table
-    startY: 20,                                     // Where on the page to start
-    margin: { left: 14, right: 14 },                // Optional margins
-    theme: "grid"                                   // or "striped", etc.
+  let yOffset = 40;
+
+  // Column positions
+  const xStaff = 14;
+  const xDates = 100;
+  const xDays  = 160;
+
+  const rows = document.querySelectorAll("#summaryTableBody tr");
+  rows.forEach((row) => {
+    const cells = row.querySelectorAll("td");
+    if (cells.length === 3) {
+      const staff  = cells[0].innerText.trim();
+      const dates  = cells[1].innerText.trim();
+      const total  = cells[2].innerText.trim();
+
+      doc.text(staff, xStaff, yOffset);
+      doc.text(dates, xDates, yOffset);
+      doc.text(total, xDays, yOffset);
+
+      yOffset += 14; // move down
+    }
   });
 
   doc.save("Monthly_Leave_Summary.pdf");
