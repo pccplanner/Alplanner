@@ -1052,55 +1052,34 @@
     /* ===============================
        PDF Download (Optional)
        =============================== */
-    async function downloadSummaryPDF() {
+  async function downloadSummaryPDF() {
   if (userType !== "admin") return;
 
-  // 1) Create a new jsPDF instance
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({
-    orientation: 'p',  // portrait
-    unit: 'pt',        // points, so text is sized in points
-    format: 'A4'
+  const doc = new jsPDF();
+
+  // Gather table data
+  const rows = [];
+  document.querySelectorAll("#summaryTableBody tr").forEach(tr => {
+    const cells = tr.querySelectorAll("td");
+    if (cells.length === 3) {
+      rows.push([
+        cells[0].innerText.trim(), // Staff
+        cells[1].innerText.trim(), // Dates
+        cells[2].innerText.trim()  // Total Days or Status
+      ]);
+    }
   });
 
-  // 2) Gather data from the Monthly Summary table
-  //    (table with id="summaryTableBody" or similar)
-  const summaryTableBody = document.getElementById("summaryTableBody");
-  if (!summaryTableBody) {
-    alert("No summary table found.");
-    return;
-  }
+  // Build autoTable
+  doc.autoTable({
+    head: [["Staff", "Leave Dates", "Total Days"]], // Column headers
+    body: rows,                                     // The data from your table
+    startY: 20,                                     // Where on the page to start
+    margin: { left: 14, right: 14 },                // Optional margins
+    theme: "grid"                                   // or "striped", etc.
+  });
 
-  let yOffset = 40; // start text about 40pts down the page
-
-  // 3) Add a title
-  doc.setFontSize(14);
-  doc.text("Monthly Leave Summary", 40, yOffset);
-  yOffset += 20; // add some space below title
-
-  // 4) Loop through each row in the summary table
-  doc.setFontSize(12);
-  const rows = summaryTableBody.querySelectorAll("tr");
-  if (rows.length === 0) {
-    doc.text("No leave data for this month.", 40, yOffset);
-  } else {
-    rows.forEach((row) => {
-      // Each row has 3 cells: Staff, Leave Dates, Total Days
-      const cells = row.querySelectorAll("td");
-      if (cells.length === 3) {
-        const staffCell = cells[0].innerText;
-        const datesCell = cells[1].innerText;
-        const totalCell = cells[2].innerText;
-
-        // Combine them into one line
-        const lineText = `${staffCell} | ${datesCell} | ${totalCell}`;
-        doc.text(lineText, 40, yOffset);
-        yOffset += 16; // move down for next row
-      }
-    });
-  }
-
-  // 5) Save the PDF
   doc.save("Monthly_Leave_Summary.pdf");
 }
     /* ===============================
