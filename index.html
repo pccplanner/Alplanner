@@ -1056,43 +1056,28 @@
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Title
-  doc.setFontSize(14);
-  doc.text("Monthly Leave Summary", 14, 20);
-
-  let yOffset = 40;
-
-  // Column positions
-  const xStaff = 14;
-  const xDates = 100;
-  const xDays  = 160;
-
+  // Gather data from the summary table
+  const bodyData = [];
   const rows = document.querySelectorAll("#summaryTableBody tr");
   rows.forEach((row) => {
     const cells = row.querySelectorAll("td");
     if (cells.length === 3) {
-      const staff  = cells[0].innerText.trim();
-      const dates  = cells[1].innerText.trim();
-      const total  = cells[2].innerText.trim();
-
-      doc.text(staff, xStaff, yOffset);
-      doc.text(dates, xDates, yOffset);
-      doc.text(total, xDays, yOffset);
-
-      yOffset += 14; // move down
+      bodyData.push([
+        cells[0].innerText.trim(),
+        cells[1].innerText.trim(),
+        cells[2].innerText.trim()
+      ]);
     }
+  });
+
+  doc.autoTable({
+    head: [["Staff", "Dates", "Days"]],
+    body: bodyData,
+    startY: 20
   });
 
   doc.save("Monthly_Leave_Summary.pdf");
 }
-    /* ===============================
-       Team selection (Admin only)
-       =============================== */
-    async function selectTeam(num) {
-      if (userType !== "admin") return;
-      selectedTeam = num;
-      await renderCalendar();
-    }
 
     /* ===============================
        Submit new leave request
