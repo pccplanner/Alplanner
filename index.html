@@ -83,6 +83,53 @@
       border-radius: 4px;
       box-sizing: border-box;
     }
+    /* Setup Modal Styles */
+    #setupModal {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+    }
+    #setupModal .modal-content {
+      width: 90%;
+      max-width: 400px;
+      margin: 10% auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+    }
+    #setupModal h3 {
+      margin-top: 0;
+      text-align: center;
+    }
+    #setupModal label {
+      display: block;
+      margin: 8px 0 4px;
+    }
+    #setupModal input {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    #setupModal button {
+      width: 100%;
+      padding: 10px;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #setupModal button:hover {
+      background: #2980b9;
+    }
     /* Leave Management Panel Styles */
     #leaveForm {
       display: flex;
@@ -136,7 +183,7 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    /* Reverted Charlie button back to a green family color */
+    /* Reverted Charlie (Team C) to a green family color */
     .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
@@ -450,6 +497,22 @@
     </div>
   </div>
   
+  <!-- Setup Modal: For First-Time Login Setup (Hidden by default) -->
+  <div id="setupModal">
+    <div class="modal-content">
+      <h3>Set Up Your Account</h3>
+      <form id="setupForm">
+        <label>Username</label>
+        <input type="text" id="newUsername" required>
+        <label>New Password</label>
+        <input type="password" id="newPassword" required>
+        <label>Confirm Password</label>
+        <input type="password" id="confirmPassword" required>
+        <button type="submit">Save & Re-Login</button>
+      </form>
+    </div>
+  </div>
+  
   <!-- Main Container (hidden until login) -->
   <div class="container" style="display: none;">
     <h1>Leave Management System <sup>v5.1</sup></h1>
@@ -609,6 +672,7 @@
         const data = await response.json();
         if (response.ok && data.status === "success") {
           localStorage.setItem("token", data.token);
+          // Assume admins are already set up.
           userType = "admin";
           currentStaffID = null;
           document.getElementById("loginSection").style.display = "none";
@@ -622,7 +686,7 @@
       }
     }
     
-    /* User login using JWT */
+    /* User login using JWT with first-time setup check */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
@@ -643,7 +707,13 @@
           currentStaffID = staffID;
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
-          await renderUI();
+          // Check if this is a first-time login (needs setup)
+          if (data.needsSetup) {
+            // Show setup modal
+            document.getElementById("setupModal").style.display = "block";
+          } else {
+            await renderUI();
+          }
         } else {
           alert("Invalid user credentials.");
         }
@@ -651,6 +721,49 @@
         alert("Login error: " + err.message);
       }
     }
+    
+    /* Setup Modal Submission */
+    document.getElementById("setupForm").onsubmit = async function(e) {
+      e.preventDefault();
+      const username = document.getElementById("newUsername").value.trim();
+      const newPassword = document.getElementById("newPassword").value;
+      const confirmPassword = document.getElementById("confirmPassword").value;
+      
+      if (newPassword !== confirmPassword) {
+        alert("Passwords do not match. Please try again.");
+        return;
+      }
+      
+      // Call the setup endpoint to update account info
+      const token = localStorage.getItem("token") || "";
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/setup_account`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            username: username,
+            password: newPassword,
+            staffID: currentStaffID
+          })
+        });
+        
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("Account setup complete. Please log in again using your new credentials.");
+          // Clear existing token and reload the page to force re-login.
+          localStorage.removeItem("token");
+          window.location.reload();
+        } else {
+          alert("Setup failed: " + data.message);
+        }
+      } catch (err) {
+        console.error("Setup error:", err);
+        alert("An error occurred during setup. Please try again later.");
+      }
+    };
     
     /* Render UI based on user type */
     async function renderUI() {
@@ -1101,7 +1214,7 @@
     
     /* "From" Date Listener:
        When a start date is selected, update the endDate's minimum to match.
-       (Reverts to allowing advanced booking so that endDate is not forcibly confined to the same month.)
+       (Advanced booking is allowed so endDate is not forced to remain in same month.)
     */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
@@ -1109,7 +1222,7 @@
       if (startDateValue) {
         // Set the minimum for endDate to be the start date.
         endDateInput.min = startDateValue;
-        // Optionally, you might not set a max if advanced leave booking is allowed.
+        // Do not restrict maximum date to allow advanced booking.
         endDateInput.max = "";
       } else {
         endDateInput.min = "";
@@ -1117,9 +1230,8 @@
       }
     });
     
-    /* onsubmit: Final Validation
-       Remove the previous same-month enforcement so that advanced booking is possible.
-       Only validate that endDate is not before startDate.
+    /* onsubmit: Final Validation for Leave Request
+       Only check that endDate is not before startDate.
     */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
