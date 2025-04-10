@@ -10,11 +10,11 @@
   <style>
     /* Base Styles */
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
       margin: 0;
-      padding: 10px;
-      font-size: 13px;
+      padding: 10px; 
+      font-size: 13px; 
       color: #333;
       display: flex;
       justify-content: center;
@@ -311,7 +311,7 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    /* Monthly Summary - admin only */
+    /* Monthly Summary (Admin Only) */
     #monthlySummary {
       padding: 8px;
       border-radius: 6px;
@@ -399,7 +399,7 @@
       color: #95a5a6;
       margin-top: 10px;
     }
-    /* Admin Tabs & User Management Panel */
+    /* Admin Tabs & User Management */
     #adminTabs {
       margin-bottom: 15px;
       text-align: center;
@@ -458,7 +458,7 @@
     
     <!-- Leave Management Panel -->
     <div id="leaveManagementPanel">
-      <!-- Leave Form -->
+      <!-- Leave Request Form -->
       <form id="leaveForm">
         <label>Name</label>
         <input type="text" id="staffName" placeholder="Enter full name" required>
@@ -485,7 +485,7 @@
         <button onclick="nextMonth()">→</button>
       </div>
       
-      <!-- Calendar Grid -->
+      <!-- Calendar Grid (Full Month) -->
       <div id="calendarGrid"></div>
       
       <!-- Leave Requests Accordion -->
@@ -547,17 +547,17 @@
   <div id="pdfViewerContainer" style="display: none;"></div>
   
   <script>
-    /* Global config & variables */
+    /* Global Config & Variables */
     const API_BASE_URL = "https://leave-management.th3va.com";
     let userType = null; // "admin" or "user"
     let currentStaffID = null;
     
     // Define the 6-day shift cycle:
     // Pattern: 2 morning, 2 night, 2 off.
-    // Desired starting shifts based on sample date (e.g., 10 April):
-    // - Alpha (Team 1): first off → offset = 1
-    // - Bravo (Team 2): first night → offset = 3
-    // - Charlie (Team 3): first morning → offset = 5
+    // Desired starting shifts (sample date, e.g., 10 April):
+    //   - Alpha (Team 1): first off → offset = 1
+    //   - Bravo (Team 2): first night → offset = 3
+    //   - Charlie (Team 3): first morning → offset = 5
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["night", "night", "off", "off", "morning", "morning"],
@@ -573,13 +573,13 @@
     var requests = [];
     var openAccordions = new Set();
     
-    /* Team selection */
+    /* Team Selection */
     function selectTeam(teamNumber) {
       selectedTeam = teamNumber;
       renderCalendar();
     }
     
-    /* Show/hide login forms */
+    /* Show/Hide Login Forms */
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
       document.getElementById("userLoginForm").style.display = "none";
@@ -589,7 +589,7 @@
       document.getElementById("adminLoginForm").style.display = "none";
     }
     
-    /* Admin login using JWT */
+    /* Admin Login */
     async function loginAdmin() {
       const staff_id = document.getElementById("adminUsername").value.trim();
       const password = document.getElementById("adminPassword").value;
@@ -619,7 +619,7 @@
       }
     }
     
-    /* User login using JWT */
+    /* User Login */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
@@ -649,7 +649,7 @@
       }
     }
     
-    /* Render UI based on user type */
+    /* Render UI Based on User Type */
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
@@ -660,12 +660,12 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For regular users, display the full calendar as for admin.
+        // Regular users see the full calendar (like admin) but only their own leave entries.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide the monthly summary for users.
+        // Hide monthly summary for users.
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
@@ -675,7 +675,7 @@
       }
     }
     
-    /* Date & shift helpers */
+    /* Date & Shift Helpers */
     function daysBetween(a, b) {
       const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
       const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
@@ -694,16 +694,17 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar (for both Admin and User) */
+    /* Render Calendar (Full Month for Both Admin and User) */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January","February","March","April","May","June",
                           "July","August","September","October","November","December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
+      
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
       
-      // Calculate empty cells before day 1.
+      // 1) Calculate starting offset (empty cells before day 1)
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       for (let i = 0; i < offset; i++) {
@@ -712,7 +713,7 @@
         grid.appendChild(emptyCell);
       }
       
-      // Loop for each day in the month.
+      // 2) Create cells for each day of the month.
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
@@ -720,7 +721,7 @@
         const cell = document.createElement("div");
         cell.className = "day-cell";
         
-        // Always render the shift pattern box.
+        // Always add the shift box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
@@ -728,10 +729,9 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
-        // Gather leave entries for this day.
+        // Add leave entries—filter for user if not admin.
         const dayEntries = [];
         requests.forEach(req => {
-          // For user logins, show only leaves for the current user.
           if (userType === "user" && req.staffID !== currentStaffID) return;
           req.days.forEach(day => {
             if (day.date === dateStr) {
@@ -739,31 +739,38 @@
             }
           });
         });
-        // If more than 2 non-rejected entries, show a red dot.
-        const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
-        if (nonRejected > 2) {
+        if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
           const dot = document.createElement("div");
           dot.className = "red-dot";
           cell.appendChild(dot);
         }
-        // Render each leave entry.
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
           entry.textContent = e.staffName + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
+        
         grid.appendChild(cell);
+      }
+      
+      // 3) Fill in extra cells so that the grid always contains 42 cells (6 rows × 7 columns).
+      const totalUsed = offset + daysInMonth;
+      for (let extra = totalUsed; extra < 42; extra++) {
+        const emptyCell = document.createElement("div");
+        emptyCell.className = "day-cell";
+        grid.appendChild(emptyCell);
       }
       
       renderAdmin();
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load leaves from server */
+    /* Load Leaves from Server */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
+        // Optionally, if backend supports filtering, then:
         if (userType === "user") {
           url += `?staffID=${currentStaffID}`;
         }
@@ -778,7 +785,7 @@
       }
     }
     
-    /* Render Leave Requests in Accordion */
+    /* Render Leave Requests Accordion */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -795,7 +802,7 @@
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
       let filteredRequests = requests;
-      // For regular user logins, only include their own requests.
+      // For non-admin users, filter leave requests to only include those of currentStaffID.
       if (userType === "user") {
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
@@ -845,7 +852,6 @@
             </div>
           </div>
         `;
-        
         adminList.appendChild(item);
       });
       
@@ -865,7 +871,7 @@
         };
       });
       
-      // Only for admin: attach events for updating leave status and delete.
+      // For admin, attach events for updating leave status and deleting requests.
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -947,7 +953,7 @@
       });
     }
     
-    /* Monthly Summary (Admin Only) */
+    /* Render Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
@@ -1085,7 +1091,7 @@
       };
     }
     
-    /* Submit new leave request */
+    /* Submit New Leave Request */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
@@ -1145,7 +1151,7 @@
       await renderCalendar();
     }
     
-    /* Constrain "To" date to same month as "From" date */
+    /* Constrain "To" Date to Same Month as "From" Date */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
@@ -1162,7 +1168,7 @@
       }
     });
     
-    /* Show/hide panels for admin */
+    /* Show/Hide Panels for Admin */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
@@ -1194,12 +1200,7 @@
             "Content-Type": "application/json",
             "Authorization": "Bearer " + token
           },
-          body: JSON.stringify({
-            username: newUsername,
-            staffID: newStaffID,
-            password: newPassword,
-            isAdmin: newIsAdmin
-          })
+          body: JSON.stringify({ username: newUsername, staffID: newStaffID, password: newPassword, isAdmin: newIsAdmin })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1217,9 +1218,7 @@
     async function loadUsers() {
       try {
         const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, {
-          headers: { "Authorization": "Bearer " + token }
-        });
+        const response = await fetch(USERS_API_URL, { headers: { "Authorization": "Bearer " + token } });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
         const tbody = document.querySelector("#usersTable tbody");
@@ -1313,7 +1312,7 @@
       }
     }
     
-    /* On page load */
+    /* On Page Load */
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
