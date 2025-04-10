@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Leave Management System v5.1 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- (Optional) Include jsPDF if needed for admin PDF generation -->
+  <!-- (Optional) Include jsPDF for admin PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <style>
@@ -44,6 +44,7 @@
       position: absolute;
       top: -5px;
     }
+
     /* Login Section */
     #loginSection {
       max-width: 400px;
@@ -83,7 +84,8 @@
       border-radius: 4px;
       box-sizing: border-box;
     }
-    /* Leave Management Styles */
+
+    /* Leave Management Panel Styles */
     #leaveForm {
       display: flex;
       flex-wrap: wrap;
@@ -121,6 +123,7 @@
     #leaveForm button:hover {
       background: #2980b9;
     }
+
     .team-buttons {
       text-align: center;
       margin: 8px 0;
@@ -134,13 +137,14 @@
       cursor: pointer;
       font-size: 12px;
     }
-    /* Shirt colors for three teams */
     .team-a { background: #27ae60; }  /* Dark green */
     .team-b { background: #8fbc8f; }  /* Light green */
     .team-c { background: #dcdcdc; }  /* Grey */
     .team-buttons button:hover {
       opacity: 0.85;
     }
+
+    /* Month Navigation */
     .month-nav {
       display: flex;
       justify-content: center;
@@ -163,6 +167,8 @@
       font-weight: 600;
       color: #2c3e50;
     }
+
+    /* Calendar Grid */
     #calendarGrid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -179,6 +185,8 @@
       font-size: 11px;
       position: relative;
     }
+
+    /* Shift color boxes */
     .shift-box {
       font-weight: 600;
       color: #fff;
@@ -189,16 +197,21 @@
     }
     .shift-morning { background: #27ae60; }
     .shift-night   { background: #8fbc8f; }
-    .shift-off     { background: #dcdcdc; }
+    .shift-off     { background: #dcdcdc; color: #444; }
+
+    /* Leave entry styles */
     .leave-entry {
       background: #fff3cd;
       padding: 2px 4px;
       border-radius: 3px;
       margin: 1px 0;
+      display: inline-block;
     }
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
     .leave-entry.write-in  { background: #ffeeba; }
+
+    /* More than 2 leave requests (non-rejected) triggers red dot */
     .red-dot {
       width: 6px;
       height: 6px;
@@ -208,6 +221,7 @@
       top: 3px;
       right: 3px;
     }
+
     /* Accordion & Summary */
     #adminSummary {
       padding: 10px;
@@ -311,7 +325,8 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    /* Monthly Summary (admin only) */
+
+    /* Monthly Summary (Admin Only) */
     #monthlySummary {
       padding: 8px;
       border-radius: 6px;
@@ -388,17 +403,13 @@
     .range-block.pending   .status-dot { background: #e67e22; }
     .range-block.rejected  .status-dot { background: #e74c3c; }
     .range-block.write-in  .status-dot { background: #f1c40f; }
+
     .summary-table .total-days {
       font-weight: 500;
       color: #34495e;
       text-align: right;
     }
-    .footer {
-      text-align: center;
-      font-size: 10px;
-      color: #95a5a6;
-      margin-top: 10px;
-    }
+
     /* Admin Tabs & User Management Panel */
     #adminTabs {
       margin-bottom: 15px;
@@ -425,6 +436,12 @@
     #userManagementPanel h2 {
       text-align: center;
       margin-bottom: 15px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 10px;
+      color: #95a5a6;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -485,6 +502,7 @@
         <button onclick="nextMonth()">→</button>
       </div>
       
+      <!-- Full Calendar Grid -->
       <div id="calendarGrid"></div>
       
       <!-- Leave Requests Accordion View -->
@@ -552,25 +570,18 @@
     const API_BASE_URL = "https://leave-management.th3va.com";
     let userType = null; // "admin" or "user"
     let currentStaffID = null;
-    
+
     // Define the 6-day shift cycle:
-    // Pattern: 2 morning, 2 night, 2 off.
-    // Desired starting shifts on sample date (10 April):
-    // - Alpha (Team 1): first off
-    // - Bravo (Team 2): first night
-    // - Charlie (Team 3): first morning
+    // 2 days morning, 2 days night, 2 days off.
+    // We'll color them using .shift-morning, .shift-night, .shift-off
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["night", "night", "off", "off", "morning", "morning"],
       3: ["off", "off", "morning", "morning", "night", "night"]
     };
-    // Offsets so that the calculated index aligns with desired starting shift.
-    // For a day difference d (from 1st of the month):
-    // - Team 1: (d + 1) mod 6 should equal 4 (first off) → offset = 1.
-    // - Team 2: (d + 3) mod 6 should equal 0 (first night) → offset = 3.
-    // - Team 3: (d + 5) mod 6 should equal 2 (first morning) → offset = 5.
+    // Offsets to align with desired starting shift:
     const teamOffsets = {1: 1, 2: 3, 3: 5};
-    
+
     var selectedTeam = 1;
     let now = new Date();
     var currentYear = now.getFullYear();
@@ -578,13 +589,13 @@
     var referenceDate = new Date(currentYear, currentMonth, 1);
     var requests = [];
     var openAccordions = new Set();
-    
+
     /* Team selection */
     function selectTeam(teamNumber) {
       selectedTeam = teamNumber;
       renderCalendar();
     }
-    
+
     /* Show/hide login forms */
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
@@ -594,7 +605,7 @@
       document.getElementById("userLoginForm").style.display = "block";
       document.getElementById("adminLoginForm").style.display = "none";
     }
-    
+
     /* Admin login using JWT */
     async function loginAdmin() {
       const staff_id = document.getElementById("adminUsername").value.trim();
@@ -624,7 +635,7 @@
         alert("Login error: " + err.message);
       }
     }
-    
+
     /* User login using JWT */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
@@ -654,25 +665,28 @@
         alert("Login error: " + err.message);
       }
     }
-    
+
     /* Render UI based on user type */
     async function renderUI() {
       if (userType === "admin") {
+        // Show the admin tabs and leave management panel
         document.getElementById("adminTabs").style.display = "block";
         showLeaveManagement();
+        // Staff ID field is not locked for Admin
         document.getElementById("staffID").readOnly = false;
         document.getElementById("staffID").value = "";
         await renderCalendar();
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For regular users, show the calendar with full shift view.
+        // Hide the admin tabs, show the same big monthly calendar
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide monthly summary for user.
+        // Hide the monthly summary for user
         document.getElementById("monthlySummary").style.display = "none";
+        // Lock the staff ID to the logged-in user's ID
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
         await loadLeaves();
@@ -680,7 +694,7 @@
         renderAdmin();
       }
     }
-    
+
     /* Date & shift helpers */
     function daysBetween(a, b) {
       const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -699,7 +713,7 @@
       const idx = ((diff + offset) % 6 + 6) % 6;
       return TeamPatterns[selectedTeam][idx];
     }
-    
+
     /* Render Calendar (for both Admin and User) */
     async function renderCalendar() {
       await loadLeaves();
@@ -708,33 +722,36 @@
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
+
+      // Figure out how many blank cells before the 1st
       const firstDay = new Date(currentYear, currentMonth, 1);
-      const offset = (firstDay.getDay() + 6) % 7;
+      const offset = (firstDay.getDay() + 6) % 7; // Monday as 0, Sunday as 6
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       
-      // Create empty cells for offset.
+      // Create empty cells for offset
       for (let i = 0; i < offset; i++) {
         grid.appendChild(document.createElement("div")).className = "day-cell";
       }
-      
+
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
         const cell = document.createElement("div");
         cell.className = "day-cell";
         
-        // Display shift box.
+        // Display the shift color box
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
-        shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
-                              shift === "night"   ? "shift-box shift-night"   : "shift-box shift-off");
-        shiftBox.textContent = d;
+        shiftBox.className = (shift === "morning" ? "shift-box shift-morning"
+                             : shift === "night"   ? "shift-box shift-night"
+                             : "shift-box shift-off");
+        shiftBox.textContent = d;  // Day number on the color box
         cell.appendChild(shiftBox);
-        
-        // Gather leave entries for this day.
+
+        // Gather any leave entries for this day
         const dayEntries = [];
         requests.forEach(req => {
-          // For user logins, only include requests that match currentStaffID.
+          // For user login, only show that user's requests
           if (userType === "user" && req.staffID !== currentStaffID) return;
           req.days.forEach(day => {
             if (day.date === dateStr) {
@@ -742,33 +759,37 @@
             }
           });
         });
-        
-        // If there are too many non-rejected entries, show a red dot.
+
+        // If >2 non-rejected requests, display a red dot
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
-        
-        // Render leave entries.
+
+        // Render each leave entry under the shift box
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
-          entry.textContent = e.staffName + " (" + e.staffID + ")";
+          entry.textContent = `${e.staffName} (${e.staffID})`;
           cell.appendChild(entry);
         });
-        
+
         grid.appendChild(cell);
       }
-      
+
+      // Re-render the admin’s accordion or user’s simplified view
       renderAdmin();
-      if (userType === "admin") await renderMonthlySummary();
+      // For admin, re-render the monthly summary
+      if (userType === "admin") {
+        await renderMonthlySummary();
+      }
     }
-    
+
     /* Load leave requests from server */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
-        // Optionally, if backend supports filtering:
+        // If user, optionally pass staffID to only load their leaves
         if (userType === "user") {
           url += `?staffID=${currentStaffID}`;
         }
@@ -782,7 +803,7 @@
         requests = [];
       }
     }
-    
+
     /* Render Leave Requests in Accordion (filtered by staff for user) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
@@ -795,16 +816,17 @@
       });
       return Object.values(grouped);
     }
-    
+
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
       let filteredRequests = requests;
-      // For user logins, only show leave requests of the current user.
+
+      // For user logins, only show user’s own requests
       if (userType === "user") {
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
-        // Optional: Filter to show future requests.
+        // Example: Filter to only show requests that are current or future
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -816,37 +838,52 @@
         });
       }
       
+      // Group them by staff ID for the accordion
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
       groupedRequests.forEach((group, groupIndex) => {
         const item = document.createElement("div");
         item.className = "accordion-item";
+
         const totalDays = group.requests.reduce((sum, r) => sum + r.days.length, 0);
-        const pendingCount = group.requests.reduce((sum, r) => sum + r.days.filter(d => d.status === "Pending").length, 0);
-        
+        const pendingCount = group.requests.reduce((sum, r) => 
+          sum + r.days.filter(d => d.status === "Pending").length, 0
+        );
+
         item.innerHTML = `
           <div class="accordion-header" data-index="${groupIndex}">
             <span>${group.staffName} (${group.staffID})</span>
-            <span class="badge ${pendingCount > 0 ? "pending" : ""}">${totalDays} days (${pendingCount} pending)</span>
+            <span class="badge ${pendingCount > 0 ? "pending" : ""}">
+              ${totalDays} days (${pendingCount} pending)
+            </span>
           </div>
           <div class="accordion-content" data-index="${groupIndex}">
-            ${group.requests.map((req, reqIdx) => `
-              <div class="timeline">
-                ${req.days.map((day, dayIndex) => `
-                  <div class="day-block">
-                    <span>${day.date}</span>
-                    <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
-                      <option value="Pending" ${day.status === "Pending" ? "selected" : ""}>Pending</option>
-                      <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
-                      <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
-                      <option value="Write-in" ${day.status === "Write-in" ? "selected" : ""}>Write-in</option>
-                    </select>
-                  </div>
-                `).join("")}
-              </div>
-            `).join("")}
+            ${
+              group.requests.map((req, reqIdx) => `
+                <div class="timeline">
+                  ${
+                    req.days.map((day, dayIndex) => `
+                      <div class="day-block">
+                        <span>${day.date}</span>
+                        <div class="status-dot ${day.status.toLowerCase()}"></div>
+                        <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}"
+                          ${userType === "user" ? "disabled" : ""}>
+                          <option value="Pending"  ${day.status === "Pending"  ? "selected" : ""}>Pending</option>
+                          <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
+                          <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
+                          <option value="Write-in" ${day.status === "Write-in" ? "selected" : ""}>Write-in</option>
+                        </select>
+                      </div>
+                    `).join("")
+                  }
+                </div>
+              `).join("")
+            }
             <div class="action-buttons">
-              ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ""}
+              ${
+                userType === "admin"
+                  ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>`
+                  : ""
+              }
               <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
             </div>
           </div>
@@ -855,7 +892,7 @@
         adminList.appendChild(item);
       });
       
-      // Accordion toggle.
+      // Accordion toggle
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -871,7 +908,7 @@
         };
       });
       
-      // For admin, attach events to update leave status and delete requests.
+      // For admin, attach status-update & delete events
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -916,6 +953,8 @@
             const groupIndex = btn.getAttribute("data-group");
             const group = groupedRequests[groupIndex];
             openAccordions.delete(groupIndex);
+
+            // Delete each request in that group from the DB
             try {
               for (const req of group.requests) {
                 const reqId = req.id;
@@ -930,6 +969,7 @@
                   return;
                 }
               }
+              // Remove them from local array, re-render
               requests = requests.filter(r => r.staffID !== group.staffID);
               await renderCalendar();
             } catch (err) {
@@ -952,7 +992,7 @@
         };
       });
     }
-    
+
     /* Render Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
@@ -964,32 +1004,45 @@
           throw new Error("Failed to fetch leave requests");
         }
         const allRequests = await response.json();
+        // Only consider the current month's leaves
         const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
         const allDaysByStaff = {};
+
         allRequests.forEach(req => {
           const staffID = req.staffID;
           const staffName = req.staffName;
           if (!allDaysByStaff[staffID]) {
             allDaysByStaff[staffID] = { staffName, staffID, days: {} };
           }
+          // Tally days that are Approved or Write-in
           req.days.forEach(day => {
-            if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
+            if (day.date.startsWith(monthStr) && 
+                (day.status === "Approved" || day.status === "Write-in")) {
+              // If multiple statuses for same day, prefer "Approved" over "Write-in"
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
             }
           });
         });
-        const groupedRequests = Object.values(allDaysByStaff).filter(g => Object.keys(g.days).length > 0);
+
+        const groupedRequests = Object.values(allDaysByStaff)
+          .filter(g => Object.keys(g.days).length > 0);
+
         groupedRequests.forEach(group => {
-          const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
-          dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+          const dayEntries = Object.entries(group.days)
+            .map(([date, status]) => ({ date, status }))
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          // Merge consecutive days with the same status
           const ranges = [];
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
             const prevDate = new Date(currentRange[currentRange.length - 1].date);
             const currDate = new Date(dayEntries[i].date);
-            if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === dayEntries[i].status) {
+            if (daysBetween(prevDate, currDate) === 1 &&
+                currentRange[0].status === dayEntries[i].status) {
+              // Continue the range
               currentRange.push(dayEntries[i]);
             } else {
               ranges.push(currentRange);
@@ -997,6 +1050,7 @@
             }
           }
           if (currentRange.length > 0) ranges.push(currentRange);
+
           const totalDays = dayEntries.length;
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -1005,7 +1059,9 @@
               ${ranges.map(range => {
                 const startDate = range[0].date.split("-")[2];
                 const endDate = range[range.length - 1].date.split("-")[2];
-                const displayText = (startDate === endDate) ? startDate : `${startDate}-${endDate}`;
+                const displayText = (startDate === endDate)
+                  ? startDate
+                  : `${startDate}-${endDate}`;
                 const statusLabel = range[0].status;
                 return `
                   <div class="range-block ${statusLabel.toLowerCase()}">
@@ -1019,21 +1075,27 @@
           `;
           summaryTableBody.appendChild(row);
         });
+
+        // If no requests, display placeholder
         if (summaryTableBody.children.length === 0) {
           const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
-            No approved or write-in leave requests for this month.</td>`;
+          row.innerHTML = `
+            <td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
+              No approved or write-in leave requests for this month.
+            </td>`;
           summaryTableBody.appendChild(row);
         }
       } catch (error) {
         console.error("Error fetching monthly summary:", error);
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
-          Error loading summary. Please try again later.</td>`;
+        row.innerHTML = `
+          <td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
+            Error loading summary. Please try again later.
+          </td>`;
         summaryTableBody.appendChild(row);
       }
     }
-    
+
     /* PDF Download with Exit Button (Admin Only) */
     async function downloadSummaryPDF() {
       const { jsPDF } = window.jspdf;
@@ -1064,7 +1126,7 @@
       });
       showPDFPreview(doc);
     }
-    
+
     function showPDFPreview(doc) {
       const pdfBlob = doc.output("blob");
       const pdfURL = URL.createObjectURL(pdfBlob);
@@ -1080,7 +1142,9 @@
       container.innerHTML = `
         <div style="position: relative; width: 80%; height: 90%; margin: 5% auto; background: #fff; border-radius: 8px; overflow: hidden;">
           <iframe src="${pdfURL}" style="width: 100%; height: 100%; border: none;"></iframe>
-          <button id="exitPDFViewer" style="position: absolute; top: 10px; right: 10px; padding: 6px 12px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Exit</button>
+          <button id="exitPDFViewer" style="position: absolute; top: 10px; right: 10px; padding: 6px 12px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+            Exit
+          </button>
         </div>
       `;
       document.body.appendChild(container);
@@ -1089,7 +1153,7 @@
         URL.revokeObjectURL(pdfURL);
       };
     }
-    
+
     /* Submit new leave request */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
@@ -1109,7 +1173,13 @@
         const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({status: "Pending", staffName: name, staffID: id, fromDate: start, toDate: end})
+          body: JSON.stringify({
+            status: "Pending",
+            staffName: name,
+            staffID: id,
+            fromDate: start,
+            toDate: end
+          })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1129,8 +1199,8 @@
       }
       e.target.reset();
     };
-    
-    /* Month navigation (Admin and User now both allowed) */
+
+    /* Month navigation (Admin and User both allowed) */
     async function prevMonth() {
       currentMonth--;
       if (currentMonth < 0) {
@@ -1147,7 +1217,7 @@
       }
       await renderCalendar();
     }
-    
+
     /* Constrain "To" date to same month as "From" date */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
@@ -1164,7 +1234,7 @@
         endDateInput.value = "";
       }
     });
-    
+
     /* Show/hide panels for admin */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
@@ -1175,7 +1245,7 @@
       document.getElementById("userManagementPanel").style.display = "block";
       loadUsers();
     }
-    
+
     /* User Management (Admin Only) */
     const USERS_API_URL = API_BASE_URL + "/api/users";
     
@@ -1197,7 +1267,12 @@
             "Content-Type": "application/json",
             "Authorization": "Bearer " + token
           },
-          body: JSON.stringify({ username: newUsername, staffID: newStaffID, password: newPassword, isAdmin: newIsAdmin })
+          body: JSON.stringify({
+            username: newUsername,
+            staffID: newStaffID,
+            password: newPassword,
+            isAdmin: newIsAdmin
+          })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1211,11 +1286,13 @@
         alert("Error adding user: " + err.message);
       }
     };
-    
+
     async function loadUsers() {
       try {
         const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, { headers: { "Authorization": "Bearer " + token } });
+        const response = await fetch(USERS_API_URL, {
+          headers: { "Authorization": "Bearer " + token }
+        });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
         const tbody = document.querySelector("#usersTable tbody");
@@ -1240,7 +1317,7 @@
         alert("Error loading users: " + err.message);
       }
     }
-    
+
     async function deleteUser(id) {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
@@ -1260,7 +1337,7 @@
         alert("Error deleting user: " + err.message);
       }
     }
-    
+
     async function toggleAdminStatus(id, isCurrentlyAdmin) {
       try {
         const token = localStorage.getItem("token") || "";
@@ -1279,14 +1356,14 @@
         alert("Error toggling admin status: " + err.message);
       }
     }
-    
+
     function resetUserPasswordPrompt(id) {
       const newPassword = prompt("Enter new password:");
       if (newPassword) {
         resetUserPassword(id, newPassword);
       }
     }
-    
+
     async function resetUserPassword(id, password) {
       try {
         const token = localStorage.getItem("token") || "";
@@ -1308,7 +1385,7 @@
         alert("Error resetting password: " + err.message);
       }
     }
-    
+
     /* On page load */
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
