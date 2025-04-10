@@ -135,9 +135,9 @@
       font-size: 12px;
     }
     /* Team Shirt Colors */
-    .team-a { background: #27ae60; }
-    .team-b { background: #8fbc8f; }
-    .team-c { background: #dcdcdc; }
+    .team-a { background: #27ae60; }  /* Dark green */
+    .team-b { background: #8fbc8f; }  /* Light green */
+    .team-c { background: #dcdcdc; }  /* Grey */
     .team-buttons button:hover {
       opacity: 0.85;
     }
@@ -311,7 +311,7 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    /* Monthly Summary - Admin Only */
+    /* Monthly Summary (Admin Only) */
     #monthlySummary {
       padding: 8px;
       border-radius: 6px;
@@ -399,7 +399,7 @@
       color: #95a5a6;
       margin-top: 10px;
     }
-    /* Admin Tabs & User Management Panel */
+    /* Admin Tabs & User Management */
     #adminTabs {
       margin-bottom: 15px;
       text-align: center;
@@ -446,11 +446,11 @@
     </div>
   </div>
   
-  <!-- Main Container (Hidden Until Login) -->
+  <!-- Main Container (hidden until login) -->
   <div class="container" style="display: none;">
     <h1>Leave Management System <sup>v5.1</sup></h1>
     
-    <!-- Admin Tabs (Visible Only for Admin) -->
+    <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
       <button onclick="showLeaveManagement()">Leave Management</button>
       <button onclick="showUserManagement()">User Management</button>
@@ -471,7 +471,7 @@
         <button type="submit">Request Leave</button>
       </form>
       
-      <!-- Team Buttons for Toggling Shift Pattern -->
+      <!-- Team Buttons -->
       <div class="team-buttons">
         <button class="team-a" onclick="selectTeam(1)">Alpha</button>
         <button class="team-b" onclick="selectTeam(2)">Bravo</button>
@@ -485,7 +485,7 @@
         <button onclick="nextMonth()">→</button>
       </div>
       
-      <!-- Calendar Grid (Full Month View) -->
+      <!-- Calendar Grid (Full Month) -->
       <div id="calendarGrid"></div>
       
       <!-- Leave Requests Accordion -->
@@ -543,7 +543,7 @@
     </div>
   </div>
   
-  <!-- PDF Viewer Modal (Hidden by Default) -->
+  <!-- PDF Viewer Modal (hidden by default) -->
   <div id="pdfViewerContainer" style="display: none;"></div>
   
   <script>
@@ -554,10 +554,10 @@
     
     // Define the 6-day shift cycle:
     // Pattern: 2 morning, 2 night, 2 off.
-    // Desired starting shifts (sample date: 10 April):
-    // - Alpha (Team 1): first off (thus offset = 1)
-    // - Bravo (Team 2): first night (thus offset = 3)
-    // - Charlie (Team 3): first morning (thus offset = 5)
+    // Desired starting shifts (sample date, e.g., 10 April):
+    //   - Alpha (Team 1): first off → offset = 1
+    //   - Bravo (Team 2): first night → offset = 3
+    //   - Charlie (Team 3): first morning → offset = 5
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["night", "night", "off", "off", "morning", "morning"],
@@ -573,7 +573,7 @@
     var requests = [];
     var openAccordions = new Set();
     
-    /* Team Selection: Allow user to toggle shift pattern */
+    /* Team Selection */
     function selectTeam(teamNumber) {
       selectedTeam = teamNumber;
       renderCalendar();
@@ -660,17 +660,16 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For regular users, display the full calendar view and allow toggling.
+        // Regular users see the full calendar (like admin) but only their own leave entries.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide monthly summary for regular users.
+        // Hide monthly summary for users.
         document.getElementById("monthlySummary").style.display = "none";
-        // Optionally, keep the staffID field read-only.
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
-        await loadLeaves(); // Always load full leave data for planning.
+        await loadLeaves();
         renderCalendar();
         renderAdmin();
       }
@@ -695,7 +694,7 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar (Full Month View) */
+    /* Render Calendar (Full Month for Both Admin and User) */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January","February","March","April","May","June",
@@ -705,7 +704,7 @@
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
       
-      // Calculate offset: empty cells before day 1.
+      // 1) Calculate starting offset (empty cells before day 1)
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       for (let i = 0; i < offset; i++) {
@@ -714,7 +713,7 @@
         grid.appendChild(emptyCell);
       }
       
-      // Create day cells for every day in the month.
+      // 2) Create cells for each day of the month.
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
@@ -722,7 +721,7 @@
         const cell = document.createElement("div");
         cell.className = "day-cell";
         
-        // Render shift box (always visible).
+        // Always add the shift box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
@@ -730,20 +729,16 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
-        // Render all leave entries (for planning, show every colleague's leaves).
+        // Add leave entries—filter for user if not admin.
         const dayEntries = [];
         requests.forEach(req => {
+          if (userType === "user" && req.staffID !== currentStaffID) return;
           req.days.forEach(day => {
             if (day.date === dateStr) {
-              dayEntries.push({
-                staffName: req.staffName,
-                staffID: req.staffID,
-                status: day.status
-              });
+              dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
             }
           });
         });
-        // Optional: If more than two non-rejected entries exist, show a red dot.
         if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
           const dot = document.createElement("div");
           dot.className = "red-dot";
@@ -759,7 +754,7 @@
         grid.appendChild(cell);
       }
       
-      // Fill extra cells so the grid is always 42 cells (6 rows x 7 columns).
+      // 3) Fill in extra cells so that the grid always contains 42 cells (6 rows × 7 columns).
       const totalUsed = offset + daysInMonth;
       for (let extra = totalUsed; extra < 42; extra++) {
         const emptyCell = document.createElement("div");
@@ -771,11 +766,14 @@
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load Leaves (Fetch Full Data) */
+    /* Load Leaves from Server */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
-        // Do not filter by staffID – fetch full data for planning.
+        // Optionally, if backend supports filtering, then:
+        if (userType === "user") {
+          url += `?staffID=${currentStaffID}`;
+        }
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch leaves");
@@ -803,11 +801,21 @@
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
-      // For both admin and user, show full leave requests (no filtering).
       let filteredRequests = requests;
-      
-      // If desired, you can re-enable filtering here for admin only.
-      // In this version, both user and admin see all leave entries in the accordion.
+      // For non-admin users, filter leave requests to only include those of currentStaffID.
+      if (userType === "user") {
+        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
+      } else if (userType === "admin") {
+        const currentDate = new Date();
+        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
+        filteredRequests = requests.filter(req => {
+          return req.days.some(day => {
+            const [year, month] = day.date.split("-").map(Number);
+            const requestYearMonth = year * 12 + (month - 1);
+            return requestYearMonth >= currentYearMonth;
+          });
+        });
+      }
       
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
       groupedRequests.forEach((group, groupIndex) => {
@@ -828,7 +836,7 @@
                   <div class="day-block">
                     <span>${day.date}</span>
                     <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}">
+                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
                       <option value="Pending" ${day.status === "Pending" ? "selected" : ""}>Pending</option>
                       <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
                       <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
@@ -847,7 +855,7 @@
         adminList.appendChild(item);
       });
       
-      // Accordion toggle setup.
+      // Set up accordion toggle.
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -863,7 +871,7 @@
         };
       });
       
-      // Admin-only event handlers.
+      // For admin, attach events for updating leave status and deleting requests.
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
