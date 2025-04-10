@@ -136,7 +136,7 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    /* Updated: Charlie (Team C) now uses a green hue for a similar palette */
+    /* Reverted Charlie button back to a green family color */
     .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
@@ -165,7 +165,7 @@
       color: #2c3e50;
     }
     /* Calendar Container */
-    /* (For Admin: CSS Grid; For User: Flexbox approach) */
+    /* (For Admin: CSS Grid; For User: Flexbox) */
     #calendarGrid {
       max-width: 850px;
       margin: 0 auto 10px;
@@ -698,7 +698,7 @@
     }
     
     /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
-       Batch DOM updates with DocumentFragment for performance.
+       Uses a DocumentFragment to batch DOM updates for performance.
     */
     async function renderCalendar() {
       await loadLeaves();
@@ -798,7 +798,7 @@
       }
     }
     
-    /* Render Leave Requests in Accordion (or filtered view for User) */
+    /* Render Leave Requests in Accordion (Admin or filtered view for User) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -1099,47 +1099,28 @@
       };
     }
     
-    /* "To" Date Restriction Enhancement:
-       Enforce that the "To" date falls within the same month as the selected "From" date.
-       1. When the startDate changes, set min/max on endDate.
-       2. Also, add an event listener on endDate to validate if a date outside the month is chosen.
+    /* "From" Date Listener:
+       When a start date is selected, update the endDate's minimum to match.
+       (Reverts to allowing advanced booking so that endDate is not forcibly confined to the same month.)
     */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
       if (startDateValue) {
-        const startDate = new Date(startDateValue);
+        // Set the minimum for endDate to be the start date.
         endDateInput.min = startDateValue;
-        const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
-        endDateInput.max = formatDate(lastDay);
-        // If the currently selected "To" date is outside the month, clear it.
-        if (endDateInput.value) {
-          const selectedEnd = new Date(endDateInput.value);
-          if (selectedEnd.getMonth() !== startDate.getMonth() ||
-              selectedEnd.getFullYear() !== startDate.getFullYear()) {
-            endDateInput.value = "";
-          }
-        }
+        // Optionally, you might not set a max if advanced leave booking is allowed.
+        endDateInput.max = "";
       } else {
         endDateInput.min = "";
         endDateInput.max = "";
-        endDateInput.value = "";
       }
     });
     
-    // Enforce "To" date validation when endDate is changed.
-    document.getElementById("endDate").addEventListener("change", function() {
-      const startDateValue = document.getElementById("startDate").value;
-      if (!startDateValue) return; // If no start date is selected, skip.
-      const startDate = new Date(startDateValue);
-      const endDate = new Date(this.value);
-      if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
-        alert("Please pick a 'To' date within the same month as the 'From' date.");
-        this.value = "";
-      }
-    });
-    
-    /* onsubmit: Final validation to ensure "From" and "To" dates fall in the same month */
+    /* onsubmit: Final Validation
+       Remove the previous same-month enforcement so that advanced booking is possible.
+       Only validate that endDate is not before startDate.
+    */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
@@ -1148,12 +1129,6 @@
       const end   = document.getElementById("endDate").value;
       if (!name || !id || !start || !end) {
         alert("Please fill all fields.");
-        return;
-      }
-      const sDate = new Date(start);
-      const eDate = new Date(end);
-      if (sDate.getMonth() !== eDate.getMonth() || sDate.getFullYear() !== eDate.getFullYear()) {
-        alert("The 'To' date must be within the same month as the 'From' date.");
         return;
       }
       if (end < start) {
