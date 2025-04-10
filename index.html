@@ -136,7 +136,7 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    /* CHANGED: Team C now matches green family */
+    /* Updated: Charlie (Team C) now uses a green hue for a similar palette */
     .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
@@ -165,7 +165,7 @@
       color: #2c3e50;
     }
     /* Calendar Container */
-    /* (Note: For Admin we use CSS Grid; for User, we switch to Flexbox) */
+    /* (For Admin: CSS Grid; For User: Flexbox approach) */
     #calendarGrid {
       max-width: 850px;
       margin: 0 auto 10px;
@@ -698,8 +698,7 @@
     }
     
     /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
-       Performance Optimization:
-       A DocumentFragment is used to batch DOM updates.
+       Batch DOM updates with DocumentFragment for performance.
     */
     async function renderCalendar() {
       await loadLeaves();
@@ -710,12 +709,10 @@
       grid.innerHTML = "";
       
       if(userType === "user"){
-        // Flexbox for User mode.
         grid.style.display = "flex";
         grid.style.flexWrap = "wrap";
         grid.style.gap = "3px";
       } else {
-        // CSS Grid for Admin mode.
         grid.style.display = "grid";
         grid.style.gridTemplateColumns = "repeat(7, 1fr)";
         grid.style.gap = "3px";
@@ -754,7 +751,7 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
-        // Gather leave entries for this day.
+        // Gather leave entries.
         const dayEntries = [];
         requests.forEach(req => {
           if (userType === "user" && req.staffID !== currentStaffID) return;
@@ -765,13 +762,10 @@
           });
         });
         
-        // If >2 non-rejected entries, add red dot.
-        const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
-        if (nonRejected > 2) {
+        if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
         
-        // Render each leave entry.
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
@@ -796,9 +790,7 @@
           url += `?staffID=${currentStaffID}`;
         }
         const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error("Failed to fetch leaves");
-        }
+        if (!response.ok) throw new Error("Failed to fetch leaves");
         requests = await response.json();
       } catch (error) {
         console.error("Error fetching leaves:", error);
@@ -979,9 +971,7 @@
       summaryTableBody.innerHTML = "";
       try {
         const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch leave requests");
-        }
+        if (!response.ok) throw new Error("Failed to fetch leave requests");
         const allRequests = await response.json();
         const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
         const allDaysByStaff = {};
@@ -1109,7 +1099,11 @@
       };
     }
     
-    /* "To" Date Restriction: Ensure that the To date matches the same month as the Start date */
+    /* "To" Date Restriction Enhancement:
+       Enforce that the "To" date falls within the same month as the selected "From" date.
+       1. When the startDate changes, set min/max on endDate.
+       2. Also, add an event listener on endDate to validate if a date outside the month is chosen.
+    */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
@@ -1118,10 +1112,11 @@
         endDateInput.min = startDateValue;
         const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
         endDateInput.max = formatDate(lastDay);
-        // If the currently selected "To" date is outside the current month, clear it.
+        // If the currently selected "To" date is outside the month, clear it.
         if (endDateInput.value) {
           const selectedEnd = new Date(endDateInput.value);
-          if (selectedEnd.getMonth() !== startDate.getMonth()) {
+          if (selectedEnd.getMonth() !== startDate.getMonth() ||
+              selectedEnd.getFullYear() !== startDate.getFullYear()) {
             endDateInput.value = "";
           }
         }
@@ -1131,6 +1126,88 @@
         endDateInput.value = "";
       }
     });
+    
+    // Enforce "To" date validation when endDate is changed.
+    document.getElementById("endDate").addEventListener("change", function() {
+      const startDateValue = document.getElementById("startDate").value;
+      if (!startDateValue) return; // If no start date is selected, skip.
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(this.value);
+      if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
+        alert("Please pick a 'To' date within the same month as the 'From' date.");
+        this.value = "";
+      }
+    });
+    
+    /* onsubmit: Final validation to ensure "From" and "To" dates fall in the same month */
+    document.getElementById("leaveForm").onsubmit = async function(e) {
+      e.preventDefault();
+      const name  = document.getElementById("staffName").value.trim();
+      const id    = document.getElementById("staffID").value.trim();
+      const start = document.getElementById("startDate").value;
+      const end   = document.getElementById("endDate").value;
+      if (!name || !id || !start || !end) {
+        alert("Please fill all fields.");
+        return;
+      }
+      const sDate = new Date(start);
+      const eDate = new Date(end);
+      if (sDate.getMonth() !== eDate.getMonth() || sDate.getFullYear() !== eDate.getFullYear()) {
+        alert("The 'To' date must be within the same month as the 'From' date.");
+        return;
+      }
+      if (end < start) {
+        alert("End date cannot be before start date.");
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            status: "Pending",
+            staffName: name,
+            staffID: id,
+            fromDate: start,
+            toDate: end
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("Leave request submitted successfully.");
+          await loadLeaves();
+          if (userType === "admin") {
+            await renderCalendar();
+          } else {
+            renderAdmin();
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        console.error("Error submitting leave request:", error);
+        alert("An error occurred. Please try again later.");
+      }
+      e.target.reset();
+    };
+    
+    /* Month navigation (allowed for both Admin and User) */
+    async function prevMonth() {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      await renderCalendar();
+    }
+    async function nextMonth() {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      await renderCalendar();
+    }
     
     /* Show/hide panels for Admin */
     function showLeaveManagement() {
