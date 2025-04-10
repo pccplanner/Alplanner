@@ -4,17 +4,21 @@
   <meta charset="UTF-8">
   <title>Leave Management System v5.1 (Staff ID Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- (Optional) Include jsPDF if needed for admin PDF generation -->
+  <!-- Include jsPDF libraries if needed for PDF generation (admin only) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <style>
+    /* Paste your complete original CSS styles below.
+       For brevity, the CSS from your original system is preserved.
+       Replace this comment with your full CSS. */
+       
     /* Base Styles */
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
+      font-family: Arial, sans-serif; 
+      background: #f5f7fa; 
       margin: 0;
-      padding: 10px;
-      font-size: 13px;
+      padding: 10px; 
+      font-size: 13px; 
       color: #333;
       display: flex;
       justify-content: center;
@@ -311,7 +315,7 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    /* Monthly Summary - admin only */
+    /* Monthly Summary (Admin Only) */
     #monthlySummary {
       padding: 8px;
       border-radius: 6px;
@@ -446,11 +450,11 @@
     </div>
   </div>
   
-  <!-- Main Container (hidden until login) -->
+  <!-- Main Container -->
   <div class="container" style="display: none;">
     <h1>Leave Management System <sup>v5.1</sup></h1>
     
-    <!-- Admin Tabs (Visible only for Admin) -->
+    <!-- Admin Tabs (Visible Only for Admin) -->
     <div id="adminTabs" style="display: none;">
       <button onclick="showLeaveManagement()">Leave Management</button>
       <button onclick="showUserManagement()">User Management</button>
@@ -458,7 +462,6 @@
     
     <!-- Leave Management Panel -->
     <div id="leaveManagementPanel">
-      <!-- Leave Form -->
       <form id="leaveForm">
         <label>Name</label>
         <input type="text" id="staffName" placeholder="Enter full name" required>
@@ -471,7 +474,7 @@
         <button type="submit">Request Leave</button>
       </form>
       
-      <!-- Team Buttons -->
+      <!-- Team Buttons for Toggling Shift Pattern -->
       <div class="team-buttons">
         <button class="team-a" onclick="selectTeam(1)">Alpha</button>
         <button class="team-b" onclick="selectTeam(2)">Bravo</button>
@@ -485,7 +488,7 @@
         <button onclick="nextMonth()">→</button>
       </div>
       
-      <!-- Calendar Grid -->
+      <!-- Calendar Grid (Full Month View) -->
       <div id="calendarGrid"></div>
       
       <!-- Leave Requests Accordion -->
@@ -543,18 +546,18 @@
     </div>
   </div>
   
-  <!-- PDF Viewer Modal (hidden by default) -->
+  <!-- PDF Viewer Modal (Hidden by Default) -->
   <div id="pdfViewerContainer" style="display: none;"></div>
   
   <script>
-    /* Global config & variables */
+    // Global Config & Variables
     const API_BASE_URL = "https://leave-management.th3va.com";
     let userType = null; // "admin" or "user"
     let currentStaffID = null;
     
     // Define the 6-day shift cycle:
     // Pattern: 2 morning, 2 night, 2 off.
-    // Desired starting shifts based on sample date (e.g., 10 April):
+    // Desired starting shifts on a sample date (e.g., 10 April):
     // - Alpha (Team 1): first off → offset = 1
     // - Bravo (Team 2): first night → offset = 3
     // - Charlie (Team 3): first morning → offset = 5
@@ -573,13 +576,13 @@
     var requests = [];
     var openAccordions = new Set();
     
-    /* Team selection */
+    /* Team Selection: Allow Toggling Shift Pattern */
     function selectTeam(teamNumber) {
       selectedTeam = teamNumber;
       renderCalendar();
     }
     
-    /* Show/hide login forms */
+    /* Show/Hide Login Forms */
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
       document.getElementById("userLoginForm").style.display = "none";
@@ -589,7 +592,7 @@
       document.getElementById("adminLoginForm").style.display = "none";
     }
     
-    /* Admin login using JWT */
+    /* Admin Login */
     async function loginAdmin() {
       const staff_id = document.getElementById("adminUsername").value.trim();
       const password = document.getElementById("adminPassword").value;
@@ -619,7 +622,7 @@
       }
     }
     
-    /* User login using JWT */
+    /* User Login */
     async function loginUser() {
       const staffID = document.getElementById("userStaffID").value.trim();
       const password = document.getElementById("userPassword").value;
@@ -649,7 +652,7 @@
       }
     }
     
-    /* Render UI based on user type */
+    /* Render UI Based on User Type */
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
@@ -660,22 +663,24 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For regular users, display the full calendar as for admin.
+        // For regular users, display the full-month calendar view (same as admin)
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide the monthly summary for users.
+        // Hide monthly summary for regular users.
         document.getElementById("monthlySummary").style.display = "none";
+        // Set staffID field to read-only.
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
+        // Load full leave data so users can toggle shift patterns and compare colleagues.
         await loadLeaves();
         renderCalendar();
         renderAdmin();
       }
     }
     
-    /* Date & shift helpers */
+    /* Date & Shift Helpers */
     function daysBetween(a, b) {
       const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
       const B = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
@@ -694,12 +699,13 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar (for both Admin and User) */
+    /* Render Full-Month Calendar */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January","February","March","April","May","June",
                           "July","August","September","October","November","December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
+      
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
       
@@ -712,7 +718,7 @@
         grid.appendChild(emptyCell);
       }
       
-      // Loop for each day in the month.
+      // Create cells for each day.
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
@@ -720,7 +726,7 @@
         const cell = document.createElement("div");
         cell.className = "day-cell";
         
-        // Always render the shift pattern box.
+        // Render shift pattern box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
@@ -728,45 +734,47 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
-        // Gather leave entries for this day.
+        // Render leave entries (for all staff, so that users can compare).
         const dayEntries = [];
         requests.forEach(req => {
-          // For user logins, show only leaves for the current user.
-          if (userType === "user" && req.staffID !== currentStaffID) return;
           req.days.forEach(day => {
             if (day.date === dateStr) {
               dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
             }
           });
         });
-        // If more than 2 non-rejected entries, show a red dot.
-        const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
-        if (nonRejected > 2) {
+        if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
           const dot = document.createElement("div");
           dot.className = "red-dot";
           cell.appendChild(dot);
         }
-        // Render each leave entry.
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
           entry.textContent = e.staffName + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
+        
         grid.appendChild(cell);
+      }
+      
+      // Fill extra cells so that the grid always has 42 cells (6 rows × 7 columns).
+      const totalUsed = offset + daysInMonth;
+      for (let extra = totalUsed; extra < 42; extra++) {
+        const emptyCell = document.createElement("div");
+        emptyCell.className = "day-cell";
+        grid.appendChild(emptyCell);
       }
       
       renderAdmin();
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load leaves from server */
+    /* Load Leaves (Fetch Full Data for Planning) */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
-        if (userType === "user") {
-          url += `?staffID=${currentStaffID}`;
-        }
+        // Do not filter by staffID so that full data is loaded.
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch leaves");
@@ -778,7 +786,7 @@
       }
     }
     
-    /* Render Leave Requests in Accordion */
+    /* Render Leave Requests Accordion (Show all Colleagues' Leaves) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -795,21 +803,7 @@
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
       let filteredRequests = requests;
-      // For regular user logins, only include their own requests.
-      if (userType === "user") {
-        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
-      } else if (userType === "admin") {
-        const currentDate = new Date();
-        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
-        filteredRequests = requests.filter(req => {
-          return req.days.some(day => {
-            const [year, month] = day.date.split("-").map(Number);
-            const requestYearMonth = year * 12 + (month - 1);
-            return requestYearMonth >= currentYearMonth;
-          });
-        });
-      }
-      
+      // For this version, both admin and user see all leave requests in the accordion.
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
       groupedRequests.forEach((group, groupIndex) => {
         const item = document.createElement("div");
@@ -829,7 +823,7 @@
                   <div class="day-block">
                     <span>${day.date}</span>
                     <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
+                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}">
                       <option value="Pending" ${day.status === "Pending" ? "selected" : ""}>Pending</option>
                       <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
                       <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
@@ -845,11 +839,10 @@
             </div>
           </div>
         `;
-        
         adminList.appendChild(item);
       });
       
-      // Set up accordion toggle.
+      // Accordion Toggle Setup
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -865,7 +858,7 @@
         };
       });
       
-      // Only for admin: attach events for updating leave status and delete.
+      // Admin-Only Event Handlers for Updating Status and Deleting (if admin)
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -947,7 +940,7 @@
       });
     }
     
-    /* Monthly Summary (Admin Only) */
+    /* Render Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
@@ -967,8 +960,7 @@
             allDaysByStaff[staffID] = { staffName, staffID, days: {} };
           }
           req.days.forEach(day => {
-            if (day.date.startsWith(monthStr) &&
-                (day.status === "Approved" || day.status === "Write-in")) {
+            if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
@@ -1085,7 +1077,7 @@
       };
     }
     
-    /* Submit new leave request */
+    /* Submit New Leave Request */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
@@ -1145,7 +1137,7 @@
       await renderCalendar();
     }
     
-    /* Constrain "To" date to same month as "From" date */
+    /* Constrain "To" Date to Same Month as "From" Date */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
@@ -1162,7 +1154,7 @@
       }
     });
     
-    /* Show/hide panels for admin */
+    /* Show/Hide Panels for Admin */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
@@ -1217,9 +1209,7 @@
     async function loadUsers() {
       try {
         const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, {
-          headers: { "Authorization": "Bearer " + token }
-        });
+        const response = await fetch(USERS_API_URL, { headers: { "Authorization": "Bearer " + token } });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
         const tbody = document.querySelector("#usersTable tbody");
@@ -1313,7 +1303,7 @@
       }
     }
     
-    /* On page load */
+    /* On Page Load */
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
