@@ -10,11 +10,11 @@
   <style>
     /* Base Styles */
     body {
-      font-family: Arial, sans-serif; 
-      background: #f5f7fa; 
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
       margin: 0;
-      padding: 10px; 
-      font-size: 13px; 
+      padding: 10px;
+      font-size: 13px;
       color: #333;
       display: flex;
       justify-content: center;
@@ -134,7 +134,7 @@
       cursor: pointer;
       font-size: 12px;
     }
-    /* Shirt colors for three teams */
+    /* Team Shirt Colors */
     .team-a { background: #27ae60; }  /* Dark green */
     .team-b { background: #8fbc8f; }  /* Light green */
     .team-c { background: #dcdcdc; }  /* Grey */
@@ -311,7 +311,7 @@
     .whatsapp-btn:hover {
       background: #20b958;
     }
-    /* Monthly Summary (admin only) */
+    /* Monthly Summary - admin only */
     #monthlySummary {
       padding: 8px;
       border-radius: 6px;
@@ -485,15 +485,16 @@
         <button onclick="nextMonth()">→</button>
       </div>
       
+      <!-- Calendar Grid -->
       <div id="calendarGrid"></div>
       
-      <!-- Leave Requests Accordion View -->
+      <!-- Leave Requests Accordion -->
       <div id="adminSummary">
         <h3>Leave Requests</h3>
         <div id="adminList"></div>
       </div>
       
-      <!-- Monthly Summary: Only visible for Admin -->
+      <!-- Monthly Summary (Admin Only) -->
       <div id="monthlySummary">
         <h3>
           Monthly Leave Summary
@@ -533,9 +534,7 @@
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- Dynamically inserted rows -->
-        </tbody>
+        <tbody><!-- Dynamically inserted rows --></tbody>
       </table>
     </div>
     
@@ -555,20 +554,15 @@
     
     // Define the 6-day shift cycle:
     // Pattern: 2 morning, 2 night, 2 off.
-    // Desired starting shifts on sample date (10 April):
-    // - Alpha (Team 1): first off
-    // - Bravo (Team 2): first night
-    // - Charlie (Team 3): first morning
+    // Desired starting shifts based on sample date (e.g., 10 April):
+    // - Alpha (Team 1): first off → offset = 1
+    // - Bravo (Team 2): first night → offset = 3
+    // - Charlie (Team 3): first morning → offset = 5
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["night", "night", "off", "off", "morning", "morning"],
       3: ["off", "off", "morning", "morning", "night", "night"]
     };
-    // Offsets so that the calculated index aligns with desired starting shift.
-    // For a day difference d (from 1st of the month):
-    // - Team 1: (d + 1) mod 6 should equal 4 (first off) → offset = 1.
-    // - Team 2: (d + 3) mod 6 should equal 0 (first night) → offset = 3.
-    // - Team 3: (d + 5) mod 6 should equal 2 (first morning) → offset = 5.
     const teamOffsets = {1: 1, 2: 3, 3: 5};
     
     var selectedTeam = 1;
@@ -666,12 +660,12 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For regular users, show the calendar with full shift view.
+        // For regular users, display the full calendar as for admin.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide monthly summary for user.
+        // Hide the monthly summary for users.
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
@@ -708,33 +702,36 @@
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
+      
+      // Calculate empty cells before day 1.
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      
-      // Create empty cells for offset.
       for (let i = 0; i < offset; i++) {
-        grid.appendChild(document.createElement("div")).className = "day-cell";
+        const emptyCell = document.createElement("div");
+        emptyCell.className = "day-cell";
+        grid.appendChild(emptyCell);
       }
       
+      // Loop for each day in the month.
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
         const cell = document.createElement("div");
         cell.className = "day-cell";
         
-        // Display shift box.
+        // Always render the shift pattern box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
-                              shift === "night"   ? "shift-box shift-night"   : "shift-box shift-off");
+                              shift === "night" ? "shift-box shift-night" : "shift-box shift-off");
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
         // Gather leave entries for this day.
         const dayEntries = [];
         requests.forEach(req => {
-          // For user logins, only include requests that match currentStaffID.
+          // For user logins, show only leaves for the current user.
           if (userType === "user" && req.staffID !== currentStaffID) return;
           req.days.forEach(day => {
             if (day.date === dateStr) {
@@ -742,21 +739,20 @@
             }
           });
         });
-        
-        // If there are too many non-rejected entries, show a red dot.
+        // If more than 2 non-rejected entries, show a red dot.
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
-          cell.appendChild(document.createElement("div")).className = "red-dot";
+          const dot = document.createElement("div");
+          dot.className = "red-dot";
+          cell.appendChild(dot);
         }
-        
-        // Render leave entries.
+        // Render each leave entry.
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
           entry.textContent = e.staffName + " (" + e.staffID + ")";
           cell.appendChild(entry);
         });
-        
         grid.appendChild(cell);
       }
       
@@ -764,11 +760,10 @@
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load leave requests from server */
+    /* Load leaves from server */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
-        // Optionally, if backend supports filtering:
         if (userType === "user") {
           url += `?staffID=${currentStaffID}`;
         }
@@ -783,7 +778,7 @@
       }
     }
     
-    /* Render Leave Requests in Accordion (filtered by staff for user) */
+    /* Render Leave Requests in Accordion */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -800,11 +795,10 @@
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
       let filteredRequests = requests;
-      // For user logins, only show leave requests of the current user.
+      // For regular user logins, only include their own requests.
       if (userType === "user") {
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
       } else if (userType === "admin") {
-        // Optional: Filter to show future requests.
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -855,7 +849,7 @@
         adminList.appendChild(item);
       });
       
-      // Accordion toggle.
+      // Set up accordion toggle.
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -871,7 +865,7 @@
         };
       });
       
-      // For admin, attach events to update leave status and delete requests.
+      // Only for admin: attach events for updating leave status and delete.
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -953,7 +947,7 @@
       });
     }
     
-    /* Render Monthly Summary (Admin Only) */
+    /* Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
@@ -973,7 +967,8 @@
             allDaysByStaff[staffID] = { staffName, staffID, days: {} };
           }
           req.days.forEach(day => {
-            if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
+            if (day.date.startsWith(monthStr) &&
+                (day.status === "Approved" || day.status === "Write-in")) {
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
@@ -1130,7 +1125,7 @@
       e.target.reset();
     };
     
-    /* Month navigation (Admin Only) */
+    /* Month Navigation (Admin Only) */
     async function prevMonth() {
       if (userType !== "admin") return;
       currentMonth--;
@@ -1199,7 +1194,12 @@
             "Content-Type": "application/json",
             "Authorization": "Bearer " + token
           },
-          body: JSON.stringify({ username: newUsername, staffID: newStaffID, password: newPassword, isAdmin: newIsAdmin })
+          body: JSON.stringify({
+            username: newUsername,
+            staffID: newStaffID,
+            password: newPassword,
+            isAdmin: newIsAdmin
+          })
         });
         const data = await response.json();
         if (data.status === "success") {
@@ -1217,7 +1217,9 @@
     async function loadUsers() {
       try {
         const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, { headers: { "Authorization": "Bearer " + token } });
+        const response = await fetch(USERS_API_URL, {
+          headers: { "Authorization": "Bearer " + token }
+        });
         if (!response.ok) throw new Error("Failed to fetch users");
         const users = await response.json();
         const tbody = document.querySelector("#usersTable tbody");
