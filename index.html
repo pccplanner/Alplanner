@@ -136,7 +136,8 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    .team-c { background: #dcdcdc; }
+    /* CHANGED: Team C now matches green family */
+    .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
     }
@@ -164,7 +165,7 @@
       color: #2c3e50;
     }
     /* Calendar Container */
-    /* Note: For Admin, we use grid (set in JS), for User, we switch to Flexbox (set in JS) */
+    /* (Note: For Admin we use CSS Grid; for User, we switch to Flexbox) */
     #calendarGrid {
       max-width: 850px;
       margin: 0 auto 10px;
@@ -662,7 +663,7 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For users, use Flexbox approach for the calendar.
+        // For users, use Flexbox for the calendar.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
@@ -696,7 +697,10 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar (Admin uses CSS Grid; Users use Flexbox) */
+    /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
+       Performance Optimization:
+       A DocumentFragment is used to batch DOM updates.
+    */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January", "February", "March", "April", "May", "June",
@@ -706,17 +710,18 @@
       grid.innerHTML = "";
       
       if(userType === "user"){
-        // Flexbox approach for user login
+        // Flexbox for User mode.
         grid.style.display = "flex";
         grid.style.flexWrap = "wrap";
         grid.style.gap = "3px";
       } else {
-        // CSS Grid for Admin
+        // CSS Grid for Admin mode.
         grid.style.display = "grid";
         grid.style.gridTemplateColumns = "repeat(7, 1fr)";
         grid.style.gap = "3px";
       }
       
+      const fragment = document.createDocumentFragment();
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -728,9 +733,10 @@
         if(userType === "user"){
           emptyCell.style.flex = "0 0 calc(100% / 7 - 3px)";
         }
-        grid.appendChild(emptyCell);
+        fragment.appendChild(emptyCell);
       }
       
+      // Create day cells.
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
@@ -759,7 +765,7 @@
           });
         });
         
-        // If there are >2 non-rejected leave entries, show a red dot.
+        // If >2 non-rejected entries, add red dot.
         const nonRejected = dayEntries.filter(e => e.status !== "Rejected").length;
         if (nonRejected > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
@@ -773,8 +779,10 @@
           cell.appendChild(entry);
         });
         
-        grid.appendChild(cell);
+        fragment.appendChild(cell);
       }
+      
+      grid.appendChild(fragment);
       
       renderAdmin();
       if (userType === "admin") await renderMonthlySummary();
@@ -798,7 +806,7 @@
       }
     }
     
-    /* Render Leave Requests in Accordion (Admin or User filtered) */
+    /* Render Leave Requests in Accordion (or filtered view for User) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -1101,65 +1109,7 @@
       };
     }
     
-    /* Submit new leave request */
-    document.getElementById("leaveForm").onsubmit = async function(e) {
-      e.preventDefault();
-      const name  = document.getElementById("staffName").value.trim();
-      const id    = document.getElementById("staffID").value.trim();
-      const start = document.getElementById("startDate").value;
-      const end   = document.getElementById("endDate").value;
-      if (!name || !id || !start || !end) {
-        alert("Please fill all fields.");
-        return;
-      }
-      if (end < start) {
-        alert("End date cannot be before start date.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({status: "Pending", staffName: name, staffID: id, fromDate: start, toDate: end})
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Leave request submitted successfully.");
-          await loadLeaves();
-          if (userType === "admin") {
-            await renderCalendar();
-          } else {
-            renderAdmin();
-          }
-        } else {
-          alert("Error: " + data.message);
-        }
-      } catch (error) {
-        console.error("Error submitting leave request:", error);
-        alert("An error occurred. Please try again later.");
-      }
-      e.target.reset();
-    };
-    
-    /* Month navigation (allowed for both Admin and User) */
-    async function prevMonth() {
-      currentMonth--;
-      if (currentMonth < 0) {
-        currentMonth = 11;
-        currentYear--;
-      }
-      await renderCalendar();
-    }
-    async function nextMonth() {
-      currentMonth++;
-      if (currentMonth > 11) {
-        currentMonth = 0;
-        currentYear++;
-      }
-      await renderCalendar();
-    }
-    
-    /* Constrain "To" date to same month as "From" date */
+    /* "To" Date Restriction: Ensure that the To date matches the same month as the Start date */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
@@ -1168,7 +1118,13 @@
         endDateInput.min = startDateValue;
         const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
         endDateInput.max = formatDate(lastDay);
-        endDateInput.value = "";
+        // If the currently selected "To" date is outside the current month, clear it.
+        if (endDateInput.value) {
+          const selectedEnd = new Date(endDateInput.value);
+          if (selectedEnd.getMonth() !== startDate.getMonth()) {
+            endDateInput.value = "";
+          }
+        }
       } else {
         endDateInput.min = "";
         endDateInput.max = "";
