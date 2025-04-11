@@ -78,7 +78,7 @@ def index():
 def login():
     data = request.get_json()
     staff_id = data.get('staff_id')
-    password = data.get('password')
+    password = data.get('password')  # expecting plain text password from client
     if not staff_id or not password:
         return jsonify({'status': 'error', 'message': 'Missing credentials.'}), 400
 
@@ -89,7 +89,7 @@ def login():
     if not user:
         return jsonify({'status': 'error', 'message': 'Invalid credentials.'}), 401
 
-    # Verify password with passlib (bcrypt)
+    # Compare plain text password using bcrypt.verify
     if not bcrypt.verify(password, user['password_hash']):
         return jsonify({'status': 'error', 'message': 'Invalid credentials.'}), 401
 
@@ -107,8 +107,8 @@ def login():
 # ------------------------------
 @app.route('/api/submit_leave', methods=['POST'])
 def submit_leave():
-    """Handles creation of a new leave request, inserting
-       staff_name, staff_id, from_date, to_date, etc."""
+    """Handles creation of a new leave request.
+       Expects plain text password (if any) already handled by the backend."""
     data = request.get_json()
     staff_name = data.get('staffName')  # typed name
     staff_id = data.get('staffID')      # unique staff ID
@@ -129,14 +129,12 @@ def submit_leave():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Insert main leave request record
     cursor.execute('''
         INSERT INTO leave_requests (staff_name, staff_id, from_date, to_date, submission_date)
         VALUES (?, ?, ?, ?, ?)
     ''', (staff_name, staff_id, from_date, to_date, datetime.now().isoformat()))
     request_id = cursor.lastrowid
 
-    # Insert each day's entry in leave_request_days
     current_date = start_dt
     while current_date <= end_dt:
         cursor.execute('''
@@ -151,7 +149,7 @@ def submit_leave():
 
 @app.route('/api/get_leaves', methods=['GET'])
 def get_leaves():
-    """Returns a list of all leave requests, including the daily breakdown."""
+    """Returns a list of all leave requests with daily breakdown."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM leave_requests')
@@ -164,23 +162,20 @@ def get_leaves():
         from_date = datetime.strptime(req_dict['from_date'], '%Y-%m-%d').date()
         to_date = datetime.strptime(req_dict['to_date'], '%Y-%m-%d').date()
 
-        # Convert DB columns to JSON keys staffName/staffID
+        # Rename database fields to JSON keys
         req_dict["staffName"] = req_dict.pop("staff_name", None)
         req_dict["staffID"] = req_dict.pop("staff_id", None)
 
-        # Fetch daily entries
         cursor.execute('SELECT id, date, status FROM leave_request_days WHERE request_id = ?', (request_id,))
         days_rows = cursor.fetchall()
         day_dicts = {row['date']: dict(row) for row in days_rows}
         day_list = []
 
-        # Build a day_list from from_date..to_date
         current_date = from_date
         while current_date <= to_date:
             date_str = current_date.isoformat()
             if date_str in day_dicts:
                 day = day_dicts[date_str]
-                # Rename "Management" to "Write-in" for display
                 if day.get("status") == "Management":
                     day["status"] = "Write-in"
                 day_list.append(day)
@@ -196,7 +191,7 @@ def get_leaves():
 
 @app.route('/api/update_day_status', methods=['POST'])
 def update_day_status():
-    """Updates the status of a single day (by day_id)."""
+    """Updates the status of a single day."""
     data = request.get_json()
     day_id = data.get('day_id')
     new_status = data.get('status')
@@ -205,7 +200,6 @@ def update_day_status():
         return jsonify({'status': 'error', 'message': 'Missing day_id or status.'}), 400
 
     print(f"DEBUG: Updating day_id={day_id} to status '{new_status}'")
-    # If new_status was "Management", rename it to "Write-in"
     if new_status == "Management":
         new_status = "Write-in"
 
@@ -225,7 +219,7 @@ def update_day_status():
 
 @app.route('/api/delete_request', methods=['POST'])
 def delete_request():
-    """Deletes an entire leave request (by request_id)."""
+    """Deletes an entire leave request."""
     data = request.get_json()
     req_id = data.get('request_id')
     if not req_id:
@@ -241,7 +235,7 @@ def delete_request():
 
 @app.route('/api/update_leave_request', methods=['POST'])
 def update_leave_request():
-    """Updates the main details of an existing leave request (staff_name, staff_id, date range)."""
+    """Updates an existing leave request."""
     data = request.get_json()
     req_id = data.get('request_id')
     staff_name = data.get('staffName')
@@ -279,7 +273,7 @@ def update_leave_request():
 @app.route('/api/users', methods=['GET'])
 @token_required_admin
 def list_users():
-    """Lists all users in users_password.db (admin route)."""
+    """Lists all users from users_password.db."""
     print("DEBUG: /api/users [GET] invoked (admin route).")
     conn = get_auth_db_connection()
     cursor = conn.cursor()
@@ -300,17 +294,19 @@ def list_users():
 @app.route('/api/users', methods=['POST'])
 @token_required_admin
 def create_user():
-    """Creates a new user in the users_password.db (admin route)."""
+    """Creates a new user in users_password.db.
+       Expects plain text password from the client."""
     print("DEBUG: /api/users [POST] invoked (admin route).")
     data = request.get_json()
     username = data.get('username')
     staff_id = data.get('staffID')
-    password = data.get('password')
+    password = data.get('password')  # expecting plain text password
     is_admin = data.get('isAdmin', False)
 
     if not all([username, staff_id, password]):
         return jsonify({'status': 'error', 'message': 'Missing fields.'}), 400
 
+    # Hash the plain text password with bcrypt
     password_hash = bcrypt.hash(password)
 
     try:
@@ -330,7 +326,7 @@ def create_user():
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 @token_required_admin
 def update_user(user_id):
-    """Updates a user's username/staff_id in users_password.db (admin route)."""
+    """Updates a user's username and staff_id in users_password.db."""
     print(f"DEBUG: /api/users/{user_id} [PUT] invoked (admin route).")
     data = request.get_json()
     username = data.get('username')
@@ -354,7 +350,7 @@ def update_user(user_id):
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 @token_required_admin
 def delete_user(user_id):
-    """Deletes a user in users_password.db (admin route)."""
+    """Deletes a user in users_password.db."""
     print(f"DEBUG: /api/users/{user_id} [DELETE] invoked (admin route).")
     conn = get_auth_db_connection()
     cursor = conn.cursor()
@@ -366,7 +362,7 @@ def delete_user(user_id):
 @app.route('/api/users/<int:user_id>/toggle_admin', methods=['POST'])
 @token_required_admin
 def toggle_admin(user_id):
-    """Toggles a user's is_admin status in users_password.db (admin route)."""
+    """Toggles a user's is_admin status in users_password.db."""
     print(f"DEBUG: /api/users/{user_id}/toggle_admin [POST] invoked (admin route).")
     conn = get_auth_db_connection()
     cursor = conn.cursor()
@@ -385,7 +381,8 @@ def toggle_admin(user_id):
 @app.route('/api/users/<int:user_id>/reset_password', methods=['POST'])
 @token_required_admin
 def reset_password(user_id):
-    """Resets a user's password in users_password.db (admin route)."""
+    """Resets a user's password in users_password.db.
+       Expects the plain text new password from the client."""
     print(f"DEBUG: /api/users/{user_id}/reset_password [POST] invoked (admin route).")
     data = request.get_json()
     new_password = data.get('newPassword')
@@ -401,7 +398,7 @@ def reset_password(user_id):
     return jsonify({'status': 'success', 'message': 'Password reset successfully.'})
 
 if __name__ == '__main__':
-    # For production, run with waitress on port 80 (requires admin privileges on Windows)
-    serve(app, host='0.0.0.0', port=5002)
-    # For development/testing, you could do:
+    # For production, run with waitress on port 80
+    serve(app, host='0.0.0.0', port=80)
+    # For development/testing, you could use:
     # app.run(debug=True, host='0.0.0.0', port=5000)
