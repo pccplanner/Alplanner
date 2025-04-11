@@ -83,7 +83,7 @@
       border-radius: 4px;
       box-sizing: border-box;
     }
-    /* Setup Modal Styles */
+    /* Setup Modal Styles for First-Time Login */
     #setupModal {
       display: none;
       position: fixed;
@@ -183,7 +183,6 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    /* Reverted Charlie (Team C) to a green family color */
     .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
@@ -497,7 +496,7 @@
     </div>
   </div>
   
-  <!-- Setup Modal: For First-Time Login Setup (Hidden by default) -->
+  <!-- Setup Modal: For First-Time Login Setup -->
   <div id="setupModal">
     <div class="modal-content">
       <h3>Set Up Your Account</h3>
@@ -701,15 +700,17 @@
           body: JSON.stringify({staff_id: staffID, password})
         });
         const data = await response.json();
+        // For simulation, you can force needsSetup to be true:
+        // data.needsSetup = true; // Uncomment this line for testing first-time flow.
+        
         if (response.ok && data.status === "success") {
           localStorage.setItem("token", data.token);
           userType = "user";
           currentStaffID = staffID;
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
-          // Check if this is a first-time login (needs setup)
+          // If the API indicates the user needs to set up their account, show the setup modal.
           if (data.needsSetup) {
-            // Show setup modal
             document.getElementById("setupModal").style.display = "block";
           } else {
             await renderUI();
@@ -722,7 +723,7 @@
       }
     }
     
-    /* Setup Modal Submission */
+    /* Setup Modal Submission for First-Time Login */
     document.getElementById("setupForm").onsubmit = async function(e) {
       e.preventDefault();
       const username = document.getElementById("newUsername").value.trim();
@@ -734,7 +735,7 @@
         return;
       }
       
-      // Call the setup endpoint to update account info
+      // Call your API endpoint to update the account (simulate with your endpoint)
       const token = localStorage.getItem("token") || "";
       try {
         const response = await fetch(`${API_BASE_URL}/api/setup_account`, {
@@ -753,7 +754,7 @@
         const data = await response.json();
         if (data.status === "success") {
           alert("Account setup complete. Please log in again using your new credentials.");
-          // Clear existing token and reload the page to force re-login.
+          // Clear token and force re-login
           localStorage.removeItem("token");
           window.location.reload();
         } else {
@@ -781,7 +782,7 @@
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide monthly summary for user.
+        // Hide monthly summary for users.
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
@@ -811,7 +812,7 @@
     }
     
     /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
-       Uses a DocumentFragment to batch DOM updates for performance.
+       Uses DocumentFragment for performance.
     */
     async function renderCalendar() {
       await loadLeaves();
@@ -821,7 +822,7 @@
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
       
-      if(userType === "user"){
+      if (userType === "user") {
         grid.style.display = "flex";
         grid.style.flexWrap = "wrap";
         grid.style.gap = "3px";
@@ -840,7 +841,7 @@
       for (let i = 0; i < offset; i++) {
         const emptyCell = document.createElement("div");
         emptyCell.className = "day-cell";
-        if(userType === "user"){
+        if (userType === "user") {
           emptyCell.style.flex = "0 0 calc(100% / 7 - 3px)";
         }
         fragment.appendChild(emptyCell);
@@ -852,7 +853,7 @@
         const dateStr = formatDate(dateObj);
         const cell = document.createElement("div");
         cell.className = "day-cell";
-        if(userType === "user"){
+        if (userType === "user") {
           cell.style.flex = "0 0 calc(100% / 7 - 3px)";
         }
         
@@ -890,12 +891,11 @@
       }
       
       grid.appendChild(fragment);
-      
       renderAdmin();
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load leave requests from server */
+    /* Load leave requests from server (simulate actual API calls) */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
@@ -1214,15 +1214,13 @@
     
     /* "From" Date Listener:
        When a start date is selected, update the endDate's minimum to match.
-       (Advanced booking is allowed so endDate is not forced to remain in same month.)
+       Advanced booking is allowed so endDate can be in a different month.
     */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
       if (startDateValue) {
-        // Set the minimum for endDate to be the start date.
         endDateInput.min = startDateValue;
-        // Do not restrict maximum date to allow advanced booking.
         endDateInput.max = "";
       } else {
         endDateInput.min = "";
@@ -1230,9 +1228,7 @@
       }
     });
     
-    /* onsubmit: Final Validation for Leave Request
-       Only check that endDate is not before startDate.
-    */
+    /* onsubmit: Final Validation for Leave Request */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
