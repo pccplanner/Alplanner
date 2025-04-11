@@ -170,273 +170,16 @@
       max-width: 850px;
       margin: 0 auto 10px;
     }
-
     .day-cell {
       background: #fff;
       border: 1px solid #e0e0e0;
       min-height: 60px;
-      max-height: 120px; /* Increase from 80px to 120px */
-      overflow-y: auto;  /* Enable scrolling inside the cell */
       padding: 3px;
       border-radius: 4px;
       font-size: 11px;
-      box-sizing: border-box;
-
-      /* Allow text wrapping, so it doesn't run off the edge */
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-
-    /* (Removed hidden scrollbars so user sees the scroll bar) */
-
-    /* Shift color boxes */
-    .shift-box {
-      font-weight: 600;
-      color: #fff;
-      padding: 2px 4px;
-      border-radius: 3px;
-      text-align: center;
-      margin-bottom: 3px;
-    }
-    .shift-morning { background: #27ae60; }
-    .shift-night   { background: #8fbc8f; }
-    .shift-off     { background: #dcdcdc; color: #444; }
-    /* Leave entry styles */
-    .leave-entry {
-      background: #fff3cd;
-      padding: 2px 4px;
-      border-radius: 3px;
-      margin: 1px 0;
-      display: block; /* So bold name/ID break to new line */
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .leave-entry.approved  { background: #d4edda; font-weight: 600; }
-    .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
-    .leave-entry.write-in  { background: #ffeeba; }
-    .red-dot {
-      width: 6px;
-      height: 6px;
-      background: #e74c3c;
-      border-radius: 50%;
-      position: absolute;
-      top: 3px;
-      right: 3px;
-    }
-    /* Accordion & Summary */
-    #adminSummary {
-      padding: 10px;
-      border-radius: 6px;
-      background: #fff;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    #adminSummary h3 {
-      font-size: 15px;
-      margin: 0 0 8px;
-      color: #2c3e50;
-    }
-    .accordion-item {
-      border: 1px solid #e0e0e0
-
-Below is the complete updated HTML file. In this version, we’ve made these changes so that the calendar cell content does not “run off” on mobile:
-
-1. **Increased** the `.day-cell` maximum height from 80px to **120px** so there’s more room for the content.  
-2. **Removed** the CSS rules that hid the scrollbars (now the scrollbar is visible), so users can see there’s more content if it overflows.  
-3. Kept the text-wrapping rules so that the staff name and ID (with a `<br>` between) display properly.
-
-Feel free to adjust the max-height value if you’d like even more room or fewer lines visible by default.
-
----
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Leave Management System v5.1 (Staff ID Edition)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <!-- Optional: Include jsPDF for PDF generation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  <style>
-    /* Base Styles */
-    body {
-      font-family: Arial, sans-serif; 
-      background: #f5f7fa; 
-      margin: 0;
-      padding: 10px; 
-      font-size: 13px; 
-      color: #333;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-    .container {
-      max-width: 900px;
-      width: 100%;
-      margin: 0 auto;
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      box-sizing: border-box;
-    }
-    h1 {
-      text-align: center;
-      font-size: 18px;
-      margin: 5px 0;
-      color: #2c3e50;
       position: relative;
-    }
-    h1 sup {
-      font-size: 10px;
-      color: #95a5a6;
-      position: absolute;
-      top: -5px;
-    }
-    /* Login Section */
-    #loginSection {
-      max-width: 400px;
-      width: 90%;
-      margin: 0 auto;
-      padding: 20px;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       box-sizing: border-box;
     }
-    #loginSection h2 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    #loginSection button {
-      padding: 10px;
-      width: 100%;
-      margin-bottom: 10px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #loginSection button:hover {
-      background: #2980b9;
-    }
-    #adminLoginForm, #userLoginForm {
-      margin-top: 10px;
-    }
-    #adminLoginForm input, #userLoginForm input {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    /* Leave Management Panel Styles */
-    #leaveForm {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 10px;
-      background: #ecf0f1;
-      border-radius: 6px;
-      margin-bottom: 10px;
-    }
-    #leaveForm label {
-      font-weight: 600;
-      margin-right: 4px;
-      color: #34495e;
-    }
-    #leaveForm input {
-      padding: 5px 8px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-      font-size: 13px;
-      width: 120px;
-      box-sizing: border-box;
-    }
-    #leaveForm input::placeholder {
-      color: #95a5a6;
-    }
-    #leaveForm button {
-      padding: 6px 12px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    #leaveForm button:hover {
-      background: #2980b9;
-    }
-    .team-buttons {
-      text-align: center;
-      margin: 8px 0;
-    }
-    .team-buttons button {
-      padding: 5px 10px;
-      margin: 0 4px;
-      border: none;
-      border-radius: 4px;
-      color: #fff;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .team-a { background: #27ae60; }
-    .team-b { background: #8fbc8f; }
-    /* Reverted Charlie button back to a green family color */
-    .team-c { background: #1abc9c; }
-    .team-buttons button:hover {
-      opacity: 0.85;
-    }
-    /* Month Navigation */
-    .month-nav {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-      margin: 8px 0;
-    }
-    .month-nav button {
-      padding: 4px 10px;
-      background: #7f8c8d;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .month-nav button:hover {
-      background: #6c7a89;
-    }
-    #monthLabel {
-      font-weight: 600;
-      color: #2c3e50;
-    }
-    /* Calendar Container */
-    /* (For Admin: CSS Grid; For User: Flexbox) */
-    #calendarGrid {
-      max-width: 850px;
-      margin: 0 auto 10px;
-    }
-    .day-cell {
-      background: #fff;
-      border: 1px solid #e0e0e0;
-      min-height: 60px;
-      max-height: 120px;  /* Increased max-height for more room */
-      overflow-y: auto;   /* Allow scrolling if content overflows */
-      padding: 3px;
-      border-radius: 4px;
-      font-size: 11px;
-      box-sizing: border-box;
-      /* Allow text wrapping */
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    /* (Note: Removed hidden-scrollbar rules so scrollbars are visible) */
     /* Shift color boxes */
     .shift-box {
       font-weight: 600;
@@ -455,9 +198,7 @@ Feel free to adjust the max-height value if you’d like even more room or fewer
       padding: 2px 4px;
       border-radius: 3px;
       margin: 1px 0;
-      display: block; /* So text wraps on separate lines */
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+      display: inline-block;
     }
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
@@ -1028,8 +769,7 @@ Feel free to adjust the max-height value if you’d like even more room or fewer
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
-          // Display name (bold) and ID on a new line.
-          entry.innerHTML = `<strong>${e.staffName}</strong><br>(${e.staffID})`;
+          entry.textContent = `${e.staffName} (${e.staffID})`;
           cell.appendChild(entry);
         });
         
