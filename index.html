@@ -136,7 +136,6 @@
     }
     .team-a { background: #27ae60; }
     .team-b { background: #8fbc8f; }
-    /* Reverted Charlie button back to a green family color */
     .team-c { background: #1abc9c; }
     .team-buttons button:hover {
       opacity: 0.85;
@@ -165,7 +164,6 @@
       color: #2c3e50;
     }
     /* Calendar Container */
-    /* (For Admin: CSS Grid; For User: Flexbox) */
     #calendarGrid {
       max-width: 850px;
       margin: 0 auto 10px;
@@ -180,7 +178,6 @@
       position: relative;
       box-sizing: border-box;
     }
-    /* Shift color boxes */
     .shift-box {
       font-weight: 600;
       color: #fff;
@@ -192,7 +189,6 @@
     .shift-morning { background: #27ae60; }
     .shift-night   { background: #8fbc8f; }
     .shift-off     { background: #dcdcdc; color: #444; }
-    /* Leave entry styles */
     .leave-entry {
       background: #fff3cd;
       padding: 2px 4px;
@@ -430,6 +426,27 @@
       color: #95a5a6;
       margin-top: 10px;
     }
+
+    /* Responsive Adjustments for Mobile */
+    @media screen and (max-width: 600px) {
+      #calendarGrid {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 3px;
+        justify-content: space-between;
+      }
+      .day-cell {
+        flex: 0 0 calc(100% / 7 - 3px);
+        min-height: 70px;
+      }
+      .shift-box {
+        font-size: 11px;
+        padding: 2px;
+      }
+      .leave-entry {
+        font-size: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -663,12 +680,10 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
-        // For users, use Flexbox for the calendar.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
-        // Hide monthly summary for user.
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
@@ -697,9 +712,7 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
-       Uses a DocumentFragment to batch DOM updates for performance.
-    */
+    /* Render Calendar */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January", "February", "March", "April", "May", "June",
@@ -723,7 +736,6 @@
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       
-      // Create empty cells for offset.
       for (let i = 0; i < offset; i++) {
         const emptyCell = document.createElement("div");
         emptyCell.className = "day-cell";
@@ -733,7 +745,6 @@
         fragment.appendChild(emptyCell);
       }
       
-      // Create day cells.
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
@@ -743,7 +754,6 @@
           cell.style.flex = "0 0 calc(100% / 7 - 3px)";
         }
         
-        // Display shift box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
@@ -751,7 +761,6 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
-        // Gather leave entries.
         const dayEntries = [];
         requests.forEach(req => {
           if (userType === "user" && req.staffID !== currentStaffID) return;
@@ -782,7 +791,6 @@
       if (userType === "admin") await renderMonthlySummary();
     }
     
-    /* Load leave requests from server */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
@@ -798,7 +806,6 @@
       }
     }
     
-    /* Render Leave Requests in Accordion (Admin or filtered view for User) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -964,7 +971,6 @@
       });
     }
     
-    /* Render Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
@@ -1043,7 +1049,6 @@
       }
     }
     
-    /* PDF Download with Exit Button (Admin Only) */
     async function downloadSummaryPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -1099,17 +1104,11 @@
       };
     }
     
-    /* "From" Date Listener:
-       When a start date is selected, update the endDate's minimum to match.
-       (Reverts to allowing advanced booking so that endDate is not forcibly confined to the same month.)
-    */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
       if (startDateValue) {
-        // Set the minimum for endDate to be the start date.
         endDateInput.min = startDateValue;
-        // Optionally, you might not set a max if advanced leave booking is allowed.
         endDateInput.max = "";
       } else {
         endDateInput.min = "";
@@ -1117,10 +1116,6 @@
       }
     });
     
-    /* onsubmit: Final Validation
-       Remove the previous same-month enforcement so that advanced booking is possible.
-       Only validate that endDate is not before startDate.
-    */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
@@ -1166,7 +1161,6 @@
       e.target.reset();
     };
     
-    /* Month navigation (allowed for both Admin and User) */
     async function prevMonth() {
       currentMonth--;
       if (currentMonth < 0) {
@@ -1184,7 +1178,6 @@
       await renderCalendar();
     }
     
-    /* Show/hide panels for Admin */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
@@ -1195,7 +1188,6 @@
       loadUsers();
     }
     
-    /* User Management (Admin Only) */
     const USERS_API_URL = API_BASE_URL + "/api/users";
     
     document.getElementById("addUserForm").onsubmit = async function(e) {
@@ -1328,7 +1320,6 @@
       }
     }
     
-    /* On page load */
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
