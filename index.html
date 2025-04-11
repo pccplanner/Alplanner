@@ -54,9 +54,9 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       box-sizing: border-box;
-      text-align: center;
     }
     #loginSection h2 {
+      text-align: center;
       margin-bottom: 20px;
     }
     #loginSection button {
@@ -71,13 +71,6 @@
     }
     #loginSection button:hover {
       background: #2980b9;
-    }
-    /* New: Registration Button (placed in the login section) */
-    #registerButton {
-      background: #2ecc71;
-    }
-    #registerButton:hover {
-      background: #27ae60;
     }
     #adminLoginForm, #userLoginForm {
       margin-top: 10px;
@@ -135,53 +128,6 @@
       cursor: pointer;
     }
     #setupModal button:hover {
-      background: #2980b9;
-    }
-    /* Registration Modal Styles for New Users */
-    #registerModal {
-      display: none;
-      position: fixed;
-      z-index: 2000;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-    }
-    #registerModal .modal-content {
-      width: 90%;
-      max-width: 400px;
-      margin: 10% auto;
-      padding: 20px;
-      background: #fff;
-      border-radius: 8px;
-    }
-    #registerModal h3 {
-      margin-top: 0;
-      text-align: center;
-    }
-    #registerModal label {
-      display: block;
-      margin: 8px 0 4px;
-    }
-    #registerModal input {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    #registerModal button {
-      width: 100%;
-      padding: 10px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #registerModal button:hover {
       background: #2980b9;
     }
     /* Leave Management Panel Styles */
@@ -538,8 +484,6 @@
     <h2>Login</h2>
     <button onclick="showAdminLogin()">Login as Admin</button>
     <button onclick="showUserLogin()">Login as User</button>
-    <!-- New Registration Button -->
-    <button id="registerButton" onclick="showRegisterModal()">Register New Account</button>
     <div id="adminLoginForm" style="display: none;">
       <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
       <input type="password" id="adminPassword" placeholder="Password">
@@ -563,27 +507,8 @@
         <input type="password" id="newPassword" required>
         <label>Confirm Password</label>
         <input type="password" id="confirmPassword" required>
-        <button type="submit">Save &amp; Re-Login</button>
+        <button type="submit">Save & Re-Login</button>
       </form>
-    </div>
-  </div>
-  
-  <!-- Registration Modal: For New User Registration -->
-  <div id="registerModal">
-    <div class="modal-content">
-      <h3>Register New Account</h3>
-      <form id="registerForm">
-        <label>Full Name</label>
-        <input type="text" id="regFullName" required>
-        <label>Staff ID</label>
-        <input type="text" id="regStaffID" required>
-        <label>Password</label>
-        <input type="password" id="regPassword" required>
-        <label>Confirm Password</label>
-        <input type="password" id="regConfirmPassword" required>
-        <button type="submit">Register</button>
-      </form>
-      <button onclick="hideRegisterModal()" style="margin-top: 10px; background: #e74c3c;">Cancel</button>
     </div>
   </div>
   
@@ -741,11 +666,12 @@
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ staff_id, password })
+          body: JSON.stringify({staff_id, password})
         });
         const data = await response.json();
         if (response.ok && data.status === "success") {
           localStorage.setItem("token", data.token);
+          // Assume admins are already set up.
           userType = "admin";
           currentStaffID = null;
           document.getElementById("loginSection").style.display = "none";
@@ -771,17 +697,19 @@
         const response = await fetch(`${API_BASE_URL}/api/login`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ staff_id: staffID, password })
+          body: JSON.stringify({staff_id: staffID, password})
         });
         const data = await response.json();
-        // For testing first-time flow, you can force needsSetup:
-        data.needsSetup = true; // Remove or comment out after testing.
+        // For simulation, you can force needsSetup to be true:
+        data.needsSetup = true; // Uncomment this line for testing first-time flow.
+        
         if (response.ok && data.status === "success") {
           localStorage.setItem("token", data.token);
           userType = "user";
           currentStaffID = staffID;
           document.getElementById("loginSection").style.display = "none";
           document.querySelector(".container").style.display = "block";
+          // If the API indicates the user needs to set up their account, show the setup modal.
           if (data.needsSetup) {
             document.getElementById("setupModal").style.display = "block";
           } else {
@@ -806,6 +734,8 @@
         alert("Passwords do not match. Please try again.");
         return;
       }
+      
+      // Call your API endpoint to update the account (simulate with your endpoint)
       const token = localStorage.getItem("token") || "";
       try {
         const response = await fetch(`${API_BASE_URL}/api/setup_account`, {
@@ -820,9 +750,11 @@
             staffID: currentStaffID
           })
         });
+        
         const data = await response.json();
         if (data.status === "success") {
           alert("Account setup complete. Please log in again using your new credentials.");
+          // Clear token and force re-login
           localStorage.removeItem("token");
           window.location.reload();
         } else {
@@ -831,43 +763,6 @@
       } catch (err) {
         console.error("Setup error:", err);
         alert("An error occurred during setup. Please try again later.");
-      }
-    };
-    
-    /* Registration Modal Functions */
-    function showRegisterModal() {
-      document.getElementById("registerModal").style.display = "block";
-    }
-    function hideRegisterModal() {
-      document.getElementById("registerModal").style.display = "none";
-    }
-    document.getElementById("registerForm").onsubmit = async function(e) {
-      e.preventDefault();
-      const fullName = document.getElementById("regFullName").value.trim();
-      const staffID = document.getElementById("regStaffID").value.trim();
-      const password = document.getElementById("regPassword").value;
-      const confirmPassword = document.getElementById("regConfirmPassword").value;
-      if (password !== confirmPassword) {
-        alert("Passwords do not match. Please try again.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/register`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ fullName, staffID, password })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Registration successful! Please log in using your new credentials.");
-          hideRegisterModal();
-          window.location.reload();
-        } else {
-          alert("Registration failed: " + data.message);
-        }
-      } catch (err) {
-        console.error("Registration error:", err);
-        alert("An error occurred during registration. Please try again later.");
       }
     };
     
@@ -882,10 +777,12 @@
         renderAdmin();
         await renderMonthlySummary();
       } else if (userType === "user") {
+        // For users, use Flexbox for the calendar.
         document.getElementById("adminTabs").style.display = "none";
         document.querySelector(".team-buttons").style.display = "block";
         document.querySelector(".month-nav").style.display = "flex";
         document.getElementById("calendarGrid").style.display = "block";
+        // Hide monthly summary for users.
         document.getElementById("monthlySummary").style.display = "none";
         document.getElementById("staffID").value = currentStaffID;
         document.getElementById("staffID").readOnly = true;
@@ -914,7 +811,9 @@
       return TeamPatterns[selectedTeam][idx];
     }
     
-    /* Render Calendar */
+    /* Render Calendar: Using CSS Grid for Admin and Flexbox for User.
+       Uses DocumentFragment for performance.
+    */
     async function renderCalendar() {
       await loadLeaves();
       const monthNames = ["January", "February", "March", "April", "May", "June",
@@ -938,6 +837,7 @@
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       
+      // Create empty cells for offset.
       for (let i = 0; i < offset; i++) {
         const emptyCell = document.createElement("div");
         emptyCell.className = "day-cell";
@@ -947,6 +847,7 @@
         fragment.appendChild(emptyCell);
       }
       
+      // Create day cells.
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
@@ -956,6 +857,7 @@
           cell.style.flex = "0 0 calc(100% / 7 - 3px)";
         }
         
+        // Display shift box.
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
         shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
@@ -963,6 +865,7 @@
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
+        // Gather leave entries.
         const dayEntries = [];
         requests.forEach(req => {
           if (userType === "user" && req.staffID !== currentStaffID) return;
@@ -992,6 +895,7 @@
       if (userType === "admin") await renderMonthlySummary();
     }
     
+    /* Load leave requests from server (simulate actual API calls) */
     async function loadLeaves() {
       try {
         let url = `${API_BASE_URL}/api/get_leaves`;
@@ -1007,6 +911,7 @@
       }
     }
     
+    /* Render Leave Requests in Accordion (Admin or filtered view for User) */
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach((req, reqIndex) => {
@@ -1072,6 +977,7 @@
             </div>
           </div>
         `;
+        
         adminList.appendChild(item);
       });
       
@@ -1171,6 +1077,7 @@
       });
     }
     
+    /* Render Monthly Summary (Admin Only) */
     async function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
@@ -1249,6 +1156,7 @@
       }
     }
     
+    /* PDF Download with Exit Button (Admin Only) */
     async function downloadSummaryPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -1304,7 +1212,10 @@
       };
     }
     
-    /* "From" Date Listener: Advanced booking is allowed */
+    /* "From" Date Listener:
+       When a start date is selected, update the endDate's minimum to match.
+       Advanced booking is allowed so endDate can be in a different month.
+    */
     document.getElementById("startDate").addEventListener("change", function() {
       const startDateValue = this.value;
       const endDateInput = document.getElementById("endDate");
@@ -1317,7 +1228,7 @@
       }
     });
     
-    /* Leave Request Form Submission */
+    /* onsubmit: Final Validation for Leave Request */
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name  = document.getElementById("staffName").value.trim();
@@ -1363,6 +1274,7 @@
       e.target.reset();
     };
     
+    /* Month navigation (allowed for both Admin and User) */
     async function prevMonth() {
       currentMonth--;
       if (currentMonth < 0) {
@@ -1380,6 +1292,7 @@
       await renderCalendar();
     }
     
+    /* Show/hide panels for Admin */
     function showLeaveManagement() {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
@@ -1390,6 +1303,7 @@
       loadUsers();
     }
     
+    /* User Management (Admin Only) */
     const USERS_API_URL = API_BASE_URL + "/api/users";
     
     document.getElementById("addUserForm").onsubmit = async function(e) {
@@ -1522,6 +1436,7 @@
       }
     }
     
+    /* On page load */
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginSection").style.display = "block";
       document.querySelector(".container").style.display = "none";
