@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.1 (Staff ID Edition)</title>
+  <title>Leave Management System v5.2 (Self-Registration Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- Optional: Include jsPDF for PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -72,10 +72,14 @@
     #loginSection button:hover {
       background: #2980b9;
     }
-    #adminLoginForm, #userLoginForm {
+    #adminLoginForm,
+    #userLoginForm,
+    #userRegisterForm {
       margin-top: 10px;
     }
-    #adminLoginForm input, #userLoginForm input {
+    #adminLoginForm input,
+    #userLoginForm input,
+    #userRegisterForm input {
       width: 100%;
       padding: 8px;
       margin-bottom: 10px;
@@ -83,6 +87,7 @@
       border-radius: 4px;
       box-sizing: border-box;
     }
+
     /* Leave Management Panel Styles */
     #leaveForm {
       display: flex;
@@ -281,10 +286,10 @@
       height: 8px;
       border-radius: 50%;
     }
-    .status-dot.pending     { background: #e67e22; }
-    .status-dot.approved    { background: #27ae60; }
-    .status-dot.rejected    { background: #e74c3c; }
-    .status-dot.write-in    { background: #f1c40f; }
+    .status-dot.pending   { background: #e67e22; }
+    .status-dot.approved  { background: #27ae60; }
+    .status-dot.rejected  { background: #e74c3c; }
+    .status-dot.write-in  { background: #f1c40f; }
     .action-buttons {
       margin-top: 6px;
       text-align: right;
@@ -426,7 +431,6 @@
       color: #95a5a6;
       margin-top: 10px;
     }
-
     /* Responsive Adjustments for Mobile */
     @media screen and (max-width: 600px) {
       #calendarGrid {
@@ -455,21 +459,35 @@
     <h2>Login</h2>
     <button onclick="showAdminLogin()">Login as Admin</button>
     <button onclick="showUserLogin()">Login as User</button>
+    
+    <!-- Admin Login Form -->
     <div id="adminLoginForm" style="display: none;">
       <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
       <input type="password" id="adminPassword" placeholder="Password">
       <button onclick="loginAdmin()">Login</button>
     </div>
+    
+    <!-- User Login Form -->
     <div id="userLoginForm" style="display: none;">
       <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
       <input type="password" id="userPassword" placeholder="Password">
       <button onclick="loginUser()">Login</button>
+      <!-- New Register button (for brand-new users) -->
+      <button onclick="showRegisterForm()">Register as New User</button>
+    </div>
+    
+    <!-- User Registration Form (hidden by default) -->
+    <div id="userRegisterForm" style="display: none;">
+      <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)">
+      <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)">
+      <input type="password" id="regPassword" placeholder="Password">
+      <button onclick="registerUser()">Register</button>
     </div>
   </div>
   
   <!-- Main Container (hidden until login) -->
   <div class="container" style="display: none;">
-    <h1>Leave Management System <sup>v5.1</sup></h1>
+    <h1>Leave Management System <sup>v5.2</sup></h1>
     
     <!-- Admin Tabs (Visible only for Admin) -->
     <div id="adminTabs" style="display: none;">
@@ -603,10 +621,19 @@
     function showAdminLogin() {
       document.getElementById("adminLoginForm").style.display = "block";
       document.getElementById("userLoginForm").style.display = "none";
+      document.getElementById("userRegisterForm").style.display = "none";
     }
     function showUserLogin() {
       document.getElementById("userLoginForm").style.display = "block";
       document.getElementById("adminLoginForm").style.display = "none";
+      document.getElementById("userRegisterForm").style.display = "none";
+    }
+    function showRegisterForm() {
+      // Hide other forms first
+      document.getElementById("adminLoginForm").style.display = "none";
+      document.getElementById("userLoginForm").style.display = "none";
+      // Show the registration form
+      document.getElementById("userRegisterForm").style.display = "block";
     }
     
     /* Admin login using JWT */
@@ -666,6 +693,41 @@
         }
       } catch (err) {
         alert("Login error: " + err.message);
+      }
+    }
+    
+    /* Self-Registration (New User) */
+    async function registerUser() {
+      const username = document.getElementById("regUsername").value.trim();
+      const staffID  = document.getElementById("regStaffID").value.trim();
+      const password = document.getElementById("regPassword").value;
+      
+      if (!username || !staffID || !password) {
+        alert("Please fill in all fields.");
+        return;
+      }
+      try {
+        // isAdmin = false for newly registered users
+        const response = await fetch(`${API_BASE_URL}/api/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: username,
+            staffID: staffID,
+            password: password,
+            isAdmin: false
+          })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          alert("Registration successful! You can now log in as a user.");
+          // Switch back to user login form
+          showUserLogin();
+        } else {
+          alert("Registration failed: " + (data.message || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Registration error: " + err.message);
       }
     }
     
@@ -736,6 +798,7 @@
       const offset = (firstDay.getDay() + 6) % 7;
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       
+      // Empty cells before 1st
       for (let i = 0; i < offset; i++) {
         const emptyCell = document.createElement("div");
         emptyCell.className = "day-cell";
@@ -745,6 +808,7 @@
         fragment.appendChild(emptyCell);
       }
       
+      // Actual days
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
@@ -756,8 +820,9 @@
         
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
-        shiftBox.className = (shift === "morning" ? "shift-box shift-morning" :
-                              shift === "night"   ? "shift-box shift-night" : "shift-box shift-off");
+        shiftBox.className = (shift === "morning") ? "shift-box shift-morning"
+                         : (shift === "night")   ? "shift-box shift-night"
+                                                 : "shift-box shift-off";
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
@@ -771,10 +836,12 @@
           });
         });
         
+        // If more than 2 (non-rejected) leaves on the same day, show red dot
         if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
           cell.appendChild(document.createElement("div")).className = "red-dot";
         }
         
+        // Show each leave entry
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
           entry.className = "leave-entry " + e.status.toLowerCase();
@@ -787,8 +854,11 @@
       
       grid.appendChild(fragment);
       
+      // Re-render admin summary, monthly summary
       renderAdmin();
-      if (userType === "admin") await renderMonthlySummary();
+      if (userType === "admin") {
+        await renderMonthlySummary();
+      }
     }
     
     async function loadLeaves() {
@@ -822,9 +892,13 @@
       const adminList = document.getElementById("adminList");
       adminList.innerHTML = "";
       let filteredRequests = requests;
+      
+      // If user, only their leaves
       if (userType === "user") {
         filteredRequests = requests.filter(req => req.staffID === currentStaffID);
-      } else if (userType === "admin") {
+      }
+      // If admin, show requests from current month onward only
+      else if (userType === "admin") {
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -840,23 +914,29 @@
       groupedRequests.forEach((group, groupIndex) => {
         const item = document.createElement("div");
         item.className = "accordion-item";
+        
         const totalDays = group.requests.reduce((sum, r) => sum + r.days.length, 0);
-        const pendingCount = group.requests.reduce((sum, r) => sum + r.days.filter(d => d.status === "Pending").length, 0);
+        const pendingCount = group.requests.reduce((sum, r) =>
+          sum + r.days.filter(d => d.status === "Pending").length, 0
+        );
         
         item.innerHTML = `
           <div class="accordion-header" data-index="${groupIndex}">
             <span>${group.staffName} (${group.staffID})</span>
-            <span class="badge ${pendingCount > 0 ? "pending" : ""}">${totalDays} days (${pendingCount} pending)</span>
+            <span class="badge ${pendingCount > 0 ? "pending" : ""}">
+              ${totalDays} days (${pendingCount} pending)
+            </span>
           </div>
-          <div class="accordion-content" data-index="${groupIndex}">
+          <div class="accordion-content" data-index="${groupIndex}" style="display: none;">
             ${group.requests.map((req, reqIdx) => `
               <div class="timeline">
                 ${req.days.map((day, dayIndex) => `
                   <div class="day-block">
                     <span>${day.date}</span>
                     <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" ${userType === "user" ? "disabled" : ""}>
-                      <option value="Pending" ${day.status === "Pending" ? "selected" : ""}>Pending</option>
+                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" 
+                            ${userType === "user" ? "disabled" : ""}>
+                      <option value="Pending"  ${day.status === "Pending" ? "selected" : ""}>Pending</option>
                       <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
                       <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
                       <option value="Write-in" ${day.status === "Write-in" ? "selected" : ""}>Write-in</option>
@@ -871,10 +951,10 @@
             </div>
           </div>
         `;
-        
         adminList.appendChild(item);
       });
       
+      // Accordion toggles
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const index = header.getAttribute("data-index");
         const content = header.nextElementSibling;
@@ -890,6 +970,7 @@
         };
       });
       
+      // Dropdown status changes
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
@@ -897,6 +978,7 @@
           const reqIndexWithinGroup = sel.getAttribute("data-req");
           const dayIndex = sel.getAttribute("data-day");
           const newStatus = sel.value;
+          
           const group = groupedRequests[groupIndex];
           const req = group.requests[reqIndexWithinGroup];
           const day_id = req.days[dayIndex].id;
@@ -910,9 +992,7 @@
               headers: {"Content-Type": "application/json"},
               body: JSON.stringify({ day_id, status: newStatus })
             });
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             if (data.status === "success") {
               await loadLeaves();
@@ -928,6 +1008,7 @@
         };
       });
       
+      // Delete entire request group (admin only)
       if (userType === "admin") {
         adminList.querySelectorAll(".delete-btn").forEach(btn => {
           btn.onclick = async function() {
@@ -958,14 +1039,15 @@
         });
       }
       
+      // WhatsApp button
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const groupIndex = btn.getAttribute("data-group");
           const group = groupedRequests[groupIndex];
           const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
-                      group.requests.map((req, i) =>
-                        `Request ${i+1}:\n` + req.days.map(d => `${d.date}: ${d.status}`).join('\n')
-                      ).join('\n\n');
+            group.requests.map((req, i) =>
+              `Request ${i + 1}:\n` + req.days.map(d => `${d.date}: ${d.status}`).join('\n')
+            ).join('\n\n');
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
         };
       });
@@ -979,8 +1061,11 @@
         const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
         if (!response.ok) throw new Error("Failed to fetch leave requests");
         const allRequests = await response.json();
+        
         const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
         const allDaysByStaff = {};
+        
+        // Build a map of staff -> { days: { date -> status } }
         allRequests.forEach(req => {
           const staffID = req.staffID;
           const staffName = req.staffName;
@@ -988,23 +1073,34 @@
             allDaysByStaff[staffID] = { staffName, staffID, days: {} };
           }
           req.days.forEach(day => {
-            if (day.date.startsWith(monthStr) && (day.status === "Approved" || day.status === "Write-in")) {
+            if (day.date.startsWith(monthStr) && 
+               (day.status === "Approved" || day.status === "Write-in")) {
+              // "Approved" overrides "Write-in" if same date
               if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
                 allDaysByStaff[staffID].days[day.date] = day.status;
               }
             }
           });
         });
-        const groupedRequests = Object.values(allDaysByStaff).filter(g => Object.keys(g.days).length > 0);
+        
+        // Filter out staff with no days
+        const groupedRequests = Object.values(allDaysByStaff).filter(
+          g => Object.keys(g.days).length > 0
+        );
+        
         groupedRequests.forEach(group => {
           const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
+          // Sort by date ascending
           dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+          
+          // Collect consecutive date ranges with the same status
           const ranges = [];
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
             const prevDate = new Date(currentRange[currentRange.length - 1].date);
             const currDate = new Date(dayEntries[i].date);
-            if (daysBetween(prevDate, currDate) === 1 && currentRange[0].status === dayEntries[i].status) {
+            if (daysBetween(prevDate, currDate) === 1 && 
+                currentRange[0].status === dayEntries[i].status) {
               currentRange.push(dayEntries[i]);
             } else {
               ranges.push(currentRange);
@@ -1012,6 +1108,7 @@
             }
           }
           if (currentRange.length > 0) ranges.push(currentRange);
+          
           const totalDays = dayEntries.length;
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -1034,17 +1131,22 @@
           `;
           summaryTableBody.appendChild(row);
         });
+        
         if (summaryTableBody.children.length === 0) {
           const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
-            No approved or write-in leave requests for this month.</td>`;
+          row.innerHTML = `
+            <td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
+              No approved or write-in leave requests for this month.
+            </td>`;
           summaryTableBody.appendChild(row);
         }
       } catch (error) {
         console.error("Error fetching monthly summary:", error);
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
-          Error loading summary. Please try again later.</td>`;
+        row.innerHTML = `
+          <td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
+            Error loading summary. Please try again later.
+          </td>`;
         summaryTableBody.appendChild(row);
       }
     }
