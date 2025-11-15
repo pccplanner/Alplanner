@@ -2,549 +2,163 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Leave Management System v5.2 (Self-Registration Edition)</title>
+  <title>Leave Management System (Firebase Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <!-- Optional: Include jsPDF for PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!--
+    NOTE: The original CSS has been replaced with Tailwind CSS for a cleaner look
+    and to ensure all styles are self-contained.
+  -->
   <style>
     /* Base Styles */
     body {
       font-family: Arial, sans-serif; 
-      background: #f5f7fa; 
-      margin: 0;
-      padding: 10px; 
       font-size: 13px; 
-      color: #333;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
     }
-    .container {
-      max-width: 900px;
-      width: 100%;
-      margin: 0 auto;
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      box-sizing: border-box;
-    }
-    h1 {
-      text-align: center;
-      font-size: 18px;
-      margin: 5px 0;
-      color: #2c3e50;
-      position: relative;
-    }
-    h1 sup {
-      font-size: 10px;
-      color: #95a5a6;
-      position: absolute;
-      top: -5px;
-    }
-    /* Login Section */
-    #loginSection {
-      max-width: 400px;
-      width: 90%;
-      margin: 0 auto;
-      padding: 20px;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      box-sizing: border-box;
-    }
-    #loginSection h2 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    #loginSection button {
-      padding: 10px;
-      width: 100%;
-      margin-bottom: 10px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #loginSection button:hover {
-      background: #2980b9;
-    }
-    #adminLoginForm,
-    #userLoginForm,
-    #userRegisterForm {
-      margin-top: 10px;
-    }
-    #adminLoginForm input,
-    #userLoginForm input,
-    #userRegisterForm input {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    /* Leave Management Panel Styles */
-    #leaveForm {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 10px;
-      background: #ecf0f1;
-      border-radius: 6px;
-      margin-bottom: 10px;
-    }
-    #leaveForm label {
-      font-weight: 600;
-      margin-right: 4px;
-      color: #34495e;
-    }
-    #leaveForm input {
-      padding: 5px 8px;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-      font-size: 13px;
-      width: 120px;
-      box-sizing: border-box;
-    }
-    #leaveForm input::placeholder {
-      color: #95a5a6;
-    }
-    #leaveForm button {
-      padding: 6px 12px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    #leaveForm button:hover {
-      background: #2980b9;
-    }
-    .team-buttons {
-      text-align: center;
-      margin: 8px 0;
-    }
-    .team-buttons button {
-      padding: 5px 10px;
-      margin: 0 4px;
-      border: none;
-      border-radius: 4px;
-      color: #fff;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .team-a { background: #27ae60; }
-    .team-b { background: #8fbc8f; }
-    .team-c { background: #1abc9c; }
-    .team-buttons button:hover {
-      opacity: 0.85;
-    }
-    /* Month Navigation */
-    .month-nav {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-      margin: 8px 0;
-    }
-    .month-nav button {
-      padding: 4px 10px;
-      background: #7f8c8d;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .month-nav button:hover {
-      background: #6c7a89;
-    }
-    #monthLabel {
-      font-weight: 600;
-      color: #2c3e50;
-    }
-    /* Calendar Container */
-    #calendarGrid {
-      max-width: 850px;
-      margin: 0 auto 10px;
-    }
-    .day-cell {
-      background: #fff;
-      border: 1px solid #e0e0e0;
-      min-height: 60px;
-      padding: 3px;
-      border-radius: 4px;
-      font-size: 11px;
-      position: relative;
-      box-sizing: border-box;
-    }
-    .shift-box {
-      font-weight: 600;
-      color: #fff;
-      padding: 2px 4px;
-      border-radius: 3px;
-      text-align: center;
-      margin-bottom: 3px;
-    }
+    /* Custom styles from original file (for calendar shifts) */
     .shift-morning { background: #27ae60; }
     .shift-night   { background: #8fbc8f; }
     .shift-off     { background: #dcdcdc; color: #444; }
-    .leave-entry {
-      background: #fff3cd;
-      padding: 2px 4px;
-      border-radius: 3px;
-      margin: 1px 0;
-      display: inline-block;
-    }
+    /* Custom styles for leave entries */
+    .leave-entry.pending   { background: #fff3cd; }
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
     .leave-entry.write-in  { background: #ffeeba; }
-    .red-dot {
-      width: 6px;
-      height: 6px;
-      background: #e74c3c;
-      border-radius: 50%;
-      position: absolute;
-      top: 3px;
-      right: 3px;
-    }
-    /* Accordion & Summary */
-    #adminSummary {
-      padding: 10px;
-      border-radius: 6px;
-      background: #fff;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    #adminSummary h3 {
-      font-size: 15px;
-      margin: 0 0 8px;
-      color: #2c3e50;
-    }
-    .accordion-item {
-      border: 1px solid #e0e0e0;
-      margin-bottom: 5px;
-      border-radius: 4px;
-    }
-    .accordion-header {
-      padding: 8px;
-      background: #f7f9fb;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .accordion-header:hover {
-      background: #eef2f5;
-    }
-    .accordion-header span {
-      font-weight: 600;
-      color: #34495e;
-    }
-    .badge {
-      background: #3498db;
-      color: #fff;
-      padding: 2px 6px;
-      border-radius: 12px;
-      font-size: 11px;
-    }
-    .badge.pending { background: #e67e22; }
-    .accordion-content {
-      padding: 8px;
-      background: #fff;
-    }
-    .timeline {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .day-block {
-      padding: 4px 8px;
-      border-radius: 4px;
-      background: #f1f1f1;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      transition: transform 0.2s;
-    }
-    .day-block:hover {
-      transform: scale(1.02);
-    }
-    .day-block select {
-      font-size: 11px;
-      padding: 2px;
-      border-radius: 3px;
-      border: 1px solid #bdc3c7;
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
+    
+    /* Custom styles for accordion summary */
     .status-dot.pending   { background: #e67e22; }
     .status-dot.approved  { background: #27ae60; }
     .status-dot.rejected  { background: #e74c3c; }
     .status-dot.write-in  { background: #f1c40f; }
-    .action-buttons {
-      margin-top: 6px;
-      text-align: right;
-    }
-    .delete-btn, .whatsapp-btn {
-      padding: 3px 8px;
-      font-size: 11px;
-      border: none;
-      border-radius: 3px;
-      cursor: pointer;
-      margin-left: 4px;
-    }
-    .delete-btn {
-      background: #e74c3c;
-      color: #fff;
-    }
-    .delete-btn:hover {
-      background: #c0392b;
-    }
-    .whatsapp-btn {
-      background: #25D366;
-      color: #fff;
-    }
-    .whatsapp-btn:hover {
-      background: #20b958;
-    }
-    /* Monthly Summary (Admin Only) */
-    #monthlySummary {
-      padding: 8px;
-      border-radius: 6px;
-      background: #fff;
-      margin-top: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    #monthlySummary h3 {
-      font-size: 14px;
-      margin: 0 0 6px;
-      color: #2c3e50;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    #monthlySummary .download-btn {
-      padding: 4px 8px;
-      background: #3498db;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 11px;
-      transition: background 0.2s;
-    }
-    #monthlySummary .download-btn:hover {
-      background: #2980b9;
-    }
-    .summary-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-    }
-    .summary-table th, .summary-table td {
-      padding: 5px 8px;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .summary-table th {
-      background: #f7f9fb;
-      color: #34495e;
-      font-weight: 600;
-      font-size: 12px;
-    }
-    .summary-table tr:nth-child(even) {
-      background: #f9fafb;
-    }
-    .summary-table tr:hover {
-      background: #f1f5f9;
-    }
-    .summary-table .staff-name {
-      font-weight: 500;
-      color: #2c3e50;
-      white-space: nowrap;
-    }
-    .summary-table .leave-range {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .summary-table .range-block {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 10px;
-      color: #2c3e50;
-    }
-    .range-block .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-    }
+
+    /* Custom styles for summary table */
     .range-block.approved  .status-dot { background: #27ae60; }
     .range-block.pending   .status-dot { background: #e67e22; }
     .range-block.rejected  .status-dot { background: #e74c3c; }
     .range-block.write-in  .status-dot { background: #f1c40f; }
-    .summary-table .total-days {
-      font-weight: 500;
-      color: #34495e;
-      text-align: right;
+
+    /* Hide spinners on number inputs */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
     }
-    /* Admin Tabs & User Management Panel */
-    #adminTabs {
-      margin-bottom: 15px;
-      text-align: center;
-    }
-    #adminTabs button {
-      padding: 8px 12px;
-      margin: 0 5px;
-      border: none;
-      border-radius: 4px;
-      background: #3498db;
-      color: #fff;
-      cursor: pointer;
-    }
-    #adminTabs button:hover {
-      background: #2980b9;
-    }
-    #userManagementPanel {
-      padding: 10px;
-      background: #fdfdfd;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-    }
-    #userManagementPanel h2 {
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    .footer {
-      text-align: center;
-      font-size: 10px;
-      color: #95a5a6;
-      margin-top: 10px;
-    }
-    /* Responsive Adjustments for Mobile */
-    @media screen and (max-width: 600px) {
-      #calendarGrid {
-        display: flex !important;
-        flex-wrap: wrap;
-        gap: 3px;
-        justify-content: space-between;
-      }
-      .day-cell {
-        flex: 0 0 calc(100% / 7 - 3px);
-        min-height: 70px;
-      }
-      .shift-box {
-        font-size: 11px;
-        padding: 2px;
-      }
-      .leave-entry {
-        font-size: 10px;
-      }
+    input[type=number] {
+      -moz-appearance: textfield;
     }
   </style>
 </head>
-<body>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+  <!-- Loading Indicator -->
+  <div id="loading" class="absolute inset-0 bg-white/70 flex items-center justify-center z-50">
+    <div class="text-xl font-semibold text-gray-700">Loading...</div>
+  </div>
+
   <!-- Login Section -->
-  <div id="loginSection">
-    <h2>Login</h2>
-    <button onclick="showAdminLogin()">Login as Admin</button>
-    <button onclick="showUserLogin()">Login as User</button>
+  <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md">
+    <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Planner Login</h2>
     
-    <!-- Admin Login Form -->
-    <div id="adminLoginForm" style="display: none;">
-      <input type="text" id="adminUsername" placeholder="Staff ID (e.g., ADMIN001)">
-      <input type="password" id="adminPassword" placeholder="Password">
-      <button onclick="loginAdmin()">Login</button>
-    </div>
-    
-    <!-- User Login Form -->
-    <div id="userLoginForm" style="display: none;">
-      <input type="text" id="userStaffID" placeholder="Staff ID (e.g., S123)">
-      <input type="password" id="userPassword" placeholder="Password">
-      <button onclick="loginUser()">Login</button>
-      <!-- New Register button (for brand-new users) -->
-      <button onclick="showRegisterForm()">Register as New User</button>
+    <!-- Unified Login Form -->
+    <div id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <input type="password" id="loginPassword" placeholder="Password" class="w-full px-4 py-2 mb-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <button id="loginButton" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors">Login</button>
+      <button onclick="showRegisterForm()" class="w-full mt-2 text-blue-600 hover:underline">Don't have an account? Register</button>
     </div>
     
     <!-- User Registration Form (hidden by default) -->
     <div id="userRegisterForm" style="display: none;">
-      <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)">
-      <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)">
-      <input type="password" id="regPassword" placeholder="Password">
-      <button onclick="registerUser()">Register</button>
+      <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <input type="email" id="regEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <input type="password" id="regPassword" placeholder="Password" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      <input type="password" id="regAdminSecret" placeholder="Admin Secret Code (if any)" class="w-full px-4 py-2 mb-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+      
+      <button id="registerButton" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">Register</button>
+      <button onclick="showLoginForm()" class="w-full mt-2 text-blue-600 hover:underline">Already have an account? Login</button>
     </div>
+
+    <!-- Custom Alert Box -->
+    <div id="customAlert" class="fixed top-5 right-5 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg" style="display: none; z-index: 1000;">
+      <span id="customAlertMessage"></span>
+    </div>
+
   </div>
   
   <!-- Main Container (hidden until login) -->
-  <div class="container" style="display: none;">
-    <h1>Leave Management System <sup>v5.2</sup></h1>
+  <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-2xl font-bold text-gray-800">Leave Management System <sup class="text-xs text-gray-500">Firebase</sup></h1>
+      <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
+    </div>
+    <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
     
     <!-- Admin Tabs (Visible only for Admin) -->
-    <div id="adminTabs" style="display: none;">
-      <button onclick="showLeaveManagement()">Leave Management</button>
-      <button onclick="showUserManagement()">User Management</button>
+    <div id="adminTabs" class="mb-4 border-b border-gray-200" style="display: none;">
+      <nav class="flex space-x-4">
+        <button onclick="showLeaveManagement()" class="tab-button active-tab py-2 px-4 text-blue-600 border-b-2 border-blue-600 font-medium">Leave Management</button>
+        <button onclick="showUserManagement()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700">User Management</button>
+      </nav>
+      <style>.tab-button.active-tab { color: #2563eb; border-bottom: 2px solid #2563eb; } .tab-button { border-bottom: 2px solid transparent; }</style>
     </div>
     
     <!-- Leave Management Panel -->
     <div id="leaveManagementPanel">
       <!-- Leave Form -->
-      <form id="leaveForm">
-        <label>Name</label>
-        <input type="text" id="staffName" placeholder="Enter full name" required>
-        <label>ID</label>
-        <input type="text" id="staffID" placeholder="e.g., S123" required>
-        <label>From</label>
-        <input type="date" id="startDate" required>
-        <label>To</label>
-        <input type="date" id="endDate" required>
-        <button type="submit">Request Leave</button>
+      <form id="leaveForm" class="flex flex-wrap items-center gap-3 p-4 bg-gray-50 rounded-lg mb-4">
+        <label class="font-semibold text-gray-700">Name:</label>
+        <input type="text" id="staffName" placeholder="Enter full name" class="px-3 py-1.5 border rounded-md" required readonly>
+        <label class="font-semibold text-gray-700">ID:</label>
+        <input type="text" id="staffID" placeholder="e.g., S123" class="px-3 py-1.5 border rounded-md" required readonly>
+        <label class="font-semibold text-gray-700">From:</label>
+        <input type="date" id="startDate" class="px-3 py-1.5 border rounded-md" required>
+        <label class="font-semibold text-gray-700">To:</label>
+        <input type="date" id="endDate" class="px-3 py-1.5 border rounded-md" required>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition-colors">Request Leave</button>
       </form>
       
       <!-- Team Buttons -->
-      <div class="team-buttons">
-        <button class="team-a" onclick="selectTeam(1)">Alpha</button>
-        <button class="team-b" onclick="selectTeam(2)">Bravo</button>
-        <button class="team-c" onclick="selectTeam(3)">Charlie</button>
+      <div class="team-buttons text-center my-3 space-x-2">
+        <button class="team-a text-white px-3 py-1.5 rounded-md text-sm" onclick="selectTeam(1)">Alpha</button>
+        <button class="team-b text-white px-3 py-1.5 rounded-md text-sm" onclick="selectTeam(2)">Bravo</button>
+        <button class="team-c text-white px-3 py-1.5 rounded-md text-sm" onclick="selectTeam(3)">Charlie</button>
       </div>
       
       <!-- Month Navigation -->
-      <div class="month-nav">
-        <button onclick="prevMonth()">←</button>
-        <span id="monthLabel">Loading...</span>
-        <button onclick="nextMonth()">→</button>
+      <div class="month-nav flex justify-center items-center gap-4 my-3">
+        <button onclick="prevMonth()" class="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700">←</button>
+        <span id="monthLabel" class="font-bold text-lg text-gray-800">Loading...</span>
+        <button onclick="nextMonth()" class="bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700">→</button>
       </div>
       
       <!-- Calendar Container -->
-      <div id="calendarGrid"></div>
+      <div id="calendarGrid" class="grid grid-cols-7 gap-1 max-w-6xl mx-auto mb-4"></div>
       
       <!-- Leave Requests Accordion View -->
-      <div id="adminSummary">
-        <h3>Leave Requests</h3>
-        <div id="adminList"></div>
+      <div id="adminSummary" class="p-4 rounded-lg bg-white border max-h-96 overflow-y-auto">
+        <h3 class="text-lg font-semibold mb-3 text-gray-800">Leave Requests</h3>
+        <div id="adminList" class="space-y-2"></div>
       </div>
       
       <!-- Monthly Summary (Admin Only) -->
-      <div id="monthlySummary">
-        <h3>
+      <div id="monthlySummary" class="p-4 rounded-lg bg-white border mt-6" style="display: none;">
+        <h3 class="text-lg font-semibold mb-3 text-gray-800 flex justify-between items-center">
           Monthly Leave Summary
-          <button class="download-btn" onclick="downloadSummaryPDF()">Download PDF</button>
+          <button class="download-btn bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm" onclick="downloadSummaryPDF()">Download PDF</button>
         </h3>
-        <table class="summary-table">
+        <table class="summary-table w-full border-collapse text-sm">
           <thead>
-            <tr>
-              <th style="width: 30%;">Staff</th>
-              <th style="width: 50%;">Leave Dates</th>
-              <th style="width: 20%;">Total Days</th>
+            <tr class="bg-gray-100">
+              <th class="p-2 text-left font-semibold text-gray-700 border-b" style="width: 30%;">Staff</th>
+              <th class="p-2 text-left font-semibold text-gray-700 border-b" style="width: 50%;">Leave Dates</th>
+              <th class="p-2 text-left font-semibold text-gray-700 border-b" style="width: 20%;">Total Days</th>
             </tr>
           </thead>
           <tbody id="summaryTableBody"></tbody>
@@ -553,207 +167,400 @@
     </div>
     
     <!-- User Management Panel (Admin Only) -->
-    <div id="userManagementPanel" style="display: none;">
-      <h2>User Management</h2>
-      <form id="addUserForm" style="margin-bottom: 15px;">
-        <input type="text" id="newUsername" placeholder="Username" required>
-        <input type="text" id="newStaffID" placeholder="Staff ID" required>
-        <input type="password" id="newPassword" placeholder="Password" required>
-        <label>
-          <input type="checkbox" id="newIsAdmin"> Admin?
-        </label>
-        <button type="submit">Add User</button>
-      </form>
-      <table id="usersTable">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Staff ID</th>
-            <th>Admin</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Dynamically inserted rows -->
-        </tbody>
-      </table>
+    <div id="userManagementPanel" class="p-4" style="display: none;">
+      <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">User Management</h2>
+      <p class="text-center text-gray-600 mb-4">Users who register will appear here. You can then grant them admin status.</p>
+      <div class="overflow-x-auto">
+        <table id="usersTable" class="min-w-full bg-white border rounded-lg">
+          <thead>
+            <tr class="bg-gray-100">
+              <th class="p-3 text-left font-semibold text-gray-700">Username</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Staff ID</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Email</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Admin</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Dynamically inserted rows -->
+          </tbody>
+        </table>
+      </div>
     </div>
     
-    <div class="footer">
-      @ 2025; t’va
+    <div class="footer text-center text-xs text-gray-500 mt-6">
+      @ 2025; t’va (Firebase Edition)
     </div>
   </div>
   
   <!-- PDF Viewer Modal (hidden by default) -->
-  <div id="pdfViewerContainer" style="display: none;"></div>
+  <div id="pdfViewerContainer" class="fixed inset-0 bg-black/80 z-50 p-10" style="display: none;">
+    <div class="relative w-full h-full bg-white rounded-lg overflow-hidden">
+      <iframe id="pdfViewerFrame" style="width: 100%; height: 100%; border: none;"></iframe>
+      <button id="exitPDFViewer" class="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Exit</button>
+    </div>
+  </div>
   
-  <script>
-    /* Global config & variables */
-    const API_BASE_URL = "https://leave-management.th3va.com";
+  <!-- Firebase SDK -->
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      onAuthStateChanged, 
+      createUserWithEmailAndPassword, 
+      signInWithEmailAndPassword, 
+      signOut, 
+      sendPasswordResetEmail,
+      signInAnonymously,
+      signInWithCustomToken
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      setDoc, 
+      addDoc, 
+      updateDoc, 
+      deleteDoc, 
+      onSnapshot, 
+      collection, 
+      query, 
+      where,
+      writeBatch,
+      setLogLevel
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- !! IMPORTANT !! ---
+    // This is the secret code to create an admin.
+    // Change this to your own secret.
+    const ADMIN_SECRET_KEY = "ADMIN2025";
+
+    // --- Firebase Configuration ---
+    // Use the global config variable provided by the environment
+    let firebaseConfig;
+    if (typeof __firebase_config !== 'undefined') {
+      firebaseConfig = JSON.parse(__firebase_config);
+    } else {
+      // Fallback config from user's 'SDK Configuration _shift Tracker.txt'
+      firebaseConfig = {
+        apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0", // User-provided key
+        authDomain: "shift-tracker-b7879.firebaseapp.com",
+        projectId: "shift-tracker-b7879",
+        storageBucket: "shift-tracker-b7879.firebasestorage.app",
+        messagingSenderId: "619413261457",
+        appId: "1:619413261457:web:71bb4d19745a64aab20330",
+        measurementId: "G-Q0BFJ8SBSY"
+      };
+      console.warn("Using fallback Firebase config. __firebase_config not found.");
+    }
+
+    // --- App & Auth Initialization ---
+    let app, auth, db;
     let userType = null; // "admin" or "user"
-    let currentStaffID = null;
-    
-    // Define the 6-day shift cycle:
-    // 2 days morning, 2 days night, 2 days off.
+    let currentUserProfile = null; // Store user's firestore doc
+    let leaveRequestsCollectionPath;
+    let usersCollectionPath;
+
+    // --- Global State Variables ---
     var TeamPatterns = {
       1: ["morning", "morning", "night", "night", "off", "off"],
       2: ["night", "night", "off", "off", "morning", "morning"],
       3: ["off", "off", "morning", "morning", "night", "night"]
     };
-    // Offsets to align with desired starting shift:
     const teamOffsets = {1: 1, 2: 3, 3: 5};
-    
     var selectedTeam = 1;
     let now = new Date();
     var currentYear = now.getFullYear();
     var currentMonth = now.getMonth();
     var referenceDate = new Date(currentYear, currentMonth, 1);
-    var requests = [];
+    var requests = []; // Local cache of leave requests
+    var allUsers = []; // Local cache of all users (for admin)
     var openAccordions = new Set();
-    
-    /* Team selection */
-    function selectTeam(teamNumber) {
-      selectedTeam = teamNumber;
-      renderCalendar();
-    }
-    
-    /* Show/hide login forms */
-    function showAdminLogin() {
-      document.getElementById("adminLoginForm").style.display = "block";
-      document.getElementById("userLoginForm").style.display = "none";
-      document.getElementById("userRegisterForm").style.display = "none";
-    }
-    function showUserLogin() {
-      document.getElementById("userLoginForm").style.display = "block";
-      document.getElementById("adminLoginForm").style.display = "none";
-      document.getElementById("userRegisterForm").style.display = "none";
-    }
-    function showRegisterForm() {
-      // Hide other forms first
-      document.getElementById("adminLoginForm").style.display = "none";
-      document.getElementById("userLoginForm").style.display = "none";
-      // Show the registration form
-      document.getElementById("userRegisterForm").style.display = "block";
-    }
-    
-    /* Admin login using JWT */
-    async function loginAdmin() {
-      const staff_id = document.getElementById("adminUsername").value.trim();
-      const password = document.getElementById("adminPassword").value;
-      if (!staff_id || !password) {
-        alert("Please fill in both Staff ID and Password.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/login`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({staff_id, password})
-        });
-        const data = await response.json();
-        if (response.ok && data.status === "success") {
-          localStorage.setItem("token", data.token);
-          userType = "admin";
-          currentStaffID = null;
-          document.getElementById("loginSection").style.display = "none";
-          document.querySelector(".container").style.display = "block";
-          await renderUI();
-        } else {
-          alert("Invalid admin credentials.");
-        }
-      } catch (err) {
-        alert("Login error: " + err.message);
-      }
-    }
-    
-    /* User login using JWT */
-    async function loginUser() {
-      const staffID = document.getElementById("userStaffID").value.trim();
-      const password = document.getElementById("userPassword").value;
-      if (!staffID || !password) {
-        alert("Please enter your Staff ID and Password.");
-        return;
-      }
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/login`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({staff_id: staffID, password})
-        });
-        const data = await response.json();
-        if (response.ok && data.status === "success") {
-          localStorage.setItem("token", data.token);
-          userType = "user";
-          currentStaffID = staffID;
-          document.getElementById("loginSection").style.display = "none";
-          document.querySelector(".container").style.display = "block";
-          await renderUI();
-        } else {
-          alert("Invalid user credentials.");
-        }
-      } catch (err) {
-        alert("Login error: " + err.message);
-      }
-    }
-    
-    /* Self-Registration (New User) */
-    async function registerUser() {
-      const username = document.getElementById("regUsername").value.trim();
-      const staffID  = document.getElementById("regStaffID").value.trim();
-      const password = document.getElementById("regPassword").value;
+    let leaveRequestsUnsubscriber = null;
+    let usersUnsubscriber = null;
+
+    // --- DOM Elements ---
+    const loadingEl = document.getElementById("loading");
+    const loginSection = document.getElementById("loginSection");
+    const mainContainer = document.querySelector(".container");
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("userRegisterForm");
+    const loginButton = document.getElementById("loginButton");
+    const registerButton = document.getElementById("registerButton");
+    const logoutButton = document.getElementById("logoutButton");
+
+    // --- Utility Functions ---
+
+    /**
+     * Shows a custom alert message.
+     * @param {string} message - The message to display.
+     * @param {boolean} [isError=true] - If true, shows a red alert. If false, shows green.
+     */
+    function showAlert(message, isError = true) {
+      const alertBox = document.getElementById("customAlert");
+      const alertMessage = document.getElementById("customAlertMessage");
       
-      if (!username || !staffID || !password) {
-        alert("Please fill in all fields.");
-        return;
-      }
-      try {
-        // Use the public registration endpoint (/api/register) which requires no token
-        const response = await fetch(`${API_BASE_URL}/api/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: username,
-            staffID: staffID,
-            password: password
-          })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Registration successful! You can now log in as a user.");
-          // Switch back to user login form
-          showUserLogin();
-        } else {
-          alert("Registration failed: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Registration error: " + err.message);
-      }
+      alertMessage.textContent = message;
+      
+      alertBox.classList.remove(isError ? "bg-green-500" : "bg-red-500");
+      alertBox.classList.add(isError ? "bg-red-500" : "bg-green-500");
+      
+      alertBox.style.display = "block";
+      
+      setTimeout(() => {
+        alertBox.style.display = "none";
+      }, 3000);
     }
-    
+
+    // --- Firebase Initialization ---
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      setLogLevel('debug'); // Enable Firestore logging
+      console.log("Firebase initialized successfully.");
+
+      // Use the global __app_id if available
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      
+      // Define collection paths
+      // We will make these public for simplicity of admin/user roles
+      // In a real-world app, you'd use Firestore Security Rules
+      usersCollectionPath = `/artifacts/${appId}/public/data/users`;
+      leaveRequestsCollectionPath = `/artifacts/${appId}/public/data/leaveRequests`;
+
+      console.log("Using Users Collection:", usersCollectionPath);
+      console.log("Using Leave Requests Collection:", leaveRequestsCollectionPath);
+
+      initializeAuth();
+
+    } catch (error) {
+      console.error("Firebase initialization error:", error);
+      showAlert("Error initializing application. Check console.");
+      loadingEl.style.display = "none";
+      loginSection.style.display = "block";
+    }
+
+    /**
+     * Handles the authentication state changes.
+     */
+    async function initializeAuth() {
+      // Sign in using the provided token or anonymously
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          console.log("Signing in with custom token...");
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          console.log("Signing in anonymously...");
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        showAlert("Authentication failed. Please refresh.");
+      }
+
+      // Listen for auth state changes
+      onAuthStateChanged(auth, async (user) => {
+        if (user && !user.isAnonymous) {
+          console.log("User is logged in:", user.uid);
+          // User is signed in, fetch their profile
+          const userDocRef = doc(db, usersCollectionPath, user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            currentUserProfile = { id: user.uid, ...userDoc.data() };
+            userType = currentUserProfile.isAdmin ? "admin" : "user";
+            
+            console.log("User profile found. User type:", userType);
+            
+            // Setup UI
+            document.getElementById("currentUserDisplay").textContent = `${currentUserProfile.username} (${currentUserProfile.email})`;
+            document.getElementById("staffName").value = currentUserProfile.username;
+            document.getElementById("staffID").value = currentUserProfile.staffID;
+            
+            loginSection.style.display = "none";
+            mainContainer.style.display = "block";
+            loadingEl.style.display = "none";
+            
+            await renderUI();
+          } else {
+            // This shouldn't happen if registration is correct
+            console.error("User document not found in Firestore!");
+            showAlert("Error: User profile missing. Logging out.");
+            await signOut(auth);
+          }
+        } else {
+          // User is signed out or anonymous
+          console.log("User is logged out or anonymous.");
+          userType = null;
+          currentUserProfile = null;
+          
+          // Stop listening to data
+          if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
+          if (usersUnsubscriber) usersUnsubscriber();
+          
+          // Show login form
+          loginSection.style.display = "block";
+          mainContainer.style.display = "none";
+          loadingEl.style.display = "none";
+          showLoginForm();
+        }
+      });
+    }
+
+    // --- Authentication Functions ---
+
+    window.showRegisterForm = () => {
+      loginForm.style.display = "none";
+      registerForm.style.display = "block";
+    }
+
+    window.showLoginForm = () => {
+      loginForm.style.display = "block";
+      registerForm.style.display = "none";
+    }
+
+    // Login Button Event
+    loginButton.addEventListener("click", async () => {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      if (!email || !password) {
+        return showAlert("Please enter both email and password.");
+      }
+      
+      loadingEl.style.display = "flex";
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the rest
+        console.log("Login successful.");
+      } catch (err) {
+        console.error("Login error:", err);
+        showAlert(err.message);
+        loadingEl.style.display = "none";
+      }
+    });
+
+    // Register Button Event
+    registerButton.addEventListener("click", async () => {
+      const username = document.getElementById("regUsername").value.trim();
+      const staffID = document.getElementById("regStaffID").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
+      const password = document.getElementById("regPassword").value;
+      const adminSecret = document.getElementById("regAdminSecret").value.trim();
+
+      if (!username || !staffID || !email || !password) {
+        return showAlert("Please fill in all fields (except Admin Secret).");
+      }
+
+      loadingEl.style.display = "flex";
+      
+      try {
+        // Step 1: Create user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Step 2: Check admin secret
+        const isAdmin = (adminSecret === ADMIN_SECRET_KEY);
+        if (isAdmin) {
+          showAlert("Admin secret correct! Admin user will be created.", false);
+        }
+
+        // Step 3: Create user profile document in Firestore
+        const userDocRef = doc(db, usersCollectionPath, user.uid);
+        await setDoc(userDocRef, {
+          username: username,
+          staffID: staffID,
+          email: email,
+          isAdmin: isAdmin
+        });
+        
+        console.log("Registration successful, user doc created.");
+        showAlert("Registration successful! Please log in.", false);
+        
+        // Don't log them in, force a login.
+        // But since we are already signed in by createUser... we must sign out.
+        await signOut(auth);
+
+        showLoginForm();
+        registerForm.reset();
+
+      } catch (err) {
+        console.error("Registration error:", err);
+        showAlert(err.message);
+      } finally {
+        loadingEl.style.display = "none";
+      }
+    });
+
+    // Logout Button Event
+    logoutButton.addEventListener("click", async () => {
+      loadingEl.style.display = "flex";
+      await signOut(auth);
+      // onAuthStateChanged will handle UI cleanup
+      console.log("User logged out.");
+    });
+
     /* Render UI based on user type */
     async function renderUI() {
       if (userType === "admin") {
         document.getElementById("adminTabs").style.display = "block";
+        document.getElementById("monthlySummary").style.display = "block";
+        document.getElementById("staffName").readOnly = false; // Admin can edit
+        document.getElementById("staffID").readOnly = false;  // Admin can edit
         showLeaveManagement();
-        document.getElementById("staffID").readOnly = false;
-        document.getElementById("staffID").value = "";
-        await renderCalendar();
-        renderAdmin();
-        await renderMonthlySummary();
+        attachDataListeners(); // Admin listens to all leaves and all users
       } else if (userType === "user") {
         document.getElementById("adminTabs").style.display = "none";
-        document.querySelector(".team-buttons").style.display = "block";
-        document.querySelector(".month-nav").style.display = "flex";
-        document.getElementById("calendarGrid").style.display = "block";
         document.getElementById("monthlySummary").style.display = "none";
-        document.getElementById("staffID").value = currentStaffID;
+        document.getElementById("staffName").readOnly = true;
         document.getElementById("staffID").readOnly = true;
-        await loadLeaves();
-        renderCalendar();
-        renderAdmin();
+        showLeaveManagement();
+        attachDataListeners(); // User listens to only their leaves
       }
+      await renderCalendar(); // Initial render
     }
     
+    // --- Firestore Data Listeners ---
+    
+    function attachDataListeners() {
+      // Ensure old listeners are detached
+      if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
+      if (usersUnsubscriber) usersUnsubscriber();
+      
+      // --- Leave Requests Listener ---
+      let q = collection(db, leaveRequestsCollectionPath);
+      
+      if (userType === "user") {
+        // Users only see their own requests
+        q = query(q, where("userId", "==", auth.currentUser.uid));
+      }
+      
+      leaveRequestsUnsubscriber = onSnapshot(q, (snapshot) => {
+        console.log("Leave requests snapshot received:", snapshot.size, "docs");
+        requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderCalendar(); // Re-render calendar and admin list
+      }, (error) => {
+        console.error("Error listening to leave requests:", error);
+        showAlert("Error loading leave requests.");
+      });
+      
+      // --- Users Listener (Admin Only) ---
+      if (userType === "admin") {
+        const usersQuery = collection(db, usersCollectionPath);
+        usersUnsubscriber = onSnapshot(usersQuery, (snapshot) => {
+          console.log("Users snapshot received:", snapshot.size, "docs");
+          allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          if (document.getElementById("userManagementPanel").style.display === "block") {
+            renderUserManagement(); // Re-render user list if visible
+          }
+        }, (error) => {
+          console.error("Error listening to users:", error);
+          showAlert("Error loading users.");
+        });
+      }
+    }
+
     /* Date & shift helpers */
     function daysBetween(a, b) {
       const A = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -761,10 +568,7 @@
       return Math.floor((B - A) / (1000 * 60 * 60 * 24));
     }
     function formatDate(d) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + dd;
+      return d.toISOString().split('T')[0]; // YYYY-MM-DD
     }
     function getShift(d) {
       const diff = daysBetween(referenceDate, d);
@@ -775,35 +579,21 @@
     
     /* Render Calendar */
     async function renderCalendar() {
-      await loadLeaves();
       const monthNames = ["January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
       
-      if(userType === "user"){
-        grid.style.display = "flex";
-        grid.style.flexWrap = "wrap";
-        grid.style.gap = "3px";
-      } else {
-        grid.style.display = "grid";
-        grid.style.gridTemplateColumns = "repeat(7, 1fr)";
-        grid.style.gap = "3px";
-      }
-      
       const fragment = document.createDocumentFragment();
       const firstDay = new Date(currentYear, currentMonth, 1);
-      const offset = (firstDay.getDay() + 6) % 7;
+      const offset = (firstDay.getDay() + 6) % 7; // 0 = Monday
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       
       // Empty cells before 1st
       for (let i = 0; i < offset; i++) {
         const emptyCell = document.createElement("div");
-        emptyCell.className = "day-cell";
-        if(userType === "user"){
-          emptyCell.style.flex = "0 0 calc(100% / 7 - 3px)";
-        }
+        emptyCell.className = "day-cell bg-gray-50 rounded";
         fragment.appendChild(emptyCell);
       }
       
@@ -812,38 +602,38 @@
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
         const cell = document.createElement("div");
-        cell.className = "day-cell";
-        if(userType === "user"){
-          cell.style.flex = "0 0 calc(100% / 7 - 3px)";
-        }
+        cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
         const shift = getShift(dateObj);
         const shiftBox = document.createElement("div");
-        shiftBox.className = (shift === "morning") ? "shift-box shift-morning"
-                         : (shift === "night")   ? "shift-box shift-night"
-                                                 : "shift-box shift-off";
+        shiftBox.className = `shift-box shift-${shift} font-bold text-white p-1 rounded text-center mb-1`;
         shiftBox.textContent = d;
         cell.appendChild(shiftBox);
         
         const dayEntries = [];
         requests.forEach(req => {
-          if (userType === "user" && req.staffID !== currentStaffID) return;
-          req.days.forEach(day => {
-            if (day.date === dateStr) {
-              dayEntries.push({ staffName: req.staffName, staffID: req.staffID, status: day.status });
-            }
-          });
+          // Find if this day is part of this request
+          const dayData = req.days.find(day => day.date === dateStr);
+          if (dayData) {
+            dayEntries.push({ 
+              staffName: req.staffName, 
+              staffID: req.staffID, 
+              status: dayData.status 
+            });
+          }
         });
         
         // If more than 2 (non-rejected) leaves on the same day, show red dot
         if (dayEntries.filter(e => e.status !== "Rejected").length > 2) {
-          cell.appendChild(document.createElement("div")).className = "red-dot";
+          const redDot = document.createElement("div");
+          redDot.className = "w-2 h-2 bg-red-500 rounded-full absolute top-1 right-1";
+          cell.appendChild(redDot);
         }
         
         // Show each leave entry
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
-          entry.className = "leave-entry " + e.status.toLowerCase();
+          entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
           entry.textContent = `${e.staffName} (${e.staffID})`;
           cell.appendChild(entry);
         });
@@ -856,33 +646,19 @@
       // Re-render admin summary, monthly summary
       renderAdmin();
       if (userType === "admin") {
-        await renderMonthlySummary();
+        renderMonthlySummary();
       }
     }
     
-    async function loadLeaves() {
-      try {
-        let url = `${API_BASE_URL}/api/get_leaves`;
-        if (userType === "user") {
-          url += `?staffID=${currentStaffID}`;
-        }
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to fetch leaves");
-        requests = await response.json();
-      } catch (error) {
-        console.error("Error fetching leaves:", error);
-        requests = [];
-      }
-    }
-    
+    // Groups requests by staff ID for the accordion view
     function groupRequestsByStaffID(requests) {
       const grouped = {};
-      requests.forEach((req, reqIndex) => {
+      requests.forEach(req => {
         const staffID = req.staffID;
         if (!grouped[staffID]) {
-          grouped[staffID] = { staffName: req.staffName, staffID: staffID, requests: [] };
+          grouped[staffID] = { staffName: req.staffName, staffID: req.staffID, requests: [] };
         }
-        grouped[staffID].requests.push({ ...req, originalIndex: reqIndex });
+        grouped[staffID].requests.push(req);
       });
       return Object.values(grouped);
     }
@@ -892,12 +668,8 @@
       adminList.innerHTML = "";
       let filteredRequests = requests;
       
-      // If user, only their leaves
-      if (userType === "user") {
-        filteredRequests = requests.filter(req => req.staffID === currentStaffID);
-      }
       // If admin, show requests from current month onward only
-      else if (userType === "admin") {
+      if (userType === "admin") {
         const currentDate = new Date();
         const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
         filteredRequests = requests.filter(req => {
@@ -909,10 +681,16 @@
         });
       }
       
+      if (filteredRequests.length === 0) {
+        adminList.innerHTML = `<div class="text-gray-500 text-center p-4">No leave requests found.</div>`;
+        return;
+      }
+
       const groupedRequests = groupRequestsByStaffID(filteredRequests);
-      groupedRequests.forEach((group, groupIndex) => {
+      groupedRequests.forEach((group) => {
+        const groupID = group.staffID; // Use staffID as a unique-enough key for the accordion
         const item = document.createElement("div");
-        item.className = "accordion-item";
+        item.className = "accordion-item border border-gray-200 rounded-md";
         
         const totalDays = group.requests.reduce((sum, r) => sum + r.days.length, 0);
         const pendingCount = group.requests.reduce((sum, r) =>
@@ -920,34 +698,37 @@
         );
         
         item.innerHTML = `
-          <div class="accordion-header" data-index="${groupIndex}">
-            <span>${group.staffName} (${group.staffID})</span>
-            <span class="badge ${pendingCount > 0 ? "pending" : ""}">
+          <div class="accordion-header flex justify-between items-center p-3 bg-gray-50 cursor-pointer hover:bg-gray-100" data-group-id="${groupID}">
+            <span class="font-semibold text-gray-700">${group.staffName} (${group.staffID})</span>
+            <span class="badge text-xs px-2 py-0.5 rounded-full ${pendingCount > 0 ? "bg-yellow-500 text-white" : "bg-blue-500 text-white"}">
               ${totalDays} days (${pendingCount} pending)
             </span>
           </div>
-          <div class="accordion-content" data-index="${groupIndex}" style="display: none;">
-            ${group.requests.map((req, reqIdx) => `
-              <div class="timeline">
-                ${req.days.map((day, dayIndex) => `
-                  <div class="day-block">
-                    <span>${day.date}</span>
-                    <div class="status-dot ${day.status.toLowerCase()}"></div>
-                    <select data-group="${groupIndex}" data-req="${reqIdx}" data-day="${dayIndex}" 
-                            ${userType === "user" ? "disabled" : ""}>
-                      <option value="Pending"  ${day.status === "Pending" ? "selected" : ""}>Pending</option>
-                      <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
-                      <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
-                      <option value="Write-in" ${day.status === "Write-in" ? "selected" : ""}>Write-in</option>
-                    </select>
-                  </div>
-                `).join("")}
+          <div class="accordion-content p-3 bg-white" data-group-id="${groupID}" style="display: none;">
+            ${group.requests.map((req) => `
+              <div class="mb-3 border-b pb-3">
+                <div class="timeline flex flex-wrap gap-2">
+                  ${req.days.map((day, dayIndex) => `
+                    <div class="day-block flex items-center gap-2 p-2 bg-gray-100 rounded">
+                      <span>${day.date}</span>
+                      <div class="status-dot w-2 h-2 rounded-full ${day.status.toLowerCase()}"></div>
+                      <select data-request-id="${req.id}" data-day-index="${dayIndex}" 
+                              class="text-xs p-1 border rounded"
+                              ${userType === "user" ? "disabled" : ""}>
+                        <option value="Pending"  ${day.status === "Pending" ? "selected" : ""}>Pending</option>
+                        <option value="Approved" ${day.status === "Approved" ? "selected" : ""}>Approved</option>
+                        <option value="Rejected" ${day.status === "Rejected" ? "selected" : ""}>Rejected</option>
+                        <option value="Write-in" ${day.status === "Write-in" ? "selected" : ""}>Write-in</option>
+                      </select>
+                    </div>
+                  `).join("")}
+                </div>
+                <div class="action-buttons text-right mt-2 space-x-2">
+                  ${userType === "admin" ? `<button class="delete-request-btn bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600" data-request-id="${req.id}">Delete Req</button>` : ""}
+                  <button class="whatsapp-btn bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600" data-request-id="${req.id}">WhatsApp</button>
+                </div>
               </div>
             `).join("")}
-            <div class="action-buttons">
-              ${userType === "admin" ? `<button class="delete-btn" data-group="${groupIndex}">Delete</button>` : ""}
-              <button class="whatsapp-btn" data-group="${groupIndex}">WhatsApp</button>
-            </div>
           </div>
         `;
         adminList.appendChild(item);
@@ -955,145 +736,190 @@
       
       // Accordion toggles
       adminList.querySelectorAll(".accordion-header").forEach(header => {
-        const index = header.getAttribute("data-index");
+        const groupID = header.getAttribute("data-group-id");
         const content = header.nextElementSibling;
-        content.style.display = openAccordions.has(index) ? "block" : "none";
+        content.style.display = openAccordions.has(groupID) ? "block" : "none";
+        
         header.onclick = function() {
           if (content.style.display === "block") {
             content.style.display = "none";
-            openAccordions.delete(index);
+            openAccordions.delete(groupID);
           } else {
             content.style.display = "block";
-            openAccordions.add(index);
+            openAccordions.add(groupID);
           }
         };
       });
       
-      // Dropdown status changes
+      // Dropdown status changes (Admin only)
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
-          const groupIndex = sel.getAttribute("data-group");
-          const reqIndexWithinGroup = sel.getAttribute("data-req");
-          const dayIndex = sel.getAttribute("data-day");
+          
+          const requestId = sel.getAttribute("data-request-id");
+          const dayIndex = parseInt(sel.getAttribute("data-day-index"), 10);
           const newStatus = sel.value;
           
-          const group = groupedRequests[groupIndex];
-          const req = group.requests[reqIndexWithinGroup];
-          const day_id = req.days[dayIndex].id;
-          if (!day_id) {
-            alert("Error: Day ID missing. Check your DB data.");
-            return;
-          }
+          const reqDocRef = doc(db, leaveRequestsCollectionPath, requestId);
+          
           try {
-            const response = await fetch(`${API_BASE_URL}/api/update_day_status`, {
-              method: "POST",
-              headers: {"Content-Type": "application/json"},
-              body: JSON.stringify({ day_id, status: newStatus })
-            });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            if (data.status === "success") {
-              await loadLeaves();
-              await renderCalendar();
-              await renderMonthlySummary();
-            } else {
-              alert("Error: " + (data.message || "Unknown error"));
+            // We must read the doc first to safely update an array
+            const reqDoc = await getDoc(reqDocRef);
+            if (!reqDoc.exists()) throw new Error("Request document not found.");
+            
+            const reqData = reqDoc.data();
+            const updatedDays = [...reqData.days]; // Create a copy
+            
+            if (updatedDays[dayIndex]) {
+              updatedDays[dayIndex].status = newStatus;
             }
+            
+            // Write the update
+            await updateDoc(reqDocRef, { days: updatedDays });
+            // The onSnapshot listener will handle the UI refresh
+            console.log("Day status updated.");
+            
           } catch (err) {
             console.error("Day status update error:", err);
-            alert("Error updating day status: " + err.message);
+            showAlert("Error updating day status: " + err.message);
           }
         };
       });
       
-      // Delete entire request group (admin only)
-      if (userType === "admin") {
-        adminList.querySelectorAll(".delete-btn").forEach(btn => {
-          btn.onclick = async function() {
-            const groupIndex = btn.getAttribute("data-group");
-            const group = groupedRequests[groupIndex];
-            openAccordions.delete(groupIndex);
-            try {
-              for (const req of group.requests) {
-                const reqId = req.id;
-                const response = await fetch(`${API_BASE_URL}/api/delete_request`, {
-                  method: "POST",
-                  headers: {"Content-Type": "application/json"},
-                  body: JSON.stringify({ request_id: reqId })
-                });
-                const data = await response.json();
-                if (data.status !== "success") {
-                  alert("Error deleting request: " + data.message);
-                  return;
-                }
-              }
-              requests = requests.filter(r => r.staffID !== group.staffID);
-              await renderCalendar();
-            } catch (err) {
-              console.error("Delete error:", err);
-              alert("Error deleting. Please try again.");
-            }
-          };
-        });
-      }
+      // Delete ENTIRE request (admin only)
+      adminList.querySelectorAll(".delete-request-btn").forEach(btn => {
+        btn.onclick = async function() {
+          const requestId = btn.getAttribute("data-request-id");
+          if (!confirm("Are you sure you want to delete this entire leave request?")) return;
+          
+          try {
+            await deleteDoc(doc(db, leaveRequestsCollectionPath, requestId));
+            // onSnapshot will handle the UI update
+            console.log("Request deleted.");
+            showAlert("Request deleted successfully.", false);
+          } catch (err) {
+            console.error("Delete request error:", err);
+            showAlert("Error deleting request: " + err.message);
+          }
+        };
+      });
       
       // WhatsApp button
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
-          const groupIndex = btn.getAttribute("data-group");
-          const group = groupedRequests[groupIndex];
-          const msg = `Hello ${group.staffName} (${group.staffID}), your leave status:\n` +
-            group.requests.map((req, i) =>
-              `Request ${i + 1}:\n` + req.days.map(d => `${d.date}: ${d.status}`).join('\n')
-            ).join('\n\n');
+          const requestId = btn.getAttribute("data-request-id");
+          const req = requests.find(r => r.id === requestId);
+          if (!req) return;
+          
+          const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${req.fromDate} to ${req.toDate}):\n` +
+            req.days.map(d => `${d.date}: ${d.status}`).join('\n');
+            
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
         };
       });
     }
     
-    async function renderMonthlySummary() {
+    // --- Leave Form Submission ---
+    
+    document.getElementById("leaveForm").onsubmit = async function(e) {
+      e.preventDefault();
+      
+      // Admin can submit on behalf of others
+      const name = document.getElementById("staffName").value.trim();
+      const id   = document.getElementById("staffID").value.trim();
+      const start = document.getElementById("startDate").value;
+      const end   = document.getElementById("endDate").value;
+      
+      if (!name || !id || !start || !end) {
+        return showAlert("Please fill all fields.");
+      }
+      if (end < start) {
+        return showAlert("End date cannot be before start date.");
+      }
+      
+      loadingEl.style.display = "flex";
+      
+      const startDate = new Date(start + "T00:00:00");
+      const endDate = new Date(end + "T00:00:00");
+      const daysArray = [];
+      
+      // Loop from start to end date
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        daysArray.push({
+          date: formatDate(new Date(d)), // Use a copy
+          status: "Pending"
+        });
+      }
+      
+      if (daysArray.length === 0) {
+        loadingEl.style.display = "none";
+        return showAlert("No valid days in range.");
+      }
+
+      try {
+        await addDoc(collection(db, leaveRequestsCollectionPath), {
+          staffName: name,
+          staffID: id,
+          userId: (userType === 'admin' && currentUserProfile.staffID !== id) ? `admin_entry_${id}` : auth.currentUser.uid, // Tag admin entries
+          fromDate: start,
+          toDate: end,
+          days: daysArray
+        });
+        
+        showAlert("Leave request submitted successfully.", false);
+        e.target.reset();
+        // Pre-fill user's info again if they are a user
+        if(userType === 'user') {
+            document.getElementById("staffName").value = currentUserProfile.username;
+            document.getElementById("staffID").value = currentUserProfile.staffID;
+        }
+
+      } catch (error) {
+        console.error("Error submitting leave request:", error);
+        showAlert("An error occurred: " + error.message);
+      } finally {
+        loadingEl.style.display = "none";
+      }
+    };
+    
+    // --- Monthly Summary & PDF (Admin) ---
+    
+    function renderMonthlySummary() {
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
       summaryTableBody.innerHTML = "";
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/get_leaves`);
-        if (!response.ok) throw new Error("Failed to fetch leave requests");
-        const allRequests = await response.json();
-        
-        const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-        const allDaysByStaff = {};
-        
-        // Build a map of staff -> { days: { date -> status } }
-        allRequests.forEach(req => {
-          const staffID = req.staffID;
-          const staffName = req.staffName;
-          if (!allDaysByStaff[staffID]) {
-            allDaysByStaff[staffID] = { staffName, staffID, days: {} };
-          }
-          req.days.forEach(day => {
-            if (day.date.startsWith(monthStr) && 
-               (day.status === "Approved" || day.status === "Write-in")) {
-              // "Approved" overrides "Write-in" if same date
-              if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
-                allDaysByStaff[staffID].days[day.date] = day.status;
-              }
+      
+      const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+      const allDaysByStaff = {};
+      
+      // Build a map of staff -> { days: { date -> status } } from local 'requests' cache
+      requests.forEach(req => {
+        const staffID = req.staffID;
+        const staffName = req.staffName;
+        if (!allDaysByStaff[staffID]) {
+          allDaysByStaff[staffID] = { staffName, staffID, days: {} };
+        }
+        req.days.forEach(day => {
+          if (day.date.startsWith(monthStr) && 
+             (day.status === "Approved" || day.status === "Write-in")) {
+            // "Approved" overrides "Write-in"
+            if (!allDaysByStaff[staffID].days[day.date] || day.status === "Approved") {
+              allDaysByStaff[staffID].days[day.date] = day.status;
             }
-          });
+          }
         });
+      });
+      
+      const groupedRequests = Object.values(allDaysByStaff).filter(
+        g => Object.keys(g.days).length > 0
+      );
+      
+      groupedRequests.forEach(group => {
+        const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
+        dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        // Filter out staff with no days
-        const groupedRequests = Object.values(allDaysByStaff).filter(
-          g => Object.keys(g.days).length > 0
-        );
-        
-        groupedRequests.forEach(group => {
-          const dayEntries = Object.entries(group.days).map(([date, status]) => ({ date, status }));
-          // Sort by date ascending
-          dayEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
-          
-          // Collect consecutive date ranges with the same status
-          const ranges = [];
+        const ranges = [];
+        if (dayEntries.length > 0) {
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
             const prevDate = new Date(currentRange[currentRange.length - 1].date);
@@ -1106,51 +932,46 @@
               currentRange = [dayEntries[i]];
             }
           }
-          if (currentRange.length > 0) ranges.push(currentRange);
-          
-          const totalDays = dayEntries.length;
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td class="staff-name">${group.staffName} (${group.staffID})</td>
-            <td class="leave-range">
-              ${ranges.map(range => {
-                const startDate = range[0].date.split("-")[2];
-                const endDate = range[range.length - 1].date.split("-")[2];
-                const displayText = (startDate === endDate) ? startDate : `${startDate}-${endDate}`;
-                const statusLabel = range[0].status;
-                return `
-                  <div class="range-block ${statusLabel.toLowerCase()}">
-                    <span class="status-dot"></span>
-                    ${displayText} (${statusLabel})
-                  </div>
-                `;
-              }).join("")}
-            </td>
-            <td class="total-days">${totalDays}</td>
-          `;
-          summaryTableBody.appendChild(row);
-        });
-        
-        if (summaryTableBody.children.length === 0) {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td colspan="3" style="text-align: center; color: #7f8c8d; font-size: 11px;">
-              No approved or write-in leave requests for this month.
-            </td>`;
-          summaryTableBody.appendChild(row);
+          ranges.push(currentRange);
         }
-      } catch (error) {
-        console.error("Error fetching monthly summary:", error);
+        
+        const totalDays = dayEntries.length;
+        const row = document.createElement("tr");
+        row.className = "border-b hover:bg-gray-50";
+        row.innerHTML = `
+          <td class="p-2 staff-name font-medium text-gray-800">${group.staffName} (${group.staffID})</td>
+          <td class="p-2 leave-range">
+            <div class="flex flex-col gap-1">
+            ${ranges.map(range => {
+              const startDate = range[0].date.split("-")[2];
+              const endDate = range[range.length - 1].date.split("-")[2];
+              const displayText = (startDate === endDate) ? startDate : `${startDate}-${endDate}`;
+              const statusLabel = range[0].status;
+              return `
+                <div class="range-block ${statusLabel.toLowerCase()} inline-flex items-center gap-1.5 text-xs">
+                  <span class="status-dot w-1.5 h-1.5 rounded-full"></span>
+                  ${displayText} (${statusLabel})
+                </div>
+              `;
+            }).join("")}
+            </div>
+          </td>
+          <td class="p-2 total-days font-medium text-gray-800 text-right">${totalDays}</td>
+        `;
+        summaryTableBody.appendChild(row);
+      });
+      
+      if (summaryTableBody.children.length === 0) {
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td colspan="3" style="text-align: center; color: #e74c3c; font-size: 11px;">
-            Error loading summary. Please try again later.
+          <td colspan="3" class="p-4 text-center text-gray-500">
+            No approved or write-in leave requests for this month.
           </td>`;
         summaryTableBody.appendChild(row);
       }
     }
     
-    async function downloadSummaryPDF() {
+    window.downloadSummaryPDF = function() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const bodyData = [];
@@ -1160,21 +981,23 @@
         if (cells.length === 3) {
           bodyData.push([
             cells[0].innerText.trim(),
-            cells[1].innerText.trim(),
+            cells[1].innerText.trim().replace(/\s+/g, ' '), // Clean up whitespace
             cells[2].innerText.trim()
           ]);
         }
       });
+      
+      doc.text(`Monthly Leave Summary - ${document.getElementById("monthLabel").textContent}`, 14, 15);
       doc.autoTable({
         head: [["Staff", "Dates", "Days"]],
         body: bodyData,
         startY: 20,
         theme: "grid",
-        styles: { fontSize: 12 },
+        styles: { fontSize: 10 },
         columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 100 },
-          2: { cellWidth: 30 }
+          0: { cellWidth: 50 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 20 }
         }
       });
       showPDFPreview(doc);
@@ -1183,248 +1006,138 @@
     function showPDFPreview(doc) {
       const pdfBlob = doc.output("blob");
       const pdfURL = URL.createObjectURL(pdfBlob);
-      const container = document.createElement("div");
-      container.id = "pdfViewerContainer";
-      container.style.position = "fixed";
-      container.style.top = "0";
-      container.style.left = "0";
-      container.style.width = "100%";
-      container.style.height = "100%";
-      container.style.backgroundColor = "rgba(0,0,0,0.8)";
-      container.style.zIndex = "1000";
-      container.innerHTML = `
-        <div style="position: relative; width: 80%; height: 90%; margin: 5% auto; background: #fff; border-radius: 8px; overflow: hidden;">
-          <iframe src="${pdfURL}" style="width: 100%; height: 100%; border: none;"></iframe>
-          <button id="exitPDFViewer" style="position: absolute; top: 10px; right: 10px; padding: 6px 12px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Exit</button>
-        </div>
-      `;
-      document.body.appendChild(container);
+      const container = document.getElementById("pdfViewerContainer");
+      document.getElementById("pdfViewerFrame").src = pdfURL;
+      container.style.display = "block";
+      
       document.getElementById("exitPDFViewer").onclick = function() {
-        document.body.removeChild(container);
+        container.style.display = "none";
+        document.getElementById("pdfViewerFrame").src = "about:blank";
         URL.revokeObjectURL(pdfURL);
       };
     }
     
-    document.getElementById("startDate").addEventListener("change", function() {
-      const startDateValue = this.value;
-      const endDateInput = document.getElementById("endDate");
-      if (startDateValue) {
-        endDateInput.min = startDateValue;
-        endDateInput.max = "";
-      } else {
-        endDateInput.min = "";
-        endDateInput.max = "";
-      }
-    });
-    
-    document.getElementById("leaveForm").onsubmit = async function(e) {
-      e.preventDefault();
-      const name  = document.getElementById("staffName").value.trim();
-      const id    = document.getElementById("staffID").value.trim();
-      const start = document.getElementById("startDate").value;
-      const end   = document.getElementById("endDate").value;
-      if (!name || !id || !start || !end) {
-        alert("Please fill all fields.");
+    // --- User Management (Admin) ---
+
+    function renderUserManagement() {
+      if (userType !== 'admin') return;
+      const tbody = document.querySelector("#usersTable tbody");
+      tbody.innerHTML = "";
+      
+      if (allUsers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">No users have registered yet.</td></tr>`;
         return;
       }
-      if (end < start) {
-        alert("End date cannot be before start date.");
-        return;
+      
+      allUsers.forEach(user => {
+        // Admin cannot delete or demote themselves
+        const isSelf = (user.id === auth.currentUser.uid);
+        
+        const tr = document.createElement("tr");
+        tr.className = "border-b hover:bg-gray-50";
+        tr.innerHTML = `
+          <td class="p-3">${user.username}</td>
+          <td class="p-3">${user.staffID}</td>
+          <td class="p-3">${user.email}</td>
+          <td class="p-3">
+            <span class="px-2 py-1 text-xs rounded-full ${user.isAdmin ? "bg-green-200 text-green-800" : "bg-gray-200 text-gray-800"}">
+              ${user.isAdmin ? "Yes" : "No"}
+            </span>
+          </td>
+          <td class="p-3 space-x-2">
+            <button class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs hover:bg-blue-200 ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    onclick="window.toggleAdminStatus('${user.id}', ${user.isAdmin})" ${isSelf ? 'disabled' : ''}>
+              ${user.isAdmin ? "Revoke Admin" : "Make Admin"}
+            </button>
+            <button class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded text-xs hover:bg-yellow-200" 
+                    onclick="window.resetUserPassword('${user.email}')">
+              Reset Password
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.toggleAdminStatus = async (userId, isCurrentlyAdmin) => {
+      if (userId === auth.currentUser.uid) {
+        return showAlert("You cannot change your own admin status.");
       }
+      
+      if (!confirm(`Are you sure you want to ${isCurrentlyAdmin ? 'revoke' : 'grant'} admin status for this user?`)) return;
+      
+      loadingEl.style.display = "flex";
       try {
-        const response = await fetch(`${API_BASE_URL}/api/submit_leave`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            status: "Pending",
-            staffName: name,
-            staffID: id,
-            fromDate: start,
-            toDate: end
-          })
+        const userDocRef = doc(db, usersCollectionPath, userId);
+        await updateDoc(userDocRef, {
+          isAdmin: !isCurrentlyAdmin
         });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Leave request submitted successfully.");
-          await loadLeaves();
-          if (userType === "admin") {
-            await renderCalendar();
-          } else {
-            renderAdmin();
-          }
-        } else {
-          alert("Error: " + data.message);
-        }
-      } catch (error) {
-        console.error("Error submitting leave request:", error);
-        alert("An error occurred. Please try again later.");
+        showAlert("Admin status updated successfully.", false);
+        // onSnapshot will update the UI
+      } catch (err) {
+        console.error("Toggle admin error:", err);
+        showAlert("Error updating admin status: " + err.message);
+      } finally {
+        loadingEl.style.display = "none";
       }
-      e.target.reset();
-    };
+    }
     
-    async function prevMonth() {
+    window.resetUserPassword = async (email) => {
+      if (!confirm(`Are you sure you want to send a password reset email to ${email}?`)) return;
+      
+      loadingEl.style.display = "flex";
+      try {
+        await sendPasswordResetEmail(auth, email);
+        showAlert(`Password reset email sent to ${email}.`, false);
+      } catch (err) {
+        console.error("Password reset error:", err);
+        showAlert("Error sending password reset: " + err.message);
+      } finally {
+        loadingEl.style.display = "none";
+      }
+    }
+
+    // --- Tab & Navigation Functions ---
+    
+    window.selectTeam = (teamNumber) => {
+      selectedTeam = teamNumber;
+      renderCalendar();
+    }
+    
+    window.prevMonth = async () => {
       currentMonth--;
       if (currentMonth < 0) {
         currentMonth = 11;
         currentYear--;
       }
+      referenceDate = new Date(currentYear, currentMonth, 1);
       await renderCalendar();
     }
-    async function nextMonth() {
+    window.nextMonth = async () => {
       currentMonth++;
       if (currentMonth > 11) {
         currentMonth = 0;
         currentYear++;
       }
+      referenceDate = new Date(currentYear, currentMonth, 1);
       await renderCalendar();
     }
     
-    function showLeaveManagement() {
+    window.showLeaveManagement = () => {
       document.getElementById("leaveManagementPanel").style.display = "block";
       document.getElementById("userManagementPanel").style.display = "none";
+      document.querySelectorAll(".tab-button")[0].classList.add("active-tab");
+      document.querySelectorAll(".tab-button")[1].classList.remove("active-tab");
     }
-    function showUserManagement() {
+    window.showUserManagement = () => {
       document.getElementById("leaveManagementPanel").style.display = "none";
       document.getElementById("userManagementPanel").style.display = "block";
-      loadUsers();
+      document.querySelectorAll(".tab-button")[0].classList.remove("active-tab");
+      document.querySelectorAll(".tab-button")[1].classList.add("active-tab");
+      renderUserManagement(); // Render user list when tab is clicked
     }
-    
-    const USERS_API_URL = API_BASE_URL + "/api/users";
-    
-    document.getElementById("addUserForm").onsubmit = async function(e) {
-      e.preventDefault();
-      const newUsername = document.getElementById("newUsername").value.trim();
-      const newStaffID  = document.getElementById("newStaffID").value.trim();
-      const newPassword = document.getElementById("newPassword").value;
-      const newIsAdmin  = document.getElementById("newIsAdmin").checked;
-      if (!newUsername || !newStaffID || !newPassword) {
-        alert("Please fill in Username, Staff ID, and Password.");
-        return;
-      }
-      try {
-        const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({ username: newUsername, staffID: newStaffID, password: newPassword, isAdmin: newIsAdmin })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("User added successfully.");
-          document.getElementById("addUserForm").reset();
-          loadUsers();
-        } else {
-          alert("Error adding user: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error adding user: " + err.message);
-      }
-    };
-    
-    async function loadUsers() {
-      try {
-        const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL, { headers: { "Authorization": "Bearer " + token } });
-        if (!response.ok) throw new Error("Failed to fetch users");
-        const users = await response.json();
-        const tbody = document.querySelector("#usersTable tbody");
-        tbody.innerHTML = "";
-        users.forEach(user => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${user.username}</td>
-            <td>${user.staffID}</td>
-            <td>${user.isAdmin ? "Yes" : "No"}</td>
-            <td>
-              <button onclick="deleteUser('${user.id}')">Delete</button>
-              <button onclick="toggleAdminStatus('${user.id}', ${user.isAdmin})">
-                ${user.isAdmin ? "Revoke Admin" : "Make Admin"}
-              </button>
-              <button onclick="resetUserPasswordPrompt('${user.id}')">Reset Password</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (err) {
-        alert("Error loading users: " + err.message);
-      }
-    }
-    
-    async function deleteUser(id) {
-      if (!confirm("Are you sure you want to delete this user?")) return;
-      try {
-        const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL + "/" + id, {
-          method: "DELETE",
-          headers: { "Authorization": "Bearer " + token }
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("User deleted successfully.");
-          loadUsers();
-        } else {
-          alert("Error deleting user: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error deleting user: " + err.message);
-      }
-    }
-    
-    async function toggleAdminStatus(id, isCurrentlyAdmin) {
-      try {
-        const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL + "/" + id + "/toggle_admin", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + token }
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Admin status updated successfully.");
-          loadUsers();
-        } else {
-          alert("Error toggling admin status: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error toggling admin status: " + err.message);
-      }
-    }
-    
-    function resetUserPasswordPrompt(id) {
-      const newPassword = prompt("Enter new password:");
-      if (newPassword) {
-        resetUserPassword(id, newPassword);
-      }
-    }
-    
-    async function resetUserPassword(id, password) {
-      try {
-        const token = localStorage.getItem("token") || "";
-        const response = await fetch(USERS_API_URL + "/" + id + "/reset_password", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
-          body: JSON.stringify({ newPassword: password })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          alert("Password reset successfully.");
-        } else {
-          alert("Error resetting password: " + (data.message || "Unknown error"));
-        }
-      } catch (err) {
-        alert("Error resetting password: " + err.message);
-      }
-    }
-    
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("loginSection").style.display = "block";
-      document.querySelector(".container").style.display = "none";
-    });
+
   </script>
 </body>
 </html>
+
