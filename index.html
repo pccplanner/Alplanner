@@ -11,10 +11,6 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!--
-    NOTE: The original CSS has been replaced with Tailwind CSS for a cleaner look
-    and to ensure all styles are self-contained.
-  -->
   <style>
     /* Base Styles */
     body {
@@ -56,34 +52,43 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-  <!-- Loading Indicator -->
-  <div id="loading" class="absolute inset-0 bg-white/70 flex items-center justify-center z-50">
-    <div class="text-xl font-semibold text-gray-700">Loading...</div>
+  <!-- 
+    *** LOADING SPINNER ***
+    This is visible by default and hides the login form.
+  -->
+  <div id="loading" class="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center z-50" style="display: flex;">
+    <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    <p class="mt-4 text-lg font-semibold text-gray-700">Loading Planner...</p>
   </div>
 
-  <!-- Login Section -->
-  <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md">
+  <!-- 
+    *** LOGIN SECTION ***
+    This is hidden by default.
+  -->
+  <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md" style="display: none;">
     <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Planner Login</h2>
     
-    <!-- Unified Login Form -->
-    <div id="loginForm">
+    <!-- *** MODIFICATION: Changed <div> to <form> *** -->
+    <form id="loginForm">
       <input type="email" id="loginEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="password" id="loginPassword" placeholder="Password" class="w-full px-4 py-2 mb-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-      <button id="loginButton" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors">Login</button>
-      <button onclick="showRegisterForm()" class="w-full mt-2 text-blue-600 hover:underline">Don't have an account? Register</button>
-    </div>
+      <button id="loginButton" type="submit" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors">Login</button>
+      <button onclick="showRegisterForm()" type="button" class="w-full mt-2 text-blue-600 hover:underline">Don't have an account? Register</button>
+    </form>
     
-    <!-- User Registration Form (hidden by default) -->
-    <div id="userRegisterForm" style="display: none;">
+    <!-- *** MODIFICATION: Changed <div> to <form> *** -->
+    <form id="userRegisterForm" style="display: none;">
       <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="email" id="regEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="password" id="regPassword" placeholder="Password" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      
+      <!-- THIS IS THE ADMIN REGISTRATION FIELD -->
       <input type="password" id="regAdminSecret" placeholder="Admin Secret Code (if any)" class="w-full px-4 py-2 mb-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
       
-      <button id="registerButton" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">Register</button>
-      <button onclick="showLoginForm()" class="w-full mt-2 text-blue-600 hover:underline">Already have an account? Login</button>
-    </div>
+      <button id="registerButton" type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">Register</button>
+      <button onclick="showLoginForm()" type="button" class="w-full mt-2 text-blue-600 hover:underline">Already have an account? Login</button>
+    </form>
 
     <!-- Custom Alert Box -->
     <div id="customAlert" class="fixed top-5 right-5 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg" style="display: none; z-index: 1000;">
@@ -241,18 +246,19 @@
     let firebaseConfig;
     if (typeof __firebase_config !== 'undefined') {
       firebaseConfig = JSON.parse(__firebase_config);
+      console.log("Using provided __firebase_config.");
     } else {
-      // Fallback config from user's 'SDK Configuration _shift Tracker.txt'
+      // Fallback config ('apo-leave-planner')
       firebaseConfig = {
-        apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0", // User-provided key
-        authDomain: "shift-tracker-b7879.firebaseapp.com",
-        projectId: "shift-tracker-b7879",
-        storageBucket: "shift-tracker-b7879.firebasestorage.app",
-        messagingSenderId: "619413261457",
-        appId: "1:619413261457:web:71bb4d19745a64aab20330",
-        measurementId: "G-Q0BFJ8SBSY"
+        apiKey: "AIzaSyBtMiev72-UUyL8NEFk0bSIDAGJskU4Dj4",
+        authDomain: "apo-leave-planner.firebaseapp.com",
+        projectId: "apo-leave-planner",
+        storageBucket: "apo-leave-planner.firebasestorage.app",
+        messagingSenderId: "240953713168",
+        appId: "1:240953713168:web:61ff4cd347c2a3ce4aa095",
+        measurementId: "G-NX0TJPK0Q3"
       };
-      console.warn("Using fallback Firebase config. __firebase_config not found.");
+      console.warn("Using fallback Firebase config (apo-leave-planner). __firebase_config not found.");
     }
 
     // --- App & Auth Initialization ---
@@ -286,8 +292,7 @@
     const mainContainer = document.querySelector(".container");
     const loginForm = document.getElementById("loginForm");
     const registerForm = document.getElementById("userRegisterForm");
-    const loginButton = document.getElementById("loginButton");
-    const registerButton = document.getElementById("registerButton");
+    // *** NOTE: loginButton and registerButton are no longer needed here ***
     const logoutButton = document.getElementById("logoutButton");
 
     // --- Utility Functions ---
@@ -310,7 +315,7 @@
       
       setTimeout(() => {
         alertBox.style.display = "none";
-      }, 3000);
+      }, 4000); // Increased time to 4 seconds
     }
 
     // --- Firebase Initialization ---
@@ -319,7 +324,7 @@
       auth = getAuth(app);
       db = getFirestore(app);
       setLogLevel('debug'); // Enable Firestore logging
-      console.log("Firebase initialized successfully.");
+      console.log("Firebase initialized successfully with projectId:", firebaseConfig.projectId);
 
       // Use the global __app_id if available
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -358,37 +363,53 @@
       } catch (error) {
         console.error("Auth initialization error:", error);
         showAlert("Authentication failed. Please refresh.");
+        // If anon auth fails, hide spinner and show login
+        loadingEl.style.display = "none";
+        loginSection.style.display = "block";
       }
 
       // Listen for auth state changes
       onAuthStateChanged(auth, async (user) => {
         if (user && !user.isAnonymous) {
           console.log("User is logged in:", user.uid);
-          // User is signed in, fetch their profile
-          const userDocRef = doc(db, usersCollectionPath, user.uid);
-          const userDoc = await getDoc(userDocRef);
+          try { 
+            // User is signed in, fetch their profile
+            const userDocRef = doc(db, usersCollectionPath, user.uid);
+            const userDoc = await getDoc(userDocRef); 
 
-          if (userDoc.exists()) {
-            currentUserProfile = { id: user.uid, ...userDoc.data() };
-            userType = currentUserProfile.isAdmin ? "admin" : "user";
-            
-            console.log("User profile found. User type:", userType);
-            
-            // Setup UI
-            document.getElementById("currentUserDisplay").textContent = `${currentUserProfile.username} (${currentUserProfile.email})`;
-            document.getElementById("staffName").value = currentUserProfile.username;
-            document.getElementById("staffID").value = currentUserProfile.staffID;
-            
-            loginSection.style.display = "none";
-            mainContainer.style.display = "block";
-            loadingEl.style.display = "none";
-            
-            await renderUI();
-          } else {
-            // This shouldn't happen if registration is correct
-            console.error("User document not found in Firestore!");
-            showAlert("Error: User profile missing. Logging out.");
+            if (userDoc.exists()) {
+              currentUserProfile = { id: user.uid, ...userDoc.data() };
+              userType = currentUserProfile.isAdmin ? "admin" : "user";
+              
+              console.log("User profile found. User type:", userType);
+              
+              // Setup UI
+              document.getElementById("currentUserDisplay").textContent = `${currentUserProfile.username} (${currentUserProfile.email})`;
+              document.getElementById("staffName").value = currentUserProfile.username;
+              document.getElementById("staffID").value = currentUserProfile.staffID;
+              
+              loginSection.style.display = "none";
+              mainContainer.style.display = "block";
+              
+              await renderUI();
+            } else {
+              // This shouldn't happen if registration is correct
+              console.error("User document not found in Firestore!");
+              showAlert("Error: User profile missing. Logging out.");
+              await signOut(auth);
+            }
+          } catch (error) { 
+            console.error("Error fetching user profile:", error);
+            if (error.code === 'permission-denied' || error.code === 7) {
+              showAlert("Login successful, but failed to get profile. Check Firestore permissions.");
+            } else {
+              showAlert("Error loading user profile: " + error.message);
+            }
+            // Log out the user so they don't get stuck
             await signOut(auth);
+          } finally { 
+            // ALWAYS hide the loader, regardless of success or failure
+            loadingEl.style.display = "none";
           }
         } else {
           // User is signed out or anonymous
@@ -421,28 +442,31 @@
       registerForm.style.display = "none";
     }
 
-    // Login Button Event
-    loginButton.addEventListener("click", async () => {
+    // *** MODIFICATION: Changed to submit event listener on the form ***
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault(); // Prevent form from reloading page
       const email = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPassword").value;
       if (!email || !password) {
         return showAlert("Please enter both email and password.");
       }
       
-      loadingEl.style.display = "flex";
+      loadingEl.style.display = "flex"; // Show loading
       try {
         await signInWithEmailAndPassword(auth, email, password);
-        // onAuthStateChanged will handle the rest
+        // onAuthStateChanged will handle the rest, including hiding the loader
         console.log("Login successful.");
       } catch (err) {
         console.error("Login error:", err);
         showAlert(err.message);
-        loadingEl.style.display = "none";
+        loadingEl.style.display = "none"; // Hide loading on error
       }
     });
 
-    // Register Button Event
-    registerButton.addEventListener("click", async () => {
+    // *** MODIFICATION: Changed to submit event listener on the form ***
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault(); // Prevent form from reloading page
+      
       const username = document.getElementById("regUsername").value.trim();
       const staffID = document.getElementById("regStaffID").value.trim();
       const email = document.getElementById("regEmail").value.trim();
@@ -483,11 +507,15 @@
         await signOut(auth);
 
         showLoginForm();
-        registerForm.reset();
+        registerForm.reset(); // <-- *** THIS WILL NOW WORK! ***
 
       } catch (err) {
         console.error("Registration error:", err);
-        showAlert(err.message);
+        if (err.code === 'permission-denied' || err.code === 7) {
+           showAlert("Registration failed. Check Firestore permissions.");
+        } else {
+           showAlert(err.message);
+        }
       } finally {
         loadingEl.style.display = "none";
       }
@@ -542,7 +570,11 @@
         renderCalendar(); // Re-render calendar and admin list
       }, (error) => {
         console.error("Error listening to leave requests:", error);
-        showAlert("Error loading leave requests.");
+        if (error.code === 'permission-denied' || error.code === 7) {
+          showAlert("Can't load leave requests. Check Firestore permissions.");
+        } else {
+          showAlert("Error loading leave requests.");
+        }
       });
       
       // --- Users Listener (Admin Only) ---
@@ -556,7 +588,11 @@
           }
         }, (error) => {
           console.error("Error listening to users:", error);
-          showAlert("Error loading users.");
+          if (error.code === 'permission-denied' || error.code === 7) {
+             showAlert("Can't load user list. Check Firestore permissions.");
+          } else {
+            showAlert("Error loading users.");
+          }
         });
       }
     }
@@ -796,7 +832,7 @@
             await deleteDoc(doc(db, leaveRequestsCollectionPath, requestId));
             // onSnapshot will handle the UI update
             console.log("Request deleted.");
-            showAlert("Request deleted successfully.", false);
+            showAlert("Request deleted. Please refresh if it's still visible.", false);
           } catch (err) {
             console.error("Delete request error:", err);
             showAlert("Error deleting request: " + err.message);
@@ -1136,8 +1172,8 @@
       document.querySelectorAll(".tab-button")[1].classList.add("active-tab");
       renderUserManagement(); // Render user list when tab is clicked
     }
-
   </script>
 </body>
 </html>
+
 
