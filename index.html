@@ -101,7 +101,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v4.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v6.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -378,7 +378,7 @@
     let usersUnsubscriber = null;
     let teamsUnsubscriber = null; 
 
-    // *** THIS IS THE FIX: Updated shift colors ***
+    // Shift colors from original planner
     const shiftCodesMap = {
         '1':    { text: '1',    color: 'bg-green-600', textColor: 'text-white' },         // Morning (dark green)
         '2':    { text: '2',    color: 'bg-green-400', textColor: 'text-gray-800' },      // Night (light green)
@@ -726,9 +726,16 @@
       }
     }
 
-    /* Date & shift helpers */
+    // --- Date & shift helpers ---
+    
+    // *** THIS IS THE FIX: A timezone-safe formatDate function ***
     function formatDate(d) {
-      return d.toISOString().split('T')[0]; // YYYY-MM-DD
+      // Create a new date object to avoid modifying the original
+      const date = new Date(d.getTime());
+      // Adjust for timezone offset to get the correct local date
+      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+      // Return YYYY-MM-DD
+      return date.toISOString().split('T')[0];
     }
     
     function getShift(d) {
@@ -741,7 +748,10 @@
       }
       const pattern = team.shiftPattern;
       const anchorDate = team.patternStartDate || patternAnchorDate;
+      
+      // We use the NEW, correct formatDate function here
       const daysSinceAnchor = getDaysBetween(formatDate(d), anchorDate);
+      
       const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
       const shift = pattern[patternIndex];
       const shiftInfo = shiftCodesMap[shift] || { ...shiftCodesMap['_EMPTY'], text: shift }; 
@@ -753,24 +763,35 @@
         teamButtonsContainer.innerHTML = ""; 
         const sortedTeams = [...teamsMap.values()].sort((a, b) => a.name.localeCompare(b.name));
         
+        let teamFound = false;
+        
         sortedTeams.forEach((team, index) => {
             const button = document.createElement("button");
-            button.className = "bg-gray-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-gray-700";
+            // *** FIX: Use lighter default colors for better contrast ***
+            button.className = "team-button bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-300 transition-colors";
             button.textContent = team.name;
             button.onclick = () => selectTeam(team.docId, button);
             teamButtonsContainer.appendChild(button);
             
+            // Auto-select user's team or first team for admin
             if (!selectedTeamId && ((userType === 'user' && currentUserProfile.team_id === team.docId) || (userType === 'admin' && index === 0))) {
               selectTeam(team.docId, button);
+              teamFound = true;
             }
         });
         
+        // If user's team wasn't found (maybe deleted?), select first team
+        if (!teamFound && sortedTeams.length > 0) {
+            selectTeam(sortedTeams[0].docId, teamButtonsContainer.querySelector('button'));
+        }
+        
+        // Ensure the currently selected button is highlighted
         if (selectedTeamId) {
             const buttons = teamButtonsContainer.querySelectorAll('button');
             buttons.forEach(btn => {
                 if (btn.textContent === teamsMap.get(selectedTeamId)?.name) {
-                    btn.classList.add('bg-blue-600');
-                    btn.classList.remove('bg-gray-600');
+                    btn.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+                    btn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
                 }
             });
         }
@@ -792,6 +813,16 @@
       grid.innerHTML = "";
       
       const fragment = document.createDocumentFragment();
+      
+      // *** NEW: Add Weekday Headers ***
+      const weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+      weekdays.forEach(day => {
+          const dayCell = document.createElement("div");
+          dayCell.className = "text-center font-semibold text-xs text-gray-500 py-2";
+          dayCell.textContent = day;
+          fragment.appendChild(dayCell);
+      });
+      
       const firstDay = new Date(currentYear, currentMonth, 1);
       const offset = (firstDay.getDay() + 6) % 7; // 0 = Monday
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -802,7 +833,7 @@
       
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
-        const dateStr = formatDate(dateObj);
+        const dateStr = formatDate(dateObj); // Use NEW correct formatDate
         const cell = document.createElement("div");
         cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
@@ -1018,11 +1049,11 @@
         return showAlert("End date cannot be before start date.");
       }
       loadingEl.style.display = "flex";
-      const startDate = new Date(start + "T00:00:00");
-      const endDate = new Date(end + "T00:00:00");
+      const startDate = new Date(start + "T12:00:00"); // Use noon to avoid timezone day change
+      const endDate = new Date(end + "T12:00:00");
       const daysArray = [];
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        daysArray.push({ date: formatDate(new Date(d)), status: "Pending" });
+      for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
+        daysArray.push({ date: formatDate(new Date(d)), status: "Pending" }); // Use NEW correct formatDate
       }
       if (daysArray.length === 0) {
         loadingEl.style.display = "none";
@@ -1084,10 +1115,10 @@
         if (dayEntries.length > 0) {
           let currentRange = [dayEntries[0]];
           for (let i = 1; i < dayEntries.length; i++) {
-            const prevDate = new Date(currentRange[currentRange.length - 1].date);
-            const currDate = new Date(dayEntries[i].date);
-            // Corrected date comparison
-            const dateDiff = (currDate.getTime() - prevDate.getTime()) / (1000 * 3600 * 24);
+            const prevDateStr = currentRange[currentRange.length - 1].date;
+            const currDateStr = dayEntries[i].date;
+            const dateDiff = getDaysBetween(currDateStr, prevDateStr);
+
             if (dateDiff === 1 && currentRange[0].status === dayEntries[i].status) {
               currentRange.push(dayEntries[i]);
             } else {
@@ -1194,7 +1225,7 @@
           <td class="p-3">${user.username}</td>
           <td class="p-3">${user.staffID}</td>
           <td class="p-3">${user.email}</td>
-          <td class="p-3">${teamName}</td> <!-- NEW Column -->
+          <td class="p-3">${teamName}</td>
           <td class="p-3">
             <span class="px-2 py-1 text-xs rounded-full ${user.isAdmin ? "bg-green-200 text-green-800" : "bg-gray-200 text-gray-800"}">
               ${user.isAdmin ? "Yes" : "No"}
@@ -1254,7 +1285,6 @@
         deleteTeamError.textContent = '';
         addTeamError.textContent = '';
         populateManageTeamsModal();
-        // teamManagementPanel is already displayed by showTeamManagement
     }
     
     function populateManageTeamsModal() {
@@ -1446,21 +1476,25 @@
       selectedTeamId = teamId;
       
       const teamButtonsContainer = document.getElementById("team-buttons");
-      teamButtonsContainer.querySelectorAll('button').forEach(btn => {
-          btn.classList.add('bg-gray-600');
-          btn.classList.remove('bg-blue-600');
+      // *** FIX: Reset all buttons to default style first ***
+      teamButtonsContainer.querySelectorAll('button.team-button').forEach(btn => {
+          btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+          btn.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
       });
+      
+      // *** FIX: Apply selected style to the correct button ***
       if (buttonElement) {
-          buttonElement.classList.add('bg-blue-600');
-          buttonElement.classList.remove('bg-gray-600');
+          buttonElement.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+          buttonElement.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
       } else {
+          // Fallback if buttonElement wasn't passed
           const teamName = teamsMap.get(teamId)?.name;
           if (teamName) {
-              const buttons = teamButtonsContainer.querySelectorAll('button');
+              const buttons = teamButtonsContainer.querySelectorAll('button.team-button');
               for (let btn of buttons) {
                   if (btn.textContent === teamName) {
-                      btn.classList.add('bg-blue-600');
-                      btn.classList.remove('bg-gray-600');
+                      btn.classList.add('bg-blue-600', 'text-white', 'font-semibold');
+                      btn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
                       break;
                   }
               }
