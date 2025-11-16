@@ -105,7 +105,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v7.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v8.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -735,7 +735,6 @@
 
     // --- Date & shift helpers ---
     
-    // *** THIS IS THE FIX: A timezone-safe formatDate function ***
     function formatDate(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -754,7 +753,6 @@
       const pattern = team.shiftPattern;
       const anchorDate = team.patternStartDate || patternAnchorDate;
       
-      // We use the NEW, correct formatDate function here
       const daysSinceAnchor = getDaysBetween(formatDate(d), anchorDate);
       
       const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
@@ -1028,16 +1026,25 @@
         };
       });
       
-      // *** NEW: WhatsApp Button Logic ***
+      // *** FIXED: WhatsApp Button Logic ***
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const requestId = btn.getAttribute("data-request-id");
           const req = requests.find(r => r.id === requestId);
           if (!req) return;
 
-          // Find the user's profile from the allUsers array (admin only)
-          const user = allUsers.find(u => u.staffID === req.staffID);
-          const mobileNumber = user ? user.mobile : '';
+          let mobileNumber = '';
+          
+          if (userType === 'admin') {
+            // Admin: Find the user in the allUsers list
+            const user = allUsers.find(u => u.staffID === req.staffID);
+            mobileNumber = user ? user.mobile : '';
+          } else {
+            // Non-admin: They are looking at their own request. Use their own profile.
+            if (currentUserProfile && currentUserProfile.staffID === req.staffID) {
+                mobileNumber = currentUserProfile.mobile || '';
+            }
+          }
 
           const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${req.fromDate} to ${req.toDate}):\n` +
             req.days.map(d => `${d.date}: ${d.status}`).join('\n');
@@ -1243,7 +1250,6 @@
       tbody.innerHTML = "";
       
       if (allUsers.length === 0) {
-        // *** NEW: Updated colspan to 7 ***
         tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">No users have registered yet.</td></tr>`;
         return;
       }
