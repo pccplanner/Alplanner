@@ -17,11 +17,8 @@
       font-family: Arial, sans-serif; 
       font-size: 13px; 
     }
-    /* Custom styles from original file (for calendar shifts) */
-    .shift-morning { background: #27ae60; }
-    .shift-night   { background: #8fbc8f; }
-    .shift-off     { background: #dcdcdc; color: #444; }
-    /* Custom styles for leave entries */
+    
+    /* Custom styles for leave entries (from original) */
     .leave-entry.pending   { background: #fff3cd; }
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
@@ -60,17 +57,13 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-  <!-- 
-    *** LOADING SPINNER ***
-  -->
+  <!-- LOADING SPINNER -->
   <div id="loading" class="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center z-50" style="display: flex;">
     <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
     <p class="mt-4 text-lg font-semibold text-gray-700">Loading Planner...</p>
   </div>
 
-  <!-- 
-    *** LOGIN SECTION ***
-  -->
+  <!-- LOGIN SECTION -->
   <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md" style="display: none;">
     <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Planner Login</h2>
     
@@ -87,7 +80,6 @@
       <input type="email" id="regEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="password" id="regPassword" placeholder="Password" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       
-      <!-- *** NEW: Team Selection Dropdown *** -->
       <select id="regTeam" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
         <option value="">Select a team...</option>
         <!-- Teams will be populated by JS -->
@@ -109,7 +101,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v3.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v4.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -119,7 +111,6 @@
       <nav class="flex space-x-4">
         <button onclick="showLeaveManagement()" class="tab-button active-tab py-2 px-4 text-blue-600 border-b-2 border-blue-600 font-medium">Leave Management</button>
         <button onclick="showUserManagement()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700">User Management</button>
-        <!-- *** NEW: Team Management Tab *** -->
         <button onclick="showTeamManagement()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700">Team Management</button>
       </nav>
       <style>.tab-button.active-tab { color: #2563eb; border-bottom: 2px solid #2563eb; } .tab-button { border-bottom: 2px solid transparent; }</style>
@@ -140,7 +131,6 @@
         <button type="submit" class="bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition-colors">Request Leave</button>
       </form>
       
-      <!-- *** MODIFICATION: Team Buttons will be populated dynamically *** -->
       <div id="team-buttons" class="team-buttons text-center my-3 space-x-2">
         <!-- Buttons populated by JS -->
       </div>
@@ -191,7 +181,6 @@
               <th class="p-3 text-left font-semibold text-gray-700">Username</th>
               <th class="p-3 text-left font-semibold text-gray-700">Staff ID</th>
               <th class="p-3 text-left font-semibold text-gray-700">Email</th>
-              <!-- *** NEW: Team Column *** -->
               <th class="p-3 text-left font-semibold text-gray-700">Team</th>
               <th class="p-3 text-left font-semibold text-gray-700">Admin</th>
               <th class="p-3 text-left font-semibold text-gray-700">Actions</th>
@@ -204,7 +193,7 @@
       </div>
     </div>
     
-    <!-- *** NEW: Team Management Panel (Admin Only) *** -->
+    <!-- Team Management Panel (Admin Only) -->
     <div id="teamManagementPanel" class="p-4" style="display: none;">
       <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Team Management</h2>
       
@@ -239,7 +228,7 @@
     </div>
   </div>
   
-  <!-- *** NEW: Team Management Modals (from Roster Script) *** -->
+  <!-- Team Management Modals -->
   
   <!-- Edit Team (Visual Pattern Builder) Modal -->
   <div id="edit-team-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-start z-50 hidden p-4 overflow-y-auto">
@@ -342,9 +331,7 @@
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- !! IMPORTANT !! ---
-    // This is the secret code to create an admin.
     const ADMIN_SECRET_KEY = "ADMIN2025";
-    // Default shift pattern for new teams
     const defaultPattern = ['1', '1', '2', '2', 'OFF', 'OFF'];
     const patternAnchorDate = '2025-01-01'; // Default anchor date
 
@@ -373,33 +360,32 @@
     let currentUserProfile = null; // Store user's firestore doc
     let leaveRequestsCollectionPath;
     let usersCollectionPath;
-    let teamsCollectionPath; // *** NEW ***
+    let teamsCollectionPath; 
 
     // --- Global State Variables ---
-    let selectedTeamId = null; // *** NEW: Replaces selectedTeam number
+    let selectedTeamId = null; 
     let now = new Date();
     var currentYear = now.getFullYear();
     var currentMonth = now.getMonth();
     var referenceDate = new Date(currentYear, currentMonth, 1);
-    var requests = []; // Local cache of leave requests
-    var allUsers = []; // Local cache of all users (for admin)
-    var teamsMap = new Map(); // *** NEW: Stores all team data
-    var tempPatternArray = []; // *** NEW: For pattern builder
-    var teamIdToDelete = null; // *** NEW
+    var requests = []; 
+    var allUsers = []; 
+    var teamsMap = new Map(); 
+    var tempPatternArray = []; 
+    var teamIdToDelete = null; 
     var openAccordions = new Set();
     let leaveRequestsUnsubscriber = null;
     let usersUnsubscriber = null;
-    let teamsUnsubscriber = null; // *** NEW
+    let teamsUnsubscriber = null; 
 
-    // *** NEW: Hardcoded shift codes for the pattern builder ***
-    // (This replaces the need for the full "Manage Labels" feature)
+    // *** THIS IS THE FIX: Updated shift colors ***
     const shiftCodesMap = {
-        '1':    { text: '1',    color: 'bg-white', textColor: 'text-gray-800' },
-        '2':    { text: '2',    color: 'bg-white', textColor: 'text-gray-800' },
-        '1A':   { text: '1A',   color: 'bg-teal-100', textColor: 'text-teal-800' },
-        '2N':   { text: '2N',   color: 'bg-yellow-200', textColor: 'text-yellow-800' },
-        'OFF':  { text: 'OFF',  color: 'bg-green-200', textColor: 'text-green-800' },
-        'AL':   { text: 'AL',   color: 'bg-blue-200', textColor: 'text-blue-800' },
+        '1':    { text: '1',    color: 'bg-green-600', textColor: 'text-white' },         // Morning (dark green)
+        '2':    { text: '2',    color: 'bg-green-400', textColor: 'text-gray-800' },      // Night (light green)
+        '1A':   { text: '1A',   color: 'bg-green-600', textColor: 'text-white' },         // Morning
+        '2N':   { text: '2N',   color: 'bg-green-400', textColor: 'text-gray-800' },      // Night
+        'OFF':  { text: 'OFF',  color: 'bg-gray-300', textColor: 'text-gray-800' },       // Off (gray)
+        'AL':   { text: 'AL',   color: 'bg-blue-200', textColor: 'text-blue-800' },       // Leave
         'AD':   { text: 'AD',   color: 'bg-cyan-200', textColor: 'text-cyan-800' },
         'PPT':  { text: 'PPT',  color: 'bg-lime-200', textColor: 'text-lime-800' },
         'PCT':  { text: 'PCT',  color: 'bg-orange-200', textColor: 'text-orange-800' },
@@ -415,15 +401,12 @@
     const registerForm = document.getElementById("userRegisterForm");
     const logoutButton = document.getElementById("logoutButton");
     const regTeamSelect = document.getElementById("regTeam");
-
-    // *** NEW: Team Management DOM Elements ***
     const teamManagementPanel = document.getElementById("teamManagementPanel");
     const addTeamForm = document.getElementById("add-team-form");
     const newTeamNameInput = document.getElementById("new-team-name");
     const addTeamError = document.getElementById("add-team-error");
     const deleteTeamError = document.getElementById("delete-team-error");
     const teamListUl = document.getElementById("team-list-ul");
-    
     const editTeamModal = document.getElementById('edit-team-modal');
     const closeEditTeamModalBtn = document.getElementById('close-edit-team-modal');
     const editTeamForm = document.getElementById('edit-team-form');
@@ -433,12 +416,10 @@
     const editTeamAnchorDate = document.getElementById('edit-team-anchor-date');
     const visualPatternCells = document.getElementById('visual-pattern-cells');
     const editTeamError = document.getElementById('edit-team-error');
-    
     const patternShiftModal = document.getElementById('pattern-shift-modal');
     const closePatternModalBtn = document.getElementById('close-pattern-modal');
     const patternShiftOptionsContainer = document.getElementById('pattern-shift-options');
     const patternModalDay = document.getElementById('pattern-modal-day');
-    
     const deleteTeamConfirmModal = document.getElementById('delete-team-confirm-modal');
     const cancelDeleteTeamBtn = document.getElementById('cancel-delete-team-btn');
     const confirmDeleteTeamBtn = document.getElementById('confirm-delete-team-btn');
@@ -457,17 +438,13 @@
       setTimeout(() => { alertBox.style.display = "none"; }, 4000);
     }
     
-    // *** NEW: More robust getDaysBetween from Roster script ***
     function getDaysBetween(dateStr1, dateStr2) {
         try {
-            // Force input to be treated as local date in YYYY-MM-DD format
             const [y1, m1, d1] = dateStr1.split('-').map(Number);
             const [y2, m2, d2] = dateStr2.split('-').map(Number);
-            // Use UTC to avoid daylight saving issues in calculation
             const utcDate1 = Date.UTC(y1, m1 - 1, d1);
             const utcDate2 = Date.UTC(y2, m2 - 1, d2);
             if (isNaN(utcDate1) || isNaN(utcDate2)) { return 0; }
-            // Get difference in days
             return Math.round((utcDate1 - utcDate2) / 86400000);
         } catch (e) { console.error("Error in getDaysBetween", e); return 0; }
     }
@@ -485,11 +462,11 @@
       
       usersCollectionPath = `/artifacts/${appId}/public/data/users`;
       leaveRequestsCollectionPath = `/artifacts/${appId}/public/data/leaveRequests`;
-      teamsCollectionPath = `/artifacts/${appId}/public/data/teams`; // *** NEW ***
+      teamsCollectionPath = `/artifacts/${appId}/public/data/teams`; 
 
       console.log("Using Users Collection:", usersCollectionPath);
       console.log("Using Leave Requests Collection:", leaveRequestsCollectionPath);
-      console.log("Using Teams Collection:", teamsCollectionPath); // *** NEW ***
+      console.log("Using Teams Collection:", teamsCollectionPath); 
 
       initializeAuth();
 
@@ -504,9 +481,7 @@
      * Handles the authentication state changes.
      */
     async function initializeAuth() {
-      // *** NEW: We need to load teams even for anonymous users, to populate registration form ***
-      // This listener will be active for both anonymous and logged-in users.
-      // Make sure your Firestore Rules allow public read on the 'teams' collection.
+      // Load teams for registration dropdown
       const teamsQuery = collection(db, teamsCollectionPath);
       teamsUnsubscriber = onSnapshot(teamsQuery, (snapshot) => {
           console.log("Teams data updated (all users):", snapshot.size, "teams");
@@ -520,13 +495,11 @@
           
           sortedTeams.sort((a, b) => a.name.localeCompare(b.name));
           
-          // Populate registration dropdown
           regTeamSelect.innerHTML = '<option value="">Select a team...</option>';
           sortedTeams.forEach(team => {
               regTeamSelect.innerHTML += `<option value="${team.docId}">${team.name}</option>`;
           });
           
-          // If user is logged in, also update the team buttons
           if (currentUserProfile) {
               populateTeamButtons();
           }
@@ -644,9 +617,9 @@
       const email = document.getElementById("regEmail").value.trim();
       const password = document.getElementById("regPassword").value;
       const adminSecret = document.getElementById("regAdminSecret").value.trim();
-      const teamId = document.getElementById("regTeam").value; // *** NEW ***
+      const teamId = document.getElementById("regTeam").value; 
 
-      if (!username || !staffID || !email || !password || !teamId) { // *** MODIFIED ***
+      if (!username || !staffID || !email || !password || !teamId) { 
         return showAlert("Please fill in all fields, including team.");
       }
 
@@ -661,7 +634,6 @@
           showAlert("Admin secret correct! Admin user will be created.", false);
         }
 
-        // *** MODIFIED: Add team_id to the user document ***
         const userDocRef = doc(db, usersCollectionPath, user.uid);
         await setDoc(userDocRef, {
           username: username,
@@ -714,19 +686,16 @@
         showLeaveManagement();
         attachDataListeners(); 
       }
-      populateTeamButtons(); // *** NEW ***
+      populateTeamButtons(); 
       await renderCalendar(); 
     }
     
     // --- Firestore Data Listeners ---
     
     function attachDataListeners() {
-      // Ensure old listeners are detached
       if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
       if (usersUnsubscriber) usersUnsubscriber();
-      // (teamsUnsubscriber is already running)
       
-      // --- Leave Requests Listener ---
       let q = collection(db, leaveRequestsCollectionPath);
       
       if (userType === "user") {
@@ -742,7 +711,6 @@
         showAlert("Error loading leave requests.");
       });
       
-      // --- Users Listener (Admin Only) ---
       if (userType === "admin") {
         const usersQuery = collection(db, usersCollectionPath);
         usersUnsubscriber = onSnapshot(usersQuery, (snapshot) => {
@@ -763,59 +731,40 @@
       return d.toISOString().split('T')[0]; // YYYY-MM-DD
     }
     
-    // *** MODIFIED: Replaced getShift function ***
     function getShift(d) {
-      // If no team is selected, return an empty shift
       if (!selectedTeamId) {
         return { shift: '', shiftInfo: shiftCodesMap['_EMPTY'] };
       }
-      
       const team = teamsMap.get(selectedTeamId);
-      
-      // If team doesn't exist or has no pattern, return empty shift
       if (!team || !team.shiftPattern || team.shiftPattern.length === 0) {
         return { shift: '', shiftInfo: shiftCodesMap['_EMPTY'] };
       }
-      
       const pattern = team.shiftPattern;
       const anchorDate = team.patternStartDate || patternAnchorDate;
-      
-      // Use the new getDaysBetween function
       const daysSinceAnchor = getDaysBetween(formatDate(d), anchorDate);
-      
-      // Calculate the index in the pattern array
       const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
-      
       const shift = pattern[patternIndex];
-      const shiftInfo = shiftCodesMap[shift] || { ...shiftCodesMap['_EMPTY'], text: shift }; // Handle unknown shifts
-      
+      const shiftInfo = shiftCodesMap[shift] || { ...shiftCodesMap['_EMPTY'], text: shift }; 
       return { shift, shiftInfo };
     }
     
-    // *** NEW: Populate Team Buttons Dynamically ***
     function populateTeamButtons() {
         const teamButtonsContainer = document.getElementById("team-buttons");
-        teamButtonsContainer.innerHTML = ""; // Clear existing buttons
-        
+        teamButtonsContainer.innerHTML = ""; 
         const sortedTeams = [...teamsMap.values()].sort((a, b) => a.name.localeCompare(b.name));
         
         sortedTeams.forEach((team, index) => {
             const button = document.createElement("button");
-            // Simple styling for now, can be improved
             button.className = "bg-gray-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-gray-700";
             button.textContent = team.name;
-            button.onclick = () => selectTeam(team.docId);
+            button.onclick = () => selectTeam(team.docId, button);
             teamButtonsContainer.appendChild(button);
             
-            // Select the user's own team by default (or first team if admin)
-            if ((userType === 'user' && currentUserProfile.team_id === team.docId) || (userType === 'admin' && index === 0)) {
-                if (!selectedTeamId) { // Only select if nothing is selected yet
-                    selectTeam(team.docId, button);
-                }
+            if (!selectedTeamId && ((userType === 'user' && currentUserProfile.team_id === team.docId) || (userType === 'admin' && index === 0))) {
+              selectTeam(team.docId, button);
             }
         });
         
-        // Highlight the selected team button
         if (selectedTeamId) {
             const buttons = teamButtonsContainer.querySelectorAll('button');
             buttons.forEach(btn => {
@@ -830,6 +779,12 @@
     
     /* Render Calendar */
     async function renderCalendar() {
+      if (!isFinite(currentYear) || !isFinite(currentMonth)) {
+          console.error("Invalid date state:", currentYear, currentMonth);
+          currentYear = new Date().getFullYear();
+          currentMonth = new Date().getMonth();
+      }
+        
       const monthNames = ["January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
@@ -845,27 +800,22 @@
         fragment.appendChild(document.createElement("div")).className = "day-cell bg-gray-50 rounded";
       }
       
-      // Actual days
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
         const dateStr = formatDate(dateObj);
         const cell = document.createElement("div");
         cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
-        // *** MODIFIED: Get shift from new dynamic function ***
         const { shift, shiftInfo } = getShift(dateObj);
         const shiftBox = document.createElement("div");
         
-        // Use text/color from shiftInfo, fallback to hardcoded styles
         shiftBox.textContent = d;
-        shiftBox.className = `shift-box font-bold text-white p-1 rounded text-center mb-1`;
+        shiftBox.className = `shift-box font-bold p-1 rounded text-center mb-1`;
+        
         if (shiftInfo && shiftInfo.color) {
             shiftBox.classList.add(shiftInfo.color, shiftInfo.textColor);
         } else {
-            // Fallback for old hardcoded styles if needed
-            if(shift === 'morning') shiftBox.classList.add('shift-morning');
-            else if(shift === 'night') shiftBox.classList.add('shift-night');
-            else shiftBox.classList.add('shift-off');
+            shiftBox.classList.add('bg-gray-200', 'text-gray-700'); // Fallback for unknown
         }
 
         cell.appendChild(shiftBox);
@@ -904,7 +854,6 @@
       }
     }
     
-    // Groups requests by staff ID for the accordion view
     function groupRequestsByStaffID(requests) {
       const grouped = {};
       requests.forEach(req => {
@@ -987,7 +936,6 @@
         adminList.appendChild(item);
       });
       
-      // Accordion toggles
       adminList.querySelectorAll(".accordion-header").forEach(header => {
         const groupID = header.getAttribute("data-group-id");
         const content = header.nextElementSibling;
@@ -1004,31 +952,23 @@
         };
       });
       
-      // Dropdown status changes (Admin only)
       adminList.querySelectorAll("select").forEach(sel => {
         sel.onchange = async function() {
           if (userType !== "admin") return;
-          
           const requestId = sel.getAttribute("data-request-id");
           const dayIndex = parseInt(sel.getAttribute("data-day-index"), 10);
           const newStatus = sel.value;
-          
           const reqDocRef = doc(db, leaveRequestsCollectionPath, requestId);
-          
           try {
             const reqDoc = await getDoc(reqDocRef);
             if (!reqDoc.exists()) throw new Error("Request document not found.");
-            
             const reqData = reqDoc.data();
             const updatedDays = [...reqData.days]; 
-            
             if (updatedDays[dayIndex]) {
               updatedDays[dayIndex].status = newStatus;
             }
-            
             await updateDoc(reqDocRef, { days: updatedDays });
             console.log("Day status updated.");
-            
           } catch (err) {
             console.error("Day status update error:", err);
             showAlert("Error updating day status: " + err.message);
@@ -1036,12 +976,10 @@
         };
       });
       
-      // Delete ENTIRE request (admin only)
       adminList.querySelectorAll(".delete-request-btn").forEach(btn => {
         btn.onclick = async function() {
           const requestId = btn.getAttribute("data-request-id");
           if (!confirm("Are you sure you want to delete this entire leave request?")) return;
-          
           try {
             await deleteDoc(doc(db, leaveRequestsCollectionPath, requestId));
             console.log("Request deleted.");
@@ -1053,16 +991,13 @@
         };
       });
       
-      // WhatsApp button
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const requestId = btn.getAttribute("data-request-id");
           const req = requests.find(r => r.id === requestId);
           if (!req) return;
-          
           const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${req.fromDate} to ${req.toDate}):\n` +
             req.days.map(d => `${d.date}: ${d.status}`).join('\n');
-            
           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
         };
       });
@@ -1072,37 +1007,27 @@
     
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
-      
       const name = document.getElementById("staffName").value.trim();
       const id   = document.getElementById("staffID").value.trim();
       const start = document.getElementById("startDate").value;
       const end   = document.getElementById("endDate").value;
-      
       if (!name || !id || !start || !end) {
         return showAlert("Please fill all fields.");
       }
       if (end < start) {
         return showAlert("End date cannot be before start date.");
       }
-      
       loadingEl.style.display = "flex";
-      
       const startDate = new Date(start + "T00:00:00");
       const endDate = new Date(end + "T00:00:00");
       const daysArray = [];
-      
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        daysArray.push({
-          date: formatDate(new Date(d)), 
-          status: "Pending"
-        });
+        daysArray.push({ date: formatDate(new Date(d)), status: "Pending" });
       }
-      
       if (daysArray.length === 0) {
         loadingEl.style.display = "none";
         return showAlert("No valid days in range.");
       }
-
       try {
         await addDoc(collection(db, leaveRequestsCollectionPath), {
           staffName: name,
@@ -1112,14 +1037,12 @@
           toDate: end,
           days: daysArray
         });
-        
         showAlert("Leave request submitted successfully.", false);
         e.target.reset();
         if(userType === 'user') {
             document.getElementById("staffName").value = currentUserProfile.username;
             document.getElementById("staffID").value = currentUserProfile.staffID;
         }
-
       } catch (error) {
         console.error("Error submitting leave request:", error);
         showAlert("An error occurred: " + error.message);
@@ -1131,7 +1054,6 @@
     // --- Monthly Summary & PDF (Admin) ---
     
     function renderMonthlySummary() {
-      // (This function is large and unchanged, so I'm keeping it as is)
       if (userType !== "admin") return;
       const summaryTableBody = document.getElementById("summaryTableBody");
       summaryTableBody.innerHTML = "";
@@ -1164,8 +1086,9 @@
           for (let i = 1; i < dayEntries.length; i++) {
             const prevDate = new Date(currentRange[currentRange.length - 1].date);
             const currDate = new Date(dayEntries[i].date);
-            if (getDaysBetween(formatDate(prevDate), formatDate(currDate)) === -1 && 
-                currentRange[0].status === dayEntries[i].status) {
+            // Corrected date comparison
+            const dateDiff = (currDate.getTime() - prevDate.getTime()) / (1000 * 3600 * 24);
+            if (dateDiff === 1 && currentRange[0].status === dayEntries[i].status) {
               currentRange.push(dayEntries[i]);
             } else {
               ranges.push(currentRange);
@@ -1205,7 +1128,6 @@
     }
     
     window.downloadSummaryPDF = function() {
-      // (This function is large and unchanged, so I'm keeping it as is)
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const bodyData = [];
@@ -1237,7 +1159,6 @@
     }
     
     function showPDFPreview(doc) {
-      // (This function is large and unchanged, so I'm keeping it as is)
       const pdfBlob = doc.output("blob");
       const pdfURL = URL.createObjectURL(pdfBlob);
       const container = document.getElementById("pdfViewerContainer");
@@ -1265,7 +1186,6 @@
       
       allUsers.forEach(user => {
         const isSelf = (user.id === auth.currentUser.uid);
-        // *** NEW: Get team name ***
         const teamName = teamsMap.get(user.team_id)?.name || 'N/A';
         
         const tr = document.createElement("tr");
@@ -1280,7 +1200,7 @@
               ${user.isAdmin ? "Yes" : "No"}
             </span>
           </td>
-          <td class="p-3 space-x-2">
+          <td class="p-3 space-x-2 whitespace-nowrap">
             <button class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs hover:bg-blue-200 ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}" 
                     onclick="window.toggleAdminStatus('${user.id}', ${user.isAdmin})" ${isSelf ? 'disabled' : ''}>
               ${user.isAdmin ? "Revoke Admin" : "Make Admin"}
@@ -1296,7 +1216,6 @@
     }
 
     window.toggleAdminStatus = async (userId, isCurrentlyAdmin) => {
-      // (This function is unchanged)
       if (userId === auth.currentUser.uid) {
         return showAlert("You cannot change your own admin status.");
       }
@@ -1315,7 +1234,6 @@
     }
     
     window.resetUserPassword = async (email) => {
-      // (This function is unchanged)
       if (!confirm(`Are you sure you want to send a password reset email to ${email}?`)) return;
       loadingEl.style.display = "flex";
       try {
@@ -1330,13 +1248,13 @@
     }
     
     
-    // --- *** NEW: Team Management Functions (from Roster) *** ---
+    // --- Team Management Functions (from Roster) ---
     
     window.openManageTeamsModal = () => {
         deleteTeamError.textContent = '';
         addTeamError.textContent = '';
         populateManageTeamsModal();
-        teamManagementPanel.classList.remove('hidden'); // Show the panel
+        // teamManagementPanel is already displayed by showTeamManagement
     }
     
     function populateManageTeamsModal() {
@@ -1361,7 +1279,6 @@
             teamListUl.appendChild(li);
         });
         
-        // Add event listeners after populating
         teamListUl.querySelectorAll('.edit-team-btn').forEach(btn => {
             btn.onclick = () => openEditTeamModal(btn.dataset.teamId);
         });
@@ -1389,7 +1306,6 @@
             };
             await setDoc(doc(db, teamsCollectionPath, newTeamDocId), newTeam);
             newTeamNameInput.value = '';
-            // onSnapshot will update the list
         } catch (error) {
             console.error("Error adding team: ", error);
             addTeamError.textContent = 'Error saving team.';
@@ -1469,7 +1385,6 @@
         try {
             await updateDoc(doc(db, teamsCollectionPath, teamId), updatedData);
             closeEditTeamModal();
-            // onSnapshot will update UI
         } catch (error) {
             console.error("Error updating team: ", error);
             editTeamError.textContent = 'Error saving changes.';
@@ -1500,7 +1415,6 @@
         if (!teamIdToDelete || confirmDeleteTeamBtn.disabled) return;
         try {
             await deleteDoc(doc(db, teamsCollectionPath, teamIdToDelete));
-            // onSnapshot will update list
         } catch (error) {
             console.error("Error deleting team: ", error);
             deleteTeamError.textContent = 'Error deleting team.';
@@ -1528,11 +1442,9 @@
     
     // --- Tab & Navigation Functions ---
     
-    // *** MODIFIED: selectTeam now takes teamId (string) ***
     window.selectTeam = (teamId, buttonElement) => {
       selectedTeamId = teamId;
       
-      // Update button styles
       const teamButtonsContainer = document.getElementById("team-buttons");
       teamButtonsContainer.querySelectorAll('button').forEach(btn => {
           btn.classList.add('bg-gray-600');
@@ -1542,7 +1454,6 @@
           buttonElement.classList.add('bg-blue-600');
           buttonElement.classList.remove('bg-gray-600');
       } else {
-          // Find button if not passed
           const teamName = teamsMap.get(teamId)?.name;
           if (teamName) {
               const buttons = teamButtonsContainer.querySelectorAll('button');
@@ -1598,11 +1509,11 @@
     }
     window.showUserManagement = () => {
         setActiveTab(1);
-        renderUserManagement(); // Render user list when tab is clicked
+        renderUserManagement(); 
     }
     window.showTeamManagement = () => {
         setActiveTab(2);
-        openManageTeamsModal(); // Render team list when tab is clicked
+        openManageTeamsModal(); 
     }
     
 
