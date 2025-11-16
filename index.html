@@ -54,16 +54,34 @@
         to { opacity: 1; transform: scale(1); }
     }
     
-    /* Tab Styling */
-    .tab-button.active-tab { color: #2563eb; border-bottom: 2px solid #2563eb; font-medium; } 
-    .tab-button { border-bottom: 2px solid transparent; }
+    /* UPDATED: Main Nav Tab Styling */
+    .main-nav-button {
+      display: inline-block;
+      padding: 0.5rem 1rem; /* py-2 px-4 */
+      border-radius: 9999px; /* rounded-full */
+      font-weight: 500; /* font-medium */
+      font-size: 0.875rem; /* text-sm */
+      transition: all 0.2s ease-in-out;
+      white-space: nowrap;
+      border: none;
+      cursor: pointer;
+    }
+    .main-nav-button:not(.active-tab) {
+      background-color: #f3f4f6; /* bg-gray-100 */
+      color: #4b5563; /* text-gray-600 */
+    }
+    .main-nav-button:not(.active-tab):hover {
+      background-color: #e5e7eb; /* bg-gray-200 */
+      color: #1f2937; /* text-gray-800 */
+    }
+    .main-nav-button.active-tab {
+      background-color: #2563eb; /* bg-blue-600 */
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+    }
   </style>
 </head>
-<!-- 
-  FIX: Changed `items-center` to `items-stretch` to make flex children fill the vertical height.
-  This ensures the main container can fill the screen.
--->
-<body class="bg-gray-100 flex items-stretch justify-center min-h-screen p-4">
+<body class="bg-white min-h-screen p-0 md:p-4">
 
   <!-- LOADING SPINNER -->
   <div id="loading" class="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center z-50" style="display: flex;">
@@ -71,12 +89,8 @@
     <p class="mt-4 text-lg font-semibold text-gray-700">Loading Planner...</p>
   </div>
 
-  <!-- 
-    LOGIN SECTION 
-    FIX: Added `self-center` to counteract the `items-stretch` on the body,
-    so the login box remains vertically centered.
-  -->
-  <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md self-center" style="display: none;">
+  <!-- LOGIN SECTION -->
+  <div id="loginSection" class="max-w-md w-full bg-white p-6 rounded-lg shadow-md min-h-[calc(100vh-2rem)] mx-auto flex flex-col justify-center" style="display: none;">
     <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Planner Login</h2>
     
     <form id="loginForm">
@@ -116,24 +130,24 @@
   
   <!-- Main Container (hidden until login) -->
   <!-- 
-    NOTE: `self-stretch` is here, which is good. It will now work
-    because the parent body has `items-stretch`.
+    FIX: Added `self-stretch` to make this container fill the height of the flex-parent (body).
+    This ensures the white background covers the full vertical space on mobile.
   -->
-  <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg self-stretch" style="display: none;">
+  <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
       <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v12.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
     
-    <!-- TABS: Visible to all, but buttons inside are conditional -->
-    <div id="mainTabs" class="mb-4 border-b border-gray-200">
-      <nav class="flex space-x-4">
-        <button onclick="showMyProfile()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700">My Profile</button>
-        <button onclick="showLeaveManagement()" class="tab-button active-tab py-2 px-4 text-gray-500 hover:text-gray-700">Leave Management</button>
-        <button id="tab-leave-balances" onclick="showLeaveBalanceReport()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700" style="display: none;">Leave Balances</button>
-        <button id="tab-user-mgmt" onclick="showUserManagement()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700" style="display: none;">User Management</button>
-        <button id="tab-team-mgmt" onclick="showTeamManagement()" class="tab-button py-2 px-4 text-gray-500 hover:text-gray-700" style="display: none;">Team Management</button>
+    <!-- TABS: Visible to all, but buttons inside are conditional (UPDATED) -->
+    <div id="mainTabs" class="mb-4">
+      <nav class="flex space-x-2 overflow-x-auto whitespace-nowrap pb-2">
+        <button onclick="showMyProfile()" class="main-nav-button">My Profile</button>
+        <button onclick="showLeaveManagement()" class="main-nav-button active-tab">Leave Management</button>
+        <button id="tab-leave-balances" onclick="showLeaveBalanceReport()" class="main-nav-button" style="display: none;">Leave Balances</button>
+        <button id="tab-user-mgmt" onclick="showUserManagement()" class="main-nav-button" style="display: none;">User Management</button>
+        <button id="tab-team-mgmt" onclick="showTeamManagement()" class="main-nav-button" style="display: none;">Team Management</button>
       </nav>
     </div>
     
@@ -221,8 +235,7 @@
             <select id="leaveType" class="w-full px-3 py-1.5 border rounded-md" required>
                 <option value="Annual Leave">Annual Leave</option>
                 <option value="Public Holiday">Public Holiday</option>
-                <option value="Sick Leave">Sick Leave</option>
-                <option value="Other">Other</option>
+                <!-- "Sick Leave" option removed -->
             </select>
         </div>
         <button type="submit" class="md:col-span-4 bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition-colors">Submit Leave Request</button>
@@ -273,16 +286,21 @@
       <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Balance Report</h2>
       <div class="overflow-x-auto">
         <table id="leaveBalanceTable" class="min-w-full bg-white border rounded-lg">
+          <!-- UPDATED: Creative Header -->
           <thead>
             <tr class="bg-gray-100">
-              <th class="p-3 text-left font-semibold text-gray-700">Staff</th>
-              <th class="p-3 text-left font-semibold text-gray-700">Team</th>
-              <th class="p-3 text-center font-semibold text-gray-700">Alloc. AL</th>
-              <th class="p-3 text-center font-semibold text-gray-700">Used AL</th>
-              <th class="p-3 text-center font-semibold text-blue-800 bg-blue-100">Balance AL</th>
-              <th class="p-3 text-center font-semibold text-gray-700">Alloc. PH</th>
-              <th class="p-3 text-center font-semibold text-gray-700">Used PH</th>
-              <th class="p-3 text-center font-semibold text-purple-800 bg-purple-100">Balance PH</th>
+              <th rowspan="2" class="p-3 text-left font-semibold text-gray-700 align-middle border-b border-gray-200">Staff</th>
+              <th rowspan="2" class="p-3 text-left font-semibold text-gray-700 align-middle border-b border-gray-200">Team</th>
+              <th colspan="3" class="p-3 text-center font-semibold text-blue-800 bg-blue-100 border-b border-blue-200">Annual Leave (AL)</th>
+              <th colspan="3" class="p-3 text-center font-semibold text-purple-800 bg-purple-100 border-b border-purple-200">Public Holiday (PH)</th>
+            </tr>
+            <tr class="bg-gray-100">
+              <th class="p-3 text-center font-semibold text-gray-700 border-b border-gray-200">Alloc.</th>
+              <th class="p-3 text-center font-semibold text-gray-700 border-b border-gray-200">Used</th>
+              <th class="p-3 text-center font-semibold text-blue-800 bg-blue-50 border-b border-gray-200">Balance</th>
+              <th class="p-3 text-center font-semibold text-gray-700 border-b border-gray-200">Alloc.</th>
+              <th class="p-3 text-center font-semibold text-gray-700 border-b border-gray-200">Used</th>
+              <th class="p-3 text-center font-semibold text-purple-800 bg-purple-50 border-b border-gray-200">Balance</th>
             </tr>
           </thead>
           <tbody id="leaveBalanceTableBody">
@@ -516,12 +534,11 @@
     let usersUnsubscriber = null;
     let teamsUnsubscriber = null; 
 
-    // --- NEW: Leave Type Definitions ---
+    // --- MODIFICATION: Removed 'Sick Leave' ---
     const leaveTypeCodes = {
         'Annual Leave': 'AL',
-        'Public Holiday': 'PH',
-        'Sick Leave': 'SL',
-        'Other': 'OTH'
+        'Public Holiday': 'PH'
+        // 'Leave' is not in here, which is fine
     };
 
     // Shift colors from original planner
@@ -537,11 +554,9 @@
         'BCLS': { text: 'BCLS', color: 'bg-red-200', textColor: 'text-red-800' },
         '_EMPTY': { text: '',   color: 'bg-gray-50', textColor: 'text-gray-400' },
         
-        // --- NEW: Leave Type Styles for Calendar ---
+        // --- MODIFICATION: Removed 'SL' ---
         'AL':   { text: 'AL',   color: 'bg-blue-500', textColor: 'text-white' },
-        'PH':   { text: 'PH',   color: 'bg-purple-500', textColor: 'text-white' },
-        'SL':   { text: 'SL',   color: 'bg-yellow-500', textColor: 'text-black' },
-        'OTH':  { text: 'OTH',  color: 'bg-gray-500', textColor: 'text-white' }
+        'PH':   { text: 'PH',   color: 'bg-purple-500', textColor: 'text-white' }
     };
 
     // --- DOM Elements ---
@@ -596,7 +611,6 @@
     function showAlert(message, isError = true) {
       const alertBox = document.getElementById("customAlert");
       const alertMessage = document.getElementById("customAlertMessage");
-      alertMessage.textContent = message;
       alertBox.classList.remove(isError ? "bg-green-500" : "bg-red-500");
       alertBox.classList.add(isError ? "bg-red-500" : "bg-green-500");
       alertBox.style.display = "block";
@@ -1046,21 +1060,27 @@
         
         // --- NEW: Check for Approved Leave First ---
         let approvedLeaveReq = null;
-        let approvedLeaveType = null;
         
         requests.forEach(req => {
             const dayData = req.days.find(day => day.date === dateStr && (day.status === "Approved" || day.status === "Write-in"));
             if(dayData) {
-                approvedLeaveReq = req;
+                // *** MODIFICATION: Only track AL and PH for calendar override ***
+                if (req.leaveType === 'Annual Leave' || req.leaveType === 'Public Holiday') {
+                    approvedLeaveReq = req;
+                }
+                // Other leave types (like SL) will be ignored here, causing the 'else' block to run
+                // and show the original shift pattern, as requested.
             }
         });
         
         const shiftBox = document.createElement("div");
         shiftBox.className = `shift-box font-bold p-1 rounded text-center mb-1`;
         
-        if (approvedLeaveReq) {
-            const leaveCode = leaveTypeCodes[approvedLeaveReq.leaveType] || 'LEAVE';
-            const shiftInfo = shiftCodesMap[leaveCode] || shiftCodesMap['OTH'];
+        if (approvedLeaveReq) { // This is now only true for AL or PH
+            // UPDATED: Robust fallback for removed leave types
+            const leaveCode = leaveTypeCodes[approvedLeaveReq.leaveType];
+            // The fallback 'N/A' and 'bg-gray-500' will no longer be hit for SL, etc.
+            const shiftInfo = shiftCodesMap[leaveCode] || { text: (approvedLeaveReq.leaveType || '??').substring(0, 3), color: 'bg-gray-500', textColor: 'text-white' };
             shiftBox.textContent = shiftInfo.text;
             shiftBox.classList.add(shiftInfo.color, shiftInfo.textColor);
             
@@ -1071,7 +1091,7 @@
             cell.appendChild(dayNumberEl);
             
         } else {
-            // No approved leave, show shift
+            // No approved AL/PH leave, show shift
             const { shift, shiftInfo } = getShift(dateObj);
             shiftBox.textContent = d; // Show day number IN the box
             if (shiftInfo && shiftInfo.color) {
@@ -1097,7 +1117,8 @@
         });
         
         if (dayEntries.filter(e => e.status === "Pending").length > 0) {
-          cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-yellow-400 rounded-full absolute top-1 right-1";
+          // *** MODIFICATION: Changed bg-yellow-400 to bg-red-500 ***
+          cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-red-500 rounded-full absolute top-1 right-1";
         }
         
         dayEntries.forEach(e => {
@@ -1314,7 +1335,7 @@
             }
           }
 
-          const msg = `Hello ${req.staffName} (${req.staffID}), your status for ${req.leaveType} request (${displayFormatDate(req.fromDate)} to ${displayFormatDate(req.toDate)}):\n` +
+          const msg = `Hello ${req.staffName} (${req.staffID}), your status for ${req.leaveType || 'Leave'} request (${displayFormatDate(req.fromDate)} to ${displayFormatDate(req.toDate)}):\n` +
             req.days.map(d => `${displayFormatDate(d.date)}: ${d.status}`).join('\n');
             
           if (mobileNumber) {
@@ -1418,11 +1439,22 @@
       requests.forEach(req => {
         const staffID = req.staffID;
         const staffName = req.staffName;
-        const leaveType = req.leaveType || 'Other';
-        const key = `${staffID}::${leaveType}`; // Unique key
+        const leaveType = req.leaveType; // Get raw value
+        
+        // *** MODIFICATION: Filter out non-AL/PH leaves from summary ***
+        // We only want 'Annual Leave', 'Public Holiday', or UNDEFINED (legacy 'Leave')
+        if (leaveType && leaveType !== 'Annual Leave' && leaveType !== 'Public Holiday') {
+            // This will skip 'Sick Leave' or any other defined, unwanted type
+            return; // Skip this request
+        }
+        
+        // If we are here, leaveType is 'Annual Leave', 'Public Holiday', or falsey (e.g., undefined, null, "")
+        const displayLeaveType = leaveType || 'Leave'; // Use 'Leave' for legacy requests
+
+        const key = `${staffID}::${displayLeaveType}`; // Key will be '...::Leave' or '...::Annual Leave'
         
         if (!allDaysByStaffAndType[key]) {
-          allDaysByStaffAndType[key] = { staffName, staffID, leaveType, days: {} };
+          allDaysByStaffAndType[key] = { staffName, staffID, leaveType: displayLeaveType, days: {} };
         }
         
         req.days.forEach(day => {
@@ -1472,15 +1504,22 @@
         }
         
         const totalDays = dayEntries.length;
-        const leaveCode = leaveTypeCodes[group.leaveType] || 'OTH';
         
+        // *** MODIFICATION: Handle 'Leave' type for the tag ***
+        const leaveCode = leaveTypeCodes[group.leaveType]; // This will be undefined for 'Leave'
+        const shiftInfo = shiftCodesMap[leaveCode] || { 
+            text: (group.leaveType === 'Leave' ? 'LEAVE' : (group.leaveType || '??').substring(0, 3)), 
+            color: 'bg-gray-500', 
+            textColor: 'text-white' 
+        };
+
         const row = document.createElement("tr");
         row.className = "border-b hover:bg-gray-50";
         row.innerHTML = `
           <td class="p-2 staff-name font-medium text-gray-800">
             ${group.staffName} (${group.staffID})
-            <span class="ml-2 px-2 py-0.5 rounded text-xs font-semibold ${shiftCodesMap[leaveCode] ? `${shiftCodesMap[leaveCode].color} ${shiftCodesMap[leaveCode].textColor}` : 'bg-gray-400 text-white'}">
-              ${leaveCode}
+            <span class="ml-2 px-2 py-0.5 rounded text-xs font-semibold ${shiftInfo.color} ${shiftInfo.textColor}">
+              ${shiftInfo.text}
             </span>
           </td>
           <td class="p-2 leave-range">
@@ -1525,9 +1564,20 @@
           const staffName = cells[0].cloneNode(true);
           staffName.querySelector('span')?.remove();
           
+          // *** MODIFICATION: Re-format dates for PDF ***
+          const dateRanges = [];
+          cells[1].querySelectorAll('.range-block').forEach(div => {
+              // Get text, trim whitespace
+              let text = div.innerText.trim(); 
+              dateRanges.push(text);
+          });
+          // Join with a newline character for the PDF
+          const formattedDates = dateRanges.join("\n");
+          // *** END MODIFICATION ***
+          
           bodyData.push([
             staffName.innerText.trim(), // Staff & Leave Type (now cleaned)
-            cells[1].innerText.trim().replace(/\s+/g, ' '), // Dates
+            formattedDates, // Use the new formatted string
             cells[2].innerText.trim() // Days
           ]);
         }
@@ -1538,11 +1588,11 @@
         body: bodyData,
         startY: 20,
         theme: "grid",
-        styles: { fontSize: 10 },
+        styles: { fontSize: 10, cellPadding: 2 },
         columnStyles: {
           0: { cellWidth: 50 },
           1: { cellWidth: 'auto' },
-          2: { cellWidth: 20 }
+          2: { cellWidth: 20, halign: 'right' }
         }
       });
       showPDFPreview(doc);
@@ -1854,6 +1904,7 @@
         } else if (leaveType === 'Public Holiday') {
             allocated = currentUserProfile.publicHolidayAllocated || 0;
         }
+        // No allocation for Sick Leave, so it's not checked here
         
         const used = requests.reduce((total, req) => {
             if (req.leaveType === leaveType) {
@@ -2028,33 +2079,39 @@
       await renderCalendar();
     }
     
+    // UPDATED: Cleaned up setActiveTab function
     function setActiveTab(activeIndex) {
-        document.getElementById("myProfilePanel").style.display = activeIndex === 0 ? "block" : "none";
-        document.getElementById("leaveManagementPanel").style.display = activeIndex === 1 ? "block" : "none";
+        // Hide all panels
+        document.getElementById("myProfilePanel").style.display = "none";
+        document.getElementById("leaveManagementPanel").style.display = "none";
         
-        // Admin panels
         const leaveBalancePanel = document.getElementById("leaveBalancePanel");
-        if (leaveBalancePanel) leaveBalancePanel.style.display = activeIndex === 2 ? "block" : "none";
+        if (leaveBalancePanel) leaveBalancePanel.style.display = "none";
         
         const userManagementPanel = document.getElementById("userManagementPanel");
-        if (userManagementPanel) userManagementPanel.style.display = activeIndex === 3 ? "block" : "none";
+        if (userManagementPanel) userManagementPanel.style.display = "none";
         
         const teamManagementPanel = document.getElementById("teamManagementPanel");
-        if (teamManagementPanel) teamManagementPanel.style.display = activeIndex === 4 ? "block" : "none";
+        if (teamManagementPanel) teamManagementPanel.style.display = "none";
         
+        // Show the active panel based on index
+        if (activeIndex === 0) {
+            document.getElementById("myProfilePanel").style.display = "block";
+        } else if (activeIndex === 1) {
+            document.getElementById("leaveManagementPanel").style.display = "block";
+        } else if (activeIndex === 2 && leaveBalancePanel) {
+            leaveBalancePanel.style.display = "block";
+        } else if (activeIndex === 3 && userManagementPanel) {
+            userManagementPanel.style.display = "block";
+        } else if (activeIndex === 4 && teamManagementPanel) {
+            teamManagementPanel.style.display = "block";
+        }
         
-        const tabs = document.querySelectorAll(".tab-button");
+        // Update tab buttons
+        // We query *all* buttons, including hidden ones, to maintain index integrity
+        const tabs = document.querySelectorAll("#mainTabs .main-nav-button");
         tabs.forEach((tab, index) => {
-            // Note: The tab-button index might not match the activeIndex if some tabs are hidden
-            // We'll check the associated panel's display property instead
-            let associatedPanel;
-            if (tab.onclick.toString().includes("showMyProfile")) associatedPanel = document.getElementById("myProfilePanel");
-            else if (tab.onclick.toString().includes("showLeaveManagement")) associatedPanel = document.getElementById("leaveManagementPanel");
-            else if (tab.onclick.toString().includes("showLeaveBalanceReport")) associatedPanel = document.getElementById("leaveBalancePanel");
-            else if (tab.onclick.toString().includes("showUserManagement")) associatedPanel = document.getElementById("userManagementPanel");
-            else if (tab.onclick.toString().includes("showTeamManagement")) associatedPanel = document.getElementById("teamManagementPanel");
-
-            if (associatedPanel && associatedPanel.style.display === "block") {
+            if (index === activeIndex) {
                 tab.classList.add("active-tab");
             } else {
                 tab.classList.remove("active-tab");
