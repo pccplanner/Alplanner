@@ -77,20 +77,13 @@
     <form id="userRegisterForm" style="display: none;">
       <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-      
-      <!-- *** NEW: Mobile Number Field *** -->
       <input type="tel" id="regMobile" placeholder="Mobile Number (e.g. +6512345678)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-      
       <input type="email" id="regEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="password" id="regPassword" placeholder="Password" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-      
       <select id="regTeam" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
         <option value="">Select a team...</option>
-        <!-- Teams will be populated by JS -->
       </select>
-      
       <input type="password" id="regAdminSecret" placeholder="Admin Secret Code (if any)" class="w-full px-4 py-2 mb-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-      
       <button id="registerButton" type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">Register</button>
       <button onclick="showLoginForm()" type="button" class="w-full mt-2 text-blue-600 hover:underline">Already have an account? Login</button>
     </form>
@@ -105,7 +98,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v8.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v10.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -339,6 +332,13 @@
     const ADMIN_SECRET_KEY = "ADMIN2025";
     const defaultPattern = ['1', '1', '2', '2', 'OFF', 'OFF'];
     const patternAnchorDate = '2025-01-01'; // Default anchor date
+    
+    // *** NEW: Color list for teams ***
+    const teamColorClasses = [
+        'bg-blue-500', 'bg-green-500', 'bg-indigo-500', 'bg-pink-500', 
+        'bg-yellow-500', 'bg-purple-500', 'bg-red-500', 'bg-cyan-500'
+    ];
+
 
     // --- Firebase Configuration ---
     let firebaseConfig;
@@ -500,6 +500,14 @@
           
           sortedTeams.sort((a, b) => a.name.localeCompare(b.name));
           
+          // *** NEW: Assign colors to teams ***
+          let colorIndex = 0;
+          sortedTeams.forEach(team => {
+              const teamData = teamsMap.get(team.docId);
+              teamData.colorClass = teamColorClasses[colorIndex % teamColorClasses.length];
+              colorIndex++;
+          });
+          
           regTeamSelect.innerHTML = '<option value="">Select a team...</option>';
           sortedTeams.forEach(team => {
               regTeamSelect.innerHTML += `<option value="${team.docId}">${team.name}</option>`;
@@ -623,9 +631,9 @@
       const password = document.getElementById("regPassword").value;
       const adminSecret = document.getElementById("regAdminSecret").value.trim();
       const teamId = document.getElementById("regTeam").value; 
-      const mobile = document.getElementById("regMobile").value.trim(); // *** NEW ***
+      const mobile = document.getElementById("regMobile").value.trim(); 
 
-      if (!username || !staffID || !email || !password || !teamId || !mobile) { // *** NEW ***
+      if (!username || !staffID || !email || !password || !teamId || !mobile) { 
         return showAlert("Please fill in all fields, including mobile and team.");
       }
 
@@ -633,21 +641,21 @@
       
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        const user = user.uid;
         
         const isAdmin = (adminSecret === ADMIN_SECRET_KEY);
         if (isAdmin) {
           showAlert("Admin secret correct! Admin user will be created.", false);
         }
 
-        const userDocRef = doc(db, usersCollectionPath, user.uid);
+        const userDocRef = doc(db, usersCollectionPath, user); // Use user.uid
         await setDoc(userDocRef, {
           username: username,
           staffID: staffID,
           email: email,
           isAdmin: isAdmin,
           team_id: teamId,
-          mobile: mobile // *** NEW ***
+          mobile: mobile 
         });
         
         console.log("Registration successful, user doc created.");
@@ -742,6 +750,15 @@
       return y + "-" + m + "-" + dd;
     }
     
+    function displayFormatDate(yyyyMmDd) {
+        if (!yyyyMmDd) return '';
+        const parts = yyyyMmDd.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`; // dd-mm-yyyy
+        }
+        return yyyyMmDd; // fallback
+    }
+    
     function getShift(d) {
       if (!selectedTeamId) {
         return { shift: '', shiftInfo: shiftCodesMap['_EMPTY'] };
@@ -752,9 +769,7 @@
       }
       const pattern = team.shiftPattern;
       const anchorDate = team.patternStartDate || patternAnchorDate;
-      
       const daysSinceAnchor = getDaysBetween(formatDate(d), anchorDate);
-      
       const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
       const shift = pattern[patternIndex];
       const shiftInfo = shiftCodesMap[shift] || { ...shiftCodesMap['_EMPTY'], text: shift }; 
@@ -770,25 +785,21 @@
         
         sortedTeams.forEach((team, index) => {
             const button = document.createElement("button");
-            // *** NEW: Brighter highlight style ***
             button.className = "team-button bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-300 transition-colors";
             button.textContent = team.name;
             button.onclick = () => selectTeam(team.docId, button);
             teamButtonsContainer.appendChild(button);
             
-            // Auto-select user's team or first team for admin
             if (!selectedTeamId && ((userType === 'user' && currentUserProfile.team_id === team.docId) || (userType === 'admin' && index === 0))) {
               selectTeam(team.docId, button);
               teamFound = true;
             }
         });
         
-        // If user's team wasn't found (maybe deleted?), select first team
         if (!teamFound && sortedTeams.length > 0) {
             selectTeam(sortedTeams[0].docId, teamButtonsContainer.querySelector('button.team-button'));
         }
         
-        // Ensure the currently selected button is highlighted
         if (selectedTeamId) {
             const buttons = teamButtonsContainer.querySelectorAll('button.team-button');
             buttons.forEach(btn => {
@@ -817,7 +828,6 @@
       
       const fragment = document.createDocumentFragment();
       
-      // *** NEW: Add Weekday Headers ***
       const weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
       weekdays.forEach(day => {
           const dayCell = document.createElement("div");
@@ -836,7 +846,7 @@
       
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(currentYear, currentMonth, d);
-        const dateStr = formatDate(dateObj); // Use NEW correct formatDate
+        const dateStr = formatDate(dateObj); // Use yyyy-mm-dd for logic
         const cell = document.createElement("div");
         cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
@@ -872,9 +882,25 @@
         
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
-          // *** NEW: Show Staff ID instead of name ***
           entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
-          entry.textContent = e.staffID;
+          
+          // *** NEW: Add team color dot ***
+          let teamColorClass = 'bg-gray-400'; // Default
+          if (userType === 'admin') {
+              const user = allUsers.find(u => u.staffID === e.staffID);
+              const team = user ? teamsMap.get(user.team_id) : null;
+              if (team && team.colorClass) {
+                  teamColorClass = team.colorClass;
+              }
+          } else if (currentUserProfile.staffID === e.staffID) {
+              // Non-admin looking at their own leave
+              const team = teamsMap.get(currentUserProfile.team_id);
+              if (team && team.colorClass) {
+                  teamColorClass = team.colorClass;
+              }
+          }
+          entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass}"></div><span>${e.staffID}</span></div>`;
+          
           cell.appendChild(entry);
         });
         
@@ -934,10 +960,28 @@
           sum + r.days.filter(d => d.status === "Pending").length, 0
         );
         
+        // *** NEW: Add team color dot to accordion header ***
+        let teamColorClass = 'bg-gray-400'; // Default
+        if (userType === 'admin') {
+            const user = allUsers.find(u => u.staffID === group.staffID);
+            const team = user ? teamsMap.get(user.team_id) : null;
+            if (team && team.colorClass) {
+                teamColorClass = team.colorClass;
+            }
+        } else if (currentUserProfile.staffID === group.staffID) {
+            const team = teamsMap.get(currentUserProfile.team_id);
+            if (team && team.colorClass) {
+                teamColorClass = team.colorClass;
+            }
+        }
+        
         item.innerHTML = `
-          <div class="accordion-header flex justify-between items-center p-3 bg-gray-50 cursor-pointer hover:bg-gray-100" data-group-id="${groupID}">
-            <span class="font-semibold text-gray-700">${group.staffName} (${group.staffID})</span>
-            <span class="badge text-xs px-2 py-0.5 rounded-full ${pendingCount > 0 ? "bg-yellow-500 text-white" : "bg-blue-500 text-white"}">
+          <div class="accordion-header flex justify-between items-start p-3 bg-gray-50 cursor-pointer hover:bg-gray-100" data-group-id="${groupID}">
+            <span class="font-semibold text-gray-700 flex items-center gap-2">
+              <div class="w-3 h-3 rounded-full ${teamColorClass} flex-shrink-0"></div>
+              ${group.staffName} (${group.staffID})
+            </span>
+            <span class="badge text-xs px-2 py-0.5 rounded-full ${pendingCount > 0 ? "bg-yellow-500 text-white" : "bg-blue-500 text-white"} whitespace-nowrap">
               ${totalDays} days (${pendingCount} pending)
             </span>
           </div>
@@ -947,7 +991,7 @@
                 <div class="timeline flex flex-wrap gap-2">
                   ${req.days.map((day, dayIndex) => `
                     <div class="day-block flex items-center gap-2 p-2 bg-gray-100 rounded">
-                      <span>${day.date}</span>
+                      <span>${displayFormatDate(day.date)}</span>
                       <div class="status-dot w-2 h-2 rounded-full ${day.status.toLowerCase()}"></div>
                       <select data-request-id="${req.id}" data-day-index="${dayIndex}" 
                               class="text-xs p-1 border rounded"
@@ -1026,7 +1070,6 @@
         };
       });
       
-      // *** FIXED: WhatsApp Button Logic ***
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const requestId = btn.getAttribute("data-request-id");
@@ -1036,35 +1079,30 @@
           let mobileNumber = '';
           
           if (userType === 'admin') {
-            // Admin: Find the user in the allUsers list
             const user = allUsers.find(u => u.staffID === req.staffID);
             mobileNumber = user ? user.mobile : '';
           } else {
-            // Non-admin: They are looking at their own request. Use their own profile.
             if (currentUserProfile && currentUserProfile.staffID === req.staffID) {
                 mobileNumber = currentUserProfile.mobile || '';
             }
           }
 
-          const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${req.fromDate} to ${req.toDate}):\n` +
-            req.days.map(d => `${d.date}: ${d.status}`).join('\n');
+          const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${displayFormatDate(req.fromDate)} to ${displayFormatDate(req.toDate)}):\n` +
+            req.days.map(d => `${displayFormatDate(d.date)}: ${d.status}`).join('\n');
             
           if (mobileNumber) {
-            // Format number for wa.me: remove +, spaces, (, ), -
             let formattedNumber = mobileNumber.replace(/[\s+()-]/g, '');
-            if (formattedNumber.startsWith('00')) { // Handle '00' prefix
+            if (formattedNumber.startsWith('00')) {
               formattedNumber = formattedNumber.substring(2);
             }
             
-            // Basic check for 8+ digits
             if (/^\d{8,}$/.test(formattedNumber)) {
               window.open(`https://wa.me/${formattedNumber}?text=${encodeURIComponent(msg)}`, "_blank");
             } else {
               showAlert(`Invalid mobile number for ${req.staffName}: ${mobileNumber}. Please update in User Management.`);
-              window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); // Fallback
+              window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
             }
           } else {
-            // Old behavior if no number is found
             showAlert(`No mobile number found for ${req.staffName}. Opening general WhatsApp.`);
             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
           }
@@ -1087,11 +1125,11 @@
         return showAlert("End date cannot be before start date.");
       }
       loadingEl.style.display = "flex";
-      const startDate = new Date(start + "T12:00:00"); // Use noon to avoid timezone day change
+      const startDate = new Date(start + "T12:00:00"); 
       const endDate = new Date(end + "T12:00:00");
       const daysArray = [];
       for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
-          daysArray.push({ date: formatDate(d), status: "Pending" }); // Use NEW correct formatDate
+          daysArray.push({ date: formatDate(d), status: "Pending" }); // Use yyyy-mm-dd
       }
       
       if (daysArray.length === 0) {
@@ -1103,8 +1141,8 @@
           staffName: name,
           staffID: id,
           userId: (userType === 'admin' && currentUserProfile.staffID !== id) ? `admin_entry_${id}` : auth.currentUser.uid, 
-          fromDate: start,
-          toDate: end,
+          fromDate: start, // yyyy-mm-dd
+          toDate: end,     // yyyy-mm-dd
           days: daysArray
         });
         showAlert("Leave request submitted successfully.", false);
@@ -1175,14 +1213,17 @@
           <td class="p-2 leave-range">
             <div class="flex flex-col gap-1">
             ${ranges.map(range => {
-              const startDate = range[0].date.split("-")[2];
-              const endDate = range[range.length - 1].date.split("-")[2];
-              const displayText = (startDate === endDate) ? startDate : `${startDate}-${endDate}`;
+              const startDate = range[0].date; 
+              const endDate = range[range.length - 1].date; 
+              const startDisplay = displayFormatDate(startDate); 
+              const endDisplay = displayFormatDate(endDate); 
+              const displayText = (startDate === endDate) ? startDisplay.split('-')[0] : `${startDisplay.split('-')[0]}-${endDisplay.split('-')[0]}`; 
+              const monthYear = `${startDisplay.split('-')[1]}-${startDisplay.split('-')[2]}`;
               const statusLabel = range[0].status;
               return `
                 <div class="range-block ${statusLabel.toLowerCase()} inline-flex items-center gap-1.5 text-xs">
                   <span class="status-dot w-1.5 h-1.5 rounded-full"></span>
-                  ${displayText} (${statusLabel})
+                  ${displayText} (${monthYear}) - ${statusLabel}
                 </div>
               `;
             }).join("")}
@@ -1256,16 +1297,23 @@
       
       allUsers.forEach(user => {
         const isSelf = (user.id === auth.currentUser.uid);
-        const teamName = teamsMap.get(user.team_id)?.name || 'N/A';
+        const team = teamsMap.get(user.team_id);
+        const teamName = team ? team.name : 'N/A';
+        const teamColorClass = team ? (team.colorClass || 'bg-gray-400') : 'bg-gray-400';
         
         const tr = document.createElement("tr");
         tr.className = "border-b hover:bg-gray-50";
         tr.innerHTML = `
           <td class="p-3">${user.username}</td>
           <td class="p-3">${user.staffID}</td>
-          <td class="p-3">${user.mobile || 'N/A'}</td> <!-- *** NEW *** -->
+          <td class="p-3">${user.mobile || 'N/A'}</td>
           <td class="p-3">${user.email}</td>
-          <td class="p-3">${teamName}</td>
+          <td class="p-3">
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded-full ${teamColorClass} flex-shrink-0"></div>
+              <span>${teamName}</span>
+            </div>
+          </td>
           <td class="p-3">
             <span class="px-2 py-1 text-xs rounded-full ${user.isAdmin ? "bg-green-200 text-green-800" : "bg-gray-200 text-gray-800"}">
               ${user.isAdmin ? "Yes" : "No"}
@@ -1340,7 +1388,10 @@
             const li = document.createElement('li');
             li.className = 'team-li flex justify-between items-center p-3';
             li.innerHTML = `
-                <span>${team.name}</span>
+                <span class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full ${team.colorClass || 'bg-gray-400'}"></div>
+                  ${team.name}
+                </span>
                 <div class="flex items-center">
                     <button class="edit-team-btn text-sm text-indigo-600 hover:text-indigo-800 font-medium mr-3 opacity-100 transition-opacity" data-team-id="${team.docId}">Edit</button>
                     <button class="delete-team-btn text-red-400 hover:text-red-700 font-bold text-xl p-0 rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-100" title="Delete ${team.name}" data-team-id="${team.docId}" data-team-name="${team.name}">&#215;</button>
@@ -1516,18 +1567,15 @@
       selectedTeamId = teamId;
       
       const teamButtonsContainer = document.getElementById("team-buttons");
-      // *** FIX: Reset all buttons to default style first ***
       teamButtonsContainer.querySelectorAll('button.team-button').forEach(btn => {
           btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
           btn.classList.remove('bg-blue-600', 'text-white', 'font-semibold');
       });
       
-      // *** FIX: Apply selected style to the correct button ***
       if (buttonElement) {
           buttonElement.classList.add('bg-blue-600', 'text-white', 'font-semibold');
           buttonElement.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
       } else {
-          // Fallback if buttonElement wasn't passed
           const teamName = teamsMap.get(teamId)?.name;
           if (teamName) {
               const buttons = teamButtonsContainer.querySelectorAll('button.team-button');
