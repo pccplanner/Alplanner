@@ -22,19 +22,22 @@
     .leave-entry.pending   { background: #fff3cd; }
     .leave-entry.approved  { background: #d4edda; font-weight: 600; }
     .leave-entry.rejected  { background: #f8d7da; color: #721c24; text-decoration: line-through; }
-    .leave-entry.write-in  { background: #ffeeba; }
+    /* MODIFICATION: Changed write-in color from #ffeeba to light purple */
+    .leave-entry.write-in  { background: #e9d5ff; } 
     
     /* Custom styles for accordion summary */
     .status-dot.pending   { background: #e67e22; }
     .status-dot.approved  { background: #27ae60; }
     .status-dot.rejected  { background: #e74c3c; }
-    .status-dot.write-in  { background: #f1c40f; }
+    /* MODIFICATION: Changed write-in color from #f1c40f to purple */
+    .status-dot.write-in  { background: #9333ea; } 
 
     /* Custom styles for summary table */
     .range-block.approved  .status-dot { background: #27ae60; }
     .range-block.pending   .status-dot { background: #e67e22; }
     .range-block.rejected  .status-dot { background: #e74c3c; }
-    .range-block.write-in  .status-dot { background: #f1c40f; }
+    /* MODIFICATION: Changed write-in color from #f1c40f to purple */
+    .range-block.write-in  .status-dot { background: #9333ea; } 
 
     /* Hide spinners on number inputs */
     input[type=number]::-webkit-inner-spin-button, 
@@ -79,12 +82,22 @@
       color: white;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
     }
+
+    /* NEW: Animation for Leave Freeze dates */
+    @keyframes stripes {
+        from { background-position: 0 0; }
+        to { background-position: 40px 0; }
+    }
+    .bg-stripes {
+        background-image: repeating-linear-gradient(-45deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1) 10px, transparent 10px, transparent 20px);
+        animation: stripes 1s linear infinite;
+    }
   </style>
 </head>
 <body class="bg-white min-h-screen p-0 md:p-4">
 
   <!-- LOADING SPINNER -->
-  <div id="loading" class="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center z-50" style="display: flex;">
+  <div id="loading" class="absolute inset-0 bg-gray-100/80 flex flex-col items-center justify-center z-[100]" style="display: flex;">
     <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
     <p class="mt-4 text-lg font-semibold text-gray-700">Loading Planner...</p>
   </div>
@@ -135,7 +148,7 @@
   -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v12.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v12.1</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -148,6 +161,8 @@
         <button id="tab-leave-balances" onclick="showLeaveBalanceReport()" class="main-nav-button" style="display: none;">Leave Balances</button>
         <button id="tab-user-mgmt" onclick="showUserManagement()" class="main-nav-button" style="display: none;">User Management</button>
         <button id="tab-team-mgmt" onclick="showTeamManagement()" class="main-nav-button" style="display: none;">Team Management</button>
+        <!-- NEW: Leave Freeze Tab -->
+        <button id="tab-leave-freeze" onclick="showLeaveFreeze()" class="main-nav-button" style="display: none;">Leave Freeze</button>
       </nav>
     </div>
     
@@ -355,6 +370,25 @@
         </ul>
       </div>
     </div>
+
+    <!-- NEW: Leave Freeze Panel (Admin Only) -->
+    <div id="leaveFreezePanel" class="p-4" style="display: none;">
+      <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Freeze Management</h2>
+      <div class="mb-6 max-w-md mx-auto">
+        <h4 class="text-lg font-medium text-gray-800 mb-2">Add Freeze Date</h4>
+        <form id="add-freeze-date-form" class="flex space-x-2">
+            <input type="date" id="freeze-date-input" class="flex-1 block w-full rounded-lg border-gray-300 shadow-sm" required>
+            <button type="submit" class="px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">Add Date</button>
+        </form>
+      </div>
+      
+      <div class="max-w-md mx-auto">
+        <h4 class="text-lg font-medium text-gray-800 mb-2">Current Frozen Dates</h4>
+        <ul id="freeze-date-list" class="divide-y divide-gray-200 h-64 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+            <!-- Frozen dates populated by JS -->
+        </ul>
+      </div>
+    </div>
     
     <div class="footer text-center text-xs text-gray-500 mt-6">
       @ 2025; t’va (Leave/Roster)
@@ -439,6 +473,18 @@
           </div>
       </div>
   </div>
+
+  <!-- NEW: Leave Freeze Confirmation Modal -->
+  <div id="freezeConfirmModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-[60] hidden">
+      <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 modal-fade-in">
+          <h3 class="text-xl font-semibold text-yellow-700">Leave Freeze Warning</h3>
+          <p class="my-4 text-gray-600">One or more dates in your selection are frozen. Do you want to proceed by submitting this request as a **Write-in**?</p>
+          <div class="flex justify-end space-x-3">
+              <button id="freezeCancelBtn" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+              <button id="freezeProceedBtn" class="px-5 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition">Proceed as Write-in</button>
+          </div>
+      </div>
+  </div>
   
   <!-- Firebase SDK -->
   <script type="module">
@@ -517,6 +563,7 @@
     let leaveRequestsCollectionPath;
     let usersCollectionPath;
     let teamsCollectionPath; 
+    let leaveFreezeCollectionPath; // NEW
 
     // --- Global State Variables ---
     let selectedTeamId = null; 
@@ -530,9 +577,11 @@
     var tempPatternArray = []; 
     var teamIdToDelete = null; 
     var openAccordions = new Set();
+    var leaveFreezeDates = new Set(); // NEW
     let leaveRequestsUnsubscriber = null;
     let usersUnsubscriber = null;
     let teamsUnsubscriber = null; 
+    let leaveFreezeUnsubscriber = null; // NEW
 
     // --- MODIFICATION: Removed 'Sick Leave' ---
     const leaveTypeCodes = {
@@ -606,6 +655,15 @@
     const profileUsedPH = document.getElementById('profileUsedPH');
     const profileBalancePH = document.getElementById('profileBalancePH');
 
+    // NEW: Leave Freeze DOMs
+    const leaveFreezePanel = document.getElementById('leaveFreezePanel');
+    const addFreezeDateForm = document.getElementById('add-freeze-date-form');
+    const freezeDateInput = document.getElementById('freeze-date-input');
+    const freezeDateList = document.getElementById('freeze-date-list');
+    const freezeConfirmModal = document.getElementById('freezeConfirmModal');
+    const freezeCancelBtn = document.getElementById('freezeCancelBtn');
+    const freezeProceedBtn = document.getElementById('freezeProceedBtn');
+
 
     // --- Utility Functions ---
     function showAlert(message, isError = true) {
@@ -642,10 +700,12 @@
       usersCollectionPath = `/artifacts/${appId}/public/data/users`;
       leaveRequestsCollectionPath = `/artifacts/${appId}/public/data/leaveRequests`;
       teamsCollectionPath = `/artifacts/${appId}/public/data/teams`; 
+      leaveFreezeCollectionPath = `/artifacts/${appId}/public/data/leaveFreezeDates`; // NEW
 
       console.log("Using Users Collection:", usersCollectionPath);
       console.log("Using Leave Requests Collection:", leaveRequestsCollectionPath);
       console.log("Using Teams Collection:", teamsCollectionPath); 
+      console.log("Using Leave Freeze Collection:", leaveFreezeCollectionPath); // NEW
 
       initializeAuth();
 
@@ -698,6 +758,7 @@
           showAlert("Error loading teams. Registration may fail.");
       });
 
+      // *** MODIFICATION: Removed Leave Freeze listener. It's now in attachDataListeners ***
 
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -769,6 +830,7 @@
           
           if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
           if (usersUnsubscriber) usersUnsubscriber();
+          if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); // <-- ADDED THIS
           
           loginSection.style.display = "block";
           mainContainer.style.display = "none";
@@ -884,6 +946,7 @@
       document.getElementById("tab-leave-balances").style.display = isAdmin ? "block" : "none";
       document.getElementById("tab-user-mgmt").style.display = isAdmin ? "block" : "none";
       document.getElementById("tab-team-mgmt").style.display = isAdmin ? "block" : "none";
+      document.getElementById("tab-leave-freeze").style.display = isAdmin ? "block" : "none"; // NEW
       document.getElementById("monthlySummary").style.display = isAdmin ? "block" : "none";
       
       // Set leave form readonly state
@@ -897,11 +960,12 @@
       await renderCalendar(); 
     }
     
-    // --- Firestore Data Listeners ---
+    // --- Firestore Data Listeners (MODIFIED) ---
     
     function attachDataListeners() {
       if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
       if (usersUnsubscriber) usersUnsubscriber();
+      if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); // <-- ADDED THIS
       
       let q = collection(db, leaveRequestsCollectionPath);
       
@@ -944,6 +1008,26 @@
           console.error("Error listening to users:", error);
           showAlert("Error loading users.");
         });
+
+        // --- NEW LOCATION FOR LEAVE FREEZE LISTENER ---
+        const freezeQuery = collection(db, leaveFreezeCollectionPath);
+        leaveFreezeUnsubscriber = onSnapshot(freezeQuery, (snapshot) => {
+            console.log("Leave freeze dates updated:", snapshot.size, "dates");
+            leaveFreezeDates.clear();
+            snapshot.forEach(doc => {
+                leaveFreezeDates.add(doc.id); // The doc ID is the "YYYY-MM-DD" string
+            });
+            
+            if (document.getElementById("leaveFreezePanel").style.display === "block") {
+                renderLeaveFreezeList(); // Re-render admin list if visible
+            }
+            renderCalendar(); // Re-render calendar to show new freeze dates
+            
+        }, (error) => {
+            console.error("Error listening to leave freeze dates:", error);
+            showAlert("Error loading leave freeze dates.");
+        });
+        // --- END NEW LOCATION ---
       }
     }
 
@@ -1103,7 +1187,7 @@
         
         cell.appendChild(shiftBox);
         
-        // --- Find *other* entries (Pending/Rejected) ---
+        // --- Find *all* entries for the list ---
         const dayEntries = [];
         requests.forEach(req => {
           const dayData = req.days.find(day => day.date === dateStr);
@@ -1116,36 +1200,54 @@
           }
         });
         
-        if (dayEntries.filter(e => e.status === "Pending").length > 0) {
-          // *** MODIFICATION: Changed bg-yellow-400 to bg-red-500 ***
-          cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-red-500 rounded-full absolute top-1 right-1";
+        // *** MODIFICATION: New Quota Logic ***
+        const approvedCount = dayEntries.filter(e => e.status === "Approved" || e.status === "Write-in").length;
+        const pendingCount = dayEntries.filter(e => e.status === "Pending").length;
+
+        if (approvedCount > 2) {
+            // Show PULSING RED dot for quota exceeded
+            cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-red-500 rounded-full absolute top-1 right-1 animate-pulse";
+        } else if (pendingCount > 0) {
+            // Show SOLID YELLOW dot for pending leaves
+            cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-yellow-400 rounded-full absolute top-1 right-1";
+        }
+        // *** END MODIFICATION ***
+
+        // *** NEW: Leave Freeze Highlighter ***
+        if (leaveFreezeDates.has(dateStr)) {
+            cell.classList.add("bg-stripes"); // Add striped background
+            // Add lock icon
+            const lockIcon = document.createElement("div");
+            lockIcon.className = "absolute bottom-1 right-1 text-red-700";
+            lockIcon.innerHTML = `🔒`;
+            cell.appendChild(lockIcon);
         }
         
+        
+        // *** MODIFICATION: Show ALL entries regardless of status ***
         dayEntries.forEach(e => {
-          // Only show non-approved entries below
-          if (e.status === "Pending" || e.status === "Rejected") {
-              const entry = document.createElement("div");
-              entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
-              
-              let teamColorClass = 'bg-gray-400'; // Default
-              let userForLeave = null;
-              
-              if (userType === 'admin') {
-                  userForLeave = allUsers.find(u => u.staffID === e.staffID);
-              } else if (currentUserProfile.staffID === e.staffID) {
-                  userForLeave = currentUserProfile;
-              }
-              
-              if(userForLeave) {
-                  const team = teamsMap.get(userForLeave.team_id);
-                  if (team && team.colorSet) {
-                      teamColorClass = team.colorSet.dot;
-                  }
-              }
-              entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass} flex-shrink-0"></div><span>${e.staffID}</span></div>`;
-              
-              cell.appendChild(entry);
+          // The CSS class will handle the color
+          const entry = document.createElement("div");
+          entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
+          
+          let teamColorClass = 'bg-gray-400'; // Default
+          let userForLeave = null;
+          
+          if (userType === 'admin') {
+              userForLeave = allUsers.find(u => u.staffID === e.staffID);
+          } else if (currentUserProfile.staffID === e.staffID) {
+              userForLeave = currentUserProfile;
           }
+          
+          if(userForLeave) {
+              const team = teamsMap.get(userForLeave.team_id);
+              if (team && team.colorSet) {
+                  teamColorClass = team.colorSet.dot;
+              }
+          }
+          entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass} flex-shrink-0"></div><span>${e.staffID}</span></div>`;
+          
+          cell.appendChild(entry);
         });
         
         fragment.appendChild(cell);
@@ -1358,15 +1460,49 @@
       });
     }
     
-    // --- Leave Form Submission ---
+    // --- Leave Form Submission (MODIFIED) ---
     
+    // Refactored submission logic into its own function
+    async function submitLeaveRequest(status, daysArray, name, id, start, end, leaveType) {
+        // Map days to the correct final status
+        const finalDaysArray = daysArray.map(day => ({ date: day.date, status: status }));
+
+        try {
+            await addDoc(collection(db, leaveRequestsCollectionPath), {
+            staffName: name,
+            staffID: id,
+            userId: (userType === 'admin' && currentUserProfile.staffID !== id) ? `admin_entry_${id}` : auth.currentUser.uid, 
+            fromDate: start, // yyyy-mm-dd
+            toDate: end,     // yyyy-mm-dd
+            leaveType: leaveType,
+            days: finalDaysArray // Use the array with the correct status
+            });
+            showAlert(status === 'Write-in' ? "Request submitted as Write-in." : "Leave request submitted successfully.", false);
+            document.getElementById("leaveForm").reset(); // Reset whole form
+            
+            // Repopulate user fields
+            if(userType === 'user') {
+                document.getElementById("staffName").value = currentUserProfile.username;
+                document.getElementById("staffID").value = currentUserProfile.staffID;
+            }
+            // Repopulate default leave type
+            document.getElementById("leaveType").value = "Annual Leave"; 
+            
+        } catch (error) {
+            console.error("Error submitting leave request:", error);
+            showAlert("An error occurred: " + error.message);
+        } finally {
+            loadingEl.style.display = "none";
+        }
+    }
+
     document.getElementById("leaveForm").onsubmit = async function(e) {
       e.preventDefault();
       const name = document.getElementById("staffName").value.trim();
       const id   = document.getElementById("staffID").value.trim();
       const start = document.getElementById("startDate").value;
       const end   = document.getElementById("endDate").value;
-      const leaveType = document.getElementById("leaveType").value; // NEW
+      const leaveType = document.getElementById("leaveType").value;
       
       if (!name || !id || !start || !end || !leaveType) {
         return showAlert("Please fill all fields.");
@@ -1374,53 +1510,42 @@
       if (end < start) {
         return showAlert("End date cannot be before start date.");
       }
+      
       loadingEl.style.display = "flex";
+      
       const startDate = new Date(start + "T12:00:00"); 
       const endDate = new Date(end + "T12:00:00");
       const daysArray = [];
       for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
-          daysArray.push({ date: formatDate(d), status: "Pending" }); // Use yyyy-mm-dd
+          daysArray.push({ date: formatDate(d), status: "Pending" }); // Status is temporary here
       }
       
       if (daysArray.length === 0) {
         loadingEl.style.display = "none";
         return showAlert("No valid days in range.");
       }
-      
-      // NEW: Check balance
-      if (userType === 'user') { // Only check for non-admins
-          const { used, allocated } = getLeaveUsage(leaveType);
-          if ( (used + daysArray.length) > allocated) {
-              showAlert("Warning: This request exceeds your available balance. Admin approval will be required.", false);
-          }
-      }
-      
-      try {
-        await addDoc(collection(db, leaveRequestsCollectionPath), {
-          staffName: name,
-          staffID: id,
-          userId: (userType === 'admin' && currentUserProfile.staffID !== id) ? `admin_entry_${id}` : auth.currentUser.uid, 
-          fromDate: start, // yyyy-mm-dd
-          toDate: end,     // yyyy-mm-dd
-          leaveType: leaveType, // NEW
-          days: daysArray
-        });
-        showAlert("Leave request submitted successfully.", false);
-        e.target.reset(); // Reset whole form
-        
-        // Repopulate user fields
-        if(userType === 'user') {
-            document.getElementById("staffName").value = currentUserProfile.username;
-            document.getElementById("staffID").value = currentUserProfile.staffID;
-        }
-        // Repopulate default leave type
-        document.getElementById("leaveType").value = "Annual Leave"; 
-        
-      } catch (error) {
-        console.error("Error submitting leave request:", error);
-        showAlert("An error occurred: " + error.message);
-      } finally {
-        loadingEl.style.display = "none";
+
+      // NEW: Check for frozen dates
+      const frozenDaysFound = daysArray.some(day => leaveFreezeDates.has(day.date));
+
+      if (frozenDaysFound) {
+          // Show custom modal
+          freezeConfirmModal.classList.remove('hidden');
+          loadingEl.style.display = "none"; // Hide loading spinner while modal is open
+
+          freezeCancelBtn.onclick = () => {
+              freezeConfirmModal.classList.add('hidden');
+          };
+
+          freezeProceedBtn.onclick = () => {
+              freezeConfirmModal.classList.add('hidden');
+              loadingEl.style.display = "flex"; // Show spinner again
+              submitLeaveRequest("Write-in", daysArray, name, id, start, end, leaveType);
+          };
+
+      } else {
+          // No frozen dates, submit as "Pending"
+          submitLeaveRequest("Pending", daysArray, name, id, start, end, leaveType);
       }
     };
     
@@ -2035,6 +2160,70 @@
         });
     }
 
+    // --- NEW: Leave Freeze Functions (Admin) ---
+    
+    function renderLeaveFreezeList() {
+        if (userType !== 'admin') return;
+        freezeDateList.innerHTML = "";
+        
+        if (leaveFreezeDates.size === 0) {
+            freezeDateList.innerHTML = '<li class="p-3 text-gray-500 italic">No leave freeze dates set.</li>';
+            return;
+        }
+
+        const sortedDates = [...leaveFreezeDates].sort();
+        
+        sortedDates.forEach(dateStr => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center p-3';
+            li.innerHTML = `
+                <span class="font-medium">${displayFormatDate(dateStr)}</span>
+                <button class="remove-freeze-date-btn text-red-500 hover:text-red-700 text-xs font-semibold" data-date="${dateStr}">
+                  Remove
+                </button>
+            `;
+            freezeDateList.appendChild(li);
+        });
+
+        // Add event listeners to new buttons
+        freezeDateList.querySelectorAll('.remove-freeze-date-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const dateStr = btn.dataset.date;
+                if (!confirm(`Are you sure you want to remove the leave freeze for ${displayFormatDate(dateStr)}?`)) return;
+                
+                try {
+                    await deleteDoc(doc(db, leaveFreezeCollectionPath, dateStr));
+                    showAlert("Freeze date removed.", false);
+                } catch (err) {
+                    console.error("Error removing freeze date:", err);
+                    showAlert("Error removing date: " + err.message);
+                }
+            };
+        });
+    }
+
+    addFreezeDateForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dateStr = freezeDateInput.value;
+        if (!dateStr) {
+            return showAlert("Please select a date.");
+        }
+
+        if (leaveFreezeDates.has(dateStr)) {
+            return showAlert("This date is already frozen.");
+        }
+
+        try {
+            // Set doc with the date string as the ID
+            await setDoc(doc(db, leaveFreezeCollectionPath, dateStr), { frozen: true });
+            showAlert("Leave freeze date added.", false);
+            addFreezeDateForm.reset();
+        } catch (err) {
+            console.error("Error adding freeze date:", err);
+            showAlert("Error adding date: " + err.message);
+        }
+    });
+
     
     // --- Tab & Navigation Functions ---
     
@@ -2093,6 +2282,9 @@
         
         const teamManagementPanel = document.getElementById("teamManagementPanel");
         if (teamManagementPanel) teamManagementPanel.style.display = "none";
+
+        const leaveFreezePanel = document.getElementById("leaveFreezePanel"); // NEW
+        if (leaveFreezePanel) leaveFreezePanel.style.display = "none"; // NEW
         
         // Show the active panel based on index
         if (activeIndex === 0) {
@@ -2105,6 +2297,8 @@
             userManagementPanel.style.display = "block";
         } else if (activeIndex === 4 && teamManagementPanel) {
             teamManagementPanel.style.display = "block";
+        } else if (activeIndex === 5 && leaveFreezePanel) { // NEW
+            leaveFreezePanel.style.display = "block"; // NEW
         }
         
         // Update tab buttons
@@ -2138,9 +2332,15 @@
         setActiveTab(4);
         openManageTeamsModal(); 
     }
+    // NEW: Show Leave Freeze Tab
+    window.showLeaveFreeze = () => {
+        setActiveTab(5);
+        renderLeaveFreezeList(); // Render the list of frozen dates
+    }
     
 
   </script>
 </body>
 </html>
+
 
