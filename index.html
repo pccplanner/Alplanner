@@ -77,6 +77,10 @@
     <form id="userRegisterForm" style="display: none;">
       <input type="text" id="regUsername" placeholder="Full Name (e.g., John Doe)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="text" id="regStaffID" placeholder="Staff ID (e.g., S999)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      
+      <!-- *** NEW: Mobile Number Field *** -->
+      <input type="tel" id="regMobile" placeholder="Mobile Number (e.g. +6512345678)" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+      
       <input type="email" id="regEmail" placeholder="Email" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       <input type="password" id="regPassword" placeholder="Password" class="w-full px-4 py-2 mb-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
       
@@ -101,7 +105,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v6.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v7.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -180,6 +184,7 @@
             <tr class="bg-gray-100">
               <th class="p-3 text-left font-semibold text-gray-700">Username</th>
               <th class="p-3 text-left font-semibold text-gray-700">Staff ID</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Mobile</th>
               <th class="p-3 text-left font-semibold text-gray-700">Email</th>
               <th class="p-3 text-left font-semibold text-gray-700">Team</th>
               <th class="p-3 text-left font-semibold text-gray-700">Admin</th>
@@ -618,9 +623,10 @@
       const password = document.getElementById("regPassword").value;
       const adminSecret = document.getElementById("regAdminSecret").value.trim();
       const teamId = document.getElementById("regTeam").value; 
+      const mobile = document.getElementById("regMobile").value.trim(); // *** NEW ***
 
-      if (!username || !staffID || !email || !password || !teamId) { 
-        return showAlert("Please fill in all fields, including team.");
+      if (!username || !staffID || !email || !password || !teamId || !mobile) { // *** NEW ***
+        return showAlert("Please fill in all fields, including mobile and team.");
       }
 
       loadingEl.style.display = "flex";
@@ -640,7 +646,8 @@
           staffID: staffID,
           email: email,
           isAdmin: isAdmin,
-          team_id: teamId 
+          team_id: teamId,
+          mobile: mobile // *** NEW ***
         });
         
         console.log("Registration successful, user doc created.");
@@ -730,12 +737,10 @@
     
     // *** THIS IS THE FIX: A timezone-safe formatDate function ***
     function formatDate(d) {
-      // Create a new date object to avoid modifying the original
-      const date = new Date(d.getTime());
-      // Adjust for timezone offset to get the correct local date
-      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-      // Return YYYY-MM-DD
-      return date.toISOString().split('T')[0];
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + dd;
     }
     
     function getShift(d) {
@@ -767,7 +772,7 @@
         
         sortedTeams.forEach((team, index) => {
             const button = document.createElement("button");
-            // *** FIX: Use lighter default colors for better contrast ***
+            // *** NEW: Brighter highlight style ***
             button.className = "team-button bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-300 transition-colors";
             button.textContent = team.name;
             button.onclick = () => selectTeam(team.docId, button);
@@ -782,12 +787,12 @@
         
         // If user's team wasn't found (maybe deleted?), select first team
         if (!teamFound && sortedTeams.length > 0) {
-            selectTeam(sortedTeams[0].docId, teamButtonsContainer.querySelector('button'));
+            selectTeam(sortedTeams[0].docId, teamButtonsContainer.querySelector('button.team-button'));
         }
         
         // Ensure the currently selected button is highlighted
         if (selectedTeamId) {
-            const buttons = teamButtonsContainer.querySelectorAll('button');
+            const buttons = teamButtonsContainer.querySelectorAll('button.team-button');
             buttons.forEach(btn => {
                 if (btn.textContent === teamsMap.get(selectedTeamId)?.name) {
                     btn.classList.add('bg-blue-600', 'text-white', 'font-semibold');
@@ -869,8 +874,9 @@
         
         dayEntries.forEach(e => {
           const entry = document.createElement("div");
+          // *** NEW: Show Staff ID instead of name ***
           entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
-          entry.textContent = `${e.staffName} (${e.staffID})`;
+          entry.textContent = e.staffID;
           cell.appendChild(entry);
         });
         
@@ -1022,14 +1028,39 @@
         };
       });
       
+      // *** NEW: WhatsApp Button Logic ***
       adminList.querySelectorAll(".whatsapp-btn").forEach(btn => {
         btn.onclick = function() {
           const requestId = btn.getAttribute("data-request-id");
           const req = requests.find(r => r.id === requestId);
           if (!req) return;
+
+          // Find the user's profile from the allUsers array (admin only)
+          const user = allUsers.find(u => u.staffID === req.staffID);
+          const mobileNumber = user ? user.mobile : '';
+
           const msg = `Hello ${req.staffName} (${req.staffID}), your leave status for request (${req.fromDate} to ${req.toDate}):\n` +
             req.days.map(d => `${d.date}: ${d.status}`).join('\n');
-          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+            
+          if (mobileNumber) {
+            // Format number for wa.me: remove +, spaces, (, ), -
+            let formattedNumber = mobileNumber.replace(/[\s+()-]/g, '');
+            if (formattedNumber.startsWith('00')) { // Handle '00' prefix
+              formattedNumber = formattedNumber.substring(2);
+            }
+            
+            // Basic check for 8+ digits
+            if (/^\d{8,}$/.test(formattedNumber)) {
+              window.open(`https://wa.me/${formattedNumber}?text=${encodeURIComponent(msg)}`, "_blank");
+            } else {
+              showAlert(`Invalid mobile number for ${req.staffName}: ${mobileNumber}. Please update in User Management.`);
+              window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank"); // Fallback
+            }
+          } else {
+            // Old behavior if no number is found
+            showAlert(`No mobile number found for ${req.staffName}. Opening general WhatsApp.`);
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+          }
         };
       });
     }
@@ -1052,9 +1083,10 @@
       const startDate = new Date(start + "T12:00:00"); // Use noon to avoid timezone day change
       const endDate = new Date(end + "T12:00:00");
       const daysArray = [];
-      for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
-        daysArray.push({ date: formatDate(new Date(d)), status: "Pending" }); // Use NEW correct formatDate
+      for (let d = new Date(startDate.getTime()); d <= endDate; d.setDate(d.getDate() + 1)) {
+          daysArray.push({ date: formatDate(d), status: "Pending" }); // Use NEW correct formatDate
       }
+      
       if (daysArray.length === 0) {
         loadingEl.style.display = "none";
         return showAlert("No valid days in range.");
@@ -1211,7 +1243,8 @@
       tbody.innerHTML = "";
       
       if (allUsers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">No users have registered yet.</td></tr>`;
+        // *** NEW: Updated colspan to 7 ***
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">No users have registered yet.</td></tr>`;
         return;
       }
       
@@ -1224,6 +1257,7 @@
         tr.innerHTML = `
           <td class="p-3">${user.username}</td>
           <td class="p-3">${user.staffID}</td>
+          <td class="p-3">${user.mobile || 'N/A'}</td> <!-- *** NEW *** -->
           <td class="p-3">${user.email}</td>
           <td class="p-3">${teamName}</td>
           <td class="p-3">
