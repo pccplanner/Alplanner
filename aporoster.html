@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Roster System (v7.1 - Renamed)</title>
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Load React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 3. Load Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 4. Load Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            onSnapshot, 
+            collection, 
+            getDocs,
+            deleteDoc,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Your Firebase Config ---
+        // A default config is provided, but it will be overridden by the Canvas environment
+        const firebaseConfig = {
+          apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0",
+          authDomain: "shift-tracker-b7879.firebaseapp.com",
+          projectId: "shift-tracker-b7879",
+          storageBucket: "shift-tracker-b7879.firebasestorage.app",
+          messagingSenderId: "619413261457",
+          appId: "1:619413261457:web:71bb4d19745a64aab20330",
+          measurementId: "G-Q0BFJ8SBSY"
+        };
+        
+        // --- Canvas Environment Variables ---
+        const globalFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(globalFirebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        setLogLevel('debug');
+
+        // Make functions and db available globally
+        window.db = db;
+        window.auth = auth;
+        window.firebase = {
+            doc,
+            getDoc,
+            setDoc,
+            onSnapshot,
+            collection,
+            getDocs,
+            deleteDoc,
+            signInAnonymously,
+            onAuthStateChanged,
+            signInWithCustomToken,
+            initialAuthToken
+        };
+    </script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo, createContext, useContext } = React;
+        const { 
+            doc, getDoc, setDoc, onSnapshot, 
+            collection, getDocs, deleteDoc,
+            signInAnonymously, onAuthStateChanged, 
+            signInWithCustomToken, initialAuthToken
+        } = window.firebase;
+        const db = window.db;
+        const auth = window.auth;
+
+        // --- Constants ---
+        const POSITIONS = [
+            "E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY",
+            "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"
+        ];
+        const TIME_SLOTS = [
+            "2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs",
+            "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"
+        ];
+        
+        // --- MODIFIED: Renamed sequence keys as requested ---
+        const SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
+        
+        const UNASSIGNED_KEY = "Unassigned";
+        const UNFILLED_SLOT = "---";
+
+        // --- MODIFIED: Hard-coded position sequences updated to match new keys ---
+        const POSITION_SEQUENCES = {
+            "E1":                             ["E1", "OE", "P2", "N1", "E3", "P1"],
+            "PATROL 1":                       ["P1", "E1", "OE", "P2", "N1", "E3"],
+            "E3":                             ["E3", "P1", "E1", "OE", "P2", "N1"],
+            "N1 (CNB)":                       ["N1", "E3", "P1", "E1", "OE", "P2"],
+            "PATROL 2":                       ["P2", "N1", "E3", "P1", "E1", "OE"],
+            "OE/ STANDBY":                    ["OE", "P2", "N1", "E3", "P1", "E1"],
+            "PERIMETER PROWLER (1st Half)":   ["P1", "E1", "OE", "P2", "N1", "E3"],
+            "PERIMETER PROWLER (2nd Half)":   ["P2", "N1", "E3", "P1", "E1", "OE"]
+        };
+        
+        // --- DB Collection Names ---
+        const STAFF_POOL_COLLECTION = "staffPool_v7";
+        const DAILY_ASSIGNMENTS_COLLECTION = "dailyAssignments_v7";
+        const DAILY_ROSTER_COLLECTION = "dailyRosters_v7";
+
+        // --- Helper: Get today's date ---
+        const getTodayDate = () => {
+            const today = new Date();
+            const offset = today.getTimezoneOffset();
+            const adjustedToday = new Date(today.getTime() - (offset*60*1000));
+            return adjustedToday.toISOString().split('T')[0];
+        };
+        
+        // --- React Context for Staff Pool ---
+        const StaffContext = createContext();
+        
+        function StaffProvider({ children }) {
+            const [staffPool, setStaffPool] = useState([]); // Array of strings: ["123", "456"]
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            
+            useEffect(() => {
+                const staffCollectionRef = collection(db, STAFF_POOL_COLLECTION);
+                const unsubscribe = onSnapshot(staffCollectionRef, (querySnapshot) => {
+                    const pool = [];
+                    querySnapshot.forEach(doc => {
+                        pool.push(doc.data().id);
+                    });
+                    setStaffPool(pool.sort());
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Error fetching staff pool: ", err);
+                    setError("Could not load staff pool.");
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+            
+            const value = { staffPool, loading, error };
+            
+            return (
+                <StaffContext.Provider value={value}>
+                    {children}
+                </StaffContext.Provider>
+            );
+        }
+
+        // --- Main App Component ---
+        function App() {
+            const [view, setView] = useState('roster'); // roster, settings
+            const [userId, setUserId] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+            const [authError, setAuthError] = useState(null);
+            const [selectedDate, setSelectedDate] = useState(getTodayDate());
+
+            useEffect(() => {
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        setUserId(user.uid);
+                        setAuthLoading(false);
+                    } else {
+                        const signIn = async () => {
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                    console.log("Signed in with custom token.");
+                                } else {
+                                    await signInAnonymously(auth);
+                                    console.log("Signed in anonymously.");
+                                }
+                            } catch (err) {
+                                console.error("Authentication error: ", err);
+                                setAuthError("Failed to authenticate.");
+                                setAuthLoading(false);
+                            }
+                        };
+                        signIn();
+                    }
+                });
+            }, []);
+
+            if (authLoading) return <div className="p-8 text-center text-xl font-semibold">Connecting...</div>
+            if (authError) return <div className="p-8 text-center text-xl font-semibold text-red-600">{authError}</div>
+            if (!userId) return <div className="p-8 text-center text-xl font-semibold">Authenticating...</div>
+
+            return (
+                <StaffProvider>
+                    <div className="min-h-screen">
+                        {/* Header */}
+                        <header className="bg-white shadow-md">
+                            <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v7.1)</h1>
+                                <div className="flex space-x-2">
+                                    <NavButton
+                                        label="Daily Roster"
+                                        isActive={view === 'roster'}
+                                        onClick={() => setView('roster')}
+                                    />
+                                    <NavButton
+                                        label="Staff & Roster Setup"
+                                        isActive={view === 'settings'}
+                                        onClick={() => setView('settings')}
+                                    />
+                                </div>
+                            </nav>
+                        </header>
+                        
+                        {/* Page Content */}
+                        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+                            {view === 'roster' && <RosterView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
+                            {view === 'settings' && <StaffAndRosterSetupView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
+                        </main>
+                        
+                        <footer className="text-center p-4 text-gray-500 text-sm">
+                            User ID: <span className="font-mono bg-gray-200 px-1 rounded">{userId}</span>
+                        </footer>
+                    </div>
+                </StaffProvider>
+            );
+        }
+
+        function NavButton({ label, isActive, onClick }) {
+            const baseClasses = "py-2 px-4 rounded-md font-medium text-sm sm:text-base transition-all duration-200";
+            const activeClasses = "bg-blue-600 text-white shadow-md";
+            const inactiveClasses = "text-gray-600 hover:bg-gray-200";
+            return ( <button onClick={onClick} className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}>{label}</button> );
+        }
+
+        // --- View 1: Staff & Roster Setup (Combined) ---
+        function StaffAndRosterSetupView({ selectedDate, setSelectedDate }) {
+            const { staffPool, loading: staffLoading, error: staffError } = useContext(StaffContext);
+            const [newStaffId, setNewStaffId] = useState("");
+            
+            const handleAddStaff = async () => {
+                const id = newStaffId.trim();
+                if (id && !staffPool.includes(id)) {
+                    try {
+                        const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
+                        await setDoc(staffDocRef, { id: id });
+                        setNewStaffId("");
+                    } catch (err) {
+                        console.error("Error adding staff: ", err);
+                        // Add user-facing error message
+                    }
+                }
+            };
+            
+            const handleRemoveStaff = async (id) => {
+                // Use a custom modal in a real app
+                if (window.confirm(`Are you sure you want to remove staff ID ${id}? This is permanent.`)) {
+                    try {
+                        const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
+                        await deleteDoc(staffDocRef);
+                        // This won't clean up old assignments, but will prevent future ones.
+                    } catch (err) {
+                        console.error("Error removing staff: ", err);
+                        // Add user-facing error message
+                    }
+                }
+            };
+
+            return (
+                <div className="space-y-6">
+                    {/* Section 1: Manage Staff Pool */}
+                    <div className="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800">1. Manage Staff Pool</h2>
+                        {staffError && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{staffError}</div>}
+                        
+                        <div className="flex gap-2 mb-4">
+                            <input
+                                type="text"
+                                value={newStaffId}
+                                onChange={(e) => setNewStaffId(e.target.value)}
+                                className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm"
+                                placeholder="Enter new Staff ID"
+                            />
+                            <button onClick={handleAddStaff} className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700">Add Staff</button>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2">
+                            {staffLoading && <p>Loading Staff...</p>}
+                            {staffPool.map(staffId => (
+                                <div key={staffId} className="flex items-center p-2 bg-gray-100 rounded-md border">
+                                    <span className="font-medium text-gray-900">{staffId}</span>
+                                    <button onClick={() => handleRemoveStaff(staffId)} className="ml-2 text-red-500 hover:text-red-700 font-bold">X</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Section 2: Daily Setup */}
+                    <DailySequenceAssignment selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
+                </div>
+            );
+        }
+        
+        // --- Sub-component for Daily Sequence Assignment ---
+        function DailySequenceAssignment({ selectedDate, setSelectedDate }) {
+            const { staffPool, loading: staffLoading } = useContext(StaffContext);
+            // State holds the *staff ID* for each sequence key, e.g., { E1: "12268", OE: "13798", ... }
+            const [sequenceMap, setSequenceMap] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [status, setStatus] = useState("idle");
+            const [error, setError] = useState(null);
+
+            // Load data for the selected date
+            useEffect(() => {
+                if (!selectedDate) return;
+                setLoading(true);
+                const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setSequenceMap(docSnap.data().sequenceMap || {});
+                    } else {
+                        // Init empty map
+                        const emptyMap = {};
+                        SEQUENCE_KEYS.forEach(key => emptyMap[key] = "");
+                        setSequenceMap(emptyMap);
+                    }
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Error loading daily assignments: ", err);
+                    setError("Failed to load daily assignments.");
+                    setLoading(false);
+                });
+                
+                return () => unsubscribe();
+            }, [selectedDate]);
+
+            // This is the V7 logic:
+            // When a user selects a staff member (e.g., "12268") for a slot (e.g., "E1"),
+            // we must also check if "12268" was already assigned to another slot (e.g., "P2")
+            // and un-assign them from "P2".
+            const handleSequenceChange = (keyToAssign, staffId) => {
+                setStatus("idle");
+                const newMap = { ...sequenceMap };
+                
+                // Set the new assignment
+                newMap[keyToAssign] = staffId;
+                
+                // If staffId is not blank, check for duplicates and clear them
+                if (staffId) {
+                    SEQUENCE_KEYS.forEach(key => {
+                        if (key !== keyToAssign && newMap[key] === staffId) {
+                            newMap[key] = ""; // Un-assign from old slot
+                        }
+                    });
+                }
+                
+                setSequenceMap(newMap);
+            };
+
+            const handleSave = async () => {
+                setStatus("saving");
+                setError(null);
+                try {
+                    const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                    await setDoc(docRef, { sequenceMap: sequenceMap });
+                    setStatus("saved");
+                    setTimeout(() => setStatus("idle"), 2000);
+                } catch (err) {
+                    console.error("Error saving daily setup: ", err);
+                    setError("Failed to save daily setup.");
+                    setStatus("error");
+                }
+            };
+            
+            const isLoading = staffLoading || loading;
+            
+            // This maps the *assigned* staff IDs back to their sequence keys
+            // e.g., { "12268": "E1", "13798": "OE", ... }
+            const staffToSequenceMap = useMemo(() => {
+                const map = {};
+                for (const key of SEQUENCE_KEYS) {
+                    const staffId = sequenceMap[key];
+                    if (staffId) {
+                        map[staffId] = key;
+                    }
+                }
+                return map;
+            }, [sequenceMap]);
+
+            return (
+                <div className="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Roster Setup</h2>
+                    
+                    <div className="mb-6">
+                        <label htmlFor="roster-date" className="font-medium text-gray-700 text-lg">Select Date:</label>
+                        <input
+                            type="date"
+                            id="roster-date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="border-gray-300 rounded-md shadow-sm p-2 text-lg ml-2"
+                        />
+                    </div>
+                    
+                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
+                    
+                    {/* --- MODIFIED: Updated description text --- */}
+                    <p className="text-gray-600 mb-4">
+                        Assign a location slot (`{SEQUENCE_KEYS.join('`, `')}`) to the 6 staff on duty.
+                        Leave all other staff as `Unassigned`.
+                    </p>
+                    
+                    {isLoading && <p>Loading...</p>}
+                    {!isLoading && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {staffPool.length === 0 && <p className="text-gray-500 col-span-full">No staff in pool. Add staff above.</p>}
+                            
+                            {staffPool.map(staffId => {
+                                // Find what sequence this staff is assigned to (e.g., "E1" or "")
+                                const assignedSequence = staffToSequenceMap[staffId] || "";
+                                
+                                return (
+                                    <div 
+                                        key={staffId}
+                                        className={`p-4 border rounded-lg flex items-center justify-between transition-all ${
+                                            assignedSequence ? 'bg-blue-100 border-blue-300' : 'bg-white'
+                                        }`}
+                                    >
+                                        <span className="text-lg font-medium text-gray-900">{staffId}</span>
+                                        <select
+                                            value={assignedSequence}
+                                            onChange={(e) => {
+                                                const newKey = e.target.value;
+                                                if (newKey === "") {
+                                                    // User set dropdown to "Unassigned"
+                                                    // Find the key this staff *was* assigned to and clear it.
+                                                    const oldKey = staffToSequenceMap[staffId];
+                                                    if(oldKey) {
+                                                        handleSequenceChange(oldKey, ""); // staffId = ""
+                                                    }
+                                                } else {
+                                                    // User assigned a new key (e.g., "E1")
+                                                    handleSequenceChange(newKey, staffId);
+                                                }
+                                            }}
+                                            className="p-2 border border-gray-300 rounded-md shadow-sm"
+                                        >
+                                            <option value="">{UNASSIGNED_KEY}</option>
+                                            {SEQUENCE_KEYS.map(key => {
+                                                const staffInThisSlot = sequenceMap[key];
+                                                const isThisStaff = staffInThisSlot === staffId;
+                                                const isSlotTaken = staffInThisSlot && !isThisStaff;
+                                                
+                                                return (
+                                                    <option key={key} value={key} disabled={isSlotTaken}>
+                                                        {key} {isSlotTaken ? `(taken by ${staffInThisSlot})` : ""}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    
+                    <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4">
+                        {status === 'saved' && <span className="text-green-600">Saved!</span>}
+                        {status === 'error' && <span className="text-red-600">Save failed!</span>}
+                        <button
+                            onClick={handleSave}
+                            disabled={status === 'saving' || isLoading}
+                            className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                        >
+                            {status === 'saving' ? "Saving..." : "Save Daily Assignments"}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- View 2: Roster View (Sequence Logic) ---
+        function RosterView({ selectedDate, setSelectedDate }) {
+            const [rosterData, setRosterData] = useState(null);
+            const [dailyAssignments, setDailyAssignments] = useState(null); // { sequenceMap }
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [isDirty, setIsDirty] = useState(false);
+            
+            // Subscribe to both roster and setup docs
+            useEffect(() => {
+                if (!selectedDate) return;
+                setLoading(true);
+                setError(null);
+                setIsDirty(false); // Reset dirty state on date change
+
+                // 1. Get Daily Assignments (to generate roster)
+                const assignmentsDocRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                const unsubAssignments = onSnapshot(assignmentsDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setDailyAssignments(docSnap.data());
+                    } else {
+                        setDailyAssignments(null);
+                    }
+                }, (err) => {
+                    console.error("Error loading assignments: ", err);
+                    setError("Failed to load daily assignments.");
+                });
+
+                // 2. Get Roster (if it exists)
+                const rosterDocRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                const unsubRoster = onSnapshot(rosterDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setRosterData(docSnap.data().rosterGrid || {});
+                    } else {
+                        setRosterData(null);
+                    }
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Error loading roster: ", err);
+                    setError("Failed to load roster data.");
+                    setLoading(false);
+                });
+                
+                return () => {
+                    unsubAssignments();
+                    unsubRoster();
+                };
+            }, [selectedDate]);
+
+            // --- Generate Roster (SEQUENCE LOGIC) ---
+            const handleGenerateRoster = async () => {
+                setLoading(true);
+                setError(null);
+                
+                if (!dailyAssignments || !dailyAssignments.sequenceMap) {
+                    setError("No assignments found for this date. Please set them in 'Staff & Roster Setup'.");
+                    setLoading(false);
+                    return;
+                }
+                
+                try {
+                    const sequenceMap = dailyAssignments.sequenceMap;
+                    const newRosterGrid = {};
+
+                    POSITIONS.forEach(pos => {
+                        const positionRoster = [];
+                        // Get the sequence for this position, e.g., ["E1", "OE", "P2", ...]
+                        const letterSequence = POSITION_SEQUENCES[pos]; 
+                        
+                        for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
+                            const sequenceIndex = timeIndex % 6; // 0-5
+                            const sequenceKey = letterSequence[sequenceIndex]; // e.g., "E1"
+                            const requiredStaff = sequenceMap[sequenceKey]; // Get Staff ID, e.g., "12268"
+                            
+                            positionRoster.push(requiredStaff || UNFILLED_SLOT);
+                        }
+                        newRosterGrid[pos] = positionRoster;
+                    });
+                    
+                    // Save the new roster
+                    const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                    await setDoc(docRef, { 
+                        rosterGrid: newRosterGrid,
+                        createdAt: new Date().toISOString()
+                    });
+                    setIsDirty(false);
+                    // onSnapshot will update the view
+                    setLoading(false);
+                    
+                } catch (err) {
+                    console.error("Error generating roster:", err);
+                    setError("Failed to generate roster. Check console and security rules.");
+                    setLoading(false);
+                }
+            };
+            
+            const handleSaveChanges = async () => {
+                if (!rosterData || !isDirty) return;
+                setLoading(true);
+                setError(null);
+                try {
+                    const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                    await setDoc(docRef, { 
+                        rosterGrid: rosterData,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    setIsDirty(false);
+                    setLoading(false);
+                } catch (err) {
+                    console.error("Error saving changes: ", err);
+                    setError("Failed to save changes.");
+                    setLoading(false);
+                }
+            };
+
+            const handleCellChange = (position, timeIndex, value) => {
+                setRosterData(prevRoster => {
+                    const newRoster = { ...prevRoster };
+                    const newPositionArray = [...(newRoster[position] || Array(TIME_SLOTS.length).fill(""))];
+                    newPositionArray[timeIndex] = value;
+                    newRoster[position] = newPositionArray;
+                    return newRoster;
+                });
+                setIsDirty(true);
+            };
+            
+            return (
+                <div className="bg-white p-6 rounded-lg shadow-lg">
+                    {/* Header: Date Picker + Buttons */}
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                        <div className="flex items-center gap-2">
+                            <label htmlFor="roster-date-main" className="font-medium text-gray-700 text-lg">Roster Date:</label>
+                            <input
+                                type="date"
+                                id="roster-date-main"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="border-gray-300 rounded-md shadow-sm p-2 text-lg"
+                            />
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={handleGenerateRoster}
+                                disabled={loading || !dailyAssignments}
+                                title={!dailyAssignments ? "Please complete daily assignments first" : "Generate Roster"}
+                                className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {rosterData ? "Re-Generate Roster" : "Generate Roster"}
+                            </button>
+                             <button
+                                onClick={handleSaveChanges}
+                                disabled={loading || !isDirty}
+                                className="py-2 px-4 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                            >
+                                {loading ? "Saving..." : "Save Changes"}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
+                    {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4">You have unsaved changes.</div>}
+
+                    {loading && !rosterData && <div className="text-center p-8">Loading Roster...</div>}
+                    
+                    {!loading && !rosterData && (
+                        <div className="text-center p-8 bg-gray-50 rounded-md">
+                            <h3 className="text-xl font-medium text-gray-700">No roster generated for {selectedDate}.</h3>
+                            <p className="text-gray-500 mt-2">Go to "Staff & Roster Setup" to configure the day, then click "Generate Roster".</p>
+                        </div>
+                    )}
+
+                    {rosterData && (
+                        <div className="overflow-x-auto shadow-md rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        <th className="sticky left-0 bg-gray-100 p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                                        {TIME_SLOTS.map(time => (
+                                            <th key={time} className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {POSITIONS.map(pos => (
+                                        <tr key={pos} className="hover:bg-gray-50">
+                                            <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{pos}</td>
+                                            {TIME_SLOTS.map((time, index) => {
+                                                const value = rosterData[pos]?.[index] || "";
+                                                const isMissing = value === UNFILLED_SLOT;
+                                                return (
+                                                    <td key={time} className="p-0">
+                                                        <input
+                                                            type="text"
+                                                            value={value}
+                                                            onChange={(e) => handleCellChange(pos, index, e.target.value)}
+                                                            className={`w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                                                                isMissing ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-white'
+                                                            }`}
+                                                            placeholder="ID"
+                                                        />
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Attach App to DOM ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
