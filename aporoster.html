@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v13.8 - Robust Loading)</title>
+    <title>Intelligent Roster System (v13.21 - Toggle Switch Fix)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -30,33 +30,35 @@
         // Set Firebase Log Level for debugging
         setLogLevel('debug');
 
-        // --- Mock Firebase Config (REPLACED by Canvas Globals) ---
+        // --- SDK CONFIGURATION (From SDK_Monthly_Roster_V1.txt) ---
         const mockFirebaseConfig = {
-          apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0",
-          authDomain: "shift-tracker-b7879.firebaseapp.com",
-          projectId: "shift-tracker-b7879",
-          storageBucket: "shift-tracker-b7879.firebasestorage.app",
-          messagingSenderId: "619413261457",
-          appId: "1:619413261457:web:71bb4d19745a64aAB20330",
-          measurementId: "G-Q0BFJ8SBSY"
+          apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+          authDomain: "roster-4a997.firebaseapp.com",
+          projectId: "roster-4a997",
+          storageBucket: "roster-4a997.firebasestorage.app",
+          messagingSenderId: "901381868881",
+          appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
         
         // --- Canvas Environment Variables (CRITICAL) ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : mockFirebaseConfig;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // CRITICAL: Get App ID for public/shared data paths
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // Make functions and db available globally
         window.db = db;
         window.auth = auth; 
         
         window.firebase = {
             doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, updateDoc,
-            signInAnonymously, onAuthStateChanged, signInWithCustomToken, initialAuthToken
+            signInAnonymously, onAuthStateChanged, signInWithCustomToken, initialAuthToken,
+            appId 
         };
     </script>
     
@@ -69,16 +71,16 @@
         
         /* --- Consolidated Setup Card Styles (Section 1) --- */
         .staff-pool-grid {
-             grid-template-columns: repeat(2, minmax(0, 1fr)); /* Default: 2 columns on tiny mobile */
+             grid-template-columns: repeat(2, minmax(0, 1fr)); 
         }
-        @media (min-width: 400px) { /* Custom breakpoint for slightly larger phones */
-            .staff-pool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } /* 3 columns start here */
+        @media (min-width: 400px) { 
+            .staff-pool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } 
         }
-        @media (min-width: 768px) { /* md */
-            .staff-pool-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } /* 4 columns on tablets */
+        @media (min-width: 768px) { 
+            .staff-pool-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } 
         }
-        @media (min-width: 1024px) { /* lg */
-            .staff-pool-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } /* 5 columns on larger desktops */
+        @media (min-width: 1024px) { 
+            .staff-pool-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } 
         }
 
         .staff-card-scheduled { border: 1px solid #10B981; background-color: #F0FDF4; }
@@ -86,10 +88,51 @@
 
         /* --- Assignment Card Styles (Section 2) --- */
         .assignment-grid {
-             grid-template-columns: repeat(2, minmax(0, 1fr)); /* Default: 2 columns */
+             grid-template-columns: repeat(2, minmax(0, 1fr)); 
         }
-        @media (min-width: 1024px) { /* lg */
+        @media (min-width: 1024px) { 
             .assignment-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+
+        /* --- Custom Toggle Switch (for Mobile/Touch) --- */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #10B981; /* Emerald-500 */
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
         }
 
         /* --- Print Styles --- */
@@ -127,7 +170,8 @@
             doc, getDoc, setDoc, onSnapshot, 
             collection, deleteDoc, updateDoc,
             signInAnonymously, onAuthStateChanged, 
-            signInWithCustomToken, initialAuthToken
+            signInWithCustomToken, initialAuthToken,
+            appId 
         } = window.firebase;
         const db = window.db;
         const auth = window.auth; 
@@ -150,17 +194,45 @@
         const SENTRY_POSITION_SEQUENCES = {
             "E1": ["E1", "OE", "P2", "N1", "E3", "P1"], "PATROL 1": ["P1", "E1", "OE", "P2", "N1", "E3"],
             "E3": ["E3", "P1", "E1", "OE", "P2", "N1"], "N1 (CNB)": ["N1", "E3", "P1", "E1", "OE", "P2"],
-            "PATROL 2": ["P2", "N1", "E3", "P1", "E1", "OE"], "OE/ STANDBY": ["OE", "P2", "N1", "E3", "P1", "E1"],
-            "PERIMETER PROWLER (1st Half)": ["P1", "E1", "OE", "P2", "N1", "E3"], "PERIMETER PROWLER (2nd Half)": ["P2", "N1", "E3", "P1", "E1", "OE"]
+            "PATROL 2": ["P2", "N1", "E3", "P1", "E1", "OE"], "OE/ STANDBY": ["OE", "P2", "N1", "E3", "P1", "E1"]
         };
         
         // --- DB Collection Names ---
         const TEAM_COLLECTION = "teams"; 
-        const EMPLOYEES_COLLECTION = "employees"; 
+        const EMPLOYEES_COLLECTION = "employees";
         const DAILY_ASSIGNMENTS_COLLECTION = "dailyAssignments_v7";
         const DAILY_ROSTER_COLLECTION = "dailyRosters_v7";
         const DAILY_ATTENDANCE_COLLECTION = "dailyAttendance_v7"; 
+        
+        // CRITICAL HELPER: Generates the correct collection reference path
+        const getCollectionRef = (collectionName) => {
+            // Team and Employee data use the public path prefix
+            if (collectionName === TEAM_COLLECTION || collectionName === EMPLOYEES_COLLECTION) {
+                // FALLBACK CHECK: If appId is not defined or is 'default-app-id', we try to read from the root collection instead
+                if (appId === 'default-app-id' || typeof __app_id === 'undefined') {
+                    console.warn(`[WARNING] Using fallback root path for ${collectionName}. Check if __app_id is defined correctly.`);
+                    return collection(db, collectionName);
+                }
+                const path = `artifacts/${appId}/public/data/${collectionName}`;
+                return collection(db, path);
+            }
+            // All daily roster data is stored at the root collection path
+            return collection(db, collectionName);
+        };
 
+        // CRITICAL HELPER: Generates the correct doc reference path
+        const getDocRef = (collectionName, docId) => {
+            // Team and Employee data use the public path prefix
+            if (collectionName === TEAM_COLLECTION || collectionName === EMPLOYEES_COLLECTION) {
+                if (appId === 'default-app-id' || typeof __app_id === 'undefined') {
+                    return doc(db, collectionName, String(docId));
+                }
+                return doc(db, `artifacts/${appId}/public/data/${collectionName}`, String(docId));
+            }
+            // All daily roster data is stored at the root collection path
+            return doc(db, collectionName, String(docId));
+        };
+        
         // --- Helper: Get today's date ---
         const getTodayDate = () => {
             const today = new Date();
@@ -184,6 +256,29 @@
             }
             return obj;
         };
+
+        // --- Helper to extract name after parentheses ---
+        const extractName = (fullName) => {
+            if (!fullName || typeof fullName !== 'string') return '';
+            const match = fullName.match(/\((.*?)\)\s*(.*)/);
+            if (match && match[2]) {
+                // Returns the part after the closing parenthesis and optional space
+                return match[2].trim();
+            }
+            // If no parentheses are found, return the original name
+            return fullName.trim();
+        };
+
+        // --- Helper to remove leading 'T' from ID ---
+        const cleanStaffId = (id) => {
+            if (!id || typeof id !== 'string') return '';
+            const trimmedId = id.trim();
+            // Check if the ID starts with 'T' (case-insensitive) and remove it.
+            if (trimmedId.length > 1 && (trimmedId.startsWith('T') || trimmedId.startsWith('t'))) {
+                return trimmedId.substring(1);
+            }
+            return trimmedId;
+        };
         
         // --- React Context for Staff Pool & Attendance ---
         const StaffContext = createContext();
@@ -195,10 +290,11 @@
             const [loadingState, setLoadingState] = useState({ teams: true, employees: true, attendance: true });
             const [error, setError] = useState(null);
             
-            // 1. Load Teams Data
+            // 1. Load Teams Data (Uses dynamic public path/fallback)
             useEffect(() => {
-                if (!db) return setError("Database connection failed during team load.");
-                const teamsCollectionRef = collection(db, TEAM_COLLECTION);
+                if (!db || !appId) return;
+                const teamsCollectionRef = getCollectionRef(TEAM_COLLECTION);
+                
                 const unsubscribe = onSnapshot(teamsCollectionRef, (querySnapshot) => {
                     const loadedTeams = [];
                     querySnapshot.forEach(doc => {
@@ -208,37 +304,38 @@
                     setLoadingState(prev => ({ ...prev, teams: false }));
                 }, (err) => {
                     console.error("Error fetching teams: ", err);
-                    setError("Could not load teams data.");
+                    setError("Could not load teams data. Data path might be incorrect or missing.");
                     setLoadingState(prev => ({ ...prev, teams: false }));
                 });
                 return () => unsubscribe();
-            }, []);
+            }, [appId]);
 
-            // 2. Load Employees Data
+            // 2. Load Employees/Users Data (Uses dynamic public path/fallback)
             useEffect(() => {
-                if (!db) return setError("Database connection failed during employee load.");
-                const employeesCollectionRef = collection(db, EMPLOYEES_COLLECTION);
+                if (!db || !appId) return;
+                const employeesCollectionRef = getCollectionRef(EMPLOYEES_COLLECTION);
+                
                 const unsubscribe = onSnapshot(employeesCollectionRef, (querySnapshot) => {
                     const loadedEmployees = [];
                     querySnapshot.forEach(doc => {
                         loadedEmployees.push({ docId: doc.id, ...doc.data() });
                     });
-                    setEmployees(loadedEmployees.sort((a, b) => a.name.localeCompare(b.name)));
+                    setEmployees(loadedEmployees.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
                     setLoadingState(prev => ({ ...prev, employees: false }));
                 }, (err) => {
-                    console.error("Error fetching employees: ", err);
-                    setError("Could not load employee data.");
+                    console.error("Error fetching users/employees: ", err);
+                    setError(`Could not load employee data. Data path might be incorrect or missing.`);
                     setLoadingState(prev => ({ ...prev, employees: false }));
                 });
                 return () => unsubscribe();
-            }, []);
+            }, [appId]);
             
-            // 3. Load Daily Attendance for selected date
+            // 3. Load Daily Attendance for selected date (Uses root path)
             useEffect(() => {
-                if (!db || !selectedDate) return;
+                if (!db || !selectedDate) return; 
                 setLoadingState(prev => ({ ...prev, attendance: true }));
 
-                const docRef = doc(db, DAILY_ATTENDANCE_COLLECTION, selectedDate);
+                const docRef = getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate);
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     const scheduledIds = docSnap.exists() ? docSnap.data().scheduledStaff || [] : [];
                     setDailyAttendance(scheduledIds);
@@ -248,7 +345,7 @@
                     setLoadingState(prev => ({ ...prev, attendance: false }));
                 });
                 return () => unsubscribe();
-            }, [selectedDate]);
+            }, [selectedDate]); 
             
             // Processed data for components
             const teamMap = useMemo(() => {
@@ -257,14 +354,27 @@
                 return map;
             }, [teams]);
             
-            const staffPool = useMemo(() => employees.map(emp => ({
-                id: emp.id, 
-                name: emp.name,
-                team_id: emp.team_id,
-                // CRITICAL FIX: Ensure team name lookup is safe
-                team_name: teamMap.get(emp.team_id)?.name || 'N/A', 
-                type: emp.is_buffer ? 'buffer' : 'permanent', 
-            })), [employees, teamMap]);
+            const staffPool = useMemo(() => employees.map(emp => {
+                // Priority: emp_id > id > docId
+                const rawStaffId = emp.emp_id || emp.id || emp.docId; 
+                if (!rawStaffId) return null; 
+
+                // Apply ID cleaning logic here
+                const staffId = cleanStaffId(String(rawStaffId));
+
+                // Use the name extraction helper
+                const rawName = emp.name || String(staffId);
+                const extractedName = extractName(rawName);
+
+                return {
+                    id: staffId, // Use cleaned ID
+                    name: extractedName, // Use extracted name
+                    rawName: rawName, // Keep raw name for reference if needed
+                    team_id: emp.team_id, 
+                    team_name: teamMap.get(emp.team_id)?.name || 'N/A Team', 
+                    type: emp.is_buffer ? 'buffer' : 'permanent',
+                };
+            }).filter(s => s !== null), [employees, teamMap]); 
 
             const staffTypeMap = useMemo(() => {
                 const map = new Map();
@@ -274,7 +384,7 @@
                 return map;
             }, [staffPool]);
             
-            // CRITICAL FIX: Overall loading is only false when all sources are done
+            // Overall loading is only false when all sources are done
             const loading = loadingState.teams || loadingState.employees || loadingState.attendance;
 
             const scheduledStaff = useMemo(() => {
@@ -288,7 +398,7 @@
                 staffPool, 
                 teamMap,   
                 staffTypeMap, 
-                loading, // Overall loading state
+                loading, 
                 error,
                 dailyAttendance,
                 scheduledStaff
@@ -338,7 +448,6 @@
                                 console.error("Authentication error: ", err);
                                 setAuthError("Failed to authenticate.");
                             } finally {
-                                // Set authLoading to false only after sign-in attempt finishes
                                 if(authLoading) setAuthLoading(false); 
                             }
                         };
@@ -349,7 +458,7 @@
                 return () => unsubscribe();
             }, []); 
 
-            if (authLoading) return <div className="p-8 text-center text-2xl font-semibold text-blue-600">Connecting to Server...</div>
+            if (authLoading) return <div className="p-8 text-center text-2xl font-semibold text-blue-600">Connecting to Firebase Server...</div>
             if (authError) return <div className="p-8 text-center text-xl font-semibold text-red-600">Authentication Failed: {authError}</div>
             
             // Render the main content only if authenticated
@@ -359,7 +468,7 @@
                         {/* Header: Hidden on Print */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v13.8)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v13.21)</h1>
                                 <div className="flex space-x-2 nav-buttons">
                                     <NavButton
                                         label="Daily Roster"
@@ -453,9 +562,9 @@
             }, [teamMap]);
 
 
-            // --- Pool Management Functions ---
+            // --- Pool Management Functions (Public Path - dependent on existing rules) ---
             const handleAddStaff = async () => {
-                const id = newStaffId.trim();
+                const id = String(newStaffId.trim());
                 const name = newStaffName.trim();
                 const team_id = newStaffTeamId;
                 const is_buffer = newStaffType === 'buffer';
@@ -465,16 +574,22 @@
                      setTimeout(() => setError(null), 3000);
                      return;
                 }
-                if (staffPool.find(s => s.id === id)) {
-                    setError(`Staff ID ${id} already exists.`);
+                
+                // CRITICAL: We need to use the cleaned ID to check for duplicates in the pool
+                const cleanedId = cleanStaffId(id);
+
+                if (staffPool.find(s => s.id === cleanedId)) {
+                    setError(`Staff ID ${cleanedId} already exists (or T-prefixed version exists).`);
                     setTimeout(() => setError(null), 3000);
                     return;
                 }
                 
                 try {
-                    const empDocRef = doc(db, EMPLOYEES_COLLECTION, id);
+                    // IMPORTANT: When saving to Firestore, we must use the raw input ID (or doc ID)
+                    // The client-side cleanStaffId function only affects display and roster logic.
+                    const empDocRef = getDocRef(EMPLOYEES_COLLECTION, id); 
                     await setDoc(empDocRef, { 
-                        id: id, 
+                        emp_id: id, 
                         name: name,
                         team_id: team_id,
                         role: 'member', 
@@ -486,20 +601,22 @@
                     setNewStaffName("");
                     setNewStaffTeamId("");
                     
-                    setLocalDailyAttendance(prev => [...prev, id].sort());
+                    // Add the CLEANED ID to the local attendance list
+                    setLocalDailyAttendance(prev => [...prev, cleanedId].sort());
                     setStatus("unsaved"); 
                     setError(null);
                 } catch (err) {
                     console.error("Error adding staff: ", err);
-                    setError(`Failed to add staff ID ${id}. Check permissions.`);
-                    setTimeout(() => setError(null), 3000);
+                    setError(`Failed to add staff ID ${id}. Check data path/permissions.`);
+                    setTimeout(() => setError(null), 5000);
                 }
             };
             
             const handleRemoveStaff = async (id) => {
                 if (window.confirm(`Are you sure you want to remove staff ID ${id} from the pool? This is permanent.`)) {
                     try {
-                        const empDocRef = doc(db, EMPLOYEES_COLLECTION, id);
+                        // NOTE: This assumes the Firestore document ID matches the displayed ID (without 'T').
+                        const empDocRef = getDocRef(EMPLOYEES_COLLECTION, id); 
                         await deleteDoc(empDocRef); 
                         
                         setLocalDailyAttendance(prev => prev.filter(staffId => staffId !== id));
@@ -507,13 +624,13 @@
                         setError(null);
                     } catch (err) {
                         console.error("Error removing staff: ", err);
-                        setError(`Failed to remove staff ID ${id}. Check permissions.`);
-                        setTimeout(() => setError(null), 3000);
+                        setError(`Failed to remove staff ID ${id}. Check data path/permissions.`);
+                        setTimeout(() => setError(null), 5000);
                     }
                 }
             };
 
-            // --- Attendance Management Functions ---
+            // --- Attendance Management Functions (Root Path) ---
             const handleAttendanceToggle = (staffId) => {
                 setStatus("unsaved");
                 let newAttendance;
@@ -546,7 +663,7 @@
                 setStatus("saving");
                 setError(null);
                 try {
-                    const docRef = doc(db, DAILY_ATTENDANCE_COLLECTION, selectedDate);
+                    const docRef = getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate);
                     
                     const currentStaffIds = new Set(staffPool.map(s => s.id));
                     const cleanedAttendance = localDailyAttendance
@@ -563,7 +680,7 @@
                     setTimeout(() => setStatus("idle"), 2000);
                 } catch (err) {
                     console.error("FATAL SAVE ERROR (Attendance): ", err);
-                    setError("Failed to save daily attendance. Check network/permissions.");
+                    setError("Failed to save daily attendance. Check path/permissions.");
                     setStatus("error");
                 }
             };
@@ -589,27 +706,27 @@
 
                         {/* Add Staff Tool */}
                         <div className="flex flex-col gap-2 mb-6 p-4 border rounded-lg bg-blue-50">
-                            <h3 className="text-base font-semibold text-gray-700">Add New Employee to Pool</h3>
+                            <h3 className="text-base font-semibold text-gray-700">Add New Employee to Pool (Uses Public/Shared Path)</h3>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                                 <input
                                     type="text"
                                     value={newStaffId}
                                     onChange={(e) => setNewStaffId(e.target.value)}
                                     className="p-2 border border-gray-300 rounded-md shadow-sm"
-                                    placeholder="Service ID (e.g., 25...)"
+                                    placeholder="Service ID (e.g., T12268 or 12268)"
                                 />
                                 <input
                                     type="text"
                                     value={newStaffName}
                                     onChange={(e) => setNewStaffName(e.target.value)}
                                     className="p-2 border border-gray-300 rounded-md shadow-sm"
-                                    placeholder="Employee Name"
+                                    placeholder="Employee Name (e.g., CPL (APF) JANE DOE)"
                                 />
                                 <select 
                                     value={newStaffTeamId}
                                     onChange={(e) => setNewStaffTeamId(e.target.value)}
                                     className="p-2 border border-gray-300 rounded-md shadow-sm bg-white"
-                                    disabled={isLoading}
+                                    disabled={isLoading || teamOptions.length === 0}
                                 >
                                     <option value="">{isLoading ? 'Loading Teams...' : 'Select Team'}</option>
                                     {teamOptions.map(t => (
@@ -631,7 +748,7 @@
                     
                     {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
 
-                    {isLoading && <p className="text-center p-4 text-blue-600 font-semibold">Loading Staff and Team Data...</p>}
+                    {isLoading && <p className="text-center p-4 text-2xl text-blue-600 font-semibold">Loading Staff and Team Data...</p>}
                     
                     {!isLoading && (
                         <div className="flex flex-col gap-2 p-4 rounded-lg border border-gray-200">
@@ -656,7 +773,7 @@
                                 <div className="flex space-x-2 setup-tools">
                                      <button 
                                         onClick={handleScheduleAll}
-                                        disabled={status === 'saving'}
+                                        disabled={status === 'saving' || filteredStaff.length === 0}
                                         className="py-1 px-3 text-sm bg-emerald-600 text-white rounded-md shadow-md hover:bg-emerald-700 disabled:bg-gray-400"
                                         title={filterTeamId ? `Schedule all ${filteredStaff.length} staff in current filter` : `Schedule all ${staffPool.length} staff`}
                                     >
@@ -664,57 +781,70 @@
                                     </button>
                                     <button 
                                         onClick={handleUnscheduleAll}
-                                        disabled={status === 'saving'}
+                                        disabled={status === 'saving' || filteredStaff.length === 0}
                                         className="py-1 px-3 text-sm bg-red-600 text-white rounded-md shadow-md hover:bg-red-700 disabled:bg-gray-400"
                                         title={filterTeamId ? `Unschedule all ${filteredStaff.length} staff in current filter` : `Unschedule all ${staffPool.length} staff`}
                                     >
-                                        Unschedule All ({filteredStaff.length})
+                                    Unschedule All ({filteredStaff.length})
                                     </button>
                                 </div>
                              </div>
                             
                             <div className="staff-pool-grid grid gap-3">
+                                {staffPool.length === 0 && <p className="col-span-full text-center text-gray-500">No employees found in the 'employees' collection. Use 'Add New Employee to Pool' above to populate the list.</p>}
                                 {filteredStaff.map(staff => {
                                     const isScheduled = scheduledSet.has(staff.id);
                                     
                                     return (
                                         <div 
                                             key={staff.id}
-                                            className={`p-3 rounded-lg shadow-md transition-all flex flex-col items-center relative group ${
+                                            className={`p-3 rounded-lg shadow-md transition-all flex flex-col relative ${
                                                 isScheduled 
-                                                ? 'staff-card-scheduled hover:bg-emerald-200 cursor-pointer' 
-                                                : 'staff-card-unscheduled hover:bg-red-200 cursor-pointer'
+                                                ? 'staff-card-scheduled' 
+                                                : 'staff-card-unscheduled'
                                             }`}
                                         >
-                                            {/* Top Corner Badge for Type (text-xs) */}
-                                            <span className={`absolute top-1 left-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                                staff.type === 'buffer' ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
-                                            }`}>
-                                                {staff.type.toUpperCase()}
-                                            </span>
-                                            
-                                            {/* Remove Staff Button */}
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleRemoveStaff(staff.id); }} 
-                                                className="absolute top-1 right-1 text-red-500 hover:text-red-700 text-lg font-bold opacity-0 group-hover:opacity-100 transition-opacity print-hidden"
-                                                title={`Remove ${staff.name} (${staff.id}) from Pool`}
-                                            >
-                                                &times;
-                                            </button>
+                                            {/* Top Row: Type Badge and Remove Button */}
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                                    staff.type === 'buffer' ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
+                                                }`}>
+                                                    {staff.type.toUpperCase()} - {staff.team_name}
+                                                </span>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveStaff(staff.id); }} 
+                                                    className="text-red-500 hover:text-red-700 text-lg font-bold transition-opacity print-hidden"
+                                                    title={`Remove ${staff.name} (${staff.id}) from Pool`}
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
 
-                                            {/* Main Content (Clickable Area for Attendance) */}
-                                            <div 
-                                                onClick={() => handleAttendanceToggle(staff.id)}
-                                                className="w-full text-center pt-4 pb-1"
-                                            >
-                                                <p className="text-xs font-medium text-gray-500 uppercase truncate" title={staff.team_name}>{staff.team_name}</p>
-                                                <span className="text-lg font-bold text-gray-900 leading-tight block truncate" title={staff.name}>{staff.name}</span>
-                                                <p className={`text-xs font-bold mt-1 ${
+                                            {/* Main Content: ID and Name */}
+                                            <div className="w-full text-center py-2 border-y border-gray-200">
+                                                {/* ID is primary */}
+                                                <span className="text-xl font-bold text-gray-900 leading-tight block truncate" title={staff.id}>{staff.id}</span>
+                                                {/* Name is secondary/extracted */}
+                                                <p className="text-sm text-gray-500 truncate" title={staff.name}>{staff.name}</p>
+                                            </div>
+
+                                            {/* Bottom Row: Status and Toggle Switch */}
+                                            <div className="flex justify-between items-center mt-2">
+                                                <p className={`text-xs font-bold ${
                                                     isScheduled ? 'text-emerald-700' : 'text-red-700'
                                                 }`}>
                                                     {isScheduled ? 'SCHEDULED' : 'NOT SCHEDULED'}
                                                 </p>
-                                                <p className="text-xs text-gray-400 mt-0.5">{staff.id}</p>
+                                                
+                                                {/* NEW: On/Off Toggle Switch */}
+                                                <label className="toggle-switch" title={isScheduled ? "Unschedule Staff" : "Schedule Staff"}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isScheduled} 
+                                                        onChange={() => handleAttendanceToggle(staff.id)}
+                                                    />
+                                                    <span className="slider"></span>
+                                                </label>
                                             </div>
                                         </div>
                                     );
@@ -742,7 +872,6 @@
         
         // --- Daily Assignment Component (Section 2 - Compact Grid) ---
         function DailySequenceAssignment({ selectedDate }) {
-            // CRITICAL FIX: Ensure safe access to context values
             const { scheduledStaff: allStaff = [], staffTypeMap = new Map(), loading: staffLoading, dailyAttendance } = useContext(StaffContext); 
             const [sequenceMap, setSequenceMap] = useState({});
             const [locationBufferMap, setLocationBufferMap] = useState({});
@@ -758,11 +887,11 @@
             
             const bufferStaff = useMemo(() => allStaff.filter(s => s.type === 'buffer'), [allStaff]);
 
-            // --- 1. Load Assignments ---
+            // --- 1. Load Assignments (Root Path) ---
             useEffect(() => {
                 if (!selectedDate || !db) return;
                 setLoading(true);
-                const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     
                     const defaultMap = {};
@@ -778,6 +907,7 @@
                             if (allAssignmentKeys.includes(key)) { 
                                 let staffIds = Array.isArray(loadedMap[key]) ? loadedMap[key] : (loadedMap[key] ? [loadedMap[key]] : []);
                                 // Filter assignments by current scheduled staff
+                                staffIds = staffIds.map(id => String(id)); // Ensure string comparison
                                 defaultMap[key] = staffIds.filter(id => scheduledSet.has(id));
                             }
                         });
@@ -790,7 +920,7 @@
                     setLoading(false);
                 }, (err) => {
                     console.error("Error loading daily assignments: ", err);
-                    setError("Failed to load daily assignments.");
+                    setError("Failed to load daily assignments. Check authentication/permissions.");
                     setLoading(false);
                 });
                 
@@ -881,7 +1011,7 @@
                 setStatus("saving");
                 setError(null);
                 try {
-                    const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                    const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                     
                     // Final clean before saving (only scheduled staff remain)
                     const scheduledSet = new Set(allStaff.map(s => s.id));
@@ -909,7 +1039,7 @@
                     setTimeout(() => setStatus("idle"), 2000);
                 } catch (err) {
                     console.error("Error saving daily setup: ", err);
-                    setError("Failed to save daily assignments.");
+                    setError("Failed to save daily assignments. Check path/permissions.");
                     setStatus("error");
                 }
             };
@@ -920,9 +1050,8 @@
             const AssignmentDropdown = ({ staffId }) => {
                 const assignedSequence = staffToSequenceMap[staffId] || "";
                 const staffType = staffTypeMap.get(staffId);
-                // CRITICAL FIX: Find staff details safely
                 const staffDetails = allStaff.find(s => s.id === staffId);
-                if (!staffDetails) return null; // Defensive check for staff not found
+                if (!staffDetails) return null; 
                                 
                 const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
                 const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
@@ -940,12 +1069,14 @@
 
                 return (
                     <div 
-                        className={`p-2 border rounded-lg flex items-center justify-between transition-all ${colorClass}`}
+                        key={staffId}
+                        className={`p-2 border rounded-lg flex items-start justify-between transition-all ${colorClass}`}
                     >
-                        <div className="flex flex-col items-start gap-0 max-w-[50%]">
-                            {/* Display Name and ID */}
-                            <span className="text-base font-bold text-gray-900 leading-tight truncate" title={staffDetails.name}>{staffDetails.name || staffId}</span>
-                            <span className="text-xs text-gray-500">{staffId}</span>
+                        {/* CRITICAL LAYOUT FIX: Use pt-1 for slight vertical alignment and fixed width distribution */}
+                        <div className="flex flex-col items-start gap-0 min-w-[50%] max-w-[55%] pt-1"> 
+                            {/* Display ID and Name */}
+                            <span className="text-base font-bold text-gray-900 leading-tight truncate" title={staffDetails.id}>{staffDetails.id}</span>
+                            <span className="text-xs text-gray-500 truncate" title={staffDetails.name}>{staffDetails.name || 'N/A Name'}</span>
                             {staffType === 'buffer' && (
                                 <span className="text-xs font-semibold px-1 py-0.5 rounded-full bg-purple-200 text-purple-800 mt-1">
                                     {staffType.toUpperCase()}
@@ -962,7 +1093,7 @@
                                     handleSequenceChange(newKey, staffId);
                                 }
                             }}
-                            className="p-1 border border-gray-400 rounded-md shadow-sm w-36 text-xs truncate bg-white"
+                            className="p-1 border border-gray-400 rounded-md shadow-sm w-[40%] text-xs truncate bg-white"
                         >
                             <option value="">{UNASSIGNED_KEY}</option>
                             
@@ -1076,7 +1207,7 @@
             );
         }
 
-        // --- View 2: Roster View (Sequence Logic - UNCHANGED) ---
+        // --- View 2: Roster View (Sequence Logic) ---
         function RosterView({ selectedDate, setSelectedDate }) {
             const { staffTypeMap } = useContext(StaffContext);
             const [rosterData, setRosterData] = useState(null);
@@ -1093,14 +1224,14 @@
             };
             
             useEffect(() => {
-                if (!selectedDate || !db) return;
+                if (!selectedDate || !db) return; 
                 setLoading(true);
                 setError(null);
                 setIsDirty(false);
                 setHighlightedId(null);
                 setFocusView('all');
 
-                const assignmentsDocRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                const assignmentsDocRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                 const unsubAssignments = onSnapshot(assignmentsDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         setDailyAssignments(docSnap.data());
@@ -1109,10 +1240,10 @@
                     }
                 }, (err) => {
                     console.error("Error loading assignments: ", err);
-                    setError("Failed to load daily assignments.");
+                    setError("Failed to load daily assignments. Check authentication/permissions.");
                 });
 
-                const rosterDocRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                const rosterDocRef = getDocRef(DAILY_ROSTER_COLLECTION, selectedDate);
                 const unsubRoster = onSnapshot(rosterDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const loadedGrid = docSnap.data().rosterGrid || {};
@@ -1134,7 +1265,7 @@
                     setLoading(false);
                 }, (err) => {
                     console.error("Error loading roster: ", err);
-                    setError("Failed to load roster data.");
+                    setError("Failed to load roster data. Check authentication/permissions.");
                     setLoading(false);
                 });
                 
@@ -1328,7 +1459,7 @@
                     
                     const finalRosterGrid = sanitizeForFirestore(newRosterGrid);
 
-                    const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                    const docRef = getDocRef(DAILY_ROSTER_COLLECTION, selectedDate);
                     await setDoc(docRef, { rosterGrid: finalRosterGrid, updatedAt: new Date().toISOString() });
                     
                     const docSnap = await getDoc(docRef);
@@ -1341,7 +1472,7 @@
                     
                 } catch (err) {
                     console.error("Error generating roster:", err);
-                    setError("Failed to generate roster. Check console and security rules.");
+                    setError("Failed to generate roster. Check console for details.");
                     setLoading(false);
                 }
             };
@@ -1367,13 +1498,13 @@
 
                     const finalCleanData = sanitizeForFirestore(cleanRosterData);
 
-                    const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
+                    const docRef = getDocRef(DAILY_ROSTER_COLLECTION, selectedDate);
                     await setDoc(docRef, { rosterGrid: finalCleanData, updatedAt: new Date().toISOString() });
                     setIsDirty(false);
                     setLoading(false);
                 } catch (err) {
                     console.error("Error saving changes: ", err);
-                    setError("Failed to save changes. Check network/permissions.");
+                    setError("Failed to save changes. Check console for details.");
                     setLoading(false);
                 }
             };
@@ -1436,7 +1567,7 @@
                 }
                 
                 let nextNum = 2;
-                while (roster[`OE/ STANDBY-${nextNum}`]) {
+                while (rosterData[`OE/ STANDBY-${nextNum}`]) {
                     nextNum++;
                 }
                 const newRowName = `OE/ STANDBY-${nextNum}`;
