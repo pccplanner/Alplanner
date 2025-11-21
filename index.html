@@ -148,7 +148,7 @@
   -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v12.1</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v13.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -255,6 +255,19 @@
         </div>
         <button type="submit" class="md:col-span-4 bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition-colors">Submit Leave Request</button>
       </form>
+      
+      <!-- NEW: Calendar View Toggle -->
+      <div class="flex justify-center items-center mb-4 p-2 bg-white rounded-lg border shadow-sm max-w-lg mx-auto">
+          <span class="text-sm font-medium text-gray-700 mr-4 whitespace-nowrap">Calendar View:</span>
+          <div id="viewToggle" class="flex p-1 rounded-full bg-gray-200 w-full max-w-xs">
+              <button id="personalViewBtn" onclick="setCalendarView('personal')" class="flex-1 px-4 py-1.5 text-sm font-semibold rounded-full transition-colors bg-blue-600 text-white shadow-md">
+                  My Calendar
+              </button>
+              <button id="masterViewBtn" onclick="setCalendarView('master')" class="flex-1 px-4 py-1.5 text-sm font-semibold rounded-full transition-colors text-gray-700 hover:bg-gray-300">
+                  Master View
+              </button>
+          </div>
+      </div>
       
       <!-- *** TEAM BUTTONS: Now color-coded *** -->
       <div id="team-buttons" class="team-buttons text-center my-3 space-x-2">
@@ -596,6 +609,7 @@
     let usersUnsubscriber = null;
     let teamsUnsubscriber = null; 
     let leaveFreezeUnsubscriber = null; // NEW
+    var calendarViewMode = 'personal'; // NEW: 'personal' or 'master'
 
     // --- MODIFICATION: Removed 'Sick Leave' ---
     const leaveTypeCodes = {
@@ -684,11 +698,16 @@
     const cancelUserDeleteBtn = document.getElementById('cancel-user-delete-btn');
     const confirmUserDeleteBtn = document.getElementById('confirm-user-delete-btn');
 
+    // NEW: Calendar View Toggle DOMs
+    const personalViewBtn = document.getElementById('personalViewBtn');
+    const masterViewBtn = document.getElementById('masterViewBtn');
+
 
     // --- Utility Functions ---
     function showAlert(message, isError = true) {
       const alertBox = document.getElementById("customAlert");
       const alertMessage = document.getElementById("customAlertMessage");
+      alertMessage.textContent = message;
       alertBox.classList.remove(isError ? "bg-green-500" : "bg-red-500");
       alertBox.classList.add(isError ? "bg-red-500" : "bg-green-500");
       alertBox.style.display = "block";
@@ -778,8 +797,6 @@
           showAlert("Error loading teams. Registration may fail.");
       });
 
-      // *** MODIFICATION: Removed Leave Freeze listener. It's now in attachDataListeners ***
-
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           console.log("Signing in with custom token...");
@@ -850,7 +867,7 @@
           
           if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
           if (usersUnsubscriber) usersUnsubscriber();
-          if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); // <-- ADDED THIS
+          if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); 
           
           loginSection.style.display = "block";
           mainContainer.style.display = "none";
@@ -985,14 +1002,11 @@
     function attachDataListeners() {
       if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
       if (usersUnsubscriber) usersUnsubscriber();
-      if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); // <-- ADDED THIS
+      if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); 
       
+      // *** MODIFICATION: FETCH ALL LEAVE REQUESTS FOR ALL AUTHENTICATED USERS ***
+      // This allows the user to switch between personal and master view client-side.
       let q = collection(db, leaveRequestsCollectionPath);
-      
-      // Users only see their own requests (admin sees all)
-      if (userType === "user") {
-        q = query(q, where("userId", "==", auth.currentUser.uid));
-      }
       
       leaveRequestsUnsubscriber = onSnapshot(q, (snapshot) => {
         console.log("Leave requests snapshot received:", snapshot.size, "docs");
@@ -1011,7 +1025,6 @@
       });
 
       // --- NEW: Leave Freeze Listener (for all users) ---
-      // This ensures all users (even non-admins) can see the frozen dates
       const freezeQuery = collection(db, leaveFreezeCollectionPath);
       leaveFreezeUnsubscriber = onSnapshot(freezeQuery, (snapshot) => {
           console.log("Leave freeze dates updated:", snapshot.size, "dates");
@@ -1044,6 +1057,7 @@
           if (document.getElementById("leaveBalancePanel").style.display === "block") {
             renderLeaveBalanceReport(); // Update admin report
           }
+          renderCalendar(); // Rerender in case of team color/name change
           
         }, (error) => {
           console.error("Error listening to users:", error);
@@ -1133,6 +1147,24 @@
           currentMonth = new Date().getMonth();
       }
         
+      // --- Step 1: Filter requests based on current view mode ---
+      const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
+      const isPersonalView = calendarViewMode === 'personal';
+
+      const renderRequests = requests.filter(req => {
+          if (userType === 'admin') {
+              // Admin sees everything regardless of view mode (though we maintain the toggle state)
+              return true;
+          }
+          if (isPersonalView) {
+              // Personal view: only show the current user's requests
+              return req.userId === currentUserId;
+          } else {
+              // Master view: show everything
+              return true;
+          }
+      });
+        
       const monthNames = ["January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"];
       document.getElementById("monthLabel").textContent = monthNames[currentMonth] + " " + currentYear;
@@ -1163,28 +1195,24 @@
         const cell = document.createElement("div");
         cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
-        // --- NEW: Check for Approved Leave First ---
+        // --- Find Approved Leave (AL/PH) to override shift ---
         let approvedLeaveReq = null;
         
-        requests.forEach(req => {
+        renderRequests.forEach(req => { // <-- Use renderRequests here
             const dayData = req.days.find(day => day.date === dateStr && (day.status === "Approved" || day.status === "Write-in"));
             if(dayData) {
-                // *** MODIFICATION: Only track AL and PH for calendar override ***
+                // MODIFICATION: Only track AL and PH for calendar override
                 if (req.leaveType === 'Annual Leave' || req.leaveType === 'Public Holiday') {
                     approvedLeaveReq = req;
                 }
-                // Other leave types (like SL) will be ignored here, causing the 'else' block to run
-                // and show the original shift pattern, as requested.
             }
         });
         
         const shiftBox = document.createElement("div");
         shiftBox.className = `shift-box font-bold p-1 rounded text-center mb-1`;
         
-        if (approvedLeaveReq) { // This is now only true for AL or PH
-            // UPDATED: Robust fallback for removed leave types
+        if (approvedLeaveReq) { 
             const leaveCode = leaveTypeCodes[approvedLeaveReq.leaveType];
-            // The fallback 'N/A' and 'bg-gray-500' will no longer be hit for SL, etc.
             const shiftInfo = shiftCodesMap[leaveCode] || { text: (approvedLeaveReq.leaveType || '??').substring(0, 3), color: 'bg-gray-500', textColor: 'text-white' };
             shiftBox.textContent = shiftInfo.text;
             shiftBox.classList.add(shiftInfo.color, shiftInfo.textColor);
@@ -1210,7 +1238,7 @@
         
         // --- Find *all* entries for the list ---
         const dayEntries = [];
-        requests.forEach(req => {
+        renderRequests.forEach(req => { // <-- Use renderRequests here
           const dayData = req.days.find(day => day.date === dateStr);
           if (dayData) {
             dayEntries.push({ 
@@ -1256,8 +1284,11 @@
           
           if (userType === 'admin') {
               userForLeave = allUsers.find(u => u.staffID === e.staffID);
-          } else if (currentUserProfile.staffID === e.staffID) {
+          } else if (currentUserProfile && currentUserProfile.staffID === e.staffID) {
               userForLeave = currentUserProfile;
+          } else if (userType === 'user' && calendarViewMode === 'master') {
+              // Master view for regular users: find the user in allUsers
+               userForLeave = allUsers.find(u => u.staffID === e.staffID);
           }
           
           if(userForLeave) {
@@ -1296,27 +1327,44 @@
     
     function renderAdmin() {
       const adminList = document.getElementById("adminList");
+      const adminSummaryEl = document.getElementById("adminSummary");
       adminList.innerHTML = "";
-      let filteredRequests = requests;
+
+      // --- NEW: Toggle visibility and filter based on view mode for non-admins ---
+      const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
+      let listRequests = requests; 
       
-      if (userType === "admin") {
-        const currentDate = new Date();
-        const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
-        filteredRequests = requests.filter(req => {
-          return req.days.some(day => {
-            const [year, month] = day.date.split("-").map(Number);
-            const requestYearMonth = year * 12 + (month - 1);
-            return requestYearMonth >= currentYearMonth;
-          });
-        });
+      if (userType === "user" && calendarViewMode === 'master') {
+          // User in Master View: Hide the summary list as it's for status tracking/management
+          adminSummaryEl.style.display = "none";
+          return;
+      } else {
+          adminSummaryEl.style.display = "block";
       }
+
+      if (userType === "user") {
+          // User in Personal View: filter down to just their own requests.
+          listRequests = listRequests.filter(req => req.userId === currentUserId);
+      } else { 
+          // Admin View: filter by date (keep original admin date filter)
+          const currentDate = new Date();
+          const currentYearMonth = currentDate.getFullYear() * 12 + currentDate.getMonth();
+          listRequests = listRequests.filter(req => { 
+            return req.days.some(day => {
+              const [year, month] = day.date.split("-").map(Number);
+              const requestYearMonth = year * 12 + (month - 1);
+              return requestYearMonth >= currentYearMonth;
+            });
+          });
+      }
+      // --- END NEW: Filtering/Visibility ---
       
-      if (filteredRequests.length === 0) {
+      if (listRequests.length === 0) {
         adminList.innerHTML = `<div class="text-gray-500 text-center p-4">No leave requests found.</div>`;
         return;
       }
 
-      const groupedRequests = groupRequestsByStaffID(filteredRequests);
+      const groupedRequests = groupRequestsByStaffID(listRequests);
       groupedRequests.forEach((group) => {
         const groupID = group.staffID; 
         const item = document.createElement("div");
@@ -1443,12 +1491,7 @@
       adminList.querySelectorAll(".delete-request-btn").forEach(btn => {
         btn.onclick = async function() {
           const requestId = btn.getAttribute("data-request-id");
-          // *** MODIFICATION: Using custom modal, but this is for admin. User has one below. ***
-          // This is the ADMIN delete, so a simple confirm is fine *if* it worked.
-          // But since `confirm()` doesn't work, this button is also broken.
-          // I will fix this by reusing the *team* delete modal logic for the admin.
-          
-          // Let's re-use the *user* delete modal I just added.
+          // Reusing the user delete modal logic
           requestIdToDelete = requestId;
           userDeleteRequestInfo.textContent = "Admin action: Deleting this request permanently.";
           userDeleteConfirmModal.classList.remove('hidden');
@@ -2076,7 +2119,8 @@
         // No allocation for Sick Leave, so it's not checked here
         
         const used = requests.reduce((total, req) => {
-            if (req.leaveType === leaveType) {
+            // Only count *your own* approved/write-in leaves for your balance
+            if (req.userId === auth.currentUser.uid && req.leaveType === leaveType) {
                 const approvedDays = req.days.filter(day => day.status === 'Approved' || day.status === 'Write-in').length;
                 return total + approvedDays;
             }
@@ -2166,7 +2210,7 @@
             // Calculate AL
             const allocatedAL = user.annualLeaveAllocated || 0;
             const usedAL = requests.reduce((total, req) => {
-                if (req.staffID === user.staffID && req.leaveType === 'Annual Leave') {
+                if (req.staffID === user.staffID && req.leaveType === 'Annual Leave' && (req.userId === user.id || req.userId.startsWith('admin_entry_'))) {
                     return total + req.days.filter(d => d.status === 'Approved' || d.status === 'Write-in').length;
                 }
                 return total;
@@ -2176,7 +2220,7 @@
              // Calculate PH
             const allocatedPH = user.publicHolidayAllocated || 0;
             const usedPH = requests.reduce((total, req) => {
-                if (req.staffID === user.staffID && req.leaveType === 'Public Holiday') {
+                if (req.staffID === user.staffID && req.leaveType === 'Public Holiday' && (req.userId === user.id || req.userId.startsWith('admin_entry_'))) {
                     return total + req.days.filter(d => d.status === 'Approved' || d.status === 'Write-in').length;
                 }
                 return total;
@@ -2299,6 +2343,26 @@
     
     // --- Tab & Navigation Functions ---
     
+    // NEW: Function to handle the toggle between Personal and Master view
+    window.setCalendarView = (mode) => {
+        calendarViewMode = mode;
+
+        if (mode === 'personal') {
+            personalViewBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+            personalViewBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-300');
+            masterViewBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-300');
+            masterViewBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+        } else {
+            masterViewBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+            masterViewBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-300');
+            personalViewBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-300');
+            personalViewBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+        }
+
+        renderCalendar();
+        renderAdmin(); // Re-render the summary list as its visibility/content depends on the mode
+    }
+
     window.selectTeam = (teamId) => {
       selectedTeamId = teamId;
       
@@ -2363,6 +2427,8 @@
             document.getElementById("myProfilePanel").style.display = "block";
         } else if (activeIndex === 1) {
             document.getElementById("leaveManagementPanel").style.display = "block";
+            // Ensure the correct view mode is set when navigating back to this tab
+            setCalendarView(calendarViewMode); 
         } else if (activeIndex === 2 && leaveBalancePanel) {
             leaveBalancePanel.style.display = "block";
         } else if (activeIndex === 3 && userManagementPanel) {
