@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v13.21 - Toggle Switch Fix)</title>
+    <title>Intelligent Roster System (v15.8 - Matrix Mode Buffer Fix)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -11,26 +11,19 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <!-- 3. Load Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <!-- 4. Load Firebase SDKs (v10.13.1 - Stable) -->
+    <!-- CRITICAL FIX: Use module loading again, but explicitly export global references -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
         import { 
             getFirestore, 
-            doc, 
-            getDoc, 
-            setDoc, 
-            onSnapshot, 
-            collection, 
-            deleteDoc,
-            setLogLevel,
-            updateDoc
+            doc, getDoc, setDoc, onSnapshot, 
+            collection, deleteDoc, setLogLevel, updateDoc
         } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
-        // Set Firebase Log Level for debugging
-        setLogLevel('debug');
-
-        // --- SDK CONFIGURATION (From SDK_Monthly_Roster_V1.txt) ---
+        // --- SDK CONFIGURATION (Must be defined outside the module for the environment to pick up __variables) ---
         const mockFirebaseConfig = {
           apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
           authDomain: "roster-4a997.firebaseapp.com",
@@ -40,33 +33,91 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
         
-        // --- Canvas Environment Variables (CRITICAL) ---
+        // --- Canvas Environment Variables ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : mockFirebaseConfig;
+        
+        // CRITICAL FIX: Corrected typo from __initialAuthToken to __initial_auth_token
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
-        // CRITICAL: Get App ID for public/shared data paths
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Set Firebase Log Level for debugging
+        setLogLevel('debug');
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        window.db = db;
-        window.auth = auth; 
-        
+        // **CRITICAL:** Expose all required variables and functions on a single global object, 
+        // which the React script will then rely upon.
         window.firebase = {
-            doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, updateDoc,
-            signInAnonymously, onAuthStateChanged, signInWithCustomToken, initialAuthToken,
-            appId 
+            // Core Instances and Constants
+            db: db,
+            auth: auth, 
+            appId: appId,
+            initialAuthToken: initialAuthToken,
+            
+            // Firestore Functions
+            doc: doc,
+            getDoc: getDoc,
+            setDoc: setDoc,
+            onSnapshot: onSnapshot,
+            collection: collection,
+            deleteDoc: deleteDoc,
+            updateDoc: updateDoc,
+            
+            // Auth Functions
+            signInAnonymously: signInAnonymously,
+            onAuthStateChanged: onAuthStateChanged,
+            signInWithCustomToken: signInWithCustomToken
         };
+        
+        // CRITICAL FIX: Delay React Render until Firebase is ready
+        let attempts = 0;
+        const maxAttempts = 20; 
+        
+        function tryRenderApp() {
+            // Use the globally exposed firebase object and its properties for the readiness check
+            if (window.firebase && window.firebase.db && window.firebase.auth) {
+                try {
+                    // Use React.createElement to prevent Babel interpretation issues during delayed render
+                    const root = ReactDOM.createRoot(document.getElementById('root'));
+                    root.render(React.createElement(App));
+                } catch (e) {
+                    console.error("React Render Failed:", e);
+                    document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red; background: #fee2e2; border: 1px solid #f87171; text-align: center;">FATAL ERROR: React failed to start. Check console.</div>';
+                }
+            } else if (attempts < maxAttempts) {
+                attempts++;
+                setTimeout(tryRenderApp, 100);
+            } else {
+                console.error("FATAL ERROR: Firebase SDK did not initialize within the expected time.");
+                document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red; background: #fee2e2; border: 1px solid #f87171; text-align: center;">FATAL ERROR: Application timeout. Firebase SDK failed to initialize. Please try again.</div>';
+            }
+        }
+        
+        // Start the render attempt process on window load
+        window.onload = tryRenderApp;
+
     </script>
     
     <style>
         /* --- General Styling --- */
         .highlight-cell { background-color: #FDE047; border: 2px solid #F59E0B; color: #000; font-weight: bold; }
+        
+        /* Styles for cells containing permanent/buffer pairs (dropdowns) */
         .dropdown-permanent { font-weight: bold; color: #1D4ED8; background-image: linear-gradient(45deg, #EFF6FF 50%, #DBEAFE 50%); background-size: 8px 8px; }
         .dropdown-buffer { font-weight: bold; color: #581c87; background-color: #d8b4fe; }
+
+        /* ENHANCED: Style for any cell whose VALUE (staff ID) is a buffer, regardless of pairing/mode */
+        .buffer-id-content { 
+            background-color: #FBCFE8 !important; /* Pink 200 - enhanced visibility */
+            color: #9D174D !important; /* Rose 700 - deep contrast text */
+            font-weight: 700 !important;
+            border: 1px solid #F472B6 !important; /* Pink 400 */
+        }
+
         select, input { text-align: center !important; text-align-last: center !important; -moz-text-align-last: center !important; }
         
         /* --- Consolidated Setup Card Styles (Section 1) --- */
@@ -88,7 +139,10 @@
 
         /* --- Assignment Card Styles (Section 2) --- */
         .assignment-grid {
-             grid-template-columns: repeat(2, minmax(0, 1fr)); 
+             grid-template-columns: repeat(1, minmax(0, 1fr)); 
+        }
+        @media (min-width: 768px) { 
+            .assignment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } 
         }
         @media (min-width: 1024px) { 
             .assignment-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -129,15 +183,74 @@
             border-radius: 50%;
         }
         input:checked + .slider {
-            background-color: #10B981; /* Emerald-500 */
+            background-color: #3B82F6; /* Blue-500 */
         }
         input:checked + .slider:before {
             transform: translateX(20px);
         }
+        
+        /* Radio Group for Roster Mode */
+        .radio-group input[type="radio"]:checked + label {
+            background-color: #3B82F6; /* Blue-500 */
+            color: white;
+            border-color: #3B82F6;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            max-width: 90%;
+            width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Matrix Edit Mode Styles */
+        .matrix-edit-active td {
+            background-color: #f0f9ff !important; /* Blue-50 */
+        }
+        
+        /* CRITICAL FIX: Ensure matrix select inputs can be overridden by buffer style */
+        .matrix-edit-active select {
+            background-color: #e0f2fe !important; /* Blue-100 */
+            font-weight: 600;
+            border: 1px solid #93c5fd;
+            padding: 1px 1px !important; 
+            height: 18px !important;
+        }
+        
+        /* Give buffer content higher specificity than the generic matrix select style */
+        .matrix-edit-active .buffer-id-content {
+             background-color: #FBCFE8 !important;
+             color: #9D174D !important;
+             border: 1px solid #F472B6 !important;
+        }
+
+
+        .matrix-edit-active select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #93c5fd;
+        }
+
 
         /* --- Print Styles --- */
         @media print {
-            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes, .print-hidden, .setup-tools { display: none !important; }
+            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes, .print-hidden, .setup-tools, .roster-mode-selector, .filter-control-button { display: none !important; }
             @page { size: A4 landscape; margin: 0.5cm; }
             body { zoom: 80%; }
             .min-h-screen, #root, main, .container { min-height: auto !important; padding: 0 !important; margin: 0 auto !important; width: 100% !important; max-width: none !important; }
@@ -151,10 +264,21 @@
             .text-xs, .text-sm { font-size: 8pt !important; line-height: 1.1 !important; }
             .sticky { position: static !important; }
             input, select { -webkit-appearance: none !important; -moz-appearance: none !important; appearance: none !important; border: 0.5px solid #ccc !important; background-color: transparent !important; text-align: center !important; font-weight: bold; color: #000; width: 100% !important; box-sizing: border-box !important; }
+            
+            /* Print-specific style overrides */
             .dropdown-permanent, .dropdown-buffer, .highlight-cell { background-color: #E0F2FE !important; color: #000 !important; border: 0.5px solid #999 !important; background-image: none !important; }
             .bg-gray-100, .bg-gray-50 { background-color: #f7f7f7 !important; }
             .bg-white { background-color: white !important; }
             .highlight-cell { background-color: #FEF3C7 !important; }
+            
+            /* NEW: Print-specific style for Buffer ID content (ENHANCED) */
+            .buffer-id-content { 
+                background-color: #FBCFE8 !important; /* Pink 200 */
+                color: #9D174D !important; /* Rose 700 */
+                font-weight: 700 !important; 
+                border: 0.5px solid #F472B6 !important; /* Pink 400 */
+            }
+
             .vp-cell-fix { width: 17% !important; text-align: center !important; padding: 0px !important; margin: 0px !important; }
             .roster-section table td { padding: 0.1rem 0 !important; }
             .roster-section table input.vp-cell-fix, .roster-section table select.vp-cell-fix { margin: 0 !important; padding: 1px 1px !important; height: 14px !important; line-height: 1.2 !important; text-align: center !important; width: 100% !important; box-sizing: border-box !important; }
@@ -165,36 +289,60 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // --- REACT COMPONENT CODE STARTS HERE ---
+        
+        // This is a placeholder structure to grab the global variables set by the module script above
+        const FIREBASE_GLOBALS = window.firebase || {};
+        
         const { useState, useEffect, useMemo, createContext, useContext } = React;
+        
+        // Grab dependencies from the global object
         const { 
             doc, getDoc, setDoc, onSnapshot, 
             collection, deleteDoc, updateDoc,
             signInAnonymously, onAuthStateChanged, 
             signInWithCustomToken, initialAuthToken,
-            appId 
-        } = window.firebase;
-        const db = window.db;
-        const auth = window.auth; 
-
-        // --- Constants ---
+            appId, db, auth
+        } = FIREBASE_GLOBALS;
+        
+        // --- Constants (rest of the file remains the same) ---
         const SECURITY_POSITIONS = ["TEAM LEADER (I/C)", "SECTION I/C"];
         const FOYER_POSITIONS = ["XRAY-VISITOR", "FOYER-OE"];
         const VERTICAL_PROWLER_POSITION = "VERTICAL PROWLER";
+        
+        // All possible rows in the Sentry/Patrol section
         const SENTRY_POSITIONS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"];
         
         const TIME_SLOTS = ["2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs", "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"];
         const VERTICAL_PROWLER_SLOTS = ["20:30", "23:00", "00:30", "03:00", "04:30", "06:30"];
+        
+        // Roster Keys (used for Auto-Sequence Assignment)
         const SENTRY_SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
+        
+        // Location Keys (used for Manual Fixed Assignment)
+        const SENTRY_LOCATION_KEYS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"];
+        
         const FOYER_ASSIGNMENT_KEYS = ["FOYER 1", "FOYER 2"];
         const SECURITY_ASSIGNMENT_KEYS = ["TEAM LEADER (I/C)", "SECTION I/C"];
-        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
+        
+        // All possible assignment keys (sequences and locations)
+        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...SENTRY_LOCATION_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
         const UNASSIGNED_KEY = "Unassigned";
         const UNFILLED_SLOT = "---";
 
+        // Logic for Auto-Sequence Mode
         const SENTRY_POSITION_SEQUENCES = {
             "E1": ["E1", "OE", "P2", "N1", "E3", "P1"], "PATROL 1": ["P1", "E1", "OE", "P2", "N1", "E3"],
             "E3": ["E3", "P1", "E1", "OE", "P2", "N1"], "N1 (CNB)": ["N1", "E3", "P1", "E1", "OE", "P2"],
-            "PATROL 2": ["P2", "N1", "E3", "P1", "E1", "OE"], "OE/ STANDBY": ["OE", "P2", "N1", "E3", "P1", "E1"]
+            "PATROL 2": ["P2", "N1", "E3", "P1", "E1", "OE"], "OE/ STANDBY": ["OE", "P2", "N1", "E3", "P1", "E1"],
+            // Patrol Prowlers will be handled separately as they are a full shift assignment
+            "PERIMETER PROWLER (1st Half)": ["Prowler1"], "PERIMETER PROWLER (2nd Half)": ["Prowler2"]
+        };
+        
+        // Roster Modes for daily operations
+        const ROSTER_MODES = {
+            AUTO_SEQUENCE: 'Auto-Sequence',
+            MANUAL_LOCATION_FIXED: 'Manual-Location-Fixed'
         };
         
         // --- DB Collection Names ---
@@ -206,11 +354,14 @@
         
         // CRITICAL HELPER: Generates the correct collection reference path
         const getCollectionRef = (collectionName) => {
+            // Defensive checks for missing Firebase objects
+            if (!db || typeof collection !== 'function') return null;
+
             // Team and Employee data use the public path prefix
             if (collectionName === TEAM_COLLECTION || collectionName === EMPLOYEES_COLLECTION) {
                 // FALLBACK CHECK: If appId is not defined or is 'default-app-id', we try to read from the root collection instead
-                if (appId === 'default-app-id' || typeof __app_id === 'undefined') {
-                    console.warn(`[WARNING] Using fallback root path for ${collectionName}. Check if __app_id is defined correctly.`);
+                if (appId === 'default-app-id' || typeof appId === 'undefined') {
+                    console.warn(`[WARNING] Using fallback root path for ${collectionName}. Check if appId is defined correctly.`);
                     return collection(db, collectionName);
                 }
                 const path = `artifacts/${appId}/public/data/${collectionName}`;
@@ -222,9 +373,12 @@
 
         // CRITICAL HELPER: Generates the correct doc reference path
         const getDocRef = (collectionName, docId) => {
+            // Defensive checks for missing Firebase objects
+            if (!db || typeof doc !== 'function') return null;
+
             // Team and Employee data use the public path prefix
             if (collectionName === TEAM_COLLECTION || collectionName === EMPLOYEES_COLLECTION) {
-                if (appId === 'default-app-id' || typeof __app_id === 'undefined') {
+                if (appId === 'default-app-id' || typeof appId === 'undefined') {
                     return doc(db, collectionName, String(docId));
                 }
                 return doc(db, `artifacts/${appId}/public/data/${collectionName}`, String(docId));
@@ -292,8 +446,8 @@
             
             // 1. Load Teams Data (Uses dynamic public path/fallback)
             useEffect(() => {
-                if (!db || !appId) return;
                 const teamsCollectionRef = getCollectionRef(TEAM_COLLECTION);
+                if (!teamsCollectionRef) return;
                 
                 const unsubscribe = onSnapshot(teamsCollectionRef, (querySnapshot) => {
                     const loadedTeams = [];
@@ -312,8 +466,8 @@
 
             // 2. Load Employees/Users Data (Uses dynamic public path/fallback)
             useEffect(() => {
-                if (!db || !appId) return;
                 const employeesCollectionRef = getCollectionRef(EMPLOYEES_COLLECTION);
+                if (!employeesCollectionRef) return;
                 
                 const unsubscribe = onSnapshot(employeesCollectionRef, (querySnapshot) => {
                     const loadedEmployees = [];
@@ -332,10 +486,12 @@
             
             // 3. Load Daily Attendance for selected date (Uses root path)
             useEffect(() => {
-                if (!db || !selectedDate) return; 
+                if (!selectedDate || !db) return; 
                 setLoadingState(prev => ({ ...prev, attendance: true }));
 
                 const docRef = getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate);
+                if (!docRef) return;
+                
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     const scheduledIds = docSnap.exists() ? docSnap.data().scheduledStaff || [] : [];
                     setDailyAttendance(scheduledIds);
@@ -347,7 +503,7 @@
                 return () => unsubscribe();
             }, [selectedDate]); 
             
-            // Processed data for components
+            // Processed data for components (CRITICAL for fixing the white screen error)
             const teamMap = useMemo(() => {
                 const map = new Map();
                 teams.forEach(t => map.set(t.docId, t));
@@ -367,10 +523,11 @@
                 const extractedName = extractName(rawName);
 
                 return {
-                    id: staffId, // Use cleaned ID
-                    name: extractedName, // Use extracted name
+                    id: String(staffId), // Use CLEANED ID (for display/roster logic)
+                    docId: emp.docId, // **CRITICAL FIX: Keep original Firestore document ID for deletion**
+                    name: extractedName || String(staffId), // Ensure name is always set
                     rawName: rawName, // Keep raw name for reference if needed
-                    team_id: emp.team_id, 
+                    team_id: emp.team_id || '', // **CRITICAL FIX: Ensure team_id is a string, not undefined**
                     team_name: teamMap.get(emp.team_id)?.name || 'N/A Team', 
                     type: emp.is_buffer ? 'buffer' : 'permanent',
                 };
@@ -421,8 +578,10 @@
 
             // Authentication Handler
             useEffect(() => {
-                if (!auth) {
-                    setAuthError("Authentication service is unavailable.");
+                // Check if auth object is available before proceeding
+                if (typeof auth === 'undefined' || auth === null) {
+                    // This case should be caught by the external delay loop, but safety first
+                    setAuthError("Firebase Auth service is still loading or unavailable.");
                     setAuthLoading(false);
                     return;
                 }
@@ -438,15 +597,17 @@
                         const signIn = async () => {
                             try {
                                 if (initialAuthToken) {
+                                    // Use sign in with custom token if available
                                     await signInWithCustomToken(auth, initialAuthToken);
                                     console.log("Signed in with custom token.");
                                 } else {
+                                    // Fallback to anonymous sign in
                                     await signInAnonymously(auth);
                                     console.log("Signed in anonymously.");
                                 }
                             } catch (err) {
                                 console.error("Authentication error: ", err);
-                                setAuthError("Failed to authenticate.");
+                                setAuthError("Failed to authenticate. Token might be invalid or rules misconfigured.");
                             } finally {
                                 if(authLoading) setAuthLoading(false); 
                             }
@@ -468,7 +629,7 @@
                         {/* Header: Hidden on Print */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v13.21)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v15.3)</h1>
                                 <div className="flex space-x-2 nav-buttons">
                                     <NavButton
                                         label="Daily Roster"
@@ -518,6 +679,83 @@
                 </div>
             );
         }
+
+        // --- Reusable Modal Component ---
+        // **UPDATE**: Added SHOW_SCHEDULED_FILTER_VALUE to the modal
+        function TeamFilterModal({ isOpen, onClose, teamOptions, currentFilter, onSelectTeam }) {
+            if (!isOpen) return null;
+
+            const SHOW_ALL_FILTER_VALUE = 'SHOW_ALL';
+            const SHOW_SCHEDULED_FILTER_VALUE = 'SHOW_SCHEDULED';
+
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center border-b pb-3 mb-4">
+                            <h3 className="text-lg font-bold text-gray-800">Filter Staff by Team</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-900 text-xl font-bold">&times;</button>
+                        </div>
+
+                        <div className="space-y-2">
+                            {/* Option 1: Show All (Default) */}
+                            <button 
+                                onClick={() => { onSelectTeam(SHOW_ALL_FILTER_VALUE); onClose(); }}
+                                className={`w-full py-2 px-4 text-left rounded-md font-semibold transition-all ${
+                                    currentFilter === SHOW_ALL_FILTER_VALUE 
+                                    ? 'bg-blue-600 text-white shadow-md' 
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                }`}
+                            >
+                                Show All Staff
+                            </button>
+                            
+                            {/* **NEW OPTION**: Show Scheduled IDs */}
+                            <button 
+                                onClick={() => { onSelectTeam(SHOW_SCHEDULED_FILTER_VALUE); onClose(); }}
+                                className={`w-full py-2 px-4 text-left rounded-md font-semibold transition-all ${
+                                    currentFilter === SHOW_SCHEDULED_FILTER_VALUE 
+                                    ? 'bg-green-600 text-white shadow-md' 
+                                    : 'bg-white border border-green-300 hover:bg-green-50 text-green-700'
+                                }`}
+                            >
+                                Show Only Scheduled Staff
+                            </button>
+
+                            {/* Option 3: Clear Filter / Show None */}
+                            <button 
+                                onClick={() => { onSelectTeam(""); onClose(); }}
+                                className={`w-full py-2 px-4 text-left rounded-md font-semibold transition-all ${
+                                    currentFilter === "" 
+                                    ? 'bg-red-600 text-white shadow-md' 
+                                    : 'bg-white border hover:bg-red-50 text-red-700'
+                                }`}
+                            >
+                                Clear Filter (Show None)
+                            </button>
+
+
+                            <div className="border-t pt-2 mt-2">
+                                <p className="text-sm font-bold text-gray-600 my-2">-- Filter by Specific Team --</p>
+                                {/* Team Options */}
+                                {teamOptions.map(t => (
+                                    <button
+                                        key={t.docId}
+                                        onClick={() => { onSelectTeam(t.docId); onClose(); }}
+                                        className={`w-full py-2 px-4 text-left rounded-md font-semibold transition-all ${
+                                            currentFilter === t.docId 
+                                            ? 'bg-blue-600 text-white shadow-md' 
+                                            : 'bg-white border hover:bg-gray-50 text-gray-700'
+                                        }`}
+                                    >
+                                        {t.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
         
         // --- CONSOLIDATED STAFF MANAGEMENT COMPONENT (Section 1) ---
         function ConsolidatedStaffManagement({ selectedDate, setSelectedDate }) {
@@ -529,7 +767,14 @@
             const [localDailyAttendance, setLocalDailyAttendance] = useState([]);
             const [status, setStatus] = useState("idle");
             const [error, setError] = useState(null);
-            const [filterTeamId, setFilterTeamId] = useState("");
+            
+            // Filter constants
+            const SHOW_ALL_FILTER_VALUE = 'SHOW_ALL';
+            const SHOW_SCHEDULED_FILTER_VALUE = 'SHOW_SCHEDULED';
+            
+            // Filter state: "" means "Show None", 'SHOW_ALL' means show all staff, 'SHOW_SCHEDULED' means only scheduled, team ID means filter by team.
+            const [filterTeamId, setFilterTeamId] = useState(""); 
+            const [isModalOpen, setIsModalOpen] = useState(false);
             
             // Sync Firestore attendance data with local state when it changes from the DB
             useEffect(() => {
@@ -551,15 +796,30 @@
 
             const scheduledSet = useMemo(() => new Set(localDailyAttendance), [localDailyAttendance]);
             
-            // Filtered staff list based on team selection
+            // **UPDATE**: Filtering Logic adjusted to handle SHOW_SCHEDULED
             const filteredStaff = useMemo(() => {
-                if (!filterTeamId) return staffPool;
+                if (filterTeamId === SHOW_SCHEDULED_FILTER_VALUE) {
+                     return staffPool.filter(staff => scheduledSet.has(staff.id));
+                }
+                if (filterTeamId === SHOW_ALL_FILTER_VALUE) return staffPool;
+                if (filterTeamId === "") return []; // New default: Show None
+                
                 return staffPool.filter(staff => staff.team_id === filterTeamId);
-            }, [staffPool, filterTeamId]);
+            }, [staffPool, filterTeamId, scheduledSet]);
 
             const teamOptions = useMemo(() => {
                 return Array.from(teamMap.values()).sort((a, b) => a.name.localeCompare(b.name));
             }, [teamMap]);
+
+            // CRITICAL FIX: Determine display name for the filter button
+            const currentFilterName = useMemo(() => {
+                if (filterTeamId === SHOW_ALL_FILTER_VALUE) return "Filter: All Staff";
+                if (filterTeamId === SHOW_SCHEDULED_FILTER_VALUE) return "Filter: Scheduled Only"; // New display name
+                if (filterTeamId === "") return "Filter: None"; 
+                
+                const team = teamOptions.find(t => t.docId === filterTeamId);
+                return team ? `Filter: ${team.name}` : "Filter: Unknown";
+            }, [filterTeamId, teamOptions]);
 
 
             // --- Pool Management Functions (Public Path - dependent on existing rules) ---
@@ -585,16 +845,17 @@
                 }
                 
                 try {
-                    // IMPORTANT: When saving to Firestore, we must use the raw input ID (or doc ID)
-                    // The client-side cleanStaffId function only affects display and roster logic.
+                    // IMPORTANT: We use the raw input ID as the document ID in Firestore.
                     const empDocRef = getDocRef(EMPLOYEES_COLLECTION, id); 
+                    if (!empDocRef) throw new Error("Could not create employee document reference.");
+                    
                     await setDoc(empDocRef, { 
                         emp_id: id, 
                         name: name,
                         team_id: team_id,
                         role: 'member', 
                         is_buffer: is_buffer, 
-                        docId: id 
+                        docId: id // Store the document ID within the document for easy retrieval
                     });
                     
                     setNewStaffId("");
@@ -612,19 +873,31 @@
                 }
             };
             
-            const handleRemoveStaff = async (id) => {
-                if (window.confirm(`Are you sure you want to remove staff ID ${id} from the pool? This is permanent.`)) {
+            // **UPDATE**: Enhanced confirmation for permanent deletion.
+            const handleRemoveStaff = async (staffObject) => {
+                if (!db) return setError("Database not available.");
+                
+                // Custom confirmation dialog replacement
+                const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently DELETE staff ID ${staffObject.id} (${staffObject.name}) from the ENTIRE Staff Pool? This action cannot be undone.`);
+
+                if (confirmDelete) {
                     try {
-                        // NOTE: This assumes the Firestore document ID matches the displayed ID (without 'T').
-                        const empDocRef = getDocRef(EMPLOYEES_COLLECTION, id); 
+                        setStatus("deleting");
+                        // 1. Remove from the Employees Collection (Pool)
+                        const empDocRef = getDocRef(EMPLOYEES_COLLECTION, staffObject.docId); 
+                        if (!empDocRef) throw new Error("Could not create delete document reference.");
                         await deleteDoc(empDocRef); 
                         
-                        setLocalDailyAttendance(prev => prev.filter(staffId => staffId !== id));
-                        setStatus("unsaved");
+                        // 2. Remove from the local attendance list immediately
+                        setLocalDailyAttendance(prev => prev.filter(staffId => staffId !== staffObject.id));
+                        
+                        // 3. Status update
+                        setStatus("idle");
                         setError(null);
                     } catch (err) {
                         console.error("Error removing staff: ", err);
-                        setError(`Failed to remove staff ID ${id}. Check data path/permissions.`);
+                        setError(`Failed to remove staff ID ${staffObject.id}. Check data path/permissions.`);
+                        setStatus("error");
                         setTimeout(() => setError(null), 5000);
                     }
                 }
@@ -664,6 +937,7 @@
                 setError(null);
                 try {
                     const docRef = getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate);
+                    if (!docRef) throw new Error("Could not create attendance document reference.");
                     
                     const currentStaffIds = new Set(staffPool.map(s => s.id));
                     const cleanedAttendance = localDailyAttendance
@@ -691,6 +965,14 @@
                 <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-800">1. Staff Pool & Daily Attendance Management (Merged)</h2>
                     
+                    <TeamFilterModal 
+                        isOpen={isModalOpen}
+                        onClose={() => setIsModalOpen(false)}
+                        teamOptions={teamOptions}
+                        currentFilter={filterTeamId}
+                        onSelectTeam={setFilterTeamId}
+                    />
+
                     <div className="setup-tools">
                         {/* Date Selector */}
                         <div className="mb-4 date-selector flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -753,28 +1035,27 @@
                     {!isLoading && (
                         <div className="flex flex-col gap-2 p-4 rounded-lg border border-gray-200">
                              <div className="flex flex-wrap justify-between items-center mb-4 border-b pb-2">
-                                <div className="flex items-center gap-4">
+                                
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                                     <span className="font-bold text-lg text-gray-800">
                                         Total Staff: {staffPool.length} | Scheduled: {localDailyAttendance.length}
                                     </span>
-                                    {/* NEW: Team Filter for Attendance */}
-                                    <select 
-                                        value={filterTeamId}
-                                        onChange={(e) => setFilterTeamId(e.target.value)}
-                                        className="p-1 border border-gray-300 rounded-md shadow-sm bg-white text-sm"
+                                    
+                                    {/* CRITICAL FIX: Filter Button with Icon and Status */}
+                                    <button 
+                                        onClick={() => setIsModalOpen(true)}
+                                        className="filter-control-button py-2 px-4 text-sm font-semibold rounded-md shadow-sm flex items-center gap-2 transition-colors duration-150 bg-white border border-gray-300 hover:bg-gray-100"
                                     >
-                                        <option value="">Filter by Team (All)</option>
-                                        {teamOptions.map(t => (
-                                            <option key={t.docId} value={t.docId}>{t.name}</option>
-                                        ))}
-                                    </select>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707v7l-4 4v-7a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                                        <span className="text-gray-800 font-bold">{currentFilterName}</span>
+                                    </button>
                                 </div>
 
-                                <div className="flex space-x-2 setup-tools">
+                                <div className="flex space-x-2 setup-tools mt-2 sm:mt-0">
                                      <button 
                                         onClick={handleScheduleAll}
                                         disabled={status === 'saving' || filteredStaff.length === 0}
-                                        className="py-1 px-3 text-sm bg-emerald-600 text-white rounded-md shadow-md hover:bg-emerald-700 disabled:bg-gray-400"
+                                        className="py-2 px-4 text-sm bg-emerald-600 text-white rounded-md shadow-md hover:bg-emerald-700 disabled:bg-gray-400"
                                         title={filterTeamId ? `Schedule all ${filteredStaff.length} staff in current filter` : `Schedule all ${staffPool.length} staff`}
                                     >
                                         Schedule All ({filteredStaff.length})
@@ -782,7 +1063,7 @@
                                     <button 
                                         onClick={handleUnscheduleAll}
                                         disabled={status === 'saving' || filteredStaff.length === 0}
-                                        className="py-1 px-3 text-sm bg-red-600 text-white rounded-md shadow-md hover:bg-red-700 disabled:bg-gray-400"
+                                        className="py-2 px-4 text-sm bg-red-600 text-white rounded-md shadow-md hover:bg-red-700 disabled:bg-gray-400"
                                         title={filterTeamId ? `Unschedule all ${filteredStaff.length} staff in current filter` : `Unschedule all ${staffPool.length} staff`}
                                     >
                                     Unschedule All ({filteredStaff.length})
@@ -792,8 +1073,19 @@
                             
                             <div className="staff-pool-grid grid gap-3">
                                 {staffPool.length === 0 && <p className="col-span-full text-center text-gray-500">No employees found in the 'employees' collection. Use 'Add New Employee to Pool' above to populate the list.</p>}
+                                
+                                {/* Display instruction based on filter */}
+                                {filterTeamId === "" && (
+                                    <p className="col-span-full text-center text-gray-500 p-8 border rounded-lg bg-gray-100">
+                                        No staff visible. Click **Filter: None** to select **Show All Staff**, **Show Only Scheduled Staff**, or a specific team.
+                                    </p>
+                                )}
+                                
                                 {filteredStaff.map(staff => {
                                     const isScheduled = scheduledSet.has(staff.id);
+                                    
+                                    // **CRITICAL FIX: Defensive check for missing staff data**
+                                    if (!staff.id || !staff.name) return null;
                                     
                                     return (
                                         <div 
@@ -811,12 +1103,16 @@
                                                 }`}>
                                                     {staff.type.toUpperCase()} - {staff.team_name}
                                                 </span>
+                                                {/* **UPDATE**: Added specific delete button for the user's request */}
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleRemoveStaff(staff.id); }} 
-                                                    className="text-red-500 hover:text-red-700 text-lg font-bold transition-opacity print-hidden"
-                                                    title={`Remove ${staff.name} (${staff.id}) from Pool`}
+                                                    // CRITICAL FIX: Pass the entire staff object for deletion (needed for docId)
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveStaff(staff); }} 
+                                                    className="text-red-500 hover:text-red-700 text-lg font-bold transition-opacity print-hidden p-1 -mt-2"
+                                                    title={`Permanently Delete ${staff.name} (${staff.id}) from Pool`}
                                                 >
-                                                    &times;
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
                                                 </button>
                                             </div>
 
@@ -825,7 +1121,8 @@
                                                 {/* ID is primary */}
                                                 <span className="text-xl font-bold text-gray-900 leading-tight block truncate" title={staff.id}>{staff.id}</span>
                                                 {/* Name is secondary/extracted */}
-                                                <p className="text-sm text-gray-500 truncate" title={staff.name}>{staff.name}</p>
+                                                {/* Defensive rendering for name */}
+                                                <p className="text-sm text-gray-500 truncate" title={staff.name}>{staff.name || 'N/A Name'}</p>
                                             </div>
 
                                             {/* Bottom Row: Status and Toggle Switch */}
@@ -873,6 +1170,7 @@
         // --- Daily Assignment Component (Section 2 - Compact Grid) ---
         function DailySequenceAssignment({ selectedDate }) {
             const { scheduledStaff: allStaff = [], staffTypeMap = new Map(), loading: staffLoading, dailyAttendance } = useContext(StaffContext); 
+            const [rosterMode, setRosterMode] = useState(ROSTER_MODES.AUTO_SEQUENCE); // New State for Roster Mode
             const [sequenceMap, setSequenceMap] = useState({});
             const [locationBufferMap, setLocationBufferMap] = useState({});
             const [loading, setLoading] = useState(true);
@@ -881,9 +1179,25 @@
 
             const allAssignmentKeys = useMemo(() => ALL_ASSIGNMENT_KEYS, []);
             
+            // Locations that buffer staff can override (whole row)
             const overrideLocations = useMemo(() => [
-                "E3", "N1 (CNB)", "PATROL 1", "PATROL 2", VERTICAL_PROWLER_POSITION
+                "E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", VERTICAL_PROWLER_POSITION
             ], []);
+            
+            // CRITICAL FIX: Available keys change based on Roster Mode
+            const availableAssignmentKeys = useMemo(() => {
+                let sentryKeys;
+                if (rosterMode === ROSTER_MODES.AUTO_SEQUENCE) {
+                    // Auto-Sequence mode uses the short sequence keys (E1, OE, P2, etc.)
+                    sentryKeys = SENTRY_SEQUENCE_KEYS;
+                } else {
+                    // Manual Fixed mode uses the full location names (E1, PATROL 1, etc.)
+                    sentryKeys = SENTRY_LOCATION_KEYS;
+                }
+                
+                // Always include Foyer and Security keys regardless of mode
+                return [...sentryKeys, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
+            }, [rosterMode]);
             
             const bufferStaff = useMemo(() => allStaff.filter(s => s.type === 'buffer'), [allStaff]);
 
@@ -892,6 +1206,8 @@
                 if (!selectedDate || !db) return;
                 setLoading(true);
                 const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                if (!docRef) return;
+                
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     
                     const defaultMap = {};
@@ -900,6 +1216,10 @@
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
+                        
+                        // Load and set the Roster Mode
+                        setRosterMode(data.rosterMode || ROSTER_MODES.AUTO_SEQUENCE);
+                        
                         const loadedMap = data.sequenceMap || {};
                         const scheduledSet = new Set(dailyAttendance);
                         
@@ -914,6 +1234,7 @@
                         setSequenceMap(defaultMap);
                         setLocationBufferMap(data.locationBufferMap || {});
                     } else {
+                        setRosterMode(ROSTER_MODES.AUTO_SEQUENCE);
                         setSequenceMap(defaultMap);
                         setLocationBufferMap({});
                     }
@@ -928,23 +1249,24 @@
             }, [selectedDate, allAssignmentKeys, dailyAttendance]);
 
             // --- 2. Assignment Logic ---
+            // This map needs to check against ALL assignment keys (Sequence AND Location) 
+            // since data could exist from a previous mode.
             const staffToSequenceMap = useMemo(() => {
                 const map = {};
-                for (const key of allAssignmentKeys) {
+                for (const key of ALL_ASSIGNMENT_KEYS) {
                     let staffIds = sequenceMap[key]; 
                     if (staffIds) {
                         if (!Array.isArray(staffIds)) staffIds = [staffIds];
                         staffIds.forEach(staffId => {
-                            if (map[staffId]) {
-                                map[staffId] = `${map[staffId]}, ${key}`;
-                            } else {
-                                map[staffId] = key;
+                            // Ensure only one assignment per staff member is shown in the card dropdown
+                            if (!map[staffId]) {
+                                map[staffId] = key; 
                             }
                         });
                     }
                 }
                 return map;
-            }, [sequenceMap, allAssignmentKeys]);
+            }, [sequenceMap, ALL_ASSIGNMENT_KEYS]);
 
 
             const handleSequenceChange = (keyToAssign, staffId) => {
@@ -952,13 +1274,25 @@
                 const newMap = { ...sequenceMap };
                 const staffType = staffTypeMap.get(staffId);
                 
+                // Clear assignment from ALL possible slots (Sequence AND Location keys)
+                const allUsedKeys = ALL_ASSIGNMENT_KEYS;
+
                 if (staffType !== 'buffer') {
                     // Remove from any other key first (for permanent staff)
-                     ALL_ASSIGNMENT_KEYS.forEach(key => {
+                     allUsedKeys.forEach(key => {
                          if (newMap[key] && newMap[key].includes(staffId)) {
                              newMap[key] = newMap[key].filter(id => id !== staffId);
                          }
                      });
+                } else {
+                    // For buffer staff, we only remove them from the currently selected key
+                    // if they are moving to a new key.
+                    // IMPORTANT: To prevent accidental clearing of a primary assignment, we rely on the dropdown logic below
+                    // which prevents multiple assignments. We only clear the current assignment if they choose a new one.
+                    const currentAssignmentKey = staffToSequenceMap[staffId];
+                    if (currentAssignmentKey && currentAssignmentKey !== keyToAssign && newMap[currentAssignmentKey]) {
+                        newMap[currentAssignmentKey] = newMap[currentAssignmentKey].filter(id => id !== staffId);
+                    }
                 }
 
                 const currentIdsInSlot = newMap[keyToAssign] || [];
@@ -985,24 +1319,53 @@
                 setSequenceMap(newMap);
             };
 
-            const handleLocationBufferChange = (location, staffId) => {
+            const handleLocationBufferChange = (bufferStaffId, location) => {
                 setStatus("unsaved");
                 const newMap = { ...locationBufferMap };
-                if (staffId === "") {
-                    delete newMap[location];
+                
+                if (location === "") {
+                    delete newMap[bufferStaffId];
                 } else {
-                    newMap[location] = staffId;
+                    newMap[bufferStaffId] = location;
                 }
                 setLocationBufferMap(newMap);
             };
 
-            const handleClearAll = () => {
-                if (window.confirm("Are you sure you want to CLEAR ALL assignments for this date?")) {
-                    const emptyMap = {};
-                    allAssignmentKeys.forEach(key => emptyMap[key] = []);
-                    setSequenceMap(emptyMap);
-                    setLocationBufferMap({});
-                    setStatus("unsaved"); 
+            // **UPDATE**: Modified handleClearAll to ONLY remove assignments (sequenceMap and locationBufferMap)
+            const handleClearAll = async () => {
+                if (!db) return setError("Database not available.");
+                
+                // Use a custom confirmation dialog replacement
+                const confirmClear = window.confirm("Are you sure you want to CLEAR ALL daily assignments and buffer overrides for this date? This action will NOT affect the Scheduled Staff list.");
+
+                if (confirmClear) {
+                    setStatus("saving");
+                    setError(null);
+                    
+                    try {
+                        const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                        if (!docRef) throw new Error("Could not create assignment document reference.");
+
+                        const emptySequenceMap = {};
+                        ALL_ASSIGNMENT_KEYS.forEach(key => emptySequenceMap[key] = []);
+
+                        // Only update the assignment fields, preserve other data if it exists (like rosterMode)
+                        await updateDoc(docRef, {
+                            sequenceMap: emptySequenceMap,
+                            locationBufferMap: {},
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true }); // Use merge: true to avoid deleting the entire document
+
+                        setSequenceMap(emptySequenceMap);
+                        setLocationBufferMap({});
+                        setStatus("saved");
+                        setTimeout(() => setStatus("idle"), 2000);
+
+                    } catch (err) {
+                        console.error("Error clearing daily setup: ", err);
+                        setError("Failed to clear daily assignments. Check path/permissions.");
+                        setStatus("error");
+                    }
                 }
             };
 
@@ -1012,22 +1375,32 @@
                 setError(null);
                 try {
                     const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                    if (!docRef) throw new Error("Could not create assignment document reference.");
+
                     
                     // Final clean before saving (only scheduled staff remain)
                     const scheduledSet = new Set(allStaff.map(s => s.id));
                     const cleanedSequenceMap = {};
+                    
+                    // Only save assignments relevant to the selected mode PLUS security/foyer which are always used
+                    const keysToSave = new Set(availableAssignmentKeys);
+                    
                     Object.entries(sequenceMap).forEach(([key, staffIds]) => {
-                        cleanedSequenceMap[key] = staffIds.filter(id => scheduledSet.has(id));
+                        // Only save data assigned to keys relevant in the current mode (or keys in other fixed assignments)
+                        if (keysToSave.has(key) || FOYER_ASSIGNMENT_KEYS.includes(key) || SECURITY_ASSIGNMENT_KEYS.includes(key)) {
+                            cleanedSequenceMap[key] = staffIds.filter(id => scheduledSet.has(id));
+                        }
                     });
                     
                     const cleanedLocationBufferMap = {};
-                    Object.entries(locationBufferMap).forEach(([key, staffId]) => {
-                        if (scheduledSet.has(staffId)) {
-                             cleanedLocationBufferMap[key] = staffId;
+                    Object.entries(locationBufferMap).forEach(([key, location]) => {
+                        if (scheduledSet.has(key)) { // Key here is the buffer ID
+                             cleanedLocationBufferMap[key] = location;
                         }
                     });
                     
                     await setDoc(docRef, { 
+                        rosterMode: rosterMode, // CRITICAL: Save the mode
                         sequenceMap: cleanedSequenceMap,
                         locationBufferMap: cleanedLocationBufferMap 
                     });
@@ -1048,24 +1421,74 @@
             const isDirty = status === 'unsaved';
             
             const AssignmentDropdown = ({ staffId }) => {
-                const assignedSequence = staffToSequenceMap[staffId] || "";
+                const assignedKey = staffToSequenceMap[staffId] || ""; // Will be sequence key OR location name
                 const staffType = staffTypeMap.get(staffId);
                 const staffDetails = allStaff.find(s => s.id === staffId);
-                if (!staffDetails) return null; 
-                                
-                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
-                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                const isMultiple = assignedSequence.includes(',');
+                
+                // Defensive check
+                if (!staffDetails || !staffDetails.id) return null; 
+                
+                // --- Group Assignments based on current mode ---
+                const isAutoMode = rosterMode === ROSTER_MODES.AUTO_SEQUENCE;
+                
+                const currentSentryKeys = isAutoMode ? SENTRY_SEQUENCE_KEYS : SENTRY_LOCATION_KEYS;
+                
+                const sentryAssignmentKeys = availableAssignmentKeys.filter(key => 
+                    currentSentryKeys.includes(key)
+                ).sort();
+                const foyerAssignmentKeys = availableAssignmentKeys.filter(key => FOYER_ASSIGNMENT_KEYS.includes(key)).sort();
+                const securityAssignmentKeys = availableAssignmentKeys.filter(key => SECURITY_ASSIGNMENT_KEYS.includes(key)).sort();
+                
+                const isSentryAssignment = sentryAssignmentKeys.includes(assignedKey);
+                const isFoyerAssignment = foyerAssignmentKeys.includes(assignedKey);
+                const isSecurityAssignment = securityAssignmentKeys.includes(assignedKey);
+                const isMultiple = assignedKey.includes(','); // Should not happen with current logic, but check anyway
 
                 let colorClass = 'bg-white';
-                if (staffType === 'buffer' && assignedSequence) {
+                if (staffType === 'buffer' && assignedKey) {
                     colorClass = 'bg-purple-100 border-purple-300';
                 }
                 else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
                 else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
                 else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
                 else colorClass = 'bg-gray-50 border-gray-300';
+                
+                // --- Option Rendering Logic (CRITICAL FIX) ---
+                const renderOptions = (keys) => {
+                    return keys.map(key => {
+                        const staffIdsInSlot = sequenceMap[key] || [];
+                        const isThisStaffInSlot = staffIdsInSlot.includes(staffId);
+                        
+                        let isDisabled = false;
+                        const currentScheduledStaffInSlot = staffIdsInSlot.filter(id => allStaff.some(s => s.id === id));
+                        
+                        // Check occupancy rules for non-selected slots
+                        if (!isThisStaffInSlot && currentScheduledStaffInSlot.length > 0) {
+                            const typesInSlot = currentScheduledStaffInSlot.map(id => staffTypeMap.get(id));
+                            
+                            if (staffType === 'permanent' || !staffType) {
+                                // Permanent staff cannot take occupied slot
+                                isDisabled = true;
+                            } else if (staffType === 'buffer') {
+                                // Buffer can only join a slot with one permanent staff
+                                const permCount = typesInSlot.filter(t => t === 'permanent' || !t).length;
+                                const bufferCount = typesInSlot.filter(t => t === 'buffer').length;
+                                
+                                // If the slot already has a permanent and a buffer, or two buffers, deny.
+                                if ((permCount >= 1 && bufferCount >= 1) || bufferCount >= 2) {
+                                    isDisabled = true;
+                                }
+                            }
+                        }
+                        
+                        return (
+                            <option key={key} value={key} disabled={isDisabled} className="truncate">
+                                {key} {currentScheduledStaffInSlot.length > 0 ? `(${currentScheduledStaffInSlot.length} taken)` : ""}
+                            </option>
+                        );
+                    });
+                };
+
 
                 return (
                     <div 
@@ -1075,8 +1498,10 @@
                         {/* CRITICAL LAYOUT FIX: Use pt-1 for slight vertical alignment and fixed width distribution */}
                         <div className="flex flex-col items-start gap-0 min-w-[50%] max-w-[55%] pt-1"> 
                             {/* Display ID and Name */}
-                            <span className="text-base font-bold text-gray-900 leading-tight truncate" title={staffDetails.id}>{staffDetails.id}</span>
-                            <span className="text-xs text-gray-500 truncate" title={staffDetails.name}>{staffDetails.name || 'N/A Name'}</span>
+                            <span className="text-base font-bold text-gray-900 leading-tight block truncate" title={staffDetails.id}>{staffDetails.id}</span>
+                            {/* Name is secondary/extracted */}
+                            {/* Defensive rendering for name */}
+                            <p className="text-sm text-gray-500 truncate" title={staffDetails.name}>{staffDetails.name || 'N/A Name'}</p>
                             {staffType === 'buffer' && (
                                 <span className="text-xs font-semibold px-1 py-0.5 rounded-full bg-purple-200 text-purple-800 mt-1">
                                     {staffType.toUpperCase()}
@@ -1084,7 +1509,7 @@
                             )}
                         </div>
                         <select
-                            value={assignedSequence}
+                            value={assignedKey}
                             onChange={(e) => {
                                 const newKey = e.target.value;
                                 if (newKey === "") {
@@ -1093,41 +1518,27 @@
                                     handleSequenceChange(newKey, staffId);
                                 }
                             }}
-                            className="p-1 border border-gray-400 rounded-md shadow-sm w-[40%] text-xs truncate bg-white"
+                            className="p-1 border border-gray-400 rounded-md shadow-sm w-[40%] text-xs truncate bg-white font-semibold"
                         >
                             <option value="">{UNASSIGNED_KEY}</option>
                             
                             {isMultiple && (
-                                <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
+                                <option value={assignedKey} disabled>{assignedKey} (Multiple)</option>
                             )}
+                            
+                            {/* Grouped Options for clarity */}
+                            <optgroup label={isAutoMode ? "SENTRY (Rotation Key)" : "SENTRY (Fixed Location)"}>
+                                {renderOptions(sentryAssignmentKeys)}
+                            </optgroup>
 
-                            {ALL_ASSIGNMENT_KEYS.sort().map(key => {
-                                const staffIdsInSlot = sequenceMap[key] || [];
-                                const isThisStaffInSlot = staffIdsInSlot.includes(staffId);
-                                
-                                let isDisabled = false;
-                                const currentScheduledStaffInSlot = staffIdsInSlot.filter(id => allStaff.some(s => s.id === id));
-                                
-                                if (!isThisStaffInSlot && currentScheduledStaffInSlot.length > 0) {
-                                    const typesInSlot = currentScheduledStaffInSlot.map(id => staffTypeMap.get(id));
-                                    
-                                    if (staffType === 'permanent' || !staffType) {
-                                        // Permanent staff cannot take occupied slot
-                                        isDisabled = true;
-                                    } else if (staffType === 'buffer') {
-                                        // Buffer can only share with a permanent
-                                        if (typesInSlot.includes('buffer') || currentScheduledStaffInSlot.length >= 2) {
-                                            isDisabled = true;
-                                        }
-                                    }
-                                }
-                                
-                                return (
-                                    <option key={key} value={key} disabled={isDisabled} className="truncate">
-                                        {key} {currentScheduledStaffInSlot.length > 0 ? `(taken)` : ""}
-                                    </option>
-                                );
-                            })}
+                            <optgroup label="FOYER">
+                                {renderOptions(foyerAssignmentKeys)}
+                            </optgroup>
+
+                            <optgroup label="SECURITY">
+                                {renderOptions(securityAssignmentKeys)}
+                            </optgroup>
+                            
                         </select>
                     </div>
                 );
@@ -1135,9 +1546,36 @@
 
             return (
                 <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Assignment Setup (Compact)</h2>
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Assignment Setup</h2>
                     
                     {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
+                    
+                    {/* NEW: Roster Mode Selector */}
+                    <div className="roster-mode-selector p-4 mb-6 border rounded-lg bg-yellow-50 shadow-inner">
+                        <h3 className="text-base font-semibold text-gray-700 mb-2">Roster Generation Mode:</h3>
+                        <p className="text-sm text-gray-600 mb-3 font-medium">This controls the core rostering logic for Sentry and Patrol positions.</p>
+                        <div className="radio-group flex flex-wrap gap-4">
+                            <input type="radio" id="mode-auto" name="rosterMode" value={ROSTER_MODES.AUTO_SEQUENCE} 
+                                checked={rosterMode === ROSTER_MODES.AUTO_SEQUENCE} 
+                                onChange={(e) => { setRosterMode(e.target.value); setStatus("unsaved"); }}
+                                className="hidden"
+                            />
+                            <label htmlFor="mode-auto" className="cursor-pointer border border-blue-300 rounded-md py-2 px-4 text-sm font-semibold text-blue-800 bg-white hover:bg-blue-50 transition-all">
+                                Auto-Sequence (Standard Rotation)
+                                <p className="text-xs font-normal text-gray-500 mt-1">Assign staff to sequence keys (E1, OE, P2, etc.) for rotation.</p>
+                            </label>
+
+                            <input type="radio" id="mode-manual" name="rosterMode" value={ROSTER_MODES.MANUAL_LOCATION_FIXED} 
+                                checked={rosterMode === ROSTER_MODES.MANUAL_LOCATION_FIXED} 
+                                onChange={(e) => { setRosterMode(e.target.value); setStatus("unsaved"); }}
+                                className="hidden"
+                            />
+                            <label htmlFor="mode-manual" className="cursor-pointer border border-blue-300 rounded-md py-2 px-4 text-sm font-semibold text-blue-800 bg-white hover:bg-blue-50 transition-all">
+                                Manual (Fixed Location All Night)
+                                <p className="text-xs font-normal text-gray-500 mt-1">Assign staff directly to a location (E1, PATROL 1, etc.) for the whole shift.</p>
+                            </label>
+                        </div>
+                    </div>
                     
                     <p className="text-gray-600 mb-4 text-sm font-bold bg-green-50 p-3 rounded-md border border-green-300">
                         Showing only **{allStaff.length}** staff members who are **SCHEDULED** for {selectedDate}. Select their primary assignment.
@@ -1159,7 +1597,7 @@
                     <div className="mt-8 border-t pt-6">
                         <h3 className="text-lg font-bold mb-4 text-gray-800">3. Buffer Location Override (Whole Shift)</h3>
                         <p className="text-gray-600 mb-4 text-sm">
-                            Select a Buffer staff (from the scheduled list) to cover an entire location (Row) for the whole night. 
+                            Select a Buffer staff (from the scheduled list) to cover an entire location (Row) for the whole night, **overriding all other logic** for that row. 
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
                              {bufferStaff.map(b => (
@@ -1182,12 +1620,13 @@
                     
                     {/* --- Save Controls --- */}
                     <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4 action-buttons">
+                        {/* **UPDATE**: Clear All button now uses the updated function */}
                         <button
                             onClick={handleClearAll}
                             disabled={status === 'saving' || isLoading}
                             className="py-2 px-4 bg-red-500 text-white rounded-md shadow-md font-medium hover:bg-red-600 disabled:bg-gray-400"
                         >
-                            Clear All
+                            Clear All Assignments
                         </button>
 
                         <div className="flex items-center gap-4">
@@ -1209,16 +1648,21 @@
 
         // --- View 2: Roster View (Sequence Logic) ---
         function RosterView({ selectedDate, setSelectedDate }) {
-            const { staffTypeMap } = useContext(StaffContext);
+            // Variables are destructure here, correctly, at the top level
+            const { staffTypeMap, scheduledStaff } = useContext(StaffContext); 
             const [rosterData, setRosterData] = useState(null);
             const [dailyAssignments, setDailyAssignments] = useState(null); 
             const [loading, setLoading] = useState(true);
+            const [isGenerating, setIsGenerating] = useState(false); // NEW: State for generation status
             const [error, setError] = useState(null);
             const [isDirty, setIsDirty] = useState(false);
             
             const [highlightedId, setHighlightedId] = useState(null);
             const [focusView, setFocusView] = useState('all');
             
+            // NEW: Matrix Editing Mode State
+            const [isMatrixEditMode, setIsMatrixEditMode] = useState(false);
+
             const handlePrint = () => {
                 window.print();
             };
@@ -1252,6 +1696,7 @@
                             if(Array.isArray(loadedGrid[pos])) {
                                 newRosterData[pos] = loadedGrid[pos].map(cell => {
                                     if (typeof cell === 'string' || !cell) {
+                                        // Ensure basic cell structure when loading old strings
                                         return { value: cell || "", isAutomated: false }; 
                                     }
                                     return cell;
@@ -1276,7 +1721,8 @@
             }, [selectedDate]);
             
             const manualStandbyRows = useMemo(() => {
-                if (!rosterData) { return []; }
+                // CRITICAL FIX: Ensure rosterData is an object before accessing keys
+                if (!rosterData || typeof rosterData !== 'object') { return []; }
                 return Object.keys(rosterData)
                     .filter(key => key.startsWith("OE/ STANDBY-"))
                     .sort(); 
@@ -1293,59 +1739,142 @@
 
 
             const handleGenerateRoster = async (isReset = false) => {
-                setLoading(true);
+                setIsGenerating(true); // Start generating state
                 setError(null);
                 
-                if (!db) { setError("Database not available."); setLoading(false); return; }
+                if (!db) { setError("Database not available."); setIsGenerating(false); return; }
                 
                 if (!dailyAssignments || !dailyAssignments.sequenceMap || !staffTypeMap || staffTypeMap.size === 0) {
                     setError("No assignments or staff types found. Please check Setup and wait for data.");
-                    setLoading(false);
+                    setIsGenerating(false);
                     return;
                 }
                 
                 try {
-                    const sequenceMap = dailyAssignments.sequenceMap;
-                    const locationBufferMap = dailyAssignments.locationBufferMap || {};
+                    const { sequenceMap, locationBufferMap = {}, rosterMode = ROSTER_MODES.AUTO_SEQUENCE } = dailyAssignments;
                     
+                    // Only merge if not resetting the grid entirely
                     const newRosterGrid = (rosterData && !isReset) ? { ...rosterData } : {};
                     
-                    // --- 1. SENTRY DEPLOYMENT ---
+                    const PATROL_1 = "PATROL 1";
+                    const PATROL_2 = "PATROL 2";
+                    const PERIMETER_1ST_HALF = "PERIMETER PROWLER (1st Half)";
+                    const PERIMETER_2ND_HALF = "PERIMETER PROWLER (2nd Half)";
+
+
+                    // --- 1. SENTRY DEPLOYMENT (Dynamic based on Roster Mode) ---
                     SENTRY_POSITIONS.forEach(pos => {
                         const positionRoster = [];
-                        const letterSequence = SENTRY_POSITION_SEQUENCES[pos]; 
                         
-                        if (letterSequence) { 
-                            for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
-                                const sequenceKey = letterSequence[timeIndex % 6];
-                                
-                                let idsInSlot = sequenceMap[sequenceKey];
-                                if (!Array.isArray(idsInSlot)) idsInSlot = idsInSlot ? [idsInSlot] : [];
+                        // Skip the Prowler rows for now, as they are populated in step 2.
+                        if (pos.startsWith("PERIMETER PROWLER")) return;
 
-                                const permanentStaff = idsInSlot.find(id => (staffTypeMap.get(id) === 'permanent' || !staffTypeMap.get(id))) || UNFILLED_SLOT;
-                                const bufferStaff = idsInSlot.find(id => staffTypeMap.get(id) === 'buffer');
-                                
-                                const oldCellData = (newRosterGrid[pos] && newRosterGrid[pos][timeIndex]) ? newRosterGrid[pos][timeIndex] : {};
-                                
-                                if (bufferStaff && permanentStaff !== UNFILLED_SLOT) {
-                                    positionRoster.push({
-                                        isAutomated: true, permanent: permanentStaff, buffer: bufferStaff,
-                                        value: (oldCellData.value === permanentStaff || oldCellData.value === bufferStaff) ? oldCellData.value : permanentStaff,
-                                        isPair: true
-                                    });
-                                } else {
-                                    const onlyStaff = idsInSlot[0] || UNFILLED_SLOT;
-                                    positionRoster.push({
-                                        isAutomated: true, permanent: permanentStaff, buffer: bufferStaff || null,
-                                        value: onlyStaff, isPair: false
-                                    });
+                        if (rosterMode === ROSTER_MODES.AUTO_SEQUENCE) {
+                            // --- AUTO-SEQUENCE MODE LOGIC (Rotation) ---
+                            const letterSequence = SENTRY_POSITION_SEQUENCES[pos]; 
+                            
+                            if (letterSequence) { 
+                                for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
+                                    const sequenceKey = letterSequence[timeIndex % 6];
+                                    
+                                    let idsInSlot = sequenceMap[sequenceKey];
+                                    if (!Array.isArray(idsInSlot)) idsInSlot = idsInSlot ? [idsInSlot] : [];
+
+                                    const permanentStaff = idsInSlot.find(id => (staffTypeMap.get(id) === 'permanent' || !staffTypeMap.get(id))) || UNFILLED_SLOT;
+                                    const bufferStaff = idsInSlot.find(id => staffTypeMap.get(id) === 'buffer');
+                                    
+                                    const oldCellData = (newRosterGrid[pos] && newRosterGrid[pos][timeIndex]) ? newRosterGrid[pos][timeIndex] : {};
+                                    
+                                    if (bufferStaff && permanentStaff !== UNFILLED_SLOT) {
+                                        positionRoster.push({
+                                            isAutomated: true, permanent: permanentStaff, buffer: bufferStaff,
+                                            value: (oldCellData.value === permanentStaff || oldCellData.value === bufferStaff) ? oldCellData.value : permanentStaff,
+                                            isPair: true
+                                        });
+                                    } else {
+                                        const onlyStaff = idsInSlot.find(id => id !== UNFILLED_SLOT) || UNFILLED_SLOT;
+                                        positionRoster.push({
+                                            isAutomated: true, permanent: permanentStaff, buffer: bufferStaff || null,
+                                            value: onlyStaff, isPair: false
+                                        });
+                                    }
                                 }
+                                newRosterGrid[pos] = positionRoster;
+                            }
+                        } else {
+                            // --- MANUAL-LOCATION-FIXED MODE LOGIC (Whole Shift) ---
+                            let idsInSlot = sequenceMap[pos]; // Look up by location name itself
+                            if (!Array.isArray(idsInSlot)) idsInSlot = idsInSlot ? [idsInSlot] : [];
+
+                            const permanentStaff = idsInSlot.find(id => (staffTypeMap.get(id) === 'permanent' || !staffTypeMap.get(id))) || UNFILLED_SLOT;
+                            const bufferStaff = idsInSlot.find(id => staffTypeMap.get(id) === 'buffer');
+
+                            const isPair = bufferStaff && permanentStaff !== UNFILLED_SLOT;
+                            const value = permanentStaff !== UNFILLED_SLOT ? permanentStaff : (bufferStaff || UNFILLED_SLOT);
+                            
+                            for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
+                                positionRoster.push({
+                                    isAutomated: true, permanent: permanentStaff, buffer: bufferStaff || null,
+                                    value: value, isPair: isPair,
+                                    isFixed: true // Flag for manual mode clarity
+                                });
                             }
                             newRosterGrid[pos] = positionRoster;
                         }
                     });
+                    
+                    // --- 2. PERIMETER PROWLER ASSIGNMENT (Slot-by-Slot Copy from P1/P2) ---
+                    
+                    // CRITICAL: Ensure source patrol data exists before trying to copy
+                    // The source data needs to be the newly generated data in newRosterGrid
+                    const patrol1Roster = newRosterGrid[PATROL_1] || Array(TIME_SLOTS.length).fill({ value: UNFILLED_SLOT, isAutomated: true });
+                    const patrol2Roster = newRosterGrid[PATROL_2] || Array(TIME_SLOTS.length).fill({ value: UNFILLED_SLOT, isAutomated: true });
+                    
+                    // 1st Half Prowler (P1 assignments copied across ALL 12 slots)
+                    const prowler1stHalf = Array(TIME_SLOTS.length).fill(null).map((_, index) => {
+                        const existingCell = (newRosterGrid[PERIMETER_1ST_HALF] && newRosterGrid[PERIMETER_1ST_HALF][index]);
+                        if (existingCell && existingCell.isAutomated === false && !isReset) {
+                             return existingCell; // Preserve manual change
+                        }
 
-                    // --- 2. FOYER DEPLOYMENT ---
+                        // Copy data from the PATROL 1 row for this specific time slot
+                        const sourceCell = patrol1Roster[index] || { value: UNFILLED_SLOT };
+                         
+                        return { 
+                            value: sourceCell.value || UNFILLED_SLOT, 
+                            isAutomated: true, 
+                            isSourceProwler: true,
+                            permanent: sourceCell.permanent || sourceCell.value || UNFILLED_SLOT,
+                            buffer: sourceCell.buffer || null,
+                            isPair: sourceCell.isPair || false
+                        };
+                    });
+                    newRosterGrid[PERIMETER_1ST_HALF] = prowler1stHalf;
+
+                    // 2nd Half Prowler (P2 assignments copied across ALL 12 slots)
+                    const prowler2ndHalf = Array(TIME_SLOTS.length).fill(null).map((_, index) => {
+                        const existingCell = (newRosterGrid[PERIMETER_2ND_HALF] && newRosterGrid[PERIMETER_2ND_HALF][index]);
+                        if (existingCell && existingCell.isAutomated === false && !isReset) {
+                            return existingCell; // Preserve manual change
+                        }
+
+                        // Copy data from the PATROL 2 row for this specific time slot
+                        const sourceCell = patrol2Roster[index] || { value: UNFILLED_SLOT };
+
+                        return { 
+                            value: sourceCell.value || UNFILLED_SLOT, 
+                            isAutomated: true, 
+                            isSourceProwler: true,
+                            permanent: sourceCell.permanent || sourceCell.value || UNFILLED_SLOT,
+                            buffer: sourceCell.buffer || null,
+                            isPair: sourceCell.isPair || false
+                        };
+                    });
+                    newRosterGrid[PERIMETER_2ND_HALF] = prowler2ndHalf;
+                    // --- End PERIMETER PROWLER ASSIGNMENT ---
+
+
+                    // --- 3. FOYER DEPLOYMENT (Always follows fixed pattern) ---
                     let foyer1_ids = sequenceMap["FOYER 1"];
                     if (!Array.isArray(foyer1_ids)) foyer1_ids = foyer1_ids ? [foyer1_ids] : [];
                     let foyer2_ids = sequenceMap["FOYER 2"];
@@ -1373,6 +1902,7 @@
                         const oldXrayCell = (newRosterGrid["XRAY-VISITOR"] && newRosterGrid["XRAY-VISITOR"][i]) ? newRosterGrid["XRAY-VISITOR"][i] : {};
                         const oldOECell = (newRosterGrid["FOYER-OE"] && newRosterGrid["FOYER-OE"][i]) ? newRosterGrid["FOYER-OE"][i] : {};
                         
+                        // XRAY (Post A)
                         if (isPairA) {
                             xraySequence.push({ isAutomated: true, permanent: permanentStaffA, buffer: bufferStaffA, value: (oldXrayCell.value === permanentStaffA || oldXrayCell.value === bufferStaffA) ? oldXrayCell.value : permanentStaffA, isPair: true });
                         } else {
@@ -1380,6 +1910,7 @@
                             xraySequence.push({ isAutomated: true, permanent: permanentStaffA, buffer: bufferStaffA || null, value: onlyStaff, isPair: false });
                         }
                         
+                        // FOYER-OE (Post B)
                         if (isPairB) {
                              foyerOESequence.push({ isAutomated: true, permanent: permanentStaffB, buffer: bufferStaffB, value: (oldOECell.value === permanentStaffB || oldOECell.value === bufferStaffB) ? oldOECell.value : permanentStaffB, isPair: true });
                         } else {
@@ -1388,19 +1919,21 @@
                         }
                     }
 
-                    // --- 6-SLOT Vertical Prowler ---
+                    // --- 6-SLOT Vertical Prowler (Uses Foyer-OE Staff for rotation) ---
                     const existingProwlerData = newRosterGrid[VERTICAL_PROWLER_POSITION] || [];
                     const verticalProwlerSequence = [
                         foyerOESequence[0],  foyerOESequence[2], foyerOESequence[4], foyerOESequence[6], foyerOESequence[8], foyerOESequence[10]
                     ];
                     
+                    // Remove staff from Foyer-OE positions they are taking up
                     [0, 2, 4, 6, 8, 10].forEach(i => {
-                        foyerOESequence[i] = { ...foyerOESequence[i], value: UNFILLED_SLOT, isPair: false };
+                        foyerOESequence[i] = { ...foyerOESequence[i], value: UNFILLED_SLOT, isPair: false, permanent: UNFILLED_SLOT, buffer: null };
                     });
                     
                     newRosterGrid["XRAY-VISITOR"] = xraySequence;
                     newRosterGrid["FOYER-OE"] = foyerOESequence;
                     
+                    // Preserve Manual Edit for VP slot 2 (23:00) if it exists
                     const vpManualIndex = 2;
                     if (existingProwlerData[vpManualIndex] && !existingProwlerData[vpManualIndex].isAutomated) {
                         verticalProwlerSequence[vpManualIndex] = existingProwlerData[vpManualIndex];
@@ -1409,7 +1942,7 @@
                     newRosterGrid[VERTICAL_PROWLER_POSITION] = verticalProwlerSequence.map(cell => ({...cell, isAutomated: true})); 
 
 
-                    // --- 3. SECURITY CONTROL OFFICE ---
+                    // --- 4. SECURITY CONTROL OFFICE (Fixed all night) ---
                     let leaderIds = sequenceMap["TEAM LEADER (I/C)"];
                     if (!Array.isArray(leaderIds)) leaderIds = leaderIds ? [leaderIds] : [];
                     let icIds = sequenceMap["SECTION I/C"];
@@ -1440,16 +1973,23 @@
                         return { isAutomated: true, permanent: sectionIcId, buffer: bufferIc || null, value: onlyStaff, isPair: false };
                     });
                     
-                    // --- 4. APPLY LOCATION BUFFER OVERRIDES ---
+                    // --- 5. APPLY LOCATION BUFFER OVERRIDES (Overrides all previous logic) ---
                     if (locationBufferMap && Object.keys(locationBufferMap).length > 0) {
-                        Object.entries(locationBufferMap).forEach(([location, bufferId]) => {
+                        Object.entries(locationBufferMap).forEach(([bufferId, location]) => {
                              if (newRosterGrid[location]) {
                                  newRosterGrid[location] = newRosterGrid[location].map((cell, index) => {
                                      const permanentStaff = cell.permanent || (cell.value !== bufferId ? cell.value : UNFILLED_SLOT);
                                      
+                                     // This logic ensures the permanent staff is placed back on OE/STANDBY if their location is overridden
+                                     if (location === "OE/ STANDBY") {
+                                          return { ...cell, permanent: UNFILLED_SLOT, buffer: bufferId, isPair: false, value: bufferId, isAutomated: true };
+                                     }
+                                     
                                      if (permanentStaff !== UNFILLED_SLOT && permanentStaff !== "") {
-                                         return { ...cell, permanent: permanentStaff, buffer: bufferId, isPair: true, isAutomated: true, value: permanentStaff };
+                                         // Overriding location is a pair (permanent staff stays, buffer acts as dedicated support)
+                                         return { ...cell, permanent: permanentStaff, buffer: bufferId, isPair: true, value: permanentStaff };
                                      } else {
+                                         // Overriding location has no permanent staff, so buffer takes it solo
                                          return { ...cell, permanent: UNFILLED_SLOT, buffer: bufferId, isPair: false, value: bufferId, isAutomated: true };
                                      }
                                  });
@@ -1468,12 +2008,12 @@
                     }
                     
                     setIsDirty(false);
-                    setLoading(false);
+                    setIsGenerating(false); // Stop generating state
                     
                 } catch (err) {
                     console.error("Error generating roster:", err);
                     setError("Failed to generate roster. Check console for details.");
-                    setLoading(false);
+                    setIsGenerating(false); // Stop generating state on error
                 }
             };
             
@@ -1491,10 +2031,30 @@
                     ];
                     
                     allKeys.forEach(key => {
-                        if (!existingRows.includes(key) && key.startsWith("OE/ STANDBY-")) {
-                           delete cleanRosterData[key];
+                        // Check if a manual standby row is empty across all slots, and if so, delete it.
+                        if (key.startsWith("OE/ STANDBY-")) {
+                            const row = cleanRosterData[key];
+                            const isEmpty = row.every(cell => !cell.value || cell.value === UNFILLED_SLOT || cell.value === "");
+                            if (isEmpty) {
+                                delete cleanRosterData[key];
+                            }
                         }
                     });
+
+                    // CRITICAL: If Matrix Edit Mode was used, we need to ensure the automated flags are cleared
+                    if (isMatrixEditMode) {
+                         Object.keys(cleanRosterData).forEach(pos => {
+                             if (cleanRosterData[pos] && Array.isArray(cleanRosterData[pos])) {
+                                 cleanRosterData[pos] = cleanRosterData[pos].map(cell => ({
+                                     // Preserve the user's manual value and ensure automation is off
+                                     ...cell,
+                                     value: cell.value || UNFILLED_SLOT,
+                                     isAutomated: false,
+                                     isFixed: true // Mark as manually fixed data
+                                 }));
+                             }
+                         });
+                    }
 
                     const finalCleanData = sanitizeForFirestore(cleanRosterData);
 
@@ -1523,17 +2083,26 @@
                     const cell = newRoster[position][timeIndex];
                     const oldValue = cell.value;
                     
-                    newRoster[position][timeIndex] = { ...cell, value: newValue };
+                    // Mark cell as NOT automated if changed in Matrix Edit Mode or if it's a manual standby row
+                    newRoster[position][timeIndex] = { 
+                        ...cell, 
+                        value: newValue, 
+                        isAutomated: isMatrixEditMode ? false : (cell.isAutomated && (cell.isPair || cell.isFixed)) 
+                    };
                     
                     const permanentId = cell.permanent;
                     const bufferId = cell.buffer;
                     
-                    if (cell.isPair && newValue === bufferId && oldValue === permanentId) {
-                        placeDisplacedStaff(newRoster, permanentId, timeIndex);
-                    }
-                    
-                    if (cell.isPair && newValue === permanentId && oldValue === bufferId) {
-                        removeDisplacedStaff(newRoster, permanentId, timeIndex);
+                    // Logic for displacing staff when a pair is manually split (Only relevant if not in Matrix Edit Mode)
+                    if (!isMatrixEditMode && cell.isPair && permanentId && bufferId) {
+                        // Case 1: Perm staff is replaced by Buffer staff (Perm staff displaced)
+                        if (newValue === bufferId && oldValue === permanentId) {
+                            placeDisplacedStaff(newRoster, permanentId, timeIndex);
+                        }
+                        // Case 2: Buffer staff is replaced by Perm staff (Buffer staff was displaced, now returns)
+                        if (newValue === permanentId && oldValue === bufferId) {
+                            removeDisplacedStaff(newRoster, permanentId, timeIndex);
+                        }
                     }
 
                     return newRoster;
@@ -1542,6 +2111,7 @@
             };
             
             const placeDisplacedStaff = (roster, staffId, timeIndex) => {
+                // Find or create an OE/STANDBY slot for the displaced staff
                 const allRows = Object.keys(roster).filter(key => key.startsWith("OE/ STANDBY"));
                 allRows.sort((a, b) => {
                     if (a === "OE/ STANDBY") return -1;
@@ -1556,8 +2126,9 @@
                     if (row && row[timeIndex]) {
                         const cell = row[timeIndex];
                         if (!cell.value || cell.value === UNFILLED_SLOT || cell.value === "") {
+                            // OE/ STANDBY is the primary standby row, others are manual
                             if (rowName === "OE/ STANDBY") {
-                                roster[rowName][timeIndex] = { ...cell, value: staffId, isDisplaced: true };
+                                roster[rowName][timeIndex] = { ...cell, value: staffId, isDisplaced: true, isAutomated: cell.isAutomated };
                             } else {
                                 roster[rowName][timeIndex] = { value: staffId, isAutomated: false };
                             }
@@ -1566,8 +2137,9 @@
                     }
                 }
                 
+                // If no standby slot is available, create a new manual standby row
                 let nextNum = 2;
-                while (rosterData[`OE/ STANDBY-${nextNum}`]) {
+                while (roster[`OE/ STANDBY-${nextNum}`]) {
                     nextNum++;
                 }
                 const newRowName = `OE/ STANDBY-${nextNum}`;
@@ -1578,6 +2150,7 @@
             };
 
             const removeDisplacedStaff = (roster, staffId, timeIndex) => {
+                 // Remove staff ID from all OE/STANDBY rows for this time slot
                  const allRows = Object.keys(roster).filter(key => key.startsWith("OE/ STANDBY"));
                  
                  for (const rowName of allRows) {
@@ -1586,8 +2159,10 @@
                          const cell = row[timeIndex];
                          if (cell.value === staffId) {
                              if (rowName === "OE/ STANDBY") {
+                                // For the auto OE row, revert to permanent staff (or UNFILLED) if the displaced staff (which is the permanent staff) is the one returning.
                                 roster[rowName][timeIndex] = { ...cell, value: cell.permanent || UNFILLED_SLOT, isDisplaced: false };
                             } else {
+                                // For manual rows, just clear the cell
                                 roster[rowName][timeIndex] = { ...cell, value: "" };
                             }
                             return;
@@ -1610,6 +2185,9 @@
             };
             
             const handleAddStandbyRow = () => {
+                // CRITICAL FIX: Add check for rosterData existence
+                if (!rosterData) return;
+                
                 let nextNum = 2;
                 while (rosterData[`OE/ STANDBY-${nextNum}`]) {
                     nextNum++;
@@ -1624,7 +2202,10 @@
             };
 
             const handleRemoveStandbyRow = (rowName) => {
-                if (window.confirm(`Are you sure you want to remove the row "${rowName}"?`)) {
+                // Use a custom confirmation dialog replacement
+                const confirmDelete = window.confirm(`Are you sure you want to remove the row "${rowName}"? Any assignments in this row will be lost.`);
+                
+                if (confirmDelete) {
                     setRosterData(prevData => {
                         const newData = { ...prevData };
                         delete newData[rowName]; 
@@ -1635,8 +2216,16 @@
             };
             
             const renderTableBody = (positions) => {
+                // scheduledStaff and staffTypeMap are available from the parent RosterView component scope.
+                const scheduledStaffIds = scheduledStaff.map(s => s.id).sort();
+                
+                // CRITICAL FIX: Guard rendering inside renderTableBody as well
+                if (!rosterData || typeof rosterData !== 'object') {
+                    return (<tbody><tr><td colSpan={TIME_SLOTS.length + 1}>Roster data is not yet available.</td></tr></tbody>);
+                }
+
                 return (
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className={`bg-white divide-y divide-gray-200 ${isMatrixEditMode ? 'matrix-edit-active' : ''}`}>
                         {positions.map(pos => {
                             const isProwlerRow = pos.startsWith("PERIMETER PROWLER");
                             const isManualStandbyRow = pos.startsWith("OE/ STANDBY-");
@@ -1674,18 +2263,38 @@
                                         const value = cell.value;
                                         const isAutomated = cell.isAutomated;
                                         const isPair = cell.isPair;
+                                        const isFixed = cell.isFixed;
                                         
                                         const isMissing = isAutomated && value === UNFILLED_SLOT;
                                         const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
+                                        
+                                        // Determine if the cell content is a Buffer ID
+                                        const isBufferId = value && value !== UNFILLED_SLOT && staffTypeMap.get(value) === 'buffer';
 
-                                        const getCellClasses = () => {
+                                        const getCellClasses = (isSelect = false) => {
                                             let baseClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
+                                            
                                             if (isHighlighted) { return baseClasses + " highlight-cell"; }
                                             if (isMissing) { return baseClasses + " bg-yellow-100 text-yellow-800 font-bold"; }
+                                            
+                                            // 1. Apply buffer content style first if it's a buffer ID (highest visual priority after highlight)
+                                            if (isBufferId) { return baseClasses + " buffer-id-content"; }
+                                            
+                                            // 2. Fallback styles
                                             if (isManualStandbyRow) { return baseClasses + " bg-purple-50"; }
+                                            
+                                            if (isMatrixEditMode && isSelect) { 
+                                                // Matrix mode base style
+                                                return baseClasses + " bg-blue-100 text-gray-700";
+                                            }
+                                            
                                             if (isPair) {
+                                                // These classes also apply coloring, but buffer-id-content takes priority
                                                 if (value === cell.buffer) { return baseClasses + " dropdown-buffer"; }
                                                 return baseClasses + " dropdown-permanent";
+                                            }
+                                            if (isFixed) { // New style for Manual Fixed Mode
+                                                return baseClasses + " bg-indigo-100 text-indigo-700 font-bold";
                                             }
                                             if (isAutomated) {
                                                 return baseClasses + (isProwlerRow ? ' bg-gray-100 text-gray-700' : ' bg-gray-50 text-gray-700');
@@ -1693,6 +2302,28 @@
                                             return baseClasses + " bg-white";
                                         };
                                         
+                                        // --- MATRIX EDIT MODE (Dropdown in every cell) ---
+                                        if (isMatrixEditMode) {
+                                            // Get correct classes, which now includes buffer-id-content if applicable
+                                            const classes = getCellClasses(true); 
+                                            return (
+                                                <td key={time} className="p-0">
+                                                    <select
+                                                        value={value || ""}
+                                                        onChange={(e) => handleCellChange(pos, index, e.target.value)}
+                                                        onClick={() => handleCellClick(value)}
+                                                        className={classes}
+                                                    >
+                                                        <option value="">{UNFILLED_SLOT}</option>
+                                                        {scheduledStaffIds.map(id => (
+                                                            <option key={id} value={id}>{id}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                            );
+                                        }
+
+                                        // --- DEFAULT / AUTO MODE (Input/Select based on data type) ---
                                         if (isPair) {
                                             return (
                                                 <td key={time} className="p-0">
@@ -1701,6 +2332,7 @@
                                                         onChange={(e) => handleCellChange(pos, index, e.target.value)}
                                                         onClick={() => handleCellClick(value)}
                                                         className={getCellClasses()}
+                                                        disabled={isMatrixEditMode}
                                                     >
                                                         <option value={cell.permanent}>{cell.permanent}</option>
                                                         <option value={cell.buffer}>{cell.buffer}</option>
@@ -1718,7 +2350,7 @@
                                                     onClick={() => handleCellClick(value)}
                                                     className={getCellClasses()}
                                                     placeholder="ID"
-                                                    readOnly={isAutomated && !isManualStandbyRow}
+                                                    readOnly={isAutomated && !isManualStandbyRow && !isFixed}
                                                 />
                                             </td>
                                         );
@@ -1741,102 +2373,166 @@
                 </thead>
             );
 
-            const renderVerticalProwlerTable = (controlRoomStaff = []) => (
-                <div className="overflow-x-auto shadow-md rounded-lg border roster-section">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                            <tr>
-                                <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
-                                {VERTICAL_PROWLER_SLOTS.map(time => (
-                                    <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap vp-cell-fix">{time}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            <tr className="hover:bg-gray-50">
-                                <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{VERTICAL_PROWLER_POSITION}</td>
-                                {VERTICAL_PROWLER_SLOTS.map((time, index) => {
-                                    const cell = (rosterData[VERTICAL_PROWLER_POSITION] && rosterData[VERTICAL_PROWLER_POSITION][index]) ? rosterData[VERTICAL_PROWLER_POSITION][index] : { value: "", isAutomated: false };
-                                    const value = cell.value;
-                                    const isMissing = value === UNFILLED_SLOT;
-                                    const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
-                                    const isPair = cell.isPair;
-                                    const isAutomated = cell.isAutomated;
+            const renderVerticalProwlerTable = (controlRoomStaff = []) => {
+                 // scheduledStaff and staffTypeMap are available from the parent RosterView component scope.
+                 const scheduledStaffIds = scheduledStaff.map(s => s.id).sort();
 
-                                    let baseClasses = `w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center vp-cell-fix`;
-                                    
-                                    if (index === 2) { 
-                                        let selectClasses = baseClasses;
-                                        if (isHighlighted) { selectClasses += " highlight-cell"; } 
-                                        else if (isMissing) { selectClasses += " bg-yellow-100 text-yellow-800 font-bold"; } 
-                                        else { selectClasses += " bg-white"; }
+                 const getMatrixDropdown = (pos, index, value) => {
+                    // Determine if the cell content is a Buffer ID
+                    const isBufferId = value && value !== UNFILLED_SLOT && staffTypeMap.get(value) === 'buffer';
+
+                    let selectClasses = `w-full p-1 text-xs sm:text-sm border-0 border-r border-gray-200 cursor-pointer text-center vp-cell-fix`;
+                    
+                    // Priority check for buffer styling
+                    if (isBufferId) { 
+                        selectClasses += " buffer-id-content"; 
+                    } else { 
+                        // Fallback to generic matrix styling
+                        selectClasses += `${isMatrixEditMode ? 'bg-blue-100 text-gray-700 font-semibold' : 'bg-white'}`; 
+                    }
+                     
+                    return (
+                        <td key={VERTICAL_PROWLER_SLOTS[index]} className="p-0">
+                            <select
+                                value={value || ""}
+                                onChange={(e) => handleCellChange(pos, index, e.target.value)}
+                                onClick={() => handleCellClick(value)}
+                                className={selectClasses}
+                            >
+                                <option value="">{UNFILLED_SLOT}</option>
+                                {scheduledStaffIds.map(id => (
+                                    <option key={id} value={id}>{id}</option>
+                                ))}
+                            </select>
+                        </td>
+                     );
+                 };
+                 
+                // CRITICAL FIX: Guard rendering inside renderVerticalProwlerTable as well
+                 if (!rosterData || typeof rosterData !== 'object') {
+                     return (
+                         <div className="overflow-x-auto shadow-md rounded-lg border roster-section">
+                             <table className="min-w-full divide-y divide-gray-200">
+                                 {renderTableHeader(VERTICAL_PROWLER_SLOTS)}
+                                 <tbody><tr><td colSpan={VERTICAL_PROWLER_SLOTS.length + 1}>Roster data is not yet available.</td></tr></tbody>
+                             </table>
+                         </div>
+                     );
+                 }
+
+                return (
+                    <div className="overflow-x-auto shadow-md rounded-lg border roster-section">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                                    {VERTICAL_PROWLER_SLOTS.map(time => (
+                                        <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap vp-cell-fix">{time}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className={`bg-white divide-y divide-gray-200 ${isMatrixEditMode ? 'matrix-edit-active' : ''}`}>
+                                <tr className="hover:bg-gray-50">
+                                    <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{VERTICAL_PROWLER_POSITION}</td>
+                                    {VERTICAL_PROWLER_SLOTS.map((time, index) => {
+                                        const cell = (rosterData[VERTICAL_PROWLER_POSITION] && rosterData[VERTICAL_PROWLER_POSITION][index]) ? rosterData[VERTICAL_PROWLER_POSITION][index] : { value: "", isAutomated: false };
+                                        const value = cell.value;
+                                        
+                                        // NEW: Determine if the cell content is a Buffer ID
+                                        const isBufferId = value && value !== UNFILLED_SLOT && staffTypeMap.get(value) === 'buffer';
+
+                                        // If Matrix Edit Mode is on, render dropdown for ALL VP slots
+                                        if (isMatrixEditMode) {
+                                            return getMatrixDropdown(VERTICAL_PROWLER_POSITION, index, value);
+                                        }
+
+                                        // --- DEFAULT / AUTO MODE (Mixed inputs) ---
+                                        const isMissing = value === UNFILLED_SLOT;
+                                        const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
+                                        const isPair = cell.isPair;
+                                        const isAutomated = cell.isAutomated;
+
+                                        let baseClasses = `w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center vp-cell-fix`;
+                                        
+                                        if (index === 2) { 
+                                            // Slot 2 is still special for manual control room staff selection
+                                            let selectClasses = baseClasses;
+                                            if (isHighlighted) { selectClasses += " highlight-cell"; } 
+                                            else if (isMissing) { selectClasses += " bg-yellow-100 text-yellow-800 font-bold"; } 
+                                            else if (isBufferId) { selectClasses += " buffer-id-content"; }
+                                            else { selectClasses += " bg-white"; }
+                                            
+                                            return (
+                                                <td key={time} className="p-0">
+                                                    <select
+                                                        value={value}
+                                                        onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
+                                                        onClick={() => handleCellClick(value)}
+                                                        className={selectClasses}
+                                                        disabled={isMatrixEditMode}
+                                                    >
+                                                        <option value={UNFILLED_SLOT}>{UNFILLED_SLOT}</option>
+                                                        {[...new Set(controlRoomStaff)].map(id => (
+                                                            <option key={id} value={id}>{id}</option>
+                                                        ))}
+                                                        {value && value !== UNFILLED_SLOT && !controlRoomStaff.includes(value) && (
+                                                            <option key={value} value={value}>{value} (Old)</option>
+                                                        )}
+                                                    </select>
+                                                </td>
+                                            );
+                                        }
+                                        
+                                        if (isPair) {
+                                             let selectClasses = baseClasses;
+                                             if (isHighlighted) { selectClasses += " highlight-cell"; } 
+                                             else if (isBufferId) { selectClasses += " buffer-id-content"; } // Takes priority over pair classes
+                                             else {
+                                                if (value === cell.buffer) { selectClasses += " dropdown-buffer"; } 
+                                                else { selectClasses += " dropdown-permanent"; }
+                                            }
+                                            return (
+                                                <td key={time} className="p-0">
+                                                    <select
+                                                        value={value}
+                                                        onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
+                                                        onClick={() => handleCellClick(value)}
+                                                        className={selectClasses}
+                                                        disabled={isMatrixEditMode}
+                                                    >
+                                                        <option value={cell.permanent}>{cell.permanent}</option>
+                                                        <option value={cell.buffer}>{cell.buffer}</option>
+                                                    </select>
+                                                </td>
+                                            );
+                                        }
+
+                                        let inputClasses = baseClasses;
+                                        if (isHighlighted) { inputClasses += " highlight-cell"; } 
+                                        else if (isMissing) { inputClasses += " bg-yellow-100 text-yellow-800 font-bold"; } 
+                                        else if (isBufferId) { inputClasses += " buffer-id-content"; }
+                                        else { inputClasses += " bg-gray-50 text-gray-700"; }
                                         
                                         return (
                                             <td key={time} className="p-0">
-                                                <select
+                                                <input
+                                                    type="text"
                                                     value={value}
-                                                    onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
+                                                    onChange={(e) => handleCellChange(pos, index, e.target.value)}
                                                     onClick={() => handleCellClick(value)}
-                                                    className={selectClasses}
-                                                >
-                                                    <option value={UNFILLED_SLOT}>{UNFILLED_SLOT}</option>
-                                                    {[...new Set(controlRoomStaff)].map(id => (
-                                                        <option key={id} value={id}>{id}</option>
-                                                    ))}
-                                                    {value && value !== UNFILLED_SLOT && !controlRoomStaff.includes(value) && (
-                                                        <option key={value} value={value}>{value} (Old)</option>
-                                                    )}
-                                                </select>
+                                                    className={inputClasses}
+                                                    placeholder="ID"
+                                                    readOnly={isAutomated}
+                                                />
                                             </td>
                                         );
-                                    }
-                                    
-                                    if (isPair) {
-                                         let selectClasses = baseClasses;
-                                         if (isHighlighted) { selectClasses += " highlight-cell"; } 
-                                         else {
-                                            if (value === cell.buffer) { selectClasses += " dropdown-buffer"; } 
-                                            else { selectClasses += " dropdown-permanent"; }
-                                        }
-                                        return (
-                                            <td key={time} className="p-0">
-                                                <select
-                                                    value={value}
-                                                    onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
-                                                    onClick={() => handleCellClick(value)}
-                                                    className={selectClasses}
-                                                >
-                                                    <option value={cell.permanent}>{cell.permanent}</option>
-                                                    <option value={cell.buffer}>{cell.buffer}</option>
-                                                </select>
-                                            </td>
-                                        );
-                                    }
-
-                                    let inputClasses = baseClasses;
-                                    if (isHighlighted) { inputClasses += " highlight-cell"; } 
-                                    else if (isMissing) { inputClasses += " bg-yellow-100 text-yellow-800 font-bold"; } 
-                                    else { inputClasses += " bg-gray-50 text-gray-700"; }
-                                    
-                                    return (
-                                        <td key={time} className="p-0">
-                                            <input
-                                                type="text"
-                                                value={value}
-                                                onChange={(e) => handleCellChange(pos, index, e.target.value)}
-                                                onClick={() => handleCellClick(value)}
-                                                className={inputClasses}
-                                                placeholder="ID"
-                                                readOnly={isAutomated}
-                                            />
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            );
+                                    })}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            };
             
             const FocusButton = ({ label, view, icon }) => {
                 const isActive = focusView === view;
@@ -1859,6 +2555,37 @@
                     </button>
                 );
             };
+            
+            const handleToggleMatrix = () => {
+                // If switching INTO matrix mode, clear highlights
+                if (!isMatrixEditMode) {
+                    setHighlightedId(null);
+                }
+                setIsMatrixEditMode(prev => !prev);
+            };
+
+            // NEW: Logic to check if assignments are present and enable the Auto-Update button
+            const canGenerateRoster = useMemo(() => {
+                // Must be authenticated and not currently loading the core data
+                if (loading || isGenerating) return false;
+                
+                // Must have the assignment document loaded
+                if (!dailyAssignments) return false;
+                
+                // Must have at least one assigned slot in the sequenceMap to proceed
+                const sequenceMap = dailyAssignments.sequenceMap || {};
+                const hasAssignments = Object.values(sequenceMap).some(arr => Array.isArray(arr) && arr.length > 0);
+                
+                return hasAssignments;
+            }, [loading, isGenerating, dailyAssignments]);
+
+
+            // Determine button label dynamically
+            const generateButtonLabel = useMemo(() => {
+                if (isGenerating) return "Generating...";
+                if (rosterData) return "Update Roster";
+                return "Generate Roster";
+            }, [rosterData, isGenerating]);
 
 
             return (
@@ -1877,124 +2604,170 @@
                         </div>
                         <div className="flex space-x-2">
                             <button
+                                onClick={handleToggleMatrix}
+                                className={`py-2 px-4 rounded-md font-medium text-white shadow-md transition-colors`}
+                                style={{ backgroundColor: isMatrixEditMode ? '#DC2626' : '#2563EB' }}
+                                disabled={loading || !rosterData}
+                            >
+                                {isMatrixEditMode ? "Exit Matrix Edit" : "Matrix Edit Mode"}
+                            </button>
+                            
+                            <button
                                 onClick={handlePrint}
                                 disabled={loading || !rosterData}
-                                className="py-2 px-4 bg-purple-600 text-white rounded-md shadow-md font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className="py-2 px-4 bg-purple-600 text-white rounded-md shadow-md font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed print-hidden"
                             >
-                                Print Roster (Horizontal)
+                                Print Roster
                             </button>
-                            
+
                             <button
-                                onClick={() => {
-                                    if(window.confirm("Warning: This will wipe all manual edits in the roster grid.\n\nYour 'Daily Assignment Setup' assignments will be PRESERVED and used to regenerate the grid.\n\nContinue?")) {
-                                        handleGenerateRoster(true);
-                                    }
-                                }}
-                                disabled={loading || !dailyAssignments}
-                                className="py-2 px-4 bg-red-600 text-white rounded-md shadow-md font-medium hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            >
-                                Reset Grid to Setup
-                            </button>
-                            
-                            <button
-                                onClick={() => handleGenerateRoster(false)}
-                                disabled={loading || !dailyAssignments}
-                                title={!dailyAssignments ? "Please complete daily assignments first" : "Generate Roster (Keeps manual edits)"}
-                                className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                            >
-                                {rosterData ? "Update (Keep Edits)" : "Generate Roster"}
-                            </button>
-                            
-                             <button
                                 onClick={handleSaveChanges}
                                 disabled={loading || !isDirty}
-                                className="py-2 px-4 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                                className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700 disabled:bg-gray-400 print-hidden"
                             >
                                 {loading ? "Saving..." : "Save Changes"}
                             </button>
                         </div>
                     </div>
                     
+                    {/* Error, Dirty, Loading messages */}
                     {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">
                         {error}
                         <p className="text-sm mt-1">Note: Print View will still attempt to render data even with minor load errors.</p>
                     </div>}
                     {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4 mx-2 sm:mx-0 unsaved-changes">You have unsaved changes.</div>}
+                    {loading && !rosterData && <div className="text-center p-8">Loading Roster and Assignments...</div>}
 
-                    {loading && !rosterData && <div className="text-center p-8">Loading...</div>}
-                    
-                    {!loading && !rosterData && (
-                        <div className="text-center p-8 bg-gray-50 rounded-md">
-                            <h3 className="text-xl font-medium text-gray-700">No roster generated for {selectedDate}.</h3>
-                            <p className="text-gray-500 mt-2">Go to "Staff & Roster Setup" to configure the day, then click "Generate Roster".</p>
+
+                    {/* --- FOCUS BUTTONS AND GENERATE BUTTON - MOVED OUTSIDE rosterData check --- */}
+                    <div className="space-y-6 p-2 sm:p-0">
+                        {/* Focus/Generate Button Row */}
+                        <div className="flex space-x-2 p-2 sm:p-0 bg-gray-100 sm:bg-transparent rounded-lg focus-buttons">
+                            <FocusButton label="Show All" view="all" icon="all" />
+                            <FocusButton label="SCR" view="security" icon="security" />
+                            <FocusButton label="Foyer" view="foyer" icon="foyer" />
+                            <FocusButton label="Sentry" view="sentry" icon="sentry" />
+                            
+                            {!isMatrixEditMode && (
+                                <button
+                                    onClick={() => handleGenerateRoster(false)}
+                                    title={canGenerateRoster ? `Click to ${generateButtonLabel} using assignments from Setup tab` : "Requires saved assignments (Setup tab)"}
+                                    disabled={!canGenerateRoster || isGenerating} 
+                                    className="py-2 px-4 bg-gray-200 text-gray-700 rounded-md shadow-md font-medium hover:bg-gray-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    {generateButtonLabel}
+                                </button>
+                            )}
                         </div>
-                    )}
-
-                    {rosterData && (
-                        <div className="space-y-6 p-2 sm:p-0">
                         
-                            <div className="flex space-x-2 p-2 sm:p-0 bg-gray-100 sm:bg-transparent rounded-lg focus-buttons">
-                                <FocusButton label="Show All" view="all" icon="all" />
-                                <FocusButton label="SCR" view="security" icon="security" />
-                                <FocusButton label="Foyer" view="foyer" icon="foyer" />
-                                <FocusButton label="Sentry" view="sentry" icon="sentry" />
+                        {/* Warning/Loading Messages Related to Generation */}
+                        {!loading && !canGenerateRoster && (
+                            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 mx-2 sm:mx-0 font-medium">
+                                <p>Cannot **{generateButtonLabel}**:</p>
+                                <p className="text-sm">Please go to **Staff & Roster Setup** tab, make sure staff are scheduled, and set their primary assignments, then save the assignments.</p>
                             </div>
-                            
-                            <h2 className="text-xl font-bold mb-4 text-center hidden print:block">DAILY ROSTER - {selectedDate}</h2>
+                        )}
                         
-                            {(focusView === 'all' || focusView === 'security') && (
-                                <div className={`roster-section ${focusView !== 'all' ? 'border-t border-gray-300 pt-4' : ''}`}>
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Security Control Office</h3>
-                                    <div className="overflow-x-auto shadow-md rounded-lg border">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            {renderTableHeader()}
-                                            {renderTableBody(SECURITY_POSITIONS)}
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
+                        {isGenerating && (
+                            <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 mb-4 mx-2 sm:mx-0 font-medium animate-pulse">
+                                Roster generation in progress...
+                            </div>
+                        )}
+                        
+                        {/* Tooltip for Matrix Mode */}
+                        {isMatrixEditMode && (
+                            <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-4 mb-4 mx-2 sm:mx-0">
+                                <p className="font-bold">Matrix Edit Mode Active:</p>
+                                <p className="text-sm">Every cell is a direct dropdown for assignment. Use "Save Changes" after editing.</p>
+                            </div>
+                        )}
+                        
+                        {/* --- ROSTER TABLES - Rendered if rosterData exists, else show placeholder --- */}
+                        {rosterData ? (
+                            <div className="space-y-6 p-2 sm:p-0"> 
+                                <h2 className="text-xl font-bold mb-4 text-center hidden print:block">DAILY ROSTER - {selectedDate}</h2>
                             
-                             {(focusView === 'all' || focusView === 'foyer') && (
-                                <div className="border-t border-gray-300 pt-6 space-y-4 roster-section">
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Foyer Deployment</h3>
-                                    <div className="overflow-x-auto shadow-md rounded-lg border">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            {renderTableHeader()}
-                                            {renderTableBody(FOYER_POSITIONS)}
-                                        </table>
+                                {(focusView === 'all' || focusView === 'security') && (
+                                    <div className={`roster-section ${focusView !== 'all' ? 'border-t border-gray-300 pt-4' : ''}`}>
+                                        <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Security Control Office</h3>
+                                        <div className="overflow-x-auto shadow-md rounded-lg border">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                {renderTableHeader()}
+                                                {renderTableBody(SECURITY_POSITIONS)}
+                                            </table>
+                                        </div>
                                     </div>
-                                    
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Vertical Prowler</h3>
-                                    {(() => {
-                                        const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0]?.value || "").trim();
-                                        const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0]?.value || "").trim();
-                                        const controlRoomStaff = [...new Set([teamLeaderId, sectionIcId].filter(id => id && id !== UNFILLED_SLOT && id !== ""))];
-                                        
-                                        return renderVerticalProwlerTable(controlRoomStaff);
-                                    })()}
-                                </div>
-                             )}
+                                )}
+                                
+                                 {(focusView === 'all' || focusView === 'foyer') && (
+                                    <div className="border-t border-gray-300 pt-6 space-y-4 roster-section">
+                                        <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Vertical Prowler</h3>
+                                        {(() => {
+                                            const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0]?.value || "").trim();
+                                            const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0]?.value || "").trim();
+                                            const controlRoomStaff = [...new Set([teamLeaderId, sectionIcId].filter(id => id && id !== UNFILLED_SLOT && id !== ""))];
+                                            
+                                            return renderVerticalProwlerTable(controlRoomStaff);
+                                        })()}
+                                    </div>
+                                 )}
 
-                             {(focusView === 'all' || focusView === 'sentry') && (
-                                <div className="border-t border-gray-300 pt-6 roster-section">
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Sentry Deployment / Patrol Duties</h3>
-                                    <div className="overflow-x-auto shadow-md rounded-lg border">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            {renderTableHeader()}
-                                            {renderTableBody(sentryRowsToRender)}
-                                        </table>
+                                 {(focusView === 'all' || focusView === 'sentry') && (
+                                    <div className="border-t border-gray-300 pt-6 roster-section">
+                                        <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Sentry Deployment / Patrol Duties</h3>
+                                        <div className="overflow-x-auto shadow-md rounded-lg border">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                {renderTableHeader()}
+                                                {renderTableBody(sentryRowsToRender)}
+                                            </table>
+                                        </div>
                                     </div>
+                                )}
+                            </div>
+                        ) : (
+                            // Placeholder when no roster data is loaded
+                            !loading && (
+                                <div className="text-center p-8 border rounded-lg bg-gray-50 mt-4">
+                                    <p className="text-lg font-semibold text-gray-700">No Roster Data Found for {selectedDate}.</p>
+                                    <p className="text-sm text-gray-500 mt-2">Use the **Generate Roster** button above after setting up assignments in the Setup tab.</p>
                                 </div>
-                            )}
-                        </div>
-                    )}
+                            )
+                        )}
+                    </div>
                 </div>
             );
         }
 
-        // --- Attach App to DOM ---
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // --- CRITICAL: Delay React Render until Firebase is ready ---
+        
+        let attempts = 0;
+        const maxAttempts = 20; // Try for up to 2 seconds
+        
+        function tryRenderApp() {
+            if (window.firebase && window.firebase.db && window.firebase.auth) {
+                // Firebase is ready, proceed to render
+                try {
+                    const root = ReactDOM.createRoot(document.getElementById('root'));
+                    root.render(React.createElement(App)); // Use React.createElement to prevent Babel interpretation issues during delayed render
+                } catch (e) {
+                    console.error("React Render Failed:", e);
+                    // Display a visible error message if React crashes during initial render
+                    document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red; background: #fee2e2; border: 1px solid #f87171; text-align: center;">FATAL ERROR: Failed to start the Roster Application. Check console for details.</div>';
+                }
+            } else if (attempts < maxAttempts) {
+                // Not ready yet, try again soon
+                attempts++;
+                setTimeout(tryRenderApp, 100);
+            } else {
+                // Timeout
+                console.error("FATAL ERROR: Firebase SDK did not initialize within the expected time.");
+                document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red; background: #fee2e2; border: 1px solid #f87171; text-align: center;">FATAL ERROR: Application timeout. Firebase SDK failed to initialize. Please try again.</div>';
+            }
+        }
+        
+        // Start the render attempt process on window load
+        window.onload = tryRenderApp;
+
     </script>
 </body>
 </html>
