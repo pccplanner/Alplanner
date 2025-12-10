@@ -1213,15 +1213,26 @@
         async function handleTlOcAction(didApprove) {
             const docRef = doc(shiftRequestsCollection, currentRequestId);
             const tlOcComments = document.getElementById('tl-oc-CommentsInput') ? document.getElementById('tl-oc-CommentsInput').value : "";
+            
+            // Generate timestamp for the message immediately
+            const completionTime = new Date().toLocaleString('en-SG', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short',
+                timeZone: 'Asia/Singapore'
+            });
 
             try {
+                const baseUrl = getBaseUrl();
+                const link = baseUrl ? `${baseUrl}?requestId=${currentRequestId}` : "Link unavailable";
+                let whatsAppMessage = "";
+                
                 if (didApprove) {
                     const { requesterId, colleagueId, shiftDate, requesterNewShift, colleagueNewShift } = currentRequestData;
                     
                     const requesterRosterRef = doc(rosterCollection, requesterId);
                     const colleagueRosterRef = doc(rosterCollection, colleagueId);
                     
-                    // CHANGED: Update backend with [shift] format (standard text to avoid HTML corruption)
+                    // Update backend with [shift] format
                     const requesterShiftWithMark = `[${requesterNewShift}]`;
                     const colleagueShiftWithMark = `[${colleagueNewShift}]`;
                     
@@ -1234,28 +1245,28 @@
                         tlOcSignatureTimestamp: serverTimestamp()
                     });
                     
+                    whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${shiftDate} has been APPROVED by TL/OC. Process completed at ${completionTime}. View details:`;
+
                 } else {
                     await updateDoc(docRef, {
                         status: 'rejected_tl_oc',
                         tlOcComments: tlOcComments,
                         tlOcSignatureTimestamp: serverTimestamp()
                     });
+                    
+                     whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${currentRequestData.shiftDate} has been REJECTED by TL/OC. Process completed at ${completionTime}. View details:`;
                 }
 
-                const baseUrl = getBaseUrl();
-                const link = baseUrl ? `${baseUrl}?requestId=${currentRequestId}` : "Link unavailable (APP_URL not set)";
-                
                 showMessage(
                     didApprove ? "Request Approved!" : "Request Rejected",
-                    didApprove ? `The request has been approved and the roster has been updated automatically with brackets [ ].` : `The request has been rejected. The roster was not changed.`,
+                    didApprove ? `The request has been approved and the roster updated. Please notify the requester.` : `The request has been rejected. Please notify the requester.`,
                     link, 
-                    null, 
-                    null,
-                    "Request Finalized"
+                    whatsAppMessage, 
+                    "Notify Requester",
+                    "Final Step: Notify Requester"
                 );
 
-            } catch (error)
-                {
+            } catch (error) {
                 console.error("Error finalizing request: ", error);
             }
         }
