@@ -804,6 +804,7 @@
                             <div id="manage-dropdown" class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl z-50 hidden border border-gray-200 divide-y divide-gray-100">
                                 <button id="manage-labels-btn" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 transition duration-150">Manage Labels & Shifts</button>
                                 <button id="manage-teams-btn" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 transition duration-150">Manage Teams</button>
+                                <button id="manage-staff-btn" class="w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-100 transition duration-150">Edit Staff Profiles</button>
                             </div>
                         </div>
                         
@@ -907,8 +908,16 @@
                         <label for="modal-employee-role-input" class="block text-sm font-medium text-gray-700">Role</label>
                         <select id="modal-employee-role-input" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="member">Member</option>
-                            <option value="assistant">Assistant</option>
+                            <option value="Section I/C">Section I/C (Assistant)</option>
                             <option value="leader">Team Leader</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="modal-employee-star-input" class="block text-sm font-medium text-gray-700">Star Display</label>
+                        <select id="modal-employee-star-input" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="none">None</option>
+                            <option value="yellow">Yellow Star (Section I/C)</option>
+                            <option value="blue">Big Blue Star (Team Leader)</option>
                         </select>
                     </div>
                 </div>
@@ -1101,7 +1110,38 @@
         </div>
     </div>
 
-    <!-- Manage Teams Modal -->
+    <!-- 
+    <!-- Edit Staff Profiles Modal -->
+    <div id="manage-staff-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Edit Staff Profiles</h2>
+                <button id="close-manage-staff-modal" class="text-gray-500 hover:text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Select a staff below to edit their <strong>Name</strong>, <strong>User ID</strong>, and <strong>Star Rank</strong>.
+            </p>
+            <div class="border rounded-lg overflow-hidden">
+                <div class="grid grid-cols-12 bg-gray-50 text-xs font-semibold text-gray-600 px-3 py-2">
+                    <div class="col-span-3">Name</div>
+                    <div class="col-span-2">User ID</div>
+                    <div class="col-span-2">Team</div>
+                    <div class="col-span-2">Role</div>
+                    <div class="col-span-2">Star</div>
+                    <div class="col-span-1 text-right">Edit</div>
+                </div>
+                <div id="manage-staff-list" class="max-h-96 overflow-y-auto text-sm divide-y divide-gray-100">
+                    <!-- Staff rows will be rendered here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+Manage Teams Modal -->
     <div id="manage-teams-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 modal-fade-in">
              <div class="flex justify-between items-center mb-4">
@@ -1374,7 +1414,8 @@
             deleteLabelError, labelListUl,
             teamFilterBtn, teamFilterDropdown, teamFilterList, selectAllTeamsCheckbox,
             manageMenuBtn, manageDropdown,
-            modalEmployeeRoleInput,
+            modalEmployeeRoleInput, modalEmployeeStarInput,
+            manageStaffBtn, manageStaffModal, manageStaffList, closeManageStaffModalBtn,
             nameFilterBtn, nameFilterDropdown, nameFilterSearch, nameFilterList,
             selectAllNamesBtn, unselectAllNamesBtn,
             editLabelModal, closeEditLabelModalBtn, editLabelForm, editLabelKey, 
@@ -1431,10 +1472,16 @@
             return cell;
         }
 
+        function getStarSortValue(emp) {
+            if (emp.star === 'blue') return 1;      // Team Leader (I/C)
+            if (emp.star === 'yellow') return 2;    // Section I/C (Assistant)
+            return 3;                               // Normal
+        }
+
         function getRoleSortValue(role) {
             switch (role) {
                 case 'leader': return 1;
-                case 'assistant': return 2;
+                case 'Section I/C': return 2;
                 default: return 3;
             }
         }
@@ -1442,7 +1489,7 @@
         function getRoleDisplayName(role) {
             switch (role) {
                 case 'leader': return 'Team Leader';
-                case 'assistant': return 'Assistant';
+                case 'Section I/C': return 'Section I/C (Assistant)';
                 default: return 'Member';
             }
         }
@@ -1534,9 +1581,18 @@
                 const teamAName = teamsMap.get(a.team_id)?.name || 'Unassigned';
                 const teamBName = teamsMap.get(b.team_id)?.name || 'Unassigned';
                 if (teamAName !== teamBName) return teamAName.localeCompare(teamBName);
+
+                // First: sort by STAR priority
+                const starA = getStarSortValue(a);
+                const starB = getStarSortValue(b);
+                if (starA !== starB) return starA - starB;
+
+                // Then: sort by ROLE (leader / Section I/C / member)
                 const roleAValue = getRoleSortValue(a.role);
                 const roleBValue = getRoleSortValue(b.role);
                 if (roleAValue !== roleBValue) return roleAValue - roleBValue;
+
+                // Finally: by name
                 return (a.name || '').localeCompare(b.name || '');
             });
 
@@ -1908,10 +1964,28 @@
                 
                 // Name Cell
                 let roleIcon = '';
-                if (emp.role === 'leader') {
-                    roleIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor" title="Team Leader"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>';
-                } else if (emp.role === 'assistant') {
-                    roleIcon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" title="Assistant"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>';
+                if (emp.star === 'blue') {
+                    // Team Leader (I/C) – BIG BLUE STAR
+                    roleIcon = `
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-7 w-7 text-blue-500"
+                             viewBox="0 0 20 20"
+                             fill="currentColor"
+                             title="Team Leader (I/C)">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    `;
+                } else if (emp.star === 'yellow') {
+                    // Section I/C (Assistant) – standard size YELLOW STAR
+                    roleIcon = `
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-5 w-5 text-yellow-400"
+                             viewBox="0 0 20 20"
+                             fill="currentColor"
+                             title="Section I/C (Assistant)">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    `;
                 }
                 const nameCell = document.createElement('div');
                 nameCell.className = 'employee-row text-sm p-3 border-b border-gray-200 text-gray-700 font-medium flex justify-between items-center min-w-[150px] sm:min-w-[200px]';
@@ -2170,10 +2244,12 @@
                 modalEmployeeNameInput.value = emp.name;
                 modalEmployeeIdInput.value = emp.emp_id || '';
                 modalEmployeeRoleInput.value = emp.role || 'member';
+                modalEmployeeStarInput.value = emp.star || 'none';
             } else {
                 modalEmployeeNameInput.value = empName;
                 modalEmployeeIdInput.value = '';
                 modalEmployeeRoleInput.value = 'member';
+                modalEmployeeStarInput.value = 'none';
             }
             saveDetailsStatus.textContent = '';
             
@@ -2197,6 +2273,7 @@
             const newName = modalEmployeeNameInput.value.trim();
             const newEmpId = modalEmployeeIdInput.value.trim();
             const newRole = modalEmployeeRoleInput.value;
+            const newStar = modalEmployeeStarInput.value;
             
             if (!newName || !currentEmployeeId) return;
 
@@ -2207,7 +2284,8 @@
                 await updateDoc(empDocRef, { 
                     name: newName,
                     emp_id: newEmpId,
-                    role: newRole 
+                    role: newRole,
+                    star: newStar 
                 });
                 saveDetailsStatus.textContent = 'Saved!';
                 renderRoster();
@@ -2769,7 +2847,103 @@
             manageLabelsModal.classList.remove('hidden');
         }
         
-        function closeAddLabelModal() { 
+        
+        function renderManageStaffList() {
+            if (!manageStaffList) return;
+            manageStaffList.innerHTML = '';
+
+            const sorted = [...employeeData].sort((a, b) => {
+                const teamAName = teamsMap.get(a.team_id)?.name || 'Unassigned';
+                const teamBName = teamsMap.get(b.team_id)?.name || 'Unassigned';
+                if (teamAName !== teamBName) return teamAName.localeCompare(teamBName);
+
+                const starA = getStarSortValue(a);
+                const starB = getStarSortValue(b);
+                if (starA !== starB) return starA - starB;
+
+                const roleA = getRoleSortValue(a.role);
+                const roleB = getRoleSortValue(b.role);
+                if (roleA !== roleB) return roleA - roleB;
+
+                return (a.name || '').localeCompare(b.name || '');
+            });
+
+            let lastTeamName = null;
+
+            sorted.forEach(emp => {
+                const teamName = teamsMap.get(emp.team_id)?.name || 'Unassigned';
+
+                // Insert a team header row whenever the team changes
+                if (teamName !== lastTeamName) {
+                    lastTeamName = teamName;
+
+                    const headerRow = document.createElement('div');
+                    headerRow.className = 'px-3 py-2 bg-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide';
+                    headerRow.textContent = teamName;
+                    manageStaffList.appendChild(headerRow);
+                }
+
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 items-center px-3 py-2 hover:bg-gray-50 text-gray-700';
+
+                const roleName = getRoleDisplayName(emp.role);
+                const starLabel = emp.star === 'blue' ? 'Big Blue Star' :
+                                  emp.star === 'yellow' ? 'Yellow Star' : 'None';
+
+                row.innerHTML = `
+                    <div class="col-span-3 truncate" title="${emp.name || ''}">${emp.name || ''}</div>
+                    <div class="col-span-2 truncate">${emp.emp_id || ''}</div>
+                    <div class="col-span-2 truncate">${teamName}</div>
+                    <div class="col-span-2 truncate">${roleName}</div>
+                    <div class="col-span-2 truncate">${starLabel}</div>
+                    <div class="col-span-1 text-right">
+                        <button class="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 edit-staff-btn" data-emp-id="${emp.id || ''}">
+                            Edit
+                        </button>
+                    </div>
+                `;
+
+                manageStaffList.appendChild(row);
+            });
+
+            // Attach click handlers for edit buttons
+            manageStaffList.querySelectorAll('.edit-staff-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const empId = e.currentTarget.dataset.empId;
+                    const emp = employeeData.find(x => x.id === empId);
+                    if (!emp) return;
+
+                    currentEmployeeId = empId;
+                    modalEmployeeNameInput.value = emp.name || '';
+                    modalEmployeeIdInput.value = emp.emp_id || '';
+                    modalEmployeeRoleInput.value = emp.role || 'member';
+                    modalEmployeeStarInput.value = emp.star || 'none';
+                    saveDetailsStatus.textContent = '';
+
+                    // We open the same details modal (no date context needed)
+                    modalDate.textContent = 'Edit Staff Profile';
+
+                    // Close the staff list modal so only one modal is visible at a time
+                    manageStaffModal.classList.add('hidden');
+
+                    // Show the main shift/details modal
+                    modal.classList.remove('hidden');
+                });
+            });
+        }
+
+        function openManageStaffModal() {
+            // Ensure the shift/details modal is closed first
+            closeModal();
+            renderManageStaffList();
+            manageStaffModal.classList.remove('hidden');
+        }
+
+        function closeManageStaffModal() {
+            manageStaffModal.classList.add('hidden');
+        }
+
+function closeAddLabelModal() { 
             manageLabelsModal.classList.add('hidden');
             manageDropdown.classList.add('hidden');
         }
@@ -3081,7 +3255,7 @@
             
             const employees = [
                 { id: '25013575', emp_id: '11997', name: 'SGT (APF) DAHLIA SHAFIQ', team_id: teamIDs.alpha, role: 'leader' }, 
-                { id: '25001375', emp_id: '11977', name: 'SGT (APF) CHEW WAI HOO', team_id: teamIDs.alpha, role: 'assistant' },
+                { id: '25001375', emp_id: '11977', name: 'SGT (APF) CHEW WAI HOO', team_id: teamIDs.alpha, role: 'Section I/C' },
                 { id: '25001153', emp_id: '33748', name: 'CPL (APF) RAVILO VEERASAMY', team_id: teamIDs.alpha }, 
                 { id: '25010549', emp_id: '119566', name: 'CPL (APF) LUA YIEN SIA', team_id: teamIDs.alpha },
                 { id: '25010533', emp_id: '12140', name: 'CPL (APF) ISYARIYAN YAZID', team_id: teamIDs.alpha }, 
@@ -3330,6 +3504,10 @@
             setAutoShiftBtn.addEventListener('click', () => selectShift('AUTO'));
             saveDetailsBtn.addEventListener('click', handleSaveEmployeeDetails);
 
+            
+            manageStaffBtn.addEventListener('click', openManageStaffModal);
+            closeManageStaffModalBtn.addEventListener('click', closeManageStaffModal);
+            manageStaffModal.addEventListener('click', (e) => { if (e.target === manageStaffModal) closeManageStaffModal(); });
             manageLabelsBtn.addEventListener('click', openAddLabelModal);
             closeLabelsModalBtn.addEventListener('click', closeAddLabelModal);
             addLabelForm.addEventListener('submit', handleAddLabel);
@@ -3549,6 +3727,11 @@
             manageMenuBtn = document.getElementById('manage-menu-btn');
             manageDropdown = document.getElementById('manage-dropdown');
             modalEmployeeRoleInput = document.getElementById('modal-employee-role-input');
+            modalEmployeeStarInput = document.getElementById('modal-employee-star-input');
+            manageStaffBtn = document.getElementById('manage-staff-btn');
+            manageStaffModal = document.getElementById('manage-staff-modal');
+            manageStaffList = document.getElementById('manage-staff-list');
+            closeManageStaffModalBtn = document.getElementById('close-manage-staff-modal');
             nameFilterBtn = document.getElementById('name-filter-btn');
             nameFilterDropdown = document.getElementById('name-filter-dropdown');
             nameFilterSearch = document.getElementById('name-filter-search');
