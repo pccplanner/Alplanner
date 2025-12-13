@@ -388,11 +388,33 @@
     <div id="leaveFreezePanel" class="p-4" style="display: none;">
       <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Freeze Management</h2>
       <div class="mb-6 max-w-md mx-auto">
-        <h4 class="text-lg font-medium text-gray-800 mb-2">Add Freeze Date</h4>
-        <form id="add-freeze-date-form" class="flex space-x-2">
-            <input type="date" id="freeze-date-input" class="flex-1 block w-full rounded-lg border-gray-300 shadow-sm" required>
-            <button type="submit" class="px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">Add Date</button>
-        </form>
+        <h4 class="text-lg font-medium text-gray-800 mb-2">Add Freeze Range</h4>
+        <form id="add-freeze-date-form" class="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+  <div class="sm:col-span-1">
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+    <input type="date" id="freeze-start-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
+  </div>
+
+  <div class="sm:col-span-1">
+    <label class="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+    <input type="date" id="freeze-end-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm">
+  </div>
+
+  <div class="sm:col-span-1">
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+    <select id="freeze-type-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
+      <option value="Event">Event</option>
+      <option value="Festive">Festive</option>
+    </select>
+  </div>
+
+  <div class="sm:col-span-1">
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
+    <input type="text" id="freeze-reason-input" class="block w-full rounded-lg border-gray-300 shadow-sm" placeholder="e.g., Deepavali / Training Day">
+  </div>
+
+  <button type="submit" class="sm:col-span-1 px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">Add Range</button>
+</form>
       </div>
       
       <div class="max-w-md mx-auto">
@@ -604,6 +626,7 @@
     var teamIdToDelete = null; 
     var openAccordions = new Set();
     var leaveFreezeDates = new Set(); // NEW
+    var leaveFreezeMeta = new Map(); // NEW: date -> {type, reason}
     var requestIdToDelete = null; // NEW: For user delete modal
     let leaveRequestsUnsubscriber = null;
     let usersUnsubscriber = null;
@@ -686,7 +709,10 @@
     // NEW: Leave Freeze DOMs
     const leaveFreezePanel = document.getElementById('leaveFreezePanel');
     const addFreezeDateForm = document.getElementById('add-freeze-date-form');
-    const freezeDateInput = document.getElementById('freeze-date-input');
+    const freezeStartDateInput = document.getElementById('freeze-start-date-input');
+    const freezeEndDateInput = document.getElementById('freeze-end-date-input');
+    const freezeTypeInput = document.getElementById('freeze-type-input');
+    const freezeReasonInput = document.getElementById('freeze-reason-input');
     const freezeDateList = document.getElementById('freeze-date-list');
     const freezeConfirmModal = document.getElementById('freezeConfirmModal');
     const freezeCancelBtn = document.getElementById('freezeCancelBtn');
@@ -1029,8 +1055,10 @@
       leaveFreezeUnsubscriber = onSnapshot(freezeQuery, (snapshot) => {
           console.log("Leave freeze dates updated:", snapshot.size, "dates");
           leaveFreezeDates.clear();
+          leaveFreezeMeta.clear();
           snapshot.forEach(doc => {
               leaveFreezeDates.add(doc.id); // The doc ID is the "YYYY-MM-DD" string
+              leaveFreezeMeta.set(doc.id, doc.data() || {});
           });
           
           if (userType === "admin" && document.getElementById("leaveFreezePanel").style.display === "block") {
@@ -1082,7 +1110,16 @@
             return `${parts[2]}-${parts[1]}-${parts[0]}`; // dd-mm-yyyy
         }
         return yyyyMmDd; // fallback
-    }
+    
+
+    function escapeHTML(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }}
     
     function getShift(d) {
       if (!selectedTeamId) {
@@ -2265,7 +2302,17 @@
             const li = document.createElement('li');
             li.className = 'flex justify-between items-center p-3';
             li.innerHTML = `
-                <span class="font-medium">${displayFormatDate(dateStr)}</span>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span class="font-medium">${displayFormatDate(dateStr)}</span>
+                  ${(() => {
+                      const meta = leaveFreezeMeta.get(dateStr) || {};
+                      const t = meta.type || '';
+                      const r = meta.reason || '';
+                      const badge = t ? `<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">${escapeHTML(t)}</span>` : '';
+                      const reason = r ? `<span class="text-xs text-gray-500">${escapeHTML(r)}</span>` : '';
+                      return badge + reason;
+                  })()}
+                </div>
                 <button class="remove-freeze-date-btn text-red-500 hover:text-red-700 text-xs font-semibold" data-date="${dateStr}">
                   Remove
                 </button>
@@ -2289,23 +2336,67 @@
 
     addFreezeDateForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const dateStr = freezeDateInput.value;
-        if (!dateStr) {
-            return showAlert("Please select a date.");
+
+        const startStr = (freezeStartDateInput?.value || '').trim();
+        let endStr = (freezeEndDateInput?.value || '').trim();
+
+        if (!startStr) {
+            return showAlert("Please select a start date.");
+        }
+        if (!endStr) endStr = startStr; // allow single-day range
+
+        if (endStr < startStr) {
+            return showAlert("End date cannot be earlier than start date.");
         }
 
-        if (leaveFreezeDates.has(dateStr)) {
-            return showAlert("This date is already frozen.");
+        // Build inclusive date list (YYYY-MM-DD)
+        const startDate = new Date(startStr + 'T00:00:00');
+        const endDate = new Date(endStr + 'T00:00:00');
+
+        const batch = writeBatch(db);
+        let added = 0;
+        let skipped = 0;
+        const newlyAdded = [];
+
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const iso = formatDate(d);
+            if (leaveFreezeDates.has(iso)) {
+                skipped++;
+                continue;
+            }
+            batch.set(doc(db, leaveFreezeCollectionPath, iso), {
+                frozen: true,
+                type: (freezeTypeInput?.value || 'Event'),
+                reason: (freezeReasonInput?.value || '').trim(),
+                addedAt: new Date().toISOString(),
+                addedBy: (auth.currentUser?.email || '')
+            });
+            added++;
+            newlyAdded.push(iso);
+        }
+
+        if (added === 0) {
+            return showAlert(skipped > 0 ? "All selected dates are already frozen." : "No dates selected.");
         }
 
         try {
-            // Set doc with the date string as the ID
-            await setDoc(doc(db, leaveFreezeCollectionPath, dateStr), { frozen: true });
-            showAlert("Leave freeze date added.", false);
+            await batch.commit();
+            // Immediate UI update (don't wait for snapshot round-trip)
+            newlyAdded.forEach(iso => {
+                leaveFreezeDates.add(iso);
+                leaveFreezeMeta.set(iso, {
+                    frozen: true,
+                    type: (freezeTypeInput?.value || 'Event'),
+                    reason: (freezeReasonInput?.value || '').trim()
+                });
+            });
+            if (userType === "admin") { renderLeaveFreezeList(); }
+            renderCalendar();
+            showAlert(`Freeze added: ${added} date(s)${skipped ? ` (skipped ${skipped} already frozen)` : ""}.`, false);
             addFreezeDateForm.reset();
         } catch (err) {
-            console.error("Error adding freeze date:", err);
-            showAlert("Error adding date: " + err.message);
+            console.error("Error adding freeze range:", err);
+            showAlert("Error adding freeze range: " + err.message);
         }
     });
 
@@ -2480,4 +2571,3 @@
   </script>
 </body>
 </html>
-
