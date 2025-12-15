@@ -142,18 +142,14 @@
   </div>
   
   <!-- Main Container (hidden until login) -->
-  <!-- 
-    FIX: Added `self-stretch` to make this container fill the height of the flex-parent (body).
-    This ensures the white background covers the full vertical space on mobile.
-  -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v13.0</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v13.5</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
     
-    <!-- TABS: Visible to all, but buttons inside are conditional (UPDATED) -->
+    <!-- TABS -->
     <div id="mainTabs" class="mb-4">
       <nav class="flex space-x-2 overflow-x-auto whitespace-nowrap pb-2">
         <button onclick="showMyProfile()" class="main-nav-button">My Profile</button>
@@ -163,10 +159,12 @@
         <button id="tab-team-mgmt" onclick="showTeamManagement()" class="main-nav-button" style="display: none;">Team Management</button>
         <!-- NEW: Leave Freeze Tab -->
         <button id="tab-leave-freeze" onclick="showLeaveFreeze()" class="main-nav-button" style="display: none;">Leave Freeze</button>
+        <!-- NEW: Staff History Tab -->
+        <button id="tab-staff-history" onclick="showStaffHistory()" class="main-nav-button" style="display: none;">Staff History</button>
       </nav>
     </div>
     
-    <!-- NEW: My Profile Panel (All Users) -->
+    <!-- My Profile Panel (All Users) -->
     <div id="myProfilePanel" class="p-4" style="display: none;">
         <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">My Profile & Leave Balances</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -250,13 +248,12 @@
             <select id="leaveType" class="w-full px-3 py-1.5 border rounded-md" required>
                 <option value="Annual Leave">Annual Leave</option>
                 <option value="Public Holiday">Public Holiday</option>
-                <!-- "Sick Leave" option removed -->
             </select>
         </div>
         <button type="submit" class="md:col-span-4 bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition-colors">Submit Leave Request</button>
       </form>
       
-      <!-- NEW: Calendar View Toggle -->
+      <!-- Calendar View Toggle -->
       <div class="flex justify-center items-center mb-4 p-2 bg-white rounded-lg border shadow-sm max-w-lg mx-auto">
           <span class="text-sm font-medium text-gray-700 mr-4 whitespace-nowrap">Calendar View:</span>
           <div id="viewToggle" class="flex p-1 rounded-full bg-gray-200 w-full max-w-xs">
@@ -269,7 +266,7 @@
           </div>
       </div>
       
-      <!-- *** TEAM BUTTONS: Now color-coded *** -->
+      <!-- Team Buttons -->
       <div id="team-buttons" class="team-buttons text-center my-3 space-x-2">
         <!-- Buttons populated by JS -->
       </div>
@@ -309,12 +306,11 @@
       </div>
     </div>
     
-    <!-- NEW: Leave Balance Report Panel (Admin Only) -->
+    <!-- Leave Balance Report Panel (Admin Only) -->
     <div id="leaveBalancePanel" class="p-4" style="display: none;">
       <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Balance Report</h2>
       <div class="overflow-x-auto">
         <table id="leaveBalanceTable" class="min-w-full bg-white border rounded-lg">
-          <!-- UPDATED: Creative Header -->
           <thead>
             <tr class="bg-gray-100">
               <th rowspan="2" class="p-3 text-left font-semibold text-gray-700 align-middle border-b border-gray-200">Staff</th>
@@ -384,37 +380,37 @@
       </div>
     </div>
 
-    <!-- NEW: Leave Freeze Panel (Admin Only) -->
+    <!-- Leave Freeze Panel (Admin Only) -->
     <div id="leaveFreezePanel" class="p-4" style="display: none;">
       <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Leave Freeze Management</h2>
       <div class="mb-6 max-w-md mx-auto">
         <h4 class="text-lg font-medium text-gray-800 mb-2">Add Freeze Range</h4>
         <form id="add-freeze-date-form" class="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
-  <div class="sm:col-span-1">
-    <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
-    <input type="date" id="freeze-start-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
-  </div>
+          <div class="sm:col-span-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+            <input type="date" id="freeze-start-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
+          </div>
 
-  <div class="sm:col-span-1">
-    <label class="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
-    <input type="date" id="freeze-end-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm">
-  </div>
+          <div class="sm:col-span-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+            <input type="date" id="freeze-end-date-input" class="block w-full rounded-lg border-gray-300 shadow-sm">
+          </div>
 
-  <div class="sm:col-span-1">
-    <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
-    <select id="freeze-type-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
-      <option value="Event">Event</option>
-      <option value="Festive">Festive</option>
-    </select>
-  </div>
+          <div class="sm:col-span-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+            <select id="freeze-type-input" class="block w-full rounded-lg border-gray-300 shadow-sm" required>
+              <option value="Event">Event</option>
+              <option value="Festive">Festive</option>
+            </select>
+          </div>
 
-  <div class="sm:col-span-1">
-    <label class="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
-    <input type="text" id="freeze-reason-input" class="block w-full rounded-lg border-gray-300 shadow-sm" placeholder="e.g., Deepavali / Training Day">
-  </div>
+          <div class="sm:col-span-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
+            <input type="text" id="freeze-reason-input" class="block w-full rounded-lg border-gray-300 shadow-sm" placeholder="e.g., Deepavali / Training Day">
+          </div>
 
-  <button type="submit" class="sm:col-span-1 px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">Add Range</button>
-</form>
+          <button type="submit" class="sm:col-span-1 px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">Add Range</button>
+        </form>
       </div>
       
       <div class="max-w-md mx-auto">
@@ -425,6 +421,59 @@
       </div>
     </div>
     
+    <!-- NEW: Staff History Panel (Admin Only) -->
+    <div id="staffHistoryPanel" class="p-4" style="display: none;">
+      <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Staff Leave History</h2>
+      <div class="max-w-5xl mx-auto bg-white p-6 rounded-lg border shadow-sm">
+        
+<div class="mb-6 space-y-3">
+            <label class="block text-sm font-bold text-gray-700">Select Staff & Date Range</label>
+
+            <div class="flex flex-col md:flex-row gap-2">
+                <select id="historyStaffSelect" class="w-full md:w-1/2 p-2 border rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 bg-gray-50">
+                    <option value="">-- Select a Staff Member --</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">From</label>
+                    <input type="date" id="historyFromDate" class="block w-full rounded-lg border-gray-300 shadow-sm" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">To</label>
+                    <input type="date" id="historyToDate" class="block w-full rounded-lg border-gray-300 shadow-sm" />
+                </div>
+                <button id="historyGenerateBtn" type="button" class="px-5 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Generate
+                </button>
+                <button id="historyDownloadBtn" type="button" class="px-5 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Download PDF
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-500">1) Select a staff member. 2) Pick a date range. 3) Click <b>Generate</b> to view history.</p>
+        </div>
+
+        <div class="overflow-hidden border rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-32">Leave Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-40">Date Range</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider w-20">Days</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider w-32">Status Overview</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Details</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody" class="bg-white divide-y divide-gray-200 text-sm">
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above to view their history.</td></tr>
+                </tbody>
+            </table>
+        </div>
+      </div>
+    </div>
+
     <div class="footer text-center text-xs text-gray-500 mt-6">
       @ 2025; t’va (Leave/Roster)
     </div>
@@ -438,9 +487,7 @@
     </div>
   </div>
   
-  <!-- Team Management Modals -->
-  
-  <!-- Edit Team (Visual Pattern Builder) Modal -->
+  <!-- Edit Team Modal -->
   <div id="edit-team-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-start z-50 hidden p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl modal-fade-in">
         <div class="flex justify-between items-center mb-4">
@@ -509,7 +556,7 @@
       </div>
   </div>
 
-  <!-- NEW: Leave Freeze Confirmation Modal -->
+  <!-- Leave Freeze Confirmation Modal -->
   <div id="freezeConfirmModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-[60] hidden">
       <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 modal-fade-in">
           <h3 class="text-xl font-semibold text-yellow-700">Leave Freeze Warning</h3>
@@ -521,7 +568,7 @@
       </div>
   </div>
 
-  <!-- NEW: User Delete Confirmation Modal -->
+  <!-- User Delete Confirmation Modal -->
   <div id="userDeleteConfirmModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-[60] hidden">
       <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 modal-fade-in">
           <h3 class="text-xl font-semibold text-red-700">Confirm Deletion</h3>
@@ -570,7 +617,6 @@
     const defaultPattern = ['1', '1', '2', '2', 'OFF', 'OFF'];
     const patternAnchorDate = '2025-01-01'; // Default anchor date
     
-    // *** NEW: Color list for teams ***
     const teamColorPalette = [
         { dot: 'bg-blue-500', btn: 'bg-blue-100 text-blue-700', selected: 'bg-blue-500 text-white' },
         { dot: 'bg-green-500', btn: 'bg-green-100 text-green-700', selected: 'bg-green-500 text-white' },
@@ -611,7 +657,7 @@
     let leaveRequestsCollectionPath;
     let usersCollectionPath;
     let teamsCollectionPath; 
-    let leaveFreezeCollectionPath; // NEW
+    let leaveFreezeCollectionPath; 
 
     // --- Global State Variables ---
     let selectedTeamId = null; 
@@ -625,23 +671,20 @@
     var tempPatternArray = []; 
     var teamIdToDelete = null; 
     var openAccordions = new Set();
-    var leaveFreezeDates = new Set(); // NEW
-    var leaveFreezeMeta = new Map(); // NEW: date -> {type, reason}
-    var requestIdToDelete = null; // NEW: For user delete modal
+    var leaveFreezeDates = new Set();
+    var leaveFreezeMeta = new Map();
+    var requestIdToDelete = null; 
     let leaveRequestsUnsubscriber = null;
     let usersUnsubscriber = null;
     let teamsUnsubscriber = null; 
-    let leaveFreezeUnsubscriber = null; // NEW
-    var calendarViewMode = 'personal'; // NEW: 'personal' or 'master'
+    let leaveFreezeUnsubscriber = null; 
+    var calendarViewMode = 'personal'; 
 
-    // --- MODIFICATION: Removed 'Sick Leave' ---
     const leaveTypeCodes = {
         'Annual Leave': 'AL',
         'Public Holiday': 'PH'
-        // 'Leave' is not in here, which is fine
     };
 
-    // Shift colors from original planner
     const shiftCodesMap = {
         '1':    { text: '1',    color: 'bg-green-600', textColor: 'text-white' },         // Morning (dark green)
         '2':    { text: '2',    color: 'bg-green-400', textColor: 'text-gray-800' },      // Night (light green)
@@ -653,8 +696,6 @@
         'PCT':  { text: 'PCT',  color: 'bg-orange-200', textColor: 'text-orange-800' },
         'BCLS': { text: 'BCLS', color: 'bg-red-200', textColor: 'text-red-800' },
         '_EMPTY': { text: '',   color: 'bg-gray-50', textColor: 'text-gray-400' },
-        
-        // --- MODIFICATION: Removed 'SL' ---
         'AL':   { text: 'AL',   color: 'bg-blue-500', textColor: 'text-white' },
         'PH':   { text: 'PH',   color: 'bg-purple-500', textColor: 'text-white' }
     };
@@ -692,7 +733,7 @@
     const deleteTeamModalName = document.getElementById('delete-team-modal-name');
     const deleteTeamWarning = document.getElementById('delete-team-warning');
     
-    // NEW: Profile Panel DOMs
+    // Profile Panel DOMs
     const profileLeaveForm = document.getElementById('profileLeaveForm');
     const profileSaveStatus = document.getElementById('profileSaveStatus');
     const profileName = document.getElementById('profileName');
@@ -706,7 +747,7 @@
     const profileUsedPH = document.getElementById('profileUsedPH');
     const profileBalancePH = document.getElementById('profileBalancePH');
 
-    // NEW: Leave Freeze DOMs
+    // Leave Freeze DOMs
     const leaveFreezePanel = document.getElementById('leaveFreezePanel');
     const addFreezeDateForm = document.getElementById('add-freeze-date-form');
     const freezeStartDateInput = document.getElementById('freeze-start-date-input');
@@ -718,18 +759,25 @@
     const freezeCancelBtn = document.getElementById('freezeCancelBtn');
     const freezeProceedBtn = document.getElementById('freezeProceedBtn');
 
-    // NEW: User Delete Modal DOMs
+    // User Delete Modal DOMs
     const userDeleteConfirmModal = document.getElementById('userDeleteConfirmModal');
     const userDeleteRequestInfo = document.getElementById('user-delete-request-info');
     const cancelUserDeleteBtn = document.getElementById('cancel-user-delete-btn');
     const confirmUserDeleteBtn = document.getElementById('confirm-user-delete-btn');
 
-    // NEW: Calendar View Toggle DOMs
+    // Calendar View Toggle DOMs
     const personalViewBtn = document.getElementById('personalViewBtn');
     const masterViewBtn = document.getElementById('masterViewBtn');
+    
+    // NEW: Staff History DOMs
+    const historyStaffSelect = document.getElementById('historyStaffSelect');
+    const historyFromDate = document.getElementById('historyFromDate');
+    const historyToDate = document.getElementById('historyToDate');
+    const historyGenerateBtn = document.getElementById('historyGenerateBtn');
+    const historyDownloadBtn = document.getElementById('historyDownloadBtn');
+    const historyTableBody = document.getElementById('historyTableBody');
 
-
-    // --- Utility Functions ---
+// --- Utility Functions ---
     function showAlert(message, isError = true) {
       const alertBox = document.getElementById("customAlert");
       const alertMessage = document.getElementById("customAlertMessage");
@@ -765,12 +813,12 @@
       usersCollectionPath = `/artifacts/${appId}/public/data/users`;
       leaveRequestsCollectionPath = `/artifacts/${appId}/public/data/leaveRequests`;
       teamsCollectionPath = `/artifacts/${appId}/public/data/teams`; 
-      leaveFreezeCollectionPath = `/artifacts/${appId}/public/data/leaveFreezeDates`; // NEW
+      leaveFreezeCollectionPath = `/artifacts/${appId}/public/data/leaveFreezeDates`; 
 
       console.log("Using Users Collection:", usersCollectionPath);
       console.log("Using Leave Requests Collection:", leaveRequestsCollectionPath);
       console.log("Using Teams Collection:", teamsCollectionPath); 
-      console.log("Using Leave Freeze Collection:", leaveFreezeCollectionPath); // NEW
+      console.log("Using Leave Freeze Collection:", leaveFreezeCollectionPath); 
 
       initializeAuth();
 
@@ -799,11 +847,10 @@
           
           sortedTeams.sort((a, b) => a.name.localeCompare(b.name));
           
-          // *** NEW: Assign colors to teams ***
+          // Assign colors to teams
           let colorIndex = 0;
           sortedTeams.forEach(team => {
               const teamData = teamsMap.get(team.docId);
-              // *** UPDATED: Assign the whole color set object ***
               teamData.colorSet = teamColorPalette[colorIndex % teamColorPalette.length];
               colorIndex++;
           });
@@ -816,6 +863,10 @@
           if (currentUserProfile) {
               populateTeamButtons();
               renderMyProfile(); // Re-render profile if team name changes
+              if (userType === "admin") {
+                  renderUserManagement(); // Re-render admin user table to show updated team names
+                  renderLeaveBalanceReport(); // Re-render balance report
+              }
           }
           
       }, (error) => {
@@ -945,7 +996,6 @@
       const mobile = document.getElementById("regMobile").value.trim(); 
       const adminSecret = document.getElementById("regAdminSecret").value.trim();
       
-      // NEW: Get leave balances
       const annualLeave = parseFloat(document.getElementById("regAnnualLeave").value) || 0;
       const publicHoliday = parseFloat(document.getElementById("regPublicHoliday").value) || 0;
 
@@ -1003,12 +1053,11 @@
     });
 
     
-    // --- NEW: Date Picker Setup & Sync ---
+    // --- Date Picker Setup & Sync ---
     function setupDateAutoFill() {
         const startInput = document.getElementById("startDate");
         const endInput = document.getElementById("endDate");
 
-        // Helper to get local date string (YYYY-MM-DD)
         const getTodayStr = () => {
             const d = new Date();
             const year = d.getFullYear();
@@ -1017,19 +1066,14 @@
             return `${year}-${month}-${day}`;
         };
 
-        // 1. Set "From" date to Today by default
         if (!startInput.value) {
             startInput.value = getTodayStr();
         }
 
-        // 2. Add Listener: When "From" changes, update "To"
-        // This ensures the "To" calendar opens in the same month/year
-        // We check if a listener is already attached to avoid duplicates if re-run
         if (!startInput.dataset.listenerAttached) {
             startInput.addEventListener('change', function() {
                 if (this.value) {
                     endInput.value = this.value;
-                    // Optional: Prevent selecting an End Date earlier than Start Date
                     endInput.min = this.value; 
                 }
             });
@@ -1044,7 +1088,8 @@
       document.getElementById("tab-leave-balances").style.display = isAdmin ? "block" : "none";
       document.getElementById("tab-user-mgmt").style.display = isAdmin ? "block" : "none";
       document.getElementById("tab-team-mgmt").style.display = isAdmin ? "block" : "none";
-      document.getElementById("tab-leave-freeze").style.display = isAdmin ? "block" : "none"; // NEW
+      document.getElementById("tab-leave-freeze").style.display = isAdmin ? "block" : "none";
+      document.getElementById("tab-staff-history").style.display = isAdmin ? "block" : "none"; // NEW
       document.getElementById("monthlySummary").style.display = isAdmin ? "block" : "none";
       
       // Set leave form readonly state
@@ -1060,15 +1105,14 @@
       setupDateAutoFill();
     }
     
-    // --- Firestore Data Listeners (MODIFIED) ---
+    // --- Firestore Data Listeners ---
     
     function attachDataListeners() {
       if (leaveRequestsUnsubscriber) leaveRequestsUnsubscriber();
       if (usersUnsubscriber) usersUnsubscriber();
       if (leaveFreezeUnsubscriber) leaveFreezeUnsubscriber(); 
       
-      // *** MODIFICATION: FETCH ALL LEAVE REQUESTS FOR ALL AUTHENTICATED USERS ***
-      // This allows the user to switch between personal and master view client-side.
+      // Fetch ALL leave requests for filtered views
       let q = collection(db, leaveRequestsCollectionPath);
       
       leaveRequestsUnsubscriber = onSnapshot(q, (snapshot) => {
@@ -1078,8 +1122,14 @@
         // Re-render components that depend on requests
         renderCalendar(); 
         renderMyProfile(); // Update balance calculation
-        if (userType === "admin" && document.getElementById("leaveBalancePanel").style.display === "block") {
-            renderLeaveBalanceReport(); // Update admin report
+        if (userType === "admin") {
+            if (document.getElementById("leaveBalancePanel").style.display === "block") {
+                renderLeaveBalanceReport(); 
+            }
+            // NEW: If History panel is open and staff selected, refresh table
+            if (document.getElementById("staffHistoryPanel").style.display === "block" && historyStaffSelect.value) {
+                updateHistoryTable(historyStaffSelect.value);
+            }
         }
         
       }, (error) => {
@@ -1087,7 +1137,7 @@
         showAlert("Error loading leave requests.");
       });
 
-      // --- NEW: Leave Freeze Listener (for all users) ---
+      // Leave Freeze Listener
       const freezeQuery = collection(db, leaveFreezeCollectionPath);
       leaveFreezeUnsubscriber = onSnapshot(freezeQuery, (snapshot) => {
           console.log("Leave freeze dates updated:", snapshot.size, "dates");
@@ -1107,7 +1157,6 @@
           console.error("Error listening to leave freeze dates:", error);
           showAlert("Error loading leave freeze dates.");
       });
-      // --- END NEW ---
       
       if (userType === "admin") {
         const usersQuery = collection(db, usersCollectionPath);
@@ -1115,14 +1164,13 @@
           console.log("Users snapshot received:", snapshot.size, "docs");
           allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           
-          // Re-render components that depend on allUsers
           if (document.getElementById("userManagementPanel").style.display === "block") {
             renderUserManagement(); 
           }
           if (document.getElementById("leaveBalancePanel").style.display === "block") {
-            renderLeaveBalanceReport(); // Update admin report
+            renderLeaveBalanceReport(); 
           }
-          renderCalendar(); // Rerender in case of team color/name change
+          renderCalendar(); 
           
         }, (error) => {
           console.error("Error listening to users:", error);
@@ -1196,7 +1244,6 @@
             const button = document.createElement("button");
             const colorSet = team.colorSet || teamColorPalette[0]; // Fallback color
             
-            // *** UPDATED: Set class based on selection ***
             const isSelected = team.docId === selectedTeamId;
             const buttonClasses = isSelected ? colorSet.selected : colorSet.btn;
             
@@ -1207,7 +1254,6 @@
             teamButtonsContainer.appendChild(button);
         });
         
-        // Re-apply selection in case teamsMap updated
         if (selectedTeamId) {
             selectTeam(selectedTeamId);
         }
@@ -1222,20 +1268,16 @@
           currentMonth = new Date().getMonth();
       }
         
-      // --- Step 1: Filter requests based on current view mode ---
       const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
       const isPersonalView = calendarViewMode === 'personal';
 
       const renderRequests = requests.filter(req => {
           if (userType === 'admin') {
-              // Admin sees everything regardless of view mode (though we maintain the toggle state)
               return true;
           }
           if (isPersonalView) {
-              // Personal view: only show the current user's requests
               return req.userId === currentUserId;
           } else {
-              // Master view: show everything
               return true;
           }
       });
@@ -1270,13 +1312,12 @@
         const cell = document.createElement("div");
         cell.className = "day-cell bg-white border border-gray-200 rounded-md min-h-[70px] p-1 text-xs relative";
         
-        // --- Find Approved Leave (AL/PH) to override shift ---
+        // Find Approved Leave (AL/PH) to override shift
         let approvedLeaveReq = null;
         
         renderRequests.forEach(req => { // <-- Use renderRequests here
             const dayData = req.days.find(day => day.date === dateStr && (day.status === "Approved" || day.status === "Write-in"));
             if(dayData) {
-                // MODIFICATION: Only track AL and PH for calendar override
                 if (req.leaveType === 'Annual Leave' || req.leaveType === 'Public Holiday') {
                     approvedLeaveReq = req;
                 }
@@ -1311,7 +1352,7 @@
         
         cell.appendChild(shiftBox);
         
-        // --- Find *all* entries for the list ---
+        // Find *all* entries for the list
         const dayEntries = [];
         renderRequests.forEach(req => { // <-- Use renderRequests here
           const dayData = req.days.find(day => day.date === dateStr);
@@ -1324,7 +1365,6 @@
           }
         });
         
-        // *** MODIFICATION: New Quota Logic ***
         const approvedCount = dayEntries.filter(e => e.status === "Approved" || e.status === "Write-in").length;
         const pendingCount = dayEntries.filter(e => e.status === "Pending").length;
 
@@ -1335,9 +1375,8 @@
             // Show SOLID YELLOW dot for pending leaves
             cell.appendChild(document.createElement("div")).className = "w-2 h-2 bg-yellow-400 rounded-full absolute top-1 right-1";
         }
-        // *** END MODIFICATION ***
 
-        // *** NEW: Leave Freeze Highlighter ***
+        // Leave Freeze Highlighter
         if (leaveFreezeDates.has(dateStr)) {
             cell.classList.add("bg-stripes"); // Add striped background
             // Add lock icon
@@ -1347,8 +1386,6 @@
             cell.appendChild(lockIcon);
         }
         
-        
-        // *** MODIFICATION: Show ALL entries regardless of status ***
         dayEntries.forEach(e => {
           // The CSS class will handle the color
           const entry = document.createElement("div");
@@ -1405,12 +1442,10 @@
       const adminSummaryEl = document.getElementById("adminSummary");
       adminList.innerHTML = "";
 
-      // --- NEW: Toggle visibility and filter based on view mode for non-admins ---
       const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
       let listRequests = requests; 
       
       if (userType === "user" && calendarViewMode === 'master') {
-          // User in Master View: Hide the summary list as it's for status tracking/management
           adminSummaryEl.style.display = "none";
           return;
       } else {
@@ -1418,7 +1453,6 @@
       }
 
       if (userType === "user") {
-          // User in Personal View: filter down to just their own requests.
           listRequests = listRequests.filter(req => req.userId === currentUserId);
       } else { 
           // Admin View: filter by date (keep original admin date filter)
@@ -1432,7 +1466,6 @@
             });
           });
       }
-      // --- END NEW: Filtering/Visibility ---
       
       if (listRequests.length === 0) {
         adminList.innerHTML = `<div class="text-gray-500 text-center p-4">No leave requests found.</div>`;
@@ -1478,7 +1511,6 @@
           </div>
           <div class="accordion-content p-3 bg-white" data-group-id="${groupID}" style="display: none;">
             ${group.requests.sort((a,b) => new Date(b.fromDate) - new Date(a.fromDate)).map((req) => {
-              // *** NEW: Check if request is pending ***
               const isPending = req.days.every(d => d.status === 'Pending');
               
               return `
@@ -1505,7 +1537,7 @@
                 <div class="action-buttons text-right mt-2 space-x-2">
                   ${userType === "admin" ? `<button class="delete-request-btn bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600" data-request-id="${req.id}">Delete Req</button>` : ""}
                   
-                  <!-- NEW: User Delete Button -->
+                  <!-- User Delete Button -->
                   ${userType === "user" && isPending ? `
                     <button class="user-delete-request-btn bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600" 
                             data-request-id="${req.id}" 
@@ -1566,14 +1598,12 @@
       adminList.querySelectorAll(".delete-request-btn").forEach(btn => {
         btn.onclick = async function() {
           const requestId = btn.getAttribute("data-request-id");
-          // Reusing the user delete modal logic
           requestIdToDelete = requestId;
           userDeleteRequestInfo.textContent = "Admin action: Deleting this request permanently.";
           userDeleteConfirmModal.classList.remove('hidden');
         };
       });
 
-      // *** NEW: Add listener for user delete button ***
       adminList.querySelectorAll(".user-delete-request-btn").forEach(btn => {
         btn.onclick = function() {
           requestIdToDelete = btn.getAttribute("data-request-id");
@@ -1622,11 +1652,8 @@
       });
     }
     
-    // --- Leave Form Submission (MODIFIED) ---
-    
-    // Refactored submission logic into its own function
+    // --- Leave Form Submission ---
     async function submitLeaveRequest(status, daysArray, name, id, start, end, leaveType) {
-        // Map days to the correct final status
         const finalDaysArray = daysArray.map(day => ({ date: day.date, status: status }));
 
         try {
@@ -1637,18 +1664,16 @@
             fromDate: start, // yyyy-mm-dd
             toDate: end,     // yyyy-mm-dd
             leaveType: leaveType,
-            days: finalDaysArray // Use the array with the correct status
+            days: finalDaysArray 
             });
             showAlert(status === 'Write-in' ? "Request submitted as Write-in." : "Leave request submitted successfully.", false);
-            document.getElementById("leaveForm").reset(); // Reset whole form
-            setupDateAutoFill(); // Re-sets "From" to Today after submission
+            document.getElementById("leaveForm").reset(); 
+            setupDateAutoFill(); 
             
-            // Repopulate user fields
             if(userType === 'user') {
                 document.getElementById("staffName").value = currentUserProfile.username;
                 document.getElementById("staffID").value = currentUserProfile.staffID;
             }
-            // Repopulate default leave type
             document.getElementById("leaveType").value = "Annual Leave"; 
             
         } catch (error) {
@@ -1688,7 +1713,7 @@
         return showAlert("No valid days in range.");
       }
 
-      // NEW: Check for frozen dates
+      // Check for frozen dates
       const frozenDaysFound = daysArray.some(day => leaveFreezeDates.has(day.date));
 
       if (frozenDaysFound) {
@@ -1721,25 +1746,21 @@
       summaryTableBody.innerHTML = "";
       const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
       
-      // NEW: Group by Staff ID *and* Leave Type
+      // Group by Staff ID *and* Leave Type
       const allDaysByStaffAndType = {};
       
       requests.forEach(req => {
         const staffID = req.staffID;
         const staffName = req.staffName;
-        const leaveType = req.leaveType; // Get raw value
+        const leaveType = req.leaveType; 
         
-        // *** MODIFICATION: Filter out non-AL/PH leaves from summary ***
-        // We only want 'Annual Leave', 'Public Holiday', or UNDEFINED (legacy 'Leave')
         if (leaveType && leaveType !== 'Annual Leave' && leaveType !== 'Public Holiday') {
-            // This will skip 'Sick Leave' or any other defined, unwanted type
-            return; // Skip this request
+            return; 
         }
         
-        // If we are here, leaveType is 'Annual Leave', 'Public Holiday', or falsey (e.g., undefined, null, "")
-        const displayLeaveType = leaveType || 'Leave'; // Use 'Leave' for legacy requests
+        const displayLeaveType = leaveType || 'Leave'; 
 
-        const key = `${staffID}::${displayLeaveType}`; // Key will be '...::Leave' or '...::Annual Leave'
+        const key = `${staffID}::${displayLeaveType}`; 
         
         if (!allDaysByStaffAndType[key]) {
           allDaysByStaffAndType[key] = { staffName, staffID, leaveType: displayLeaveType, days: {} };
@@ -1793,8 +1814,7 @@
         
         const totalDays = dayEntries.length;
         
-        // *** MODIFICATION: Handle 'Leave' type for the tag ***
-        const leaveCode = leaveTypeCodes[group.leaveType]; // This will be undefined for 'Leave'
+        const leaveCode = leaveTypeCodes[group.leaveType]; 
         const shiftInfo = shiftCodesMap[leaveCode] || { 
             text: (group.leaveType === 'Leave' ? 'LEAVE' : (group.leaveType || '??').substring(0, 3)), 
             color: 'bg-gray-500', 
@@ -1848,25 +1868,20 @@
       rows.forEach((row) => {
         const cells = row.querySelectorAll("td");
         if (cells.length === 3) {
-          // Clean up staff name text by removing the inner span
           const staffName = cells[0].cloneNode(true);
           staffName.querySelector('span')?.remove();
           
-          // *** MODIFICATION: Re-format dates for PDF ***
           const dateRanges = [];
           cells[1].querySelectorAll('.range-block').forEach(div => {
-              // Get text, trim whitespace
               let text = div.innerText.trim(); 
               dateRanges.push(text);
           });
-          // Join with a newline character for the PDF
           const formattedDates = dateRanges.join("\n");
-          // *** END MODIFICATION ***
           
           bodyData.push([
-            staffName.innerText.trim(), // Staff & Leave Type (now cleaned)
-            formattedDates, // Use the new formatted string
-            cells[2].innerText.trim() // Days
+            staffName.innerText.trim(), 
+            formattedDates, 
+            cells[2].innerText.trim() 
           ]);
         }
       });
@@ -1984,7 +1999,7 @@
     }
     
     
-    // --- Team Management Functions (from Roster) ---
+    // --- Team Management Functions ---
     
     window.openManageTeamsModal = () => {
         deleteTeamError.textContent = '';
@@ -2165,7 +2180,6 @@
         deleteTeamConfirmModal.classList.add('hidden');
     }
 
-    // Add listeners for new modals
     closeEditTeamModalBtn.addEventListener('click', closeEditTeamModal);
     editTeamModal.addEventListener('click', (e) => { if (e.target === editTeamModal) closeEditTeamModal(); });
     editTeamPatternLength.addEventListener('change', renderVisualPatternCells);
@@ -2178,11 +2192,8 @@
     deleteTeamConfirmModal.addEventListener('click', (e) => { if (e.target === deleteTeamConfirmModal) closeDeleteTeamModal(); });
 
     
-    // --- NEW: Profile Management ---
+    // --- Profile Management ---
     
-    /**
-     * Calculates the used and allocated days for a specific leave type.
-     */
     function getLeaveUsage(leaveType) {
         if (!currentUserProfile) return { used: 0, allocated: 0 };
         
@@ -2192,10 +2203,8 @@
         } else if (leaveType === 'Public Holiday') {
             allocated = currentUserProfile.publicHolidayAllocated || 0;
         }
-        // No allocation for Sick Leave, so it's not checked here
         
         const used = requests.reduce((total, req) => {
-            // Only count *your own* approved/write-in leaves for your balance
             if (req.userId === auth.currentUser.uid && req.leaveType === leaveType) {
                 const approvedDays = req.days.filter(day => day.status === 'Approved' || day.status === 'Write-in').length;
                 return total + approvedDays;
@@ -2206,24 +2215,18 @@
         return { used, allocated };
     }
     
-    /**
-     * Renders the "My Profile" tab data.
-     */
     function renderMyProfile() {
         if (!currentUserProfile) return;
         
-        // Fill static details
         profileName.value = currentUserProfile.username;
         profileStaffID.value = currentUserProfile.staffID;
         profileEmail.value = currentUserProfile.email;
         const team = teamsMap.get(currentUserProfile.team_id);
         profileTeam.value = team ? team.name : 'N/A';
         
-        // Fill editable balances
         profileAnnualLeave.value = currentUserProfile.annualLeaveAllocated || 0;
         profilePublicHoliday.value = currentUserProfile.publicHolidayAllocated || 0;
         
-        // Calculate and display used/balance
         const al = getLeaveUsage('Annual Leave');
         profileUsedAL.textContent = al.used;
         profileBalanceAL.textContent = al.allocated - al.used;
@@ -2235,9 +2238,6 @@
         profileBalancePH.className = (ph.allocated - ph.used) < 0 ? 'text-red-600 font-bold' : 'text-green-700 font-bold';
     }
     
-    /**
-     * Save profile leave allocations
-     */
     profileLeaveForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         profileSaveStatus.textContent = "Saving...";
@@ -2252,8 +2252,6 @@
                 publicHolidayAllocated: newPH
             });
             
-            // currentUserProfile will update via its onSnapshot listener
-            
             profileSaveStatus.textContent = "Saved successfully!";
             setTimeout(() => { profileSaveStatus.textContent = ""; }, 3000);
             
@@ -2265,7 +2263,7 @@
     });
 
     
-    // --- NEW: Admin Leave Balance Report ---
+    // --- Admin Leave Balance Report ---
     
     function renderLeaveBalanceReport() {
         if (userType !== 'admin') return;
@@ -2283,7 +2281,6 @@
             const teamName = team ? team.name : 'N/A';
             const teamColorClass = team ? (team.colorSet.dot || 'bg-gray-400') : 'bg-gray-400';
 
-            // Calculate AL
             const allocatedAL = user.annualLeaveAllocated || 0;
             const usedAL = requests.reduce((total, req) => {
                 if (req.staffID === user.staffID && req.leaveType === 'Annual Leave' && (req.userId === user.id || req.userId.startsWith('admin_entry_'))) {
@@ -2293,7 +2290,6 @@
             }, 0);
             const balanceAL = allocatedAL - usedAL;
             
-             // Calculate PH
             const allocatedPH = user.publicHolidayAllocated || 0;
             const usedPH = requests.reduce((total, req) => {
                 if (req.staffID === user.staffID && req.leaveType === 'Public Holiday' && (req.userId === user.id || req.userId.startsWith('admin_entry_'))) {
@@ -2324,7 +2320,7 @@
         });
     }
 
-    // --- NEW: Leave Freeze Functions (Admin) ---
+    // --- Leave Freeze Functions (Admin) ---
     
     function renderLeaveFreezeList() {
         if (userType !== 'admin') return;
@@ -2359,16 +2355,12 @@
             freezeDateList.appendChild(li);
         });
 
-        // Add event listeners to new buttons
         freezeDateList.querySelectorAll('.remove-freeze-date-btn').forEach(btn => {
             btn.onclick = async () => {
                 const dateStr = btn.dataset.date;
-                
-                // *** MODIFICATION: Using custom modal ***
-                requestIdToDelete = `FREEZE_${dateStr}`; // Use a prefix to differentiate
+                requestIdToDelete = `FREEZE_${dateStr}`; 
                 userDeleteRequestInfo.textContent = `Removing freeze for: ${displayFormatDate(dateStr)}`;
                 userDeleteConfirmModal.classList.remove('hidden');
-                // The actual delete logic is now in the modal listener
             };
         });
     }
@@ -2382,13 +2374,12 @@
         if (!startStr) {
             return showAlert("Please select a start date.");
         }
-        if (!endStr) endStr = startStr; // allow single-day range
+        if (!endStr) endStr = startStr; 
 
         if (endStr < startStr) {
             return showAlert("End date cannot be earlier than start date.");
         }
 
-        // Build inclusive date list (YYYY-MM-DD)
         const startDate = new Date(startStr + 'T00:00:00');
         const endDate = new Date(endStr + 'T00:00:00');
 
@@ -2420,7 +2411,6 @@
 
         try {
             await batch.commit();
-            // Immediate UI update (don't wait for snapshot round-trip)
             newlyAdded.forEach(iso => {
                 leaveFreezeDates.add(iso);
                 leaveFreezeMeta.set(iso, {
@@ -2439,7 +2429,6 @@
         }
     });
 
-    // *** NEW: User Delete Modal Listeners ***
     function closeUserDeleteModal() {
         requestIdToDelete = null;
         userDeleteConfirmModal.classList.add('hidden');
@@ -2453,12 +2442,10 @@
         
         try {
             if (requestIdToDelete.startsWith('FREEZE_')) {
-                // This is a freeze date deletion
                 const dateStr = requestIdToDelete.substring(7);
                 await deleteDoc(doc(db, leaveFreezeCollectionPath, dateStr));
                 showAlert("Freeze date removed.", false);
             } else {
-                // This is a leave request deletion
                 await deleteDoc(doc(db, leaveRequestsCollectionPath, requestIdToDelete));
                 showAlert("Request deleted successfully.", false);
             }
@@ -2471,9 +2458,202 @@
     });
 
     
+    // --- NEW: Staff History Logic ---
+
+    // Populate the dropdown
+    function renderStaffHistoryPanel() {
+        // Clear existing options
+        historyStaffSelect.innerHTML = '<option value="">-- Select a Staff Member --</option>';
+        // Default date range = current month
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2,'0');
+        historyFromDate.value = `${y}-${m}-01`;
+        historyToDate.value = `${y}-${m}-${String(new Date(y, now.getMonth()+1, 0).getDate()).padStart(2,'0')}`;
+        historyGenerateBtn.disabled = true;
+        historyDownloadBtn.disabled = true;
+        historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above.</td></tr>`;
+        
+        if (!allUsers || allUsers.length === 0) return;
+        
+        // Sort users alphabetically
+        const sortedUsers = [...allUsers].sort((a,b) => a.username.localeCompare(b.username));
+        
+        sortedUsers.forEach(user => {
+            const opt = document.createElement("option");
+            opt.value = user.staffID; // Use Staff ID as value
+            opt.textContent = `${user.username} (${user.staffID})`;
+            historyStaffSelect.appendChild(opt);
+        });
+    }
+
+    // Update the table when a user is selected
+    window.updateHistoryTable = (selectedStaffID, fromStr, toStr) => {
+        historyTableBody.innerHTML = "";
+
+        // Guard
+        if (!selectedStaffID) {
+            historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above.</td></tr>`;
+            historyDownloadBtn.disabled = true;
+            return;
+        }
+
+        if (!fromStr || !toStr) {
+            historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Please select a <b>From</b> and <b>To</b> date, then click <b>Generate</b>.</td></tr>`;
+            historyDownloadBtn.disabled = true;
+            return;
+        }
+
+        // Normalize range (swap if needed)
+        let from = new Date(fromStr);
+        let to = new Date(toStr);
+        if (from > to) [from, to] = [to, from];
+
+        // Filter requests for this staffID, by overlap with the selected date range
+        const userRequests = requests.filter(req => {
+            if (req.staffID !== selectedStaffID) return false;
+            if (!req.fromDate || !req.toDate) return false;
+
+            const reqFrom = new Date(req.fromDate);
+            const reqTo = new Date(req.toDate);
+            return (reqFrom <= to && reqTo >= from);
+        });
+
+        if (userRequests.length === 0) {
+            historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No leave history found for this user in the selected range.</td></tr>`;
+            historyDownloadBtn.disabled = true;
+            return;
+        }
+
+        // Sort by newest date first
+        userRequests.sort((a,b) => new Date(b.fromDate) - new Date(a.fromDate));
+
+        userRequests.forEach(req => {
+            // Calculate status overview (limit to days inside range, if days array exists)
+            const daysInRange = (req.days || []).filter(d => {
+                if (!d.date) return false;
+                const dd = new Date(d.date);
+                return dd >= from && dd <= to;
+            });
+
+            const baseDays = daysInRange.length ? daysInRange : (req.days || []);
+            const totalDays = baseDays.length;
+
+            const approvedCount = baseDays.filter(d => d.status === 'Approved').length;
+            const pendingCount = baseDays.filter(d => d.status === 'Pending').length;
+            const rejectedCount = baseDays.filter(d => d.status === 'Rejected').length;
+            const writeInCount = baseDays.filter(d => d.status === 'Write-in').length;
+
+            let statusBadge = '';
+            let details = '';
+            if (approvedCount === totalDays) {
+                statusBadge = '<span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Approved</span>';
+            } else if (pendingCount === totalDays) {
+                statusBadge = '<span class="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Pending</span>';
+            } else if (rejectedCount === totalDays) {
+                statusBadge = '<span class="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Rejected</span>';
+            } else if (writeInCount === totalDays) {
+                statusBadge = '<span class="px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">Write-in</span>';
+            } else {
+                statusBadge = '<span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Mixed</span>';
+                const parts = [];
+                if(approvedCount) parts.push(`${approvedCount} Appr`);
+                if(pendingCount) parts.push(`${pendingCount} Pend`);
+                if(rejectedCount) parts.push(`${rejectedCount} Rej`);
+                if(writeInCount) parts.push(`${writeInCount} W-in`);
+                details = `<span class="text-xs text-gray-500">(${parts.join(', ')})</span>`;
+            }
+
+            const tr = document.createElement("tr");
+            tr.className = "hover:bg-gray-50";
+            tr.innerHTML = `
+                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">${req.leaveType || 'Leave'}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-gray-600">${displayFormatDate(req.fromDate)} - ${displayFormatDate(req.toDate)}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-center text-gray-600 font-semibold">${totalDays}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-center">${statusBadge}</td>
+                <td class="px-4 py-3 text-gray-500 text-sm">
+                    ${details ? details : ''}
+                    <div class="text-xs text-gray-400 mt-0.5">Ref: ${req.id.substring(0,8)}...</div>
+                </td>
+            `;
+            historyTableBody.appendChild(tr);
+        });
+
+        historyDownloadBtn.disabled = false;
+    };
+
+    // Export current history table to PDF
+    window.downloadHistoryPDF = () => {
+        const staffOpt = historyStaffSelect.options[historyStaffSelect.selectedIndex];
+        const staffLabel = staffOpt ? staffOpt.textContent : (historyStaffSelect.value || 'Staff');
+        const fromStr = historyFromDate.value;
+        const toStr = historyToDate.value;
+
+        const rows = document.querySelectorAll("#historyTableBody tr");
+        const bodyData = [];
+        rows.forEach(row => {
+            const cells = row.querySelectorAll("td");
+            if (cells.length === 5) {
+                bodyData.push([
+                    cells[0].innerText.trim(),
+                    cells[1].innerText.trim(),
+                    cells[2].innerText.trim(),
+                    cells[3].innerText.trim(),
+                    cells[4].innerText.replace(/\s+/g,' ').trim()
+                ]);
+            }
+        });
+
+        if (bodyData.length === 0) {
+            showAlert("No history data to export.", true);
+            return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text(`Staff Leave History`, 14, 14);
+        doc.setFontSize(10);
+        doc.text(`${staffLabel}`, 14, 20);
+        doc.text(`Range: ${fromStr || '-'} to ${toStr || '-'}`, 14, 25);
+
+        doc.autoTable({
+            head: [["Type", "Date Range", "Days", "Status", "Details"]],
+            body: bodyData,
+            startY: 30,
+            theme: "grid",
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: 26 },
+                1: { cellWidth: 45 },
+                2: { cellWidth: 12, halign: 'center' },
+                3: { cellWidth: 20 },
+                4: { cellWidth: 'auto' }
+            }
+        });
+
+        showPDFPreview(doc);
+    };
+
+
+    // Attach event listeners (require date selection before generating)
+    historyStaffSelect.addEventListener('change', (e) => {
+        historyGenerateBtn.disabled = !e.target.value;
+        historyDownloadBtn.disabled = true;
+        historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Pick a date range and click <b>Generate</b>.</td></tr>`;
+    });
+
+    historyGenerateBtn.addEventListener('click', () => {
+        const staffId = historyStaffSelect.value;
+        window.updateHistoryTable(staffId, historyFromDate.value, historyToDate.value);
+    });
+
+    historyDownloadBtn.addEventListener('click', () => {
+        window.downloadHistoryPDF();
+    });
+
+    
     // --- Tab & Navigation Functions ---
     
-    // NEW: Function to handle the toggle between Personal and Master view
     window.setCalendarView = (mode) => {
         calendarViewMode = mode;
 
@@ -2490,24 +2670,21 @@
         }
 
         renderCalendar();
-        renderAdmin(); // Re-render the summary list as its visibility/content depends on the mode
+        renderAdmin(); 
     }
 
     window.selectTeam = (teamId) => {
       selectedTeamId = teamId;
       
       const teamButtonsContainer = document.getElementById("team-buttons");
-      // *** UPDATED: This logic now correctly styles all buttons ***
       teamButtonsContainer.querySelectorAll('button.team-button').forEach(btn => {
           const btnTeamId = btn.dataset.teamId;
           const team = teamsMap.get(btnTeamId);
-          if (!team || !team.colorSet) return; // Safety check
+          if (!team || !team.colorSet) return; 
 
           if (btnTeamId === teamId) {
-              // This is the selected one
               btn.className = `team-button px-3 py-1.5 rounded-md text-sm transition-colors ${team.colorSet.selected}`;
           } else {
-              // This is an unselected one
               btn.className = `team-button px-3 py-1.5 rounded-md text-sm transition-colors ${team.colorSet.btn}`;
           }
       });
@@ -2534,7 +2711,6 @@
       await renderCalendar();
     }
     
-    // UPDATED: Cleaned up setActiveTab function
     function setActiveTab(activeIndex) {
         // Hide all panels
         document.getElementById("myProfilePanel").style.display = "none";
@@ -2549,15 +2725,18 @@
         const teamManagementPanel = document.getElementById("teamManagementPanel");
         if (teamManagementPanel) teamManagementPanel.style.display = "none";
 
-        const leaveFreezePanel = document.getElementById("leaveFreezePanel"); // NEW
-        if (leaveFreezePanel) leaveFreezePanel.style.display = "none"; // NEW
+        const leaveFreezePanel = document.getElementById("leaveFreezePanel"); 
+        if (leaveFreezePanel) leaveFreezePanel.style.display = "none"; 
         
-        // Show the active panel based on index
+        // NEW: Hide Staff History
+        const staffHistoryPanel = document.getElementById("staffHistoryPanel");
+        if (staffHistoryPanel) staffHistoryPanel.style.display = "none";
+        
+        // Show active
         if (activeIndex === 0) {
             document.getElementById("myProfilePanel").style.display = "block";
         } else if (activeIndex === 1) {
             document.getElementById("leaveManagementPanel").style.display = "block";
-            // Ensure the correct view mode is set when navigating back to this tab
             setCalendarView(calendarViewMode); 
         } else if (activeIndex === 2 && leaveBalancePanel) {
             leaveBalancePanel.style.display = "block";
@@ -2565,12 +2744,13 @@
             userManagementPanel.style.display = "block";
         } else if (activeIndex === 4 && teamManagementPanel) {
             teamManagementPanel.style.display = "block";
-        } else if (activeIndex === 5 && leaveFreezePanel) { // NEW
-            leaveFreezePanel.style.display = "block"; // NEW
+        } else if (activeIndex === 5 && leaveFreezePanel) { 
+            leaveFreezePanel.style.display = "block"; 
+        } else if (activeIndex === 6 && staffHistoryPanel) { // NEW
+            staffHistoryPanel.style.display = "block";
         }
         
         // Update tab buttons
-        // We query *all* buttons, including hidden ones, to maintain index integrity
         const tabs = document.querySelectorAll("#mainTabs .main-nav-button");
         tabs.forEach((tab, index) => {
             if (index === activeIndex) {
@@ -2583,14 +2763,14 @@
 
     window.showMyProfile = () => {
         setActiveTab(0);
-        renderMyProfile(); // Always refresh data on view
+        renderMyProfile(); 
     }
     window.showLeaveManagement = () => {
         setActiveTab(1);
     }
     window.showLeaveBalanceReport = () => {
         setActiveTab(2);
-        renderLeaveBalanceReport(); // Refresh report data
+        renderLeaveBalanceReport(); 
     }
     window.showUserManagement = () => {
         setActiveTab(3);
@@ -2600,10 +2780,14 @@
         setActiveTab(4);
         openManageTeamsModal(); 
     }
-    // NEW: Show Leave Freeze Tab
     window.showLeaveFreeze = () => {
         setActiveTab(5);
-        renderLeaveFreezeList(); // Render the list of frozen dates
+        renderLeaveFreezeList(); 
+    }
+    // NEW: Show Staff History
+    window.showStaffHistory = () => {
+        setActiveTab(6);
+        renderStaffHistoryPanel();
     }
     
 
