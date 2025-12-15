@@ -113,6 +113,18 @@
             border: 1px solid #F472B6 !important; /* Pink 400 */
         }
 
+        /* NEW: Style for 2000Hrs column during shuffle */
+        .shuffling-highlight { 
+            background-color: #FBBF24 !important; /* Amber 400 */
+            border: 2px solid #D97706 !important; /* Amber 700 */
+            animation: pulse-shuffle 1s infinite alternate; 
+        }
+
+        @keyframes pulse-shuffle {
+            from { opacity: 1; }
+            to { opacity: 0.7; }
+        }
+
         select, input { text-align: center !important; text-align-last: center !important; -moz-text-align-last: center !important; }
         
         /* --- Consolidated Setup Card Styles (Section 1) --- */
@@ -269,6 +281,13 @@
                 color: #9D174D !important; /* Rose 700 */
                 font-weight: 700 !important; 
                 border: 0.5px solid #F472B6 !important; /* Pink 400 */
+            }
+
+            /* Disable shuffle highlight in print */
+            .shuffling-highlight { 
+                background-color: #FEF3C7 !important; 
+                border: 0.5px solid #999 !important;
+                animation: none !important;
             }
 
             .vp-cell-fix { width: 17% !important; text-align: center !important; padding: 0px !important; margin: 0px !important; }
@@ -1263,6 +1282,7 @@
             const handleClearAllAssignments = async () => {
                 if (!db) return setAssignmentError("Database not available.");
                 
+                // Use a custom confirmation dialog replacement
                 const confirmClear = window.confirm("Are you sure you want to CLEAR ALL daily assignments and buffer overrides for this date? This action will NOT affect the Scheduled Staff list.");
 
                 if (confirmClear) {
@@ -1399,6 +1419,7 @@
             const handleRemoveStaff = async (staffObject) => {
                 if (!db) return setAttendanceError("Database not available.");
                 
+                // Use a custom confirmation dialog replacement
                 const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently DELETE staff ID ${staffObject.id} (${staffObject.name}) from the ENTIRE Staff Pool? This action cannot be undone.`);
 
                 if (confirmDelete) {
@@ -1730,7 +1751,8 @@
             const [rosterData, setRosterData] = useState(null);
             const [dailyAssignments, setDailyAssignments] = useState(null); 
             const [loading, setLoading] = useState(true);
-            const [isGenerating, setIsGenerating] = useState(false); // NEW: State for generation status
+            const [isGenerating, setIsGenerating] = useState(false); 
+            const [isShuffling, setIsShuffling] = useState(false); // NEW: State for shuffle status
             const [error, setError] = useState(null);
             const [isDirty, setIsDirty] = useState(false);
             
@@ -1740,6 +1762,8 @@
             // NEW: Matrix Editing Mode State
             const [isMatrixEditMode, setIsMatrixEditMode] = useState(false);
 
+            const rosterMode = dailyAssignments?.rosterMode || ROSTER_MODES.AUTO_SEQUENCE;
+            
             const handlePrint = () => {
                 window.print();
             };
@@ -2127,6 +2151,65 @@
                 }
             };
             
+            // The 6 sequence keys that are cyclically shifted for the rotation start
+            const ROTATION_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
+
+            const handleShuffle = async () => {
+                if (!db || !dailyAssignments) { 
+                    setError("Database or daily assignments not available for shuffle."); 
+                    return; 
+                }
+                
+                setIsShuffling(true);
+                setError(null);
+                
+                try {
+                    const { sequenceMap } = dailyAssignments;
+                    
+                    if (rosterMode !== ROSTER_MODES.AUTO_SEQUENCE) {
+                        setError("Shuffle is only applicable in Auto-Sequence Mode.");
+                        setIsShuffling(false);
+                        return;
+                    }
+
+                    // 1. Extract the current content (array of IDs) for the 6 rotation keys
+                    const keyContents = ROTATION_KEYS.map(key => sequenceMap[key] || []);
+
+                    // 2. Perform a cyclic shift (right shift: last element moves to the front)
+                    // [ [A], [B], [C], [D], [E], [F] ] -> [ [F], [A], [B], [C], [D], [E] ]
+                    const lastElement = keyContents.pop();
+                    const newKeyContents = [lastElement, ...keyContents];
+
+                    // 3. Write back to a new sequence map
+                    const newSequenceMap = { ...sequenceMap };
+                    ROTATION_KEYS.forEach((key, index) => {
+                        newSequenceMap[key] = newKeyContents[index];
+                    });
+
+                    // 4. Save the new sequence map back to Firestore
+                    const docRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
+                    if (!docRef) throw new Error("Could not create assignment document reference.");
+
+                    // Note: We use updateDoc to only modify the sequenceMap, preserving other fields
+                    await updateDoc(docRef, { 
+                        sequenceMap: newSequenceMap,
+                        updatedAt: new Date().toISOString(),
+                    });
+                    
+                    // 5. Rerender the roster based on the new assignments (false = Keep Edits)
+                    // We delay the call slightly to ensure the onSnapshot listener updates dailyAssignments first.
+                    setTimeout(() => {
+                        handleGenerateRoster(false);
+                        setIsShuffling(false);
+                    }, 500); 
+                    
+                } catch (err) {
+                    console.error("Error shuffling roster:", err);
+                    setError("Failed to shuffle roster. Check console for details.");
+                    setIsShuffling(false);
+                }
+            };
+
             const handleSaveChanges = async () => {
                 if (!rosterData || !isDirty) return;
                 if (!db) return setError("Database not available.");
@@ -2449,11 +2532,17 @@
                                         const isMissing = isAutomated && value === UNFILLED_SLOT;
                                         const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
                                         
+                                        // NEW: Check for shuffle highlight (applies only to the 2000Hrs column and Sentry/OE rows)
+                                        const isShuffleHighlight = isShuffling && index === 0 && (SENTRY_POSITIONS.includes(pos) || isManualStandbyRow);
+
                                         // Determine if the cell content is a Buffer ID
                                         const isBufferId = value && value !== UNFILLED_SLOT && staffTypeMap.get(value) === 'buffer';
 
                                         const getCellClasses = (isSelect = false) => {
                                             let baseClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
+                                            
+                                            // NEW: Shuffle highlight has highest priority
+                                            if (isShuffleHighlight) { return baseClasses + " shuffling-highlight"; } 
                                             
                                             if (isHighlighted) { return baseClasses + " highlight-cell"; }
                                             if (isMissing) { return baseClasses + " bg-yellow-100 text-yellow-800 font-bold"; }
@@ -2848,6 +2937,7 @@
                                     </button>
                                     <button
                                         onClick={() => {
+                                            // Use a custom confirmation dialog replacement
                                             if(window.confirm("WARNING: This will wipe ALL manual edits in the roster grid and regenerate it from the assignments in the Setup tab. Are you sure you want to proceed?")) {
                                                 handleGenerateRoster(true);
                                             }
@@ -2880,6 +2970,12 @@
                         {isGenerating && (
                             <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 mb-4 mx-2 sm:mx-0 font-medium animate-pulse">
                                 Roster generation in progress...
+                            </div>
+                        )}
+
+                        {isShuffling && (
+                            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 mx-2 sm:mx-0 font-medium animate-pulse">
+                                Roster **Shuffle** in progress. Assignments are being rotated and the grid is being regenerated.
                             </div>
                         )}
                         
@@ -2935,7 +3031,26 @@
 
                                  {(focusView === 'all' || focusView === 'sentry') && (
                                     <div className="border-t border-gray-300 pt-6 roster-section">
-                                        <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Sentry Deployment / Patrol Duties</h3>
+                                        {/* Roster Shuffle Button (As requested, placed before the Sentry Deployment table) */}
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h3 className="text-lg font-semibold text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Sentry Deployment / Patrol Duties</h3>
+                                            
+                                            {!isMatrixEditMode && (
+                                                <button
+                                                    onClick={handleShuffle}
+                                                    disabled={isShuffling || isGenerating || rosterMode !== ROSTER_MODES.AUTO_SEQUENCE}
+                                                    className={`py-2 px-4 text-sm font-medium rounded-md shadow-md transition-colors print-hidden flex items-center gap-1 ${
+                                                        isShuffling ? 'bg-yellow-500 text-white animate-pulse' : 
+                                                        rosterMode === ROSTER_MODES.AUTO_SEQUENCE ? 'bg-orange-500 text-white hover:bg-orange-600' : 
+                                                        'bg-gray-400 text-gray-600 disabled:cursor-not-allowed'
+                                                    }`}
+                                                    title={rosterMode === ROSTER_MODES.AUTO_SEQUENCE ? "Cyclically shifts the 6 rotation assignments (E1, P1, E3, N1, P2, OE) and regenerates the roster." : "Only available in Auto-Sequence Mode."}
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m5.676 11.528A8.001 8.001 0 0019.418 15v-5h.582" /></svg>
+                                                    {isShuffling ? "Shuffling..." : "Roster Shuffle"}
+                                                </button>
+                                            )}
+                                        </div>
                                         <div className="overflow-x-auto shadow-md rounded-lg border">
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 {renderTableHeader()}
