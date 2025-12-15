@@ -1002,7 +1002,42 @@
       console.log("User logged out.");
     });
 
-    /* Render UI based on user type */
+    
+    // --- NEW: Date Picker Setup & Sync ---
+    function setupDateAutoFill() {
+        const startInput = document.getElementById("startDate");
+        const endInput = document.getElementById("endDate");
+
+        // Helper to get local date string (YYYY-MM-DD)
+        const getTodayStr = () => {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // 1. Set "From" date to Today by default
+        if (!startInput.value) {
+            startInput.value = getTodayStr();
+        }
+
+        // 2. Add Listener: When "From" changes, update "To"
+        // This ensures the "To" calendar opens in the same month/year
+        // We check if a listener is already attached to avoid duplicates if re-run
+        if (!startInput.dataset.listenerAttached) {
+            startInput.addEventListener('change', function() {
+                if (this.value) {
+                    endInput.value = this.value;
+                    // Optional: Prevent selecting an End Date earlier than Start Date
+                    endInput.min = this.value; 
+                }
+            });
+            startInput.dataset.listenerAttached = "true";
+        }
+    }
+
+/* Render UI based on user type */
     async function renderUI() {
       // Show/hide admin tabs
       const isAdmin = userType === "admin";
@@ -1021,6 +1056,8 @@
       
       populateTeamButtons(); 
       await renderCalendar(); 
+    
+      setupDateAutoFill();
     }
     
     // --- Firestore Data Listeners (MODIFIED) ---
@@ -1604,6 +1641,7 @@
             });
             showAlert(status === 'Write-in' ? "Request submitted as Write-in." : "Leave request submitted successfully.", false);
             document.getElementById("leaveForm").reset(); // Reset whole form
+            setupDateAutoFill(); // Re-sets "From" to Today after submission
             
             // Repopulate user fields
             if(userType === 'user') {
