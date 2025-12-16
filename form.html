@@ -18,9 +18,6 @@
     
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-    
-    <!-- === EMAILJS SDK === -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
     <style>
         body { 
@@ -153,12 +150,6 @@
                             <option value="">-- Select Your Name --</option>
                         </select>
                     </div>
-
-                    <!-- NEW: Requester Email Field -->
-                    <div>
-                        <label for="requesterEmail" class="block text-sm font-medium text-gray-700 mb-1">Email Address:</label>
-                        <input type="email" id="requesterEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="For automated notifications" required>
-                    </div>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -225,12 +216,6 @@
                             <option value="">-- Select Requester First --</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">Select requester first to load colleagues.</p>
-                    </div>
-
-                    <!-- NEW: Colleague Email Field -->
-                    <div>
-                        <label for="colleagueEmail" class="block text-sm font-medium text-gray-700 mb-1">Email Address:</label>
-                        <input type="email" id="colleagueEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="For automated notifications" required>
                     </div>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -371,11 +356,6 @@
                         <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
                         <div id="view-requesterTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
                     </div>
-                     <!-- EMAIL VIEW (Optional, mostly for debug or confirmation) -->
-                     <div class="hidden">
-                         <span class="block text-sm font-medium text-gray-700 mb-1">Email:</span>
-                         <div id="view-requesterEmail" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
                             <span class="block text-sm font-medium text-gray-700 mb-1">Original Shift:</span>
@@ -406,11 +386,6 @@
                      <div>
                         <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
                         <div id="view-colleagueTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                     <!-- EMAIL VIEW (Optional) -->
-                     <div class="hidden">
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Email:</span>
-                        <div id="view-colleagueEmail" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
@@ -515,16 +490,7 @@
             orderBy, limit
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 0. CONFIGURATIONS ---
-
-        // >>> EMAILJS CONFIGURATION <<<
-        const EMAIL_CONFIG = {
-            ENABLED: true, // Set to true to enable automated emails
-            SERVICE_ID: "YOUR_SERVICE_ID_HERE",  // e.g. "service_abc123"
-            TEMPLATE_ID: "YOUR_TEMPLATE_ID_HERE", // e.g. "template_xyz789"
-            PUBLIC_KEY: "YOUR_PUBLIC_KEY_HERE"    // e.g. "user_123456"
-        };
-        
+        // --- 0. FIREBASE SETUP ---
         let firebaseConfig;
         const standaloneConfig = {
             apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -549,12 +515,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         setLogLevel('Debug');
-        
-        // Init EmailJS
-        if(EMAIL_CONFIG.ENABLED && EMAIL_CONFIG.PUBLIC_KEY !== "YOUR_PUBLIC_KEY_HERE") {
-             emailjs.init(EMAIL_CONFIG.PUBLIC_KEY);
-             console.log("EmailJS Initialized");
-        }
 
         // --- 1. GLOBAL VARIABLES & COLLECTIONS ---
         
@@ -586,73 +546,6 @@
         window.switchView = function(viewName) {
             showView(viewName);
         };
-        
-        // EMAIL HELPER
-        function sendNotificationEmail(type, requestData) {
-            if (!EMAIL_CONFIG.ENABLED || EMAIL_CONFIG.PUBLIC_KEY === "YOUR_PUBLIC_KEY_HERE") {
-                console.log("Email notifications disabled or not configured.");
-                return;
-            }
-            
-            // Construct a generic message based on type
-            let msgSubject = "";
-            let msgBody = "";
-            let targetEmail = "";
-            let targetName = "";
-
-            if (type === 'new_request') {
-                targetEmail = requestData.colleagueEmail;
-                targetName = requestData.colleagueName;
-                msgSubject = `Shift Swap Request from ${requestData.requesterName}`;
-                msgBody = `Hi ${requestData.colleagueName}, ${requestData.requesterName} has requested to swap shifts with you on ${requestData.shiftDate}.`;
-            } 
-            else if (type === 'colleague_agreed') {
-                targetEmail = requestData.requesterEmail;
-                targetName = requestData.requesterName;
-                msgSubject = `Shift Swap Agreed by ${requestData.colleagueName}`;
-                msgBody = `Great news! ${requestData.colleagueName} has AGREED to your shift swap request for ${requestData.shiftDate}. It is now pending TL/OC approval.`;
-            }
-            else if (type === 'colleague_rejected') {
-                targetEmail = requestData.requesterEmail;
-                targetName = requestData.requesterName;
-                msgSubject = `Shift Swap Rejected by ${requestData.colleagueName}`;
-                msgBody = `Sorry, ${requestData.colleagueName} has REJECTED your shift swap request for ${requestData.shiftDate}.`;
-            }
-            else if (type === 'approved') {
-                // Ideally send to both, but let's prioritize Requester for now or loop if advanced
-                targetEmail = requestData.requesterEmail;
-                targetName = requestData.requesterName;
-                msgSubject = `Shift Swap APPROVED`;
-                msgBody = `Your shift swap request for ${requestData.shiftDate} has been APPROVED by TL/OC. The roster has been updated.`;
-            }
-            else if (type === 'tl_rejected') {
-                targetEmail = requestData.requesterEmail;
-                targetName = requestData.requesterName;
-                msgSubject = `Shift Swap REJECTED by TL/OC`;
-                msgBody = `Your shift swap request for ${requestData.shiftDate} has been REJECTED by TL/OC.`;
-            }
-
-            if (!targetEmail) {
-                console.log(`No email address found for ${type} notification.`);
-                return;
-            }
-
-            const templateParams = {
-                to_name: targetName,
-                to_email: targetEmail,
-                from_name: "Shift Roster App",
-                message: msgBody,
-                subject: msgSubject,
-                status: type
-            };
-
-            emailjs.send(EMAIL_CONFIG.SERVICE_ID, EMAIL_CONFIG.TEMPLATE_ID, templateParams)
-                .then(function(response) {
-                   console.log('SUCCESS!', response.status, response.text);
-                }, function(error) {
-                   console.log('FAILED...', error);
-                });
-        }
         
         // Expose trackRequests for the button click
         window.trackRequests = async function() {
@@ -1256,15 +1149,11 @@
                 requesterName: requester.name,
                 requesterRankId: requester.emp_id || 'N/A',
                 requesterTeam: requesterTeamName,
-                // NEW: Capture Email
-                requesterEmail: document.getElementById('requesterEmail').value,
                 
                 colleagueId: colleagueId,
                 colleagueName: colleague.name,
                 colleagueRankId: colleague.emp_id || 'N/A',
                 colleagueTeam: colleagueTeamName,
-                // NEW: Capture Email
-                colleagueEmail: document.getElementById('colleagueEmail').value,
                 
                 shiftDate: shiftDateInput.value,
                 requesterOriginalShift: document.getElementById('requesterOriginalShift').value,
@@ -1301,9 +1190,6 @@
                     action: 'colleague'
                 });
                 
-                // --- NOTIFICATION: EMAIL ---
-                sendNotificationEmail('new_request', requestData);
-                
                 const whatsAppMessage = `Hi ${colleague.name}, ${requester.name} has requested a shift swap with you for ${requestData.shiftDate}. Please review and agree at this link:`;
 
                 showMessage(
@@ -1328,7 +1214,7 @@
             document.getElementById('message-text').innerHTML = text;
             
             const iconContainer = document.getElementById('message-icon-container');
-            if (title.toLowerCase().includes('success') || title.toLowerCase().includes('approved') || title.toLowerCase().includes('submitted') || title.toLowerCase().includes('agreement')) {
+            if (title.toLowerCase().includes('success') || title.toLowerCase().includes('approved') || title.toLowerCase().includes('submitted')) {
                 iconContainer.innerHTML = `
                     <svg class="h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -1378,9 +1264,7 @@
             }
 
             if (whatsAppMessage && buttonText) {
-                // Determine if we append the link (usually yes, unless it's a pure status message)
-                const fullMsg = link ? `${whatsAppMessage}\n\n${link}` : whatsAppMessage;
-                const encodedMessage = encodeURIComponent(fullMsg);
+                const encodedMessage = encodeURIComponent(`${whatsAppMessage}\n\n${link}`);
                 const waHref = `https://wa.me/?text=${encodedMessage}`;
                 waBtn.href = waHref;
                 waBtnText.textContent = buttonText;
@@ -1427,8 +1311,6 @@
             document.getElementById('view-requesterOriginalShift').textContent = currentRequestData.requesterOriginalShift;
             document.getElementById('view-requesterNewShift').textContent = currentRequestData.requesterNewShift;
             document.getElementById('view-requesterSignature').textContent = formatTimestamp(currentRequestData.requesterSignatureTimestamp);
-            // Optional: View Email if needed
-            // document.getElementById('view-requesterEmail').textContent = currentRequestData.requesterEmail || 'N/A';
             
             document.getElementById('view-colleagueName').textContent = currentRequestData.colleagueName;
             document.getElementById('view-colleagueRankId').textContent = currentRequestData.colleagueRankId;
@@ -1436,8 +1318,6 @@
             document.getElementById('view-colleagueOriginalShift').textContent = currentRequestData.colleagueOriginalShift;
             document.getElementById('view-colleagueNewShift').textContent = currentRequestData.colleagueNewShift;
             document.getElementById('view-colleagueSignature').textContent = formatTimestamp(currentRequestData.colleagueSignatureTimestamp);
-             // Optional: View Email if needed
-            // document.getElementById('view-colleagueEmail').textContent = currentRequestData.colleagueEmail || 'N/A';
             
             document.getElementById('view-tl-oc-Comments').textContent = currentRequestData.tlOcComments || "No comments.";
             document.getElementById('view-tl-oc-Signature').textContent = formatTimestamp(currentRequestData.tlOcSignatureTimestamp);
@@ -1535,9 +1415,6 @@
                         action: 'tl_oc'
                     });
                     
-                    // --- NOTIFICATION: EMAIL ---
-                    sendNotificationEmail('colleague_agreed', currentRequestData);
-                    
                     const whatsAppMessage = `Hi, this is a shift change request for ${currentRequestData.requesterName} and ${currentRequestData.colleagueName} on ${currentRequestData.shiftDate}. We have both agreed.\n\n👇 Please tap below to approve:`;
 
                     showMessage(
@@ -1554,23 +1431,14 @@
                         colleagueSignatureTimestamp: serverTimestamp()
                     });
 
-                     // --- NOTIFICATION: EMAIL ---
-                     sendNotificationEmail('colleague_rejected', currentRequestData);
-
-                     // Smart Rejection: Give them a button to WhatsApp the requester immediately
-                     const waMsg = `Hi ${currentRequestData.requesterName}, regarding your shift change request for ${currentRequestData.shiftDate}: I am unable to cover this shift. Sorry about that.`;
-                     
-                     // No specific link needed for rejection view, maybe just the tracker link for the requester
+                     // No short link needed for rejection view
                      const baseUrl = getBaseUrl();
                      const link = `${baseUrl}?requestId=${currentRequestId}`;
                      
                     showMessage(
                         "Request Rejected",
-                        `You have rejected this request. A notification email has been sent to the requester (if configured).`,
-                        link, 
-                        waMsg, 
-                        "Notify Requester via WhatsApp", 
-                        "Notify Requester"
+                        `You have rejected this request. The requester has been notified (implicitly).`,
+                        link, null, null, "Request Status"
                     );
                 }
             } catch (error) {
@@ -1616,9 +1484,6 @@
                         tlOcSignatureTimestamp: serverTimestamp()
                     });
                     
-                    // --- NOTIFICATION: EMAIL ---
-                    sendNotificationEmail('approved', currentRequestData);
-                    
                     whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${shiftDate} has been APPROVED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
 
                 } else {
@@ -1627,9 +1492,6 @@
                         tlOcComments: tlOcComments,
                         tlOcSignatureTimestamp: serverTimestamp()
                     });
-                    
-                     // --- NOTIFICATION: EMAIL ---
-                     sendNotificationEmail('tl_rejected', currentRequestData);
                     
                      whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${currentRequestData.shiftDate} has been REJECTED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
                 }
@@ -1751,3 +1613,4 @@
     </script>
 </body>
 </html>
+
