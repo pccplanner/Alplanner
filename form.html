@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shift Change Application</title>
+    <title>Change of Shift Application</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,11 +16,16 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .ts-control { border-radius: 0.5rem; border-color: #d1d5db; padding: 8px 12px; }
         .hidden { display: none !important; }
+        
+        /* Restored Styling from V1A */
+        .radio-card-label { @apply flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:border-indigo-300; }
+        .radio-card-label:has(input:checked) { @apply bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500; }
+        .input-readonly { @apply bg-gray-100 text-gray-500 cursor-not-allowed; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen">
 
-    <div class="max-w-xl mx-auto p-4">
+    <div class="max-w-2xl mx-auto p-4">
         
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
@@ -42,71 +47,137 @@
                 <button onclick="switchView('track')" id="tab-track" class="flex-1 py-2 text-sm font-bold rounded-md text-gray-500 hover:text-gray-900 transition">Track Status</button>
             </div>
 
-            <!-- FORM VIEW -->
-            <div id="view-form" class="block space-y-4">
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-gray-900 mb-4">1. Requester Details</h3>
-                    <div class="space-y-3">
-                        <label class="block text-xs font-bold text-gray-500 uppercase">Your Name</label>
-                        <select id="req-select" placeholder="Start typing name..."></select>
-                        <div class="flex gap-2">
-                            <input id="req-id" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="ID" disabled>
-                            <input id="req-team" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="Team" disabled>
+            <!-- FORM VIEW (Restored Layout) -->
+            <div id="view-form" class="block space-y-6">
+                
+                <!-- 1. Requester Details -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                    <h2 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">1. Requesting APO's Detail</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
+                            <select id="req-select" placeholder="Type to search your name..." autocomplete="off"></select>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
+                                <input id="req-id" class="w-full border rounded-lg p-2 bg-gray-50 text-gray-500" disabled>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
+                                <input id="req-team" class="w-full border rounded-lg p-2 bg-gray-50 text-gray-500" disabled>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date/Day of Change:</label>
+                            <input type="date" id="shift-date" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        
+                        <!-- Shift Selection -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Original Shift:</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="radio-card-label">
+                                        <input type="radio" name="req-shift" value="1" class="w-4 h-4 text-indigo-600" onclick="updateShiftUI('req')">
+                                        <span class="ml-2 text-sm font-medium">Morning (1)</span>
+                                    </label>
+                                    <label class="radio-card-label">
+                                        <input type="radio" name="req-shift" value="2" class="w-4 h-4 text-indigo-600" onclick="updateShiftUI('req')">
+                                        <span class="ml-2 text-sm font-medium">Night (2)</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</label>
+                                <input type="text" id="req-shift-new-disp" class="w-full border rounded-lg p-2 bg-gray-50 font-bold text-green-600" readonly>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reason for change:</label>
+                            <textarea id="reason" class="w-full border rounded-lg p-2" rows="2" placeholder="e.g., Family gathering"></textarea>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-gray-900 mb-4">2. Shift Details</h3>
-                    <div class="space-y-3">
+                <!-- 2. Colleague Details -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-400"></div>
+                    <h2 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">2. Changing with APO's Detail</h2>
+                    <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                            <input type="date" id="shift-date" class="w-full border rounded p-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
+                            <select id="col-select" placeholder="Select a colleague..." autocomplete="off" disabled></select>
+                            <p class="text-xs text-gray-500 mt-1">Select requester first.</p>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Current Shift</label>
-                            <div class="flex gap-2">
-                                <label class="flex-1 border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                                    <input type="radio" name="req-shift" value="1">
-                                    <span class="text-sm">Morning (1)</span>
-                                </label>
-                                <label class="flex-1 border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                                    <input type="radio" name="req-shift" value="2">
-                                    <span class="text-sm">Night (2)</span>
-                                </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
+                                <input id="col-id" class="w-full border rounded-lg p-2 bg-gray-50 text-gray-500" disabled>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
+                                <input id="col-team" class="w-full border rounded-lg p-2 bg-gray-50 text-gray-500" disabled>
+                            </div>
+                        </div>
+                        
+                        <!-- Colleague Shift (Auto-calculated but visible) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Colleague's Original Shift:</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="radio-card-label">
+                                        <input type="radio" name="col-shift" value="1" class="w-4 h-4 text-orange-500" disabled>
+                                        <span class="ml-2 text-sm font-medium">Morning (1)</span>
+                                    </label>
+                                    <label class="radio-card-label">
+                                        <input type="radio" name="col-shift" value="2" class="w-4 h-4 text-orange-500" disabled>
+                                        <span class="ml-2 text-sm font-medium">Night (2)</span>
+                                    </label>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Must match your target shift.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Colleague's New Shift:</label>
+                                <input type="text" id="col-shift-new-disp" class="w-full border rounded-lg p-2 bg-gray-50 font-bold text-green-600" readonly>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-gray-900 mb-4">3. Swap Partner</h3>
-                    <div class="space-y-3">
-                        <label class="block text-xs font-bold text-gray-500 uppercase">Colleague Name</label>
-                        <select id="col-select" placeholder="Select colleague..."></select>
-                        <div class="flex gap-2">
-                            <input id="col-id" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="ID" disabled>
-                            <input id="col-team" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="Team" disabled>
-                        </div>
+                <!-- 3. Agreement -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="font-semibold text-gray-900 mb-2 border-b pb-1">3. Agreement</h3>
+                    <div class="text-xs text-gray-600 space-y-1 mb-3 pl-2 border-l-2 border-gray-300">
+                        <p>We, hereby understand and acknowledged that:</p>
+                        <ul class="list-disc list-inside">
+                            <li>Changes subject to TL/OIC/OC approval.</li>
+                            <li>Liable to report back if colleague doesn't show.</li>
+                            <li>Requests should be made 7 days in advance.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="agreement" class="h-4 w-4 text-indigo-600 rounded" required>
+                            <span class="ml-2 text-sm font-medium text-gray-700">By submitting, I agree to the terms.</span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Reason</label>
-                    <textarea id="reason" class="w-full border rounded p-2" rows="2" placeholder="Reason..."></textarea>
-                    <button id="btn-submit" onclick="submitRequest()" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition">Submit Request</button>
-                </div>
+                <button id="btn-submit" onclick="submitRequest()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow transition">Submit Request</button>
             </div>
 
             <!-- TRACK VIEW -->
             <div id="view-track" class="hidden space-y-4">
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Search by ID or Name</label>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Search by Employee ID or Name</label>
                     <div class="flex gap-2">
-                        <input id="track-id" type="text" class="flex-1 border rounded p-2" placeholder="Enter number (e.g. 12345)">
-                        <button onclick="trackRequests()" class="bg-indigo-600 text-white px-4 rounded font-bold hover:bg-indigo-700">Search</button>
+                        <input id="track-id" type="text" class="flex-1 border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 12345 or Name">
+                        <button onclick="trackRequests()" class="bg-indigo-600 text-white px-6 rounded-lg font-bold hover:bg-indigo-700 shadow-sm">Search</button>
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-2">Partial match enabled (e.g., '123' finds 'S12345')</p>
+                    <p class="text-xs text-gray-500 mt-2">Example: '123' finds 'S12345'.</p>
                 </div>
                 
                 <div id="track-status" class="text-center text-sm font-bold text-gray-500 hidden">Searching...</div>
@@ -122,54 +193,64 @@
                 <button onclick="window.location.reload()" class="text-indigo-600 text-sm font-bold">Back to Home</button>
             </div>
 
-            <!-- DETAILS VIEW -->
-            <div id="view-details" class="hidden space-y-5">
-                <div id="status-banner" class="p-3 text-center font-bold rounded-lg border bg-gray-100 text-gray-600">Loading...</div>
+            <!-- DETAILS VIEW (Restored Layout) -->
+            <div id="view-details" class="hidden space-y-6">
+                <div id="status-banner" class="p-4 rounded-lg text-center font-bold text-lg shadow-sm border bg-gray-100 text-gray-600">Loading...</div>
                 
-                <div class="bg-white p-5 rounded-xl shadow-lg border border-gray-200">
-                    <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-3">
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 relative">
+                    <h2 class="text-xl font-semibold text-gray-900 border-b pb-2 mb-4">Request Details</h2>
+                    
+                    <div class="grid grid-cols-2 gap-6 mb-6">
                         <div>
-                            <p class="text-xs text-gray-400 font-bold uppercase">Date</p>
-                            <p id="det-date" class="text-lg font-bold text-gray-900">-</p>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Date:</span>
+                            <div id="det-date" class="font-bold text-indigo-700 text-lg"></div>
                         </div>
-                        <div class="text-right">
-                            <p class="text-xs text-gray-400 font-bold uppercase">Reason</p>
-                            <p id="det-reason" class="text-sm text-gray-600">-</p>
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Reason:</span>
+                            <div id="det-reason" class="text-gray-800"></div>
                         </div>
                     </div>
 
-                    <!-- Swap Visual -->
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center text-sm">
-                            <span id="det-req-name" class="font-bold text-gray-800">-</span>
-                            <div class="flex items-center gap-1 text-xs">
-                                <span id="det-req-shift-old" class="text-red-500 line-through">-</span>
-                                <span>→</span>
-                                <span id="det-req-shift-new" class="text-green-600 font-bold">-</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- Requester Card -->
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h3 class="text-sm font-bold text-indigo-700 uppercase mb-2 border-b border-gray-200 pb-1">Requester</h3>
+                            <p class="font-bold text-gray-900 text-lg" id="det-req-name"></p>
+                            <p class="text-xs text-gray-500 mb-2"><span id="det-req-id"></span> | <span id="det-req-team"></span></p>
+                            
+                            <div class="flex items-center gap-2 text-sm font-medium bg-white p-2 rounded border">
+                                <span class="text-red-500 line-through" id="det-req-shift-old"></span>
+                                <span class="text-gray-400">➜</span>
+                                <span class="text-green-600 font-bold" id="det-req-shift-new"></span>
                             </div>
                         </div>
-                        <div class="border-t border-gray-50"></div>
-                        <div class="flex justify-between items-center text-sm">
-                            <span id="det-col-name" class="font-bold text-gray-800">-</span>
-                            <div class="flex items-center gap-1 text-xs">
-                                <span id="det-col-shift-old" class="text-red-500 line-through">-</span>
-                                <span>→</span>
-                                <span id="det-col-shift-new" class="text-green-600 font-bold">-</span>
+
+                        <!-- Colleague Card -->
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h3 class="text-sm font-bold text-orange-700 uppercase mb-2 border-b border-gray-200 pb-1">Colleague</h3>
+                            <p class="font-bold text-gray-900 text-lg" id="det-col-name"></p>
+                            <p class="text-xs text-gray-500 mb-2"><span id="det-col-id"></span> | <span id="det-col-team"></span></p>
+                            
+                            <div class="flex items-center gap-2 text-sm font-medium bg-white p-2 rounded border">
+                                <span class="text-red-500 line-through" id="det-col-shift-old"></span>
+                                <span class="text-gray-400">➜</span>
+                                <span class="text-green-600 font-bold" id="det-col-shift-new"></span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Admin Comments -->
-                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">TL/OC Comments</p>
-                    <p id="det-comments" class="text-sm text-gray-600 italic">No comments yet.</p>
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900 border-b pb-2 mb-3">3. Approval / Disapproval</h3>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-1">TL/OC Comments</p>
+                    <div id="det-comments" class="w-full p-3 bg-gray-50 rounded text-sm text-gray-700 italic border min-h-[50px]"></div>
                 </div>
 
                 <!-- Actions -->
                 <div id="action-area" class="space-y-3"></div>
                 
-                <button onclick="switchView('track')" class="w-full text-center text-sm text-gray-500 mt-4">Back to Search</button>
+                <button onclick="switchView('track')" class="w-full text-center text-sm text-gray-500 mt-4 hover:text-indigo-600">← Back to Search</button>
             </div>
 
         </main>
@@ -319,29 +400,43 @@
             tomCol.disable();
         }
 
+        // --- UI UPDATERS ---
+        window.updateShiftUI = (role) => {
+            if (role === 'req') {
+                const val = document.querySelector('input[name="req-shift"]:checked')?.value;
+                if (!val) return;
+                
+                const opp = val === '1' ? '2' : '1';
+                const label = opp === '1' ? 'Morning (1)' : 'Night (2)';
+                document.getElementById('req-shift-new-disp').value = label;
+                
+                // Auto-set colleague (must be opposite)
+                const radios = document.getElementsByName('col-shift');
+                radios.forEach(r => {
+                    if (r.value === opp) r.checked = true;
+                    else r.checked = false;
+                });
+                
+                const colLabel = val === '1' ? 'Morning (1)' : 'Night (2)';
+                document.getElementById('col-shift-new-disp').value = colLabel;
+            }
+        };
+
         // --- GLOBAL FUNCTIONS ---
         
         window.switchView = (view) => {
-            document.getElementById('view-form').classList.add('hidden');
-            document.getElementById('view-track').classList.add('hidden');
-            document.getElementById('view-result').classList.add('hidden');
-            document.getElementById('view-details').classList.add('hidden');
-            
+            ['view-form','view-track','view-result','view-details'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById(`view-${view}`).classList.remove('hidden');
             
             const tForm = document.getElementById('tab-form');
             const tTrack = document.getElementById('tab-track');
             
             if(view === 'form') {
-                tForm.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-                tForm.classList.remove('text-gray-500');
-                tTrack.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-                tTrack.classList.add('text-gray-500');
+                tForm.classList.add('bg-white', 'shadow-sm', 'text-gray-900'); tForm.classList.remove('text-gray-500');
+                tTrack.classList.remove('bg-white', 'shadow-sm', 'text-gray-900'); tTrack.classList.add('text-gray-500');
             } else if (view === 'track') {
-                tTrack.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-                tTrack.classList.remove('text-gray-500');
-                tForm.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-                tForm.classList.add('text-gray-500');
+                tTrack.classList.add('bg-white', 'shadow-sm', 'text-gray-900'); tTrack.classList.remove('text-gray-500');
+                tForm.classList.remove('bg-white', 'shadow-sm', 'text-gray-900'); tForm.classList.add('text-gray-500');
             }
         };
 
@@ -354,8 +449,10 @@
                 const colId = tomCol.getValue();
                 const shift = document.querySelector('input[name="req-shift"]:checked')?.value;
                 const date = document.getElementById('shift-date').value;
+                const agreement = document.getElementById('agreement').checked;
                 
                 if(!reqId || !colId || !shift || !date) throw new Error("Please fill all fields");
+                if(!agreement) throw new Error("You must agree to the terms");
 
                 const reqEmp = allEmployees.find(e => e.id === reqId);
                 const colEmp = allEmployees.find(e => e.id === colId);
@@ -394,7 +491,7 @@
             }
         };
 
-        // --- FIXED FUZZY SEARCH ---
+        // --- SMART SEARCH (Fuzzy) ---
         window.trackRequests = async () => {
             const inputVal = document.getElementById('track-id').value.trim().toLowerCase();
             if(!inputVal) return;
@@ -406,8 +503,7 @@
             status.classList.remove('hidden');
             
             try {
-                // FETCH LAST 500 RECORDS (Covers significant history)
-                // This allows us to do proper fuzzy matching (e.g. "123" matching "S12345") in memory
+                // Fetch last 500 records to perform Fuzzy Search in browser
                 const q = query(requestsCol, orderBy('shiftDate', 'desc'), limit(500));
                 const snap = await getDocs(q);
                 
@@ -416,13 +512,13 @@
                     const data = d.data();
                     let role = null;
                     
-                    // Helper: Safe string conversion
+                    // Safe string conversion
                     const rID = String(data.requesterRankId || "").toLowerCase();
                     const cID = String(data.colleagueRankId || "").toLowerCase();
                     const rName = String(data.requesterName || "").toLowerCase();
                     const cName = String(data.colleagueName || "").toLowerCase();
 
-                    // FUZZY MATCH LOGIC (Includes)
+                    // FUZZY MATCH LOGIC
                     if (rID.includes(inputVal) || rName.includes(inputVal)) role = 'Requester';
                     else if (cID.includes(inputVal) || cName.includes(inputVal)) role = 'Colleague';
 
@@ -434,14 +530,14 @@
                 status.classList.add('hidden');
                 
                 if (results.length === 0) {
-                    list.innerHTML = '<div class="text-center text-gray-400 text-xs py-4">No records found matching that ID or Name.</div>';
+                    list.innerHTML = '<div class="text-center text-gray-400 text-xs py-4">No records found.<br>Try checking the ID or Name.</div>';
                 } else {
-                    list.innerHTML = `<div class="text-xs text-center text-green-600 mb-2 font-bold">Found ${results.length} records</div>`;
+                    list.innerHTML = `<div class="text-xs text-center text-green-600 mb-2 font-bold">Found ${results.length} matches</div>`;
                     
                     results.forEach(r => {
                         const color = r.status === 'approved' ? 'bg-green-100 text-green-800' : (r.status.includes('pending') ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800');
                         const div = document.createElement('div');
-                        div.className = "bg-white border rounded-lg p-3 shadow-sm cursor-pointer hover:border-indigo-300 transition";
+                        div.className = "bg-white border rounded-lg p-4 shadow-sm cursor-pointer hover:border-indigo-300 transition";
                         div.onclick = () => loadDetails(r.id);
                         
                         div.innerHTML = `
@@ -476,16 +572,32 @@
                 // Fill UI
                 document.getElementById('det-date').textContent = d.shiftDate;
                 document.getElementById('det-reason').textContent = d.reason;
+                
+                // Requester
                 document.getElementById('det-req-name').textContent = d.requesterName;
+                document.getElementById('det-req-id').textContent = d.requesterRankId || 'N/A';
+                document.getElementById('det-req-team').textContent = d.requesterTeam || 'N/A';
                 document.getElementById('det-req-shift-old').textContent = d.requesterOriginalShift;
                 document.getElementById('det-req-shift-new').textContent = d.requesterNewShift;
+                
+                // Colleague
                 document.getElementById('det-col-name').textContent = d.colleagueName;
+                document.getElementById('det-col-id').textContent = d.colleagueRankId || 'N/A';
+                document.getElementById('det-col-team').textContent = d.colleagueTeam || 'N/A';
                 document.getElementById('det-col-shift-old').textContent = d.colleagueOriginalShift;
                 document.getElementById('det-col-shift-new').textContent = d.colleagueNewShift;
+                
+                // Comments
                 document.getElementById('det-comments').textContent = d.tlOcComments || "No comments.";
 
                 const ban = document.getElementById('status-banner');
-                ban.textContent = d.status.replace(/_/g, ' ').toUpperCase();
+                let st = d.status.replace(/_/g, ' ').toUpperCase();
+                ban.textContent = st;
+                ban.className = `p-4 rounded-lg text-center font-bold text-lg shadow-sm border ${
+                    d.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                    d.status.includes('rejected') ? 'bg-red-100 text-red-800' : 
+                    'bg-yellow-100 text-yellow-800'
+                }`;
                 
                 const act = document.getElementById('action-area');
                 act.innerHTML = '';
@@ -494,10 +606,10 @@
                 if (d.status === 'pending_colleague' && currentAction === 'colleague') {
                     act.innerHTML = `
                         <div class="bg-indigo-50 p-4 rounded-lg text-center">
-                            <p class="font-bold text-indigo-900 mb-3">Do you agree?</p>
+                            <p class="font-bold text-indigo-900 mb-3">Do you agree to this swap?</p>
                             <div class="flex gap-2">
-                                <button id="act-agree" class="flex-1 bg-green-600 text-white py-2 rounded font-bold">Agree</button>
-                                <button id="act-reject" class="flex-1 bg-white border border-red-300 text-red-600 py-2 rounded font-bold">Reject</button>
+                                <button id="act-agree" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold shadow hover:bg-green-700">Yes, I Agree</button>
+                                <button id="act-reject" class="flex-1 bg-white border border-red-300 text-red-600 py-3 rounded-lg font-bold hover:bg-red-50">No, Reject</button>
                             </div>
                         </div>`;
                     document.getElementById('act-agree').onclick = () => performAction(id, 'agree');
@@ -506,11 +618,11 @@
                 else if (d.status === 'pending_tl_oc' && currentAction === 'tl_oc') {
                     act.innerHTML = `
                         <div class="bg-blue-50 p-4 rounded-lg">
-                            <p class="font-bold text-blue-900 mb-2">Approval</p>
-                            <textarea id="admin-note" class="w-full border p-2 rounded mb-2 text-xs" placeholder="Comments"></textarea>
+                            <p class="font-bold text-blue-900 mb-2">Admin Approval</p>
+                            <textarea id="admin-note" class="w-full border p-2 rounded mb-3 text-sm bg-white" placeholder="Optional comments..."></textarea>
                             <div class="flex gap-2">
-                                <button id="act-approve" class="flex-1 bg-green-600 text-white py-2 rounded font-bold">Approve</button>
-                                <button id="act-deny" class="flex-1 bg-red-600 text-white py-2 rounded font-bold">Reject</button>
+                                <button id="act-approve" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold shadow hover:bg-green-700">Approve</button>
+                                <button id="act-deny" class="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold shadow hover:bg-red-700">Reject</button>
                             </div>
                         </div>`;
                     document.getElementById('act-approve').onclick = () => performAction(id, 'approve');
