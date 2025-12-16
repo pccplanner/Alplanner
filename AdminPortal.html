@@ -20,9 +20,8 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
         /* Badge Styles */
-        .badge { @apply px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide; }
-        .badge-pending { @apply bg-blue-100 text-blue-800 border border-blue-200; }
-        .badge-approved { @apply bg-green-100 text-green-800 border border-green-200; }
+        .badge { @apply px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide; }
+        .badge-pending { @apply bg-blue-50 text-blue-700 border border-blue-100; }
         
         /* Timeline Styles */
         .timeline-item { @apply relative pl-6 pb-4 border-l-2 border-gray-200 last:border-0 last:pb-0; }
@@ -93,7 +92,8 @@
                         <span id="count-pending" class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">0</span>
                     </div>
 
-                    <div id="pending-container" class="space-y-3">
+                    <!-- UPDATED: Grid Layout for Pending Cards -->
+                    <div id="pending-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <!-- Pending Cards Injected Here -->
                     </div>
                 </div>
@@ -124,14 +124,14 @@
                     <h2 class="text-lg font-semibold text-gray-800">Full Request History</h2>
                     
                     <div class="flex gap-2 w-full sm:w-auto">
-                        <select id="archive-filter" class="border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border" onchange="renderArchive()">
+                        <select id="archive-filter" class="border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border bg-white" onchange="renderArchive()">
                             <option value="all">Show All Status</option>
-                            <option value="pending_tl_oc">Pending TL/OC</option>
-                            <option value="pending_colleague">Pending Colleague</option>
+                            <option value="pending_tl_oc">Pending (TL/OC)</option>
+                            <option value="pending_colleague">Pending (Colleague)</option>
                             <option value="approved">Approved</option>
                             <option value="rejected">Rejected</option>
                         </select>
-                        <input type="text" id="archive-search" placeholder="Search..." 
+                        <input type="text" id="archive-search" placeholder="Search name, date, or status..." 
                                class="pl-4 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64"
                                onkeyup="renderArchive()">
                     </div>
@@ -187,8 +187,8 @@
         let allRequests = [];
 
         // --- ICONS ---
-        const iconSun = `<svg class="w-4 h-4 text-orange-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`;
-        const iconMoon = `<svg class="w-4 h-4 text-indigo-500 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>`;
+        const iconSun = `<svg class="w-3.5 h-3.5 text-orange-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`;
+        const iconMoon = `<svg class="w-3.5 h-3.5 text-indigo-500 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>`;
         const iconEdit = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>`;
 
         // --- DOM ELEMENTS ---
@@ -227,6 +227,35 @@
             return shift;
         }
 
+        function formatShiftShort(shift) {
+            if (!shift) return "?";
+             const s = shift.toString().toUpperCase();
+            if (s.includes('1') || s === 'M') return `${iconSun} AM`;
+            if (s.includes('2') || s === 'N') return `${iconMoon} PM`;
+            return shift;
+        }
+
+        function formatStatus(status) {
+            if (!status) return 'Unknown';
+            const map = {
+                'pending_colleague': 'Pending (Colleague)',
+                'pending_tl_oc': 'Pending (TL/OC)',
+                'approved': 'Approved',
+                'rejected_colleague': 'Rejected (Colleague)',
+                'rejected_tl_oc': 'Rejected (TL/OC)'
+            };
+            return map[status] || status.replace(/_/g, ' ').toUpperCase();
+        }
+
+        function getStatusColor(status) {
+            if (!status) return "bg-gray-100 text-gray-800";
+            if (status === 'approved') return "bg-green-100 text-green-800 border-green-200";
+            if (status === 'pending_tl_oc') return "bg-blue-100 text-blue-800 border-blue-200";
+            if (status === 'pending_colleague') return "bg-yellow-100 text-yellow-800 border-yellow-200";
+            if (status.includes('rejected')) return "bg-red-100 text-red-800 border-red-200";
+            return "bg-gray-100 text-gray-800";
+        }
+
         function formatTime(timestamp) {
             if (!timestamp) return '<span class="text-gray-400 italic">Pending...</span>';
             const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -255,6 +284,7 @@
         window.fetchRequests = async function() {
             Swal.showLoading();
             try {
+                // Fetch all requests
                 const q = query(shiftRequestsCollection, orderBy("shiftDate", "desc"));
                 const snapshot = await getDocs(q);
                 allRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -275,49 +305,41 @@
             
             if (pending.length === 0) {
                 pendingContainer.innerHTML = `
-                    <div class="p-8 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                    <div class="col-span-full p-8 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
                         <svg class="w-12 h-12 mx-auto mb-3 text-green-100" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
                         <p class="font-medium text-gray-500">All caught up!</p>
                         <p class="text-xs">No pending approvals required.</p>
                     </div>`;
             } else {
+                // UPDATED: Compact Grid Cards
                 pendingContainer.innerHTML = pending.map(req => `
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 transition hover:shadow-md">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4 mb-4">
-                            <div>
-                                <div class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Shift Date</div>
-                                <div class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                    ${req.shiftDate}
-                                </div>
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3 flex flex-col justify-between h-full hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-2 pb-2 border-b border-gray-100">
+                            <div class="font-bold text-gray-800 flex items-center gap-1.5 text-sm">
+                                <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                ${req.shiftDate}
                             </div>
-                             <span class="badge badge-pending">Pending TL/OC</span>
+                            <span class="badge badge-pending">Pending TL/OC</span>
                         </div>
-                        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 relative">
-                                <div class="absolute -top-2 left-3 text-[10px] font-bold bg-white px-1 text-gray-400">REQUESTER</div>
-                                <div class="font-bold text-gray-800">${req.requesterName}</div>
-                                <div class="text-sm flex items-center gap-2 mt-1 text-gray-600">
-                                    ${formatShift(req.requesterOriginalShift)} &rarr; ${formatShift(req.requesterNewShift)}
-                                </div>
+
+                        <div class="text-sm space-y-2 mb-3">
+                            <div class="flex items-center justify-between">
+                                <span class="font-semibold text-gray-700 truncate mr-2" title="${req.requesterName}">${req.requesterName}</span>
+                                <span class="text-[10px] bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 whitespace-nowrap">${formatShiftShort(req.requesterOriginalShift)} &rarr; ${formatShiftShort(req.requesterNewShift)}</span>
                             </div>
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 relative">
-                                <div class="absolute -top-2 left-3 text-[10px] font-bold bg-white px-1 text-gray-400">COLLEAGUE (Agreed)</div>
-                                <div class="font-bold text-gray-800">${req.colleagueName}</div>
-                                <div class="text-sm flex items-center gap-2 mt-1 text-gray-600">
-                                    ${formatShift(req.colleagueOriginalShift)} &rarr; ${formatShift(req.colleagueNewShift)}
-                                </div>
+                            <div class="flex items-center justify-between">
+                                <span class="font-semibold text-gray-700 truncate mr-2" title="${req.colleagueName}">${req.colleagueName}</span>
+                                <span class="text-[10px] bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 whitespace-nowrap">${formatShiftShort(req.colleagueOriginalShift)} &rarr; ${formatShiftShort(req.colleagueNewShift)}</span>
                             </div>
                         </div>
 
-                        <div class="flex gap-3">
-                            <button onclick="quickAction('${req.id}', 'approve')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-lg transition shadow-sm hover:shadow flex items-center justify-center gap-2 text-sm">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        <div class="flex gap-2 mt-auto">
+                            <button onclick="quickAction('${req.id}', 'approve')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-1.5 rounded text-xs transition shadow-sm flex items-center justify-center gap-1">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 Approve
                             </button>
-                            <button onclick="quickAction('${req.id}', 'reject')" class="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2 text-sm">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button onclick="quickAction('${req.id}', 'reject')" class="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-1.5 rounded text-xs transition flex items-center justify-center gap-1">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                 Reject
                             </button>
                         </div>
@@ -325,7 +347,7 @@
                 `).join('');
             }
 
-            // 2. RECENTLY APPROVED (7 DAYS) - ENHANCED CARD
+            // 2. RECENTLY APPROVED (7 DAYS)
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             
@@ -352,7 +374,6 @@
                         </div>
 
                         <div class="space-y-3">
-                            <!-- Requester Line -->
                             <div class="flex justify-between items-center text-sm">
                                 <div>
                                     <div class="font-bold text-gray-800">${req.requesterName}</div>
@@ -363,7 +384,6 @@
                                 </div>
                             </div>
 
-                            <!-- Colleague Line -->
                             <div class="flex justify-between items-center text-sm border-t border-gray-50 pt-2">
                                 <div>
                                     <div class="font-bold text-gray-800">${req.colleagueName}</div>
@@ -379,15 +399,19 @@
             }
         }
 
+        // --- NEW: Custom Sort for Archive ---
         function renderArchive() {
             const term = document.getElementById('archive-search').value.toLowerCase();
             const statusFilter = document.getElementById('archive-filter').value;
 
-            const filtered = allRequests.filter(req => {
+            // 1. FILTER
+            let filtered = allRequests.filter(req => {
+                const statusText = formatStatus(req.status).toLowerCase();
                 const matchesText = 
                     req.requesterName.toLowerCase().includes(term) ||
                     req.colleagueName.toLowerCase().includes(term) ||
-                    req.shiftDate.includes(term);
+                    req.shiftDate.includes(term) ||
+                    statusText.includes(term);
                 
                 let matchesStatus = true;
                 if (statusFilter !== 'all') {
@@ -397,17 +421,38 @@
                 return matchesText && matchesStatus;
             });
 
+            // 2. SORT (Pending > Approved > Rejected > Date)
+            filtered.sort((a, b) => {
+                const getPriority = (status) => {
+                    // Priority Level 1: Pending
+                    if (status.includes('pending')) return 1;
+                    // Priority Level 2: Approved
+                    if (status.includes('approved')) return 2;
+                    // Priority Level 3: Rejected
+                    if (status.includes('rejected')) return 3;
+                    return 4;
+                };
+
+                const pA = getPriority(a.status);
+                const pB = getPriority(b.status);
+
+                if (pA !== pB) {
+                    return pA - pB; // Lower number = Higher priority
+                }
+
+                // If same priority, sort by date descending (Newest first)
+                return b.shiftDate.localeCompare(a.shiftDate);
+            });
+
             if (filtered.length === 0) {
                 archiveTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No requests found.</td></tr>`;
                 return;
             }
 
+            // 3. RENDER
             archiveTableBody.innerHTML = filtered.map(req => {
-                let statusColor = "bg-gray-100 text-gray-800";
-                if(req.status.includes('approved')) statusColor = "bg-green-100 text-green-800 border-green-200";
-                if(req.status === 'pending_tl_oc') statusColor = "bg-blue-100 text-blue-800 border-blue-200";
-                if(req.status === 'pending_colleague') statusColor = "bg-yellow-100 text-yellow-800 border-yellow-200";
-                if(req.status.includes('rejected')) statusColor = "bg-red-100 text-red-800 border-red-200";
+                const statusColor = getStatusColor(req.status);
+                const displayStatus = formatStatus(req.status);
 
                 return `
                     <tr class="hover:bg-gray-50">
@@ -422,7 +467,7 @@
                         </td>
                         <td class="px-6 py-4">
                             <span class="px-2 py-1 rounded-full text-xs font-semibold border ${statusColor}">
-                                ${req.status.replace(/_/g, " ").replace("tl oc", "TL/OC")}
+                                ${displayStatus}
                             </span>
                         </td>
                         <td class="px-6 py-4 text-right">
@@ -544,7 +589,6 @@
                 if (formValues.action === 'update') {
                     await processUpdate(req, formValues.status, formValues.roster);
                 } else if (formValues.action === 'delete') {
-                    // Double check for delete
                     const confirmDelete = await Swal.fire({
                         title: 'Are you sure?',
                         text: "This action cannot be undone.",
@@ -571,7 +615,6 @@
                     lastAdminUpdate: serverTimestamp()
                 };
 
-                // Add timestamp if it's a final decision and wasn't there
                 if ((newStatus === 'approved' || newStatus.includes('rejected')) && !req.tlOcSignatureTimestamp) {
                     updates.tlOcSignatureTimestamp = serverTimestamp();
                 }
