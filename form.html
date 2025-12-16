@@ -9,119 +9,185 @@
     <meta property="og:title" content="Shift Change Request">
     <meta property="og:description" content="Tap to view details.">
     <meta property="og:image" content="https://cdn-icons-png.flaticon.com/128/3652/3652191.png">
+    <meta property="og:image:width" content="128">
+    <meta property="og:image:height" content="128">
+    <meta property="og:type" content="website">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
-    <!-- CRITICAL FIX: Added type="text/tailwindcss" so @apply works -->
-    <style type="text/tailwindcss">
-        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
-        
-        .loader {
-            border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; 
-            border-radius: 50%; width: 48px; height: 48px; 
-            animation: spin 1s linear infinite; margin: 20px auto;
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f9fafb; 
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Read-only/Disabled styles */
+        input:disabled, select:disabled, textarea:disabled,
+        .form-input-readonly {
+            background-color: #f3f4f6;
+            color: #6b7280;
+            cursor: not-allowed;
+            opacity: 1;
+        }
 
-        input:disabled, select:disabled, textarea:disabled, .form-input-readonly {
-            background-color: #f3f4f6; color: #6b7280; cursor: not-allowed; opacity: 1;
+        /* Loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6; 
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Status banners */
-        .status-pending_colleague { @apply bg-yellow-100 text-yellow-800 border border-yellow-200; }
-        .status-pending_tl_oc { @apply bg-blue-100 text-blue-800 border border-blue-200; }
-        .status-approved { @apply bg-green-100 text-green-800 border border-green-200; }
-        .status-rejected_colleague, .status-rejected_tl_oc { @apply bg-red-100 text-red-800 border border-red-200; }
+        .status-pending_colleague { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .status-pending_tl_oc { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .status-approved { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status-rejected_colleague, .status-rejected_tl_oc { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
-        .ts-control { @apply w-full border border-gray-300 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 !important; }
-        .ts-dropdown { @apply border-gray-300 rounded-lg shadow-lg !important; }
+        /* TomSelect overrides */
+        .ts-control {
+            border-radius: 0.5rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+            border-color: #d1d5db !important;
+        }
+        .ts-dropdown {
+            border-radius: 0.5rem !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+            border-color: #d1d5db !important;
+        }
         
-        .radio-card-label { @apply flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:border-indigo-300; }
-        .radio-card-label:has(input:checked) { @apply bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500; }
-        .radio-custom { @apply h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500; }
-
-        /* Tab States - Blue Line logic */
-        .tab-active { @apply text-indigo-600 border-b-2 border-indigo-600; }
-        .tab-inactive { @apply text-gray-500 hover:text-gray-800 border-b-2 border-transparent hover:border-gray-300; }
+        /* Radio Button Custom Styles */
+        .radio-card-label {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .radio-card-label:hover {
+            background-color: #f9fafb;
+            border-color: #a5b4fc;
+        }
+        .radio-card-label:has(input:checked) {
+            background-color: #eef2ff;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 1px #6366f1;
+        }
+        .radio-custom {
+            height: 1rem;
+            width: 1rem;
+            color: #4f46e5;
+            border-color: #d1d5db;
+        }
+        .radio-custom:focus {
+            box-shadow: 0 0 0 2px #c7d2fe;
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800">
+<body class="bg-gray-100">
 
-    <div class="container mx-auto max-w-2xl p-4 py-8">
+    <!-- Main Container -->
+    <div class="container mx-auto max-w-2xl p-4 py-8 sm:py-12">
         
-        <!-- Header -->
         <header class="text-center mb-8">
-            <div class="flex justify-center items-center gap-3 mb-4">
+            <div class="flex justify-center items-center gap-3 mb-6">
                 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600">
-                    <path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/><path d="M16 11h.01"/><path d="M12 11h.01"/><path d="M8 11h.01"/><path d="M16 15h.01"/><path d="M12 15h.01"/><path d="M8 15h.01"/><path d="M2 6l1.45-2.9A2 2 0 0 1 5.24 2h13.52a2 2 0 0 1 1.79 1.1L22 6"/><path d="M2 6h20"/><path d="M2 6v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6"/><path d="M10 19v-4h4v4"/>
+                    <path d="M8 7h.01"/>
+                    <path d="M12 7h.01"/>
+                    <path d="M16 7h.01"/>
+                    <path d="M16 11h.01"/>
+                    <path d="M12 11h.01"/>
+                    <path d="M8 11h.01"/>
+                    <path d="M16 15h.01"/>
+                    <path d="M12 15h.01"/>
+                    <path d="M8 15h.01"/>
+                    <path d="M2 6l1.45-2.9A2 2 0 0 1 5.24 2h13.52a2 2 0 0 1 1.79 1.1L22 6"/>
+                    <path d="M2 6h20"/>
+                    <path d="M2 6v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6"/>
+                    <path d="M10 19v-4h4v4"/>
                 </svg>
                 <h1 class="text-3xl font-bold text-gray-800">Change of Shift Application</h1>
             </div>
-            
-            <!-- Navigation (Tabs) -->
+
+            <!-- Navigation (Tabs) - Explicit Classes -->
             <div class="flex justify-center gap-4 text-sm font-medium border-b border-gray-200 pb-1">
-                <button id="nav-btn-form" onclick="window.switchView('form')" class="pb-2 px-4 transition-colors tab-active">New Request</button>
-                <button id="nav-btn-track" onclick="window.switchView('track')" class="pb-2 px-4 transition-colors tab-inactive">Track My Requests</button>
+                <button id="nav-btn-form" onclick="window.switchView('new')" class="pb-2 px-4 transition-colors text-indigo-600 border-b-2 border-indigo-600">New Request</button>
+                <button id="nav-btn-track" onclick="window.switchView('track')" class="pb-2 px-4 transition-colors text-gray-500 hover:text-gray-800 border-b-2 border-transparent hover:border-gray-300">Track My Requests</button>
             </div>
         </header>
 
         <!-- Loading View -->
-        <div id="loading-view" class="text-center py-12">
+        <div id="loading-view" class="text-center p-10">
             <div class="loader"></div>
-            <p id="loading-text" class="text-gray-600 text-lg mt-4">Connecting...</p>
+            <p id="loading-text" class="text-gray-600 text-lg">Loading...</p>
         </div>
 
-        <!-- NEW REQUEST VIEW -->
+        <!-- New Request View -->
         <div id="new-request-view" class="hidden space-y-6">
             <form id="new-request-form">
-                
-                <!-- 1. Requesting APO Detail -->
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+                <!-- Requesting APO's Detail -->
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
                     <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">1. Requesting APO's Detail</h2>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
-                        <select id="requesterName" placeholder="Type to search your name..." required></select>
+                        <label for="requesterName" class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
+                        <select id="requesterName" placeholder="Type to search your name..." required>
+                            <option value="">-- Select Your Name --</option>
+                        </select>
                     </div>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
-                            <input type="text" id="requesterRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" disabled>
+                            <label for="requesterRankId" class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
+                            <input type="text" id="requesterRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
-                            <input type="text" id="requesterTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" disabled>
+                            <label for="requesterTeam" class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
+                            <input type="text" id="requesterTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
                         </div>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Date/Day of Change:</label>
-                        <input type="date" id="shiftDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" required>
+                        <label for="shiftDate" class="block text-sm font-medium text-gray-700 mb-1">Date/Day of Change:</label>
+                        <input type="date" id="shiftDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Requester Shift Radios -->
+                        <!-- Requester Original Shift Radio Buttons -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Original Shift:</label>
+                            <!-- Hidden input to store value for form submission/logic -->
                             <input type="hidden" id="requesterOriginalShift" required>
                             
+                            <!-- Radio Group -->
                             <div class="grid grid-cols-2 gap-2">
                                 <label class="radio-card-label">
-                                    <input type="radio" name="reqShiftGroup" id="req-radio-1" value="1" class="radio-custom" onclick="window.setShiftUI('requester', '1')">
+                                    <input type="radio" name="reqShiftGroup" id="req-radio-1" value="1" class="radio-custom" onclick="setShiftUI('requester', '1')">
                                     <div class="ml-2 flex items-center gap-1.5">
-                                        <span class="text-orange-500 font-bold">☀️</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                                         <span class="text-sm font-medium text-gray-900">Morning (1)</span>
                                     </div>
                                 </label>
                                 
                                 <label class="radio-card-label">
-                                    <input type="radio" name="reqShiftGroup" id="req-radio-2" value="2" class="radio-custom" onclick="window.setShiftUI('requester', '2')">
+                                    <input type="radio" name="reqShiftGroup" id="req-radio-2" value="2" class="radio-custom" onclick="setShiftUI('requester', '2')">
                                     <div class="ml-2 flex items-center gap-1.5">
-                                        <span class="text-indigo-500 font-bold">🌙</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                                         <span class="text-sm font-medium text-gray-900">Night (2)</span>
                                     </div>
                                 </label>
@@ -129,103 +195,112 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</label>
-                            <input type="text" id="requesterNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 font-bold text-indigo-600" readonly>
+                            <label for="requesterNewShift" class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</label>
+                            <input type="text" id="requesterNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 form-input-readonly font-bold text-indigo-700" readonly>
                         </div>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason for change:</label>
-                        <textarea id="reason" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Family gathering" required></textarea>
+                        <label for="reason" class="block text-sm font-medium text-gray-700 mb-1">Reason for change:</label>
+                        <textarea id="reason" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="e.g., Family gathering" required></textarea>
                     </div>
                 </div>
 
-                <!-- 2. Colleague Detail -->
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+                <!-- Changing with APO's Detail -->
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
                     <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">2. Changing with APO's Detail</h2>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
-                        <select id="colleagueName" placeholder="Select a colleague..." required disabled></select>
+                        <label for="colleagueName" class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
+                        <select id="colleagueName" placeholder="Select a colleague..." required>
+                            <option value="">-- Select Requester First --</option>
+                        </select>
                         <p class="text-xs text-gray-500 mt-1">Select requester first to load colleagues.</p>
                     </div>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
-                            <input type="text" id="colleagueRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" disabled>
+                            <label for="colleagueRankId" class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
+                            <input type="text" id="colleagueRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
-                            <input type="text" id="colleagueTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" disabled>
+                            <label for="colleagueTeam" class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
+                            <input type="text" id="colleagueTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Colleague Shift Radios (Auto-selected mostly) -->
+                        <!-- Colleague Original Shift Radio Buttons -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Colleague's Original Shift:</label>
+                            <!-- Hidden input -->
                             <input type="hidden" id="colleagueOriginalShift" required>
                             
+                            <!-- Radio Group -->
                             <div class="grid grid-cols-2 gap-2">
                                 <label class="radio-card-label">
-                                    <input type="radio" name="colShiftGroup" id="col-radio-1" value="1" class="radio-custom" onclick="window.setShiftUI('colleague', '1')">
+                                    <input type="radio" name="colShiftGroup" id="col-radio-1" value="1" class="radio-custom" onclick="setShiftUI('colleague', '1')">
                                     <div class="ml-2 flex items-center gap-1.5">
-                                        <span class="text-orange-500 font-bold">☀️</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                                         <span class="text-sm font-medium text-gray-900">Morning (1)</span>
                                     </div>
                                 </label>
                                 
                                 <label class="radio-card-label">
-                                    <input type="radio" name="colShiftGroup" id="col-radio-2" value="2" class="radio-custom" onclick="window.setShiftUI('colleague', '2')">
+                                    <input type="radio" name="colShiftGroup" id="col-radio-2" value="2" class="radio-custom" onclick="setShiftUI('colleague', '2')">
                                     <div class="ml-2 flex items-center gap-1.5">
-                                        <span class="text-indigo-500 font-bold">🌙</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                                         <span class="text-sm font-medium text-gray-900">Night (2)</span>
                                     </div>
                                 </label>
                             </div>
-                             <p class="text-xs text-gray-500 mt-1 italic">Automatically updated based on your selection.</p>
+                             <p class="text-xs text-gray-500 mt-1 italic">Auto-updated based on your selection.</p>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Colleague's New Shift:</label>
-                            <input type="text" id="colleagueNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 font-bold text-orange-600" readonly>
+                            <label for="colleagueNewShift" class="block text-sm font-medium text-gray-700 mb-1">Colleague's New Shift:</label>
+                            <input type="text" id="colleagueNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 form-input-readonly font-bold text-orange-600" readonly>
                         </div>
                     </div>
                 </div>
 
-                <!-- 3. Agreement -->
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75">
+                <!-- Agreement -->
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75">
                     <h3 class="font-semibold text-gray-900 mb-2 border-b pb-1">3. Agreement</h3>
-                    <div class="text-xs text-gray-600 space-y-2 mt-3 pl-2 border-l-2 border-gray-300">
+                    <div class="text-xs text-gray-600 space-y-2 mt-3">
                         <p>We, hereby understand and acknowledged that:</p>
-                        <ul class="list-disc list-inside">
-                            <li>Changes subject to TL/OIC/OC approval.</li>
-                            <li>Liable to report back if colleague doesn't show.</li>
-                            <li>Requests should be made 7 days in advance.</li>
+                        <ul class="list-disc list-inside pl-2 space-y-1">
+                            <li>Changes are subject to approval by TL/OIC/OC.</li>
+                            <li>Changes shall only be effective upon approval TL/OIC/OC.</li>
+                            <li>In any event, anyone of us do not turn up as requested, we understand that we are liable to report back to duty as per original shift/roster.</li>
+                            <li>It is our responsibility to remind TL or OIC on the changes.</li>
+                            <li>*All shift changes shall be made at least 7 days before the actual shift for approval by TL/OIC/OC.</li>
                         </ul>
                     </div>
                     <div class="mt-4 bg-gray-50 p-3 rounded-lg">
-                        <label class="flex items-center cursor-pointer">
-                            <input type="checkbox" id="agreement" class="h-4 w-4 text-indigo-600 rounded" required>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="agreement" class="h-4 w-4 rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" required>
                             <span class="ml-2 text-sm font-medium text-gray-700">By submitting, I (the requester) agree to the terms.</span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Error Message -->
+                <!-- Error Message Container -->
                 <div id="error-message-container" class="hidden">
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-4" role="alert">
-                        <strong class="font-bold">Error!</strong>
+                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+                        <strong class="font-bold">Submission Failed!</strong>
                         <span class="block sm:inline" id="error-message-text"></span>
                     </div>
                 </div>
 
-                <!-- Submit -->
+                <!-- Submit Button -->
                 <div class="mt-6">
-                    <button type="submit" id="submit-request-btn" class="w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                    <button type="submit" id="submit-request-btn" class="w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500">
                         <span>Submit Request</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
                     </button>
                 </div>
             </form>
@@ -238,330 +313,255 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Search by Employee ID or Name</label>
                 <div class="flex gap-2">
                     <input id="track-id" type="text" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 12345 or John">
-                    <button onclick="window.trackRequests()" class="bg-indigo-600 text-white px-6 rounded-lg font-bold hover:bg-indigo-700 transition">Search</button>
+                    <button onclick="window.trackRequests()" class="bg-indigo-600 text-white px-6 rounded-lg font-bold hover:bg-indigo-700 transition shadow-md">Search</button>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">Finds your sent and received requests (Partial ID search enabled).</p>
+                <p class="text-xs text-gray-500 mt-2">Finds your sent and received requests (Partial ID/Name search enabled).</p>
             </div>
             
             <div id="track-status" class="text-center text-sm font-medium text-gray-500 hidden">Searching database...</div>
             <div id="track-results" class="space-y-3"></div>
         </div>
 
-        <!-- VIEW REQUEST (Details) -->
+        <!-- View Request View -->
         <div id="view-request-view" class="hidden space-y-6">
             <div id="status-banner-container"></div>
             
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
                 <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Request Details</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <span class="block text-sm font-medium text-gray-700 mb-1">Date of Change:</span>
-                        <div id="view-shiftDate" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-indigo-700 font-bold rounded-lg"></div>
+                        <div id="view-shiftDate" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-bold text-indigo-700"></div>
                     </div>
                     <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Reason:</span>
-                        <div id="view-reason" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg"></div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Reason for Change:</span>
+                        <div id="view-reason" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <!-- Requester Info -->
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+                <!-- Requesting APO -->
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
                     <h3 class="text-lg font-semibold text-indigo-700 border-b pb-2">Requesting APO</h3>
-                    <div><span class="text-sm font-medium">Name:</span> <div id="view-requesterName" class="font-bold"></div></div>
-                    <div><span class="text-sm font-medium">ID / Team:</span> <div id="view-req-info" class="text-sm text-gray-600"></div></div>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                        <div class="bg-red-50 p-2 rounded border border-red-100 text-center"><span class="block text-xs text-red-600 font-bold">FROM</span><div id="view-requesterOriginalShift" class="font-bold"></div></div>
-                        <div class="bg-green-50 p-2 rounded border border-green-100 text-center"><span class="block text-xs text-green-600 font-bold">TO</span><div id="view-requesterNewShift" class="font-bold"></div></div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Name:</span>
+                        <div id="view-requesterName" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</span>
+                        <div id="view-requesterRankId" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
+                        <div id="view-requesterTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Original Shift:</span>
+                            <div id="view-requesterOriginalShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-red-600"></div>
+                        </div>
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</span>
+                            <div id="view-requesterNewShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-green-600"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Submitted:</span>
+                        <div id="view-requesterSignature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
                     </div>
                 </div>
                 
-                <!-- Colleague Info -->
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                    <h3 class="text-lg font-semibold text-orange-700 border-b pb-2">Changing with APO</h3>
-                    <div><span class="text-sm font-medium">Name:</span> <div id="view-colleagueName" class="font-bold"></div></div>
-                    <div><span class="text-sm font-medium">ID / Team:</span> <div id="view-col-info" class="text-sm text-gray-600"></div></div>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                        <div class="bg-red-50 p-2 rounded border border-red-100 text-center"><span class="block text-xs text-red-600 font-bold">FROM</span><div id="view-colleagueOriginalShift" class="font-bold"></div></div>
-                        <div class="bg-green-50 p-2 rounded border border-green-100 text-center"><span class="block text-xs text-green-600 font-bold">TO</span><div id="view-colleagueNewShift" class="font-bold"></div></div>
+                <!-- Changing with APO -->
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+                    <h3 class="text-lg font-semibold text-blue-700 border-b pb-2">Changing with APO</h3>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Name:</span>
+                        <div id="view-colleagueName" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</span>
+                        <div id="view-colleagueRankId" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                     <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
+                        <div id="view-colleagueTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Original Shift:</span>
+                            <div id="view-colleagueOriginalShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-red-600"></div>
+                        </div>
+                        <div>
+                            <span class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</span>
+                            <div id="view-colleagueNewShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-green-600"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-medium text-gray-700 mb-1">Agreed:</span>
+                        <div id="view-colleagueSignature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
                     </div>
                 </div>
             </div>
             
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
                 <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">3. Approval / Disapproval</h2>
                 <div>
                     <span class="block text-sm font-medium text-gray-700 mb-1">TL/OC Comments:</span>
-                    <div id="view-tl-oc-Comments" class="w-full px-3 py-3 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg italic"></div>
+                    <div id="view-tl-oc-Comments" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[60px] flex items-center"></div>
+                </div>
+                <div>
+                    <span class="block text-sm font-medium text-gray-700 mb-1">TL/OC's Signature:</span>
+                    <div id="view-tl-oc-Signature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
                 </div>
             </div>
 
             <div id="action-container" class="space-y-4"></div>
             
-            <button onclick="window.switchView('track')" class="w-full text-center text-sm text-gray-500 hover:text-indigo-600 mt-6 pb-6">← Back to Tracker</button>
+            <button id="back-to-tracker-btn" onclick="window.switchView('track')" class="hidden w-full text-center text-sm text-gray-500 hover:text-indigo-600 mt-6 pb-6">← Back to Tracker</button>
         </div>
 
-        <!-- MESSAGE VIEW -->
+        <!-- Success/Message View -->
         <div id="message-view" class="hidden space-y-6">
-            <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200 text-center">
-                <div class="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-3xl">🎉</div>
-                <h2 id="message-title" class="text-2xl font-bold text-gray-900">Success!</h2>
-                <p id="message-text" class="mt-2 text-gray-600"></p>
+            
+            <!-- Top Card: Success -->
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 text-center">
+                <div id="message-icon-container" class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
+                    <svg class="h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <h2 id="message-title" class="text-2xl font-bold text-gray-900 mt-4">Success!</h2>
+                <p id="message-text" class="mt-2 text-gray-700 max-w-md mx-auto"></p>
             </div>
-            <div id="share-section" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hidden">
-                <a id="whatsapp-btn" href="#" target="_blank" class="block w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg text-center transition flex items-center justify-center gap-2">
-                    Send on WhatsApp
+
+            <a id="view-details-btn" href="#" 
+               class="hidden w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>View Request Details</span>
+            </a>
+
+            <!-- Action Card 1: WhatsApp -->
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75">
+                <h3 id="whatsapp-card-title" class="text-lg font-semibold text-gray-900 mb-4 text-center">Step 2: Get Colleague's Agreement</h3>
+                <p class="text-center text-gray-600 mb-5">The easiest way is to send the link via WhatsApp:</p>
+                
+                <a id="whatsapp-share-btn" href="#" target="_blank" 
+                   class="w-full px-5 py-3 rounded-lg shadow-lg font-semibold text-white transition-all duration-300 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 focus:ring-green-500 text-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.627-2.961 6.58-6.591 6.58zM5.59 5.59a.35.35 0 0 0-.273.512c.16.32.555 1.22 1.232 1.89C7.882 9.173 8.82 9.3 9.13 9.21c.31-.09.72-.372 1.038-.724.318-.35.555-.8.7-1.285.145-.485.08-.936-.026-1.083-.105-.146-.318-.24-.635-.426-.318-.187-.72-.187-.986-.113-.265.074-.469.165-.65.339-.181.174-.29.4-.395.572-.105.173-.21.265-.364.265-.155 0-.318-.09-.46-.21a4.9 4.9 0 0 1-1.6-1.485 5 5 0 0 1-1.04-1.745s-.105-.146.026-.28c.13-.134.288-.174.395-.21.105-.036.18-.01.264.04s.24.09.352.21c.112.12.164.195.21.318.047.123.027.265-.04.395-.07.13-.127.21-.184.288a.35.35 0 0 1-.264.112c-.09 0-.17-.036-.21-.074-.047-.036-.144-.165-.21-.28z"/>
+                    </svg>
+                    <span id="whatsapp-share-text" class="ml-3 text-lg">Share to Colleague</span>
                 </a>
             </div>
-            <button onclick="window.location.reload()" class="block w-full text-center text-indigo-600 font-bold mt-4">Start New Request</button>
-        </div>
 
+            <!-- Action Card 2: Copy Link -->
+            <div id="message-link-container" class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 bg-gray-50">
+                <p class="text-sm font-medium text-gray-800 mb-3 text-center">Or copy the link manually:</p>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="message-link" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm text-indigo-600 flex-grow bg-white" readonly>
+                    <button id="copy-link-btn" class="px-4 py-2 rounded-lg shadow-md font-semibold transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200 focus:ring-indigo-300 w-full sm:w-auto text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span>Copy Link</span>
+                    </button>
+                </div>
+                <span id="copy-status" class="mt-2 h-4 block text-sm text-green-600 text-center"></span>
+            </div>
+            
+        </div>
+        
     </div>
 
-    <!-- Firebase Logic -->
+    <!-- Firebase SDK -->
     <script type="module">
+        console.log("Shift Request App script started.");
+
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, getDocs, addDoc, doc, setDoc, serverTimestamp, query, where, getDoc, updateDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { 
+            getFirestore, doc, getDoc, setDoc, updateDoc,
+            collection, query, getDocs, addDoc, serverTimestamp, setLogLevel,
+            orderBy, limit
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GLOBAL CONFIG
-        let db, auth, requestsCol, linksCol, employeesCol, teamsCol, rosterCol;
-        let allEmployees = [], teamsMap = new Map();
-        let tomReq, tomCol;
-        let currentRequestId = null, currentRequestAction = null, currentRequestData = null;
+        // --- 0. FIREBASE SETUP ---
+        let firebaseConfig;
+        const standaloneConfig = {
+            apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+            authDomain: "roster-4a997.firebaseapp.com",
+            projectId: "roster-4a997",
+            storageBucket: "roster-4a997.firebasestorage.app",
+            messagingSenderId: "901381868881",
+            appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+
+        if (typeof __firebase_config !== 'undefined') {
+            console.log("Using environment-provided Firebase config.");
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            console.log("Using standalone Firebase config.");
+            firebaseConfig = standaloneConfig;
+        }
+
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        setLogLevel('Debug');
+
+        // --- 1. GLOBAL VARIABLES & COLLECTIONS ---
+        
+        // !!!!! IMPORTANT !!!!!
+        // SET THIS TO THE FINAL URL OF YOUR HTML FILE
+        const APP_URL = "https://theva73.github.io/YOUR_REPO_NAME/Form_07_11_8S.txt";
+        // !!!!! IMPORTANT !!!!!
+
+        let employeesCollection, teamsCollection, rosterCollection, shiftRequestsCollection, shortLinksCollection;
+        let allEmployees = [];
+        let teamsMap = new Map();
+        let currentRequestId = null;
+        let currentRequestAction = null;
+        let currentRequestData = null;
         const patternAnchorDate = '2025-01-01';
 
-        // INIT
-        async function init() {
-            try {
-                // Setup Firebase
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                    apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
-                    authDomain: "roster-4a997.firebaseapp.com",
-                    projectId: "roster-4a997",
-                    storageBucket: "roster-4a997.firebasestorage.app",
-                    messagingSenderId: "901381868881",
-                    appId: "1:901381868881:web:92930481d6c1c85fedd770"
-                };
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let requesterSelect, colleagueSelect;
 
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
+        // --- 2. DOM ELEMENTS (Will be assigned in DOMContentLoaded) ---
+        let loadingView, loadingText, newRequestView, viewRequestView, messageView, trackerView, newRequestForm,
+            requesterNameSelect, requesterRankId, requesterTeam, colleagueNameSelect, colleagueRankId,
+            colleagueTeam, shiftDateInput, requesterOriginalShift, requesterNewShift,
+            colleagueOriginalShift, colleagueNewShift, statusBannerContainer, actionContainer,
+            errorMessageContainer, errorMessageText;
 
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) await signInWithCustomToken(auth, token);
-                else await signInAnonymously(auth);
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        requestsCol = collection(db, `artifacts/${appId}/public/data/shiftRequests`);
-                        linksCol = collection(db, `artifacts/${appId}/public/data/shortLinks`);
-                        employeesCol = collection(db, "employees");
-                        teamsCol = collection(db, "teams");
-                        rosterCol = collection(db, "roster");
-
-                        await loadBaseData();
-                        await checkUrlParams();
-                    }
-                });
-            } catch (e) {
-                console.error("Init Error", e);
-                document.getElementById('loading-text').textContent = "System Error. Please refresh.";
-            }
-        }
-
-        async function loadBaseData() {
-            try {
-                const [eSnap, tSnap] = await Promise.all([getDocs(employeesCol), getDocs(teamsCol)]);
-                allEmployees = eSnap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
-                tSnap.forEach(d => teamsMap.set(d.id, d.data()));
-                
-                initFormUI();
-                document.getElementById('loading-view').classList.add('hidden');
-                document.getElementById('new-request-view').classList.remove('hidden');
-            } catch (e) { console.error(e); }
-        }
-
-        async function checkUrlParams() {
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get('code');
-            if (code) {
-                try {
-                    const snap = await getDoc(doc(linksCol, code));
-                    if (snap.exists()) {
-                        currentRequestId = snap.data().requestId;
-                        currentRequestAction = snap.data().action;
-                        loadViewRequest(currentRequestId);
-                    }
-                } catch(e) {}
-            } else if (params.get('requestId')) {
-                currentRequestId = params.get('requestId');
-                loadViewRequest(currentRequestId);
-            }
-        }
-
-        // --- FORM LOGIC ---
-        function initFormUI() {
-            if (tomReq) return;
-            
-            const opts = allEmployees.map(e => ({value: e.id, text: e.name}));
-            tomReq = new TomSelect('#requesterName', {
-                options: opts, valueField: 'value', labelField: 'text', searchField: 'text',
-                onChange: (v) => updateEmpDetails(v, 'requester')
-            });
-            tomCol = new TomSelect('#colleagueName', {
-                valueField: 'value', labelField: 'text', searchField: 'text',
-                onChange: (v) => updateEmpDetails(v, 'colleague')
-            });
-            tomCol.disable();
-
-            document.getElementById('shiftDate').addEventListener('change', () => fetchShifts());
-            document.getElementById('new-request-form').addEventListener('submit', submitForm);
-        }
-
-        async function updateEmpDetails(id, role) {
-            const emp = allEmployees.find(e => e.id === id);
-            if (!emp) return;
-            
-            const rId = role === 'requester' ? 'requesterRankId' : 'colleagueRankId';
-            const rTeam = role === 'requester' ? 'requesterTeam' : 'colleagueTeam';
-            
-            document.getElementById(rId).value = emp.emp_id || '-';
-            document.getElementById(rTeam).value = teamsMap.get(emp.team_id)?.name || '-';
-
-            if (role === 'requester') {
-                tomCol.clear(); tomCol.clearOptions();
-                const others = allEmployees.filter(e => e.id !== id);
-                others.forEach(o => tomCol.addOption({value: o.id, text: o.name}));
-                tomCol.enable();
-                fetchShifts();
-            } else {
-                fetchColleagueShift();
-            }
-        }
-
-        async function fetchShifts() {
-            const reqId = tomReq.getValue();
-            const date = document.getElementById('shiftDate').value;
-            if (!reqId || !date) return;
-
-            const shift = await getShiftFromRoster(reqId, date);
-            // Default to empty logic, let user select
-            if (shift) window.setShiftUI('requester', shift);
-            else {
-                document.getElementById('requesterOriginalShift').value = "";
-                document.getElementById('req-radio-1').checked = false;
-                document.getElementById('req-radio-2').checked = false;
-            }
-            if (tomCol.getValue()) fetchColleagueShift();
-        }
-
-        async function fetchColleagueShift() {
-            const colId = tomCol.getValue();
-            const date = document.getElementById('shiftDate').value;
-            if (!colId || !date) return;
-            
-            const shift = await getShiftFromRoster(colId, date);
-            if (shift) window.setShiftUI('colleague', shift);
-        }
-
-        async function getShiftFromRoster(id, date) {
-            try {
-                const snap = await getDoc(doc(rosterCol, id));
-                if (snap.exists() && snap.data()[date]) return snap.data()[date];
-            } catch(e) {}
-            
-            const emp = allEmployees.find(e => e.id === id);
-            const team = teamsMap.get(emp.team_id);
-            if (team?.shiftPattern) {
-                const diff = Math.floor((new Date(date) - new Date(patternAnchorDate)) / (1000 * 60 * 60 * 24));
-                const idx = ((diff % team.shiftPattern.length) + team.shiftPattern.length) % team.shiftPattern.length;
-                return team.shiftPattern[idx];
-            }
-            return "";
-        }
-
-        // --- GLOBAL UI HELPERS ---
+        // --- 3. HELPER FUNCTIONS ---
         
-        window.setShiftUI = (role, val) => {
-            val = val.replace(/[\[\]]/g, '').trim(); 
-            const isMorning = val === '1' || val === 'Morning';
-            const isNight = val === '2' || val === 'Night';
-            const cleanVal = isMorning ? '1' : (isNight ? '2' : '');
-
-            // Update Radio Buttons
-            const prefix = role === 'requester' ? 'req' : 'col';
-            const r1 = document.getElementById(`${prefix}-radio-1`);
-            const r2 = document.getElementById(`${prefix}-radio-2`);
-            if(r1) r1.checked = isMorning;
-            if(r2) r2.checked = isNight;
-            
-            // Set hidden original shift value
-            const hiddenId = role === 'requester' ? 'requesterOriginalShift' : 'colleagueOriginalShift';
-            document.getElementById(hiddenId).value = cleanVal;
-
-            // Update new shift display
-            const targetId = role === 'requester' ? 'requesterNewShift' : 'colleagueNewShift';
-            const newVal = cleanVal === '1' ? 'Night (2)' : (cleanVal === '2' ? 'Morning (1)' : '');
-            document.getElementById(targetId).value = newVal;
-
-            // SMART FEATURE: AUTO-SET OPPOSITE PERSON
-            // Only trigger if initiated by requester to prevent loops
-            if (role === 'requester') {
-                const oppVal = cleanVal === '1' ? '2' : (cleanVal === '2' ? '1' : '');
-                
-                // Update Colleague UI directly without recursion
-                const colR1 = document.getElementById('col-radio-1');
-                const colR2 = document.getElementById('col-radio-2');
-                const colHidden = document.getElementById('colleagueOriginalShift');
-                const colTarget = document.getElementById('colleagueNewShift');
-                
-                if (colR1 && colR2) {
-                    colR1.checked = oppVal === '1';
-                    colR2.checked = oppVal === '2';
-                }
-                if (colHidden) colHidden.value = oppVal;
-                if (colTarget) colTarget.value = oppVal === '1' ? 'Night (2)' : (oppVal === '2' ? 'Morning (1)' : '');
-            }
+        // Expose helper for global access
+        window.switchView = function(viewName) {
+            showView(viewName);
         };
-
-        window.switchView = (v) => {
-            ['new-request-view','tracker-view','view-request-view','message-view'].forEach(id => {
-                const el = document.getElementById(id);
-                if(el) el.classList.add('hidden');
-            });
-            
-            const target = v === 'form' ? 'new-request-view' : (v === 'track' ? 'tracker-view' : '');
-            if(target) document.getElementById(target).classList.remove('hidden');
-            
-            // Fix Blue Line Logic
-            const formBtn = document.getElementById('nav-btn-form');
-            const trackBtn = document.getElementById('nav-btn-track');
-            
-            if (formBtn && trackBtn) {
-                if (v === 'form') {
-                    formBtn.className = "text-indigo-600 hover:text-indigo-800 border-b-2 border-indigo-600 pb-1";
-                    trackBtn.className = "text-gray-500 hover:text-gray-800 pb-1";
-                } else if (v === 'track') {
-                    trackBtn.className = "text-indigo-600 hover:text-indigo-800 border-b-2 border-indigo-600 pb-1";
-                    formBtn.className = "text-gray-500 hover:text-gray-800 pb-1";
-                }
-            }
-        };
-
-        window.trackRequests = async () => {
+        
+        // Expose trackRequests for the button click
+        window.trackRequests = async function() {
             const val = document.getElementById('track-id').value.trim().toLowerCase();
             const list = document.getElementById('track-results');
             const status = document.getElementById('track-status');
             
             if(!val) return;
-            list.innerHTML = ""; status.classList.remove('hidden');
+            
+            list.innerHTML = ""; 
+            status.textContent = "Searching database...";
+            status.classList.remove('hidden');
 
             try {
-                // FUZZY SEARCH IMPLEMENTATION
-                const q = query(requestsCol, orderBy('shiftDate', 'desc'), limit(500));
+                // Fetch latest 500 records
+                const q = query(shiftRequestsCollection, orderBy('shiftDate', 'desc'), limit(500));
                 const snap = await getDocs(q);
                 
                 const results = [];
@@ -573,7 +573,7 @@
                     const rName = String(data.requesterName || "").toLowerCase();
                     const cName = String(data.colleagueName || "").toLowerCase();
 
-                    // Check includes for partial match
+                    // Fuzzy match
                     if (rID.includes(val) || rName.includes(val)) role = 'Requester';
                     else if (cID.includes(val) || cName.includes(val)) role = 'Colleague';
 
@@ -581,170 +581,1036 @@
                 });
 
                 status.classList.add('hidden');
-                if(results.length === 0) list.innerHTML = '<p class="text-center text-gray-400 text-sm">No records found.</p>';
+                
+                if(results.length === 0) {
+                    list.innerHTML = '<p class="text-center text-gray-400 text-sm">No records found matching your criteria.</p>';
+                    return;
+                }
                 
                 results.forEach(r => {
-                    const color = r.status === 'approved' ? 'text-green-600 bg-green-50 border-green-100' : (r.status.includes('pending') ? 'text-yellow-600 bg-yellow-50 border-yellow-100' : 'text-red-600 bg-red-50 border-red-100');
+                    let colorClass = 'bg-gray-50 border-gray-200 text-gray-800';
+                    if (r.status === 'approved') colorClass = 'bg-green-50 border-green-200 text-green-800';
+                    else if (r.status.includes('rejected')) colorClass = 'bg-red-50 border-red-200 text-red-800';
+                    else if (r.status.includes('pending')) colorClass = 'bg-yellow-50 border-yellow-200 text-yellow-800';
+
                     const item = document.createElement('div');
-                    item.className = "bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition";
-                    item.onclick = () => loadViewRequest(r.id);
+                    item.className = "bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition hover:border-indigo-300 group";
+                    
+                    // Setup click to view details
+                    item.onclick = async () => {
+                        loadingText.textContent = "Loading request details...";
+                        showView('loading');
+                        currentRequestId = r.id;
+                        currentRequestAction = null; // viewing as read-only/tracker
+                        await initViewRequest(true); // pass true to indicate navigation from tracker
+                    };
+
                     item.innerHTML = `
                         <div class="flex justify-between items-center mb-2">
-                            <span class="font-bold text-gray-900">${r.shiftDate}</span>
-                            <span class="px-2 py-1 rounded text-xs font-bold border uppercase ${color}">${r.status.replace(/_/g,' ')}</span>
+                            <span class="font-bold text-gray-900 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                ${r.shiftDate}
+                            </span>
+                            <span class="px-2 py-1 rounded text-xs font-bold border uppercase ${colorClass}">
+                                ${r.status.replace(/_/g,' ').replace('tl oc', 'TL/OC')}
+                            </span>
                         </div>
                         <div class="text-sm text-gray-600">
-                            Swap with <span class="font-semibold text-indigo-600">${r.role === 'Requester' ? r.colleagueName : r.requesterName}</span>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">REQ</span>
+                                <span>${r.requesterName}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">COL</span>
+                                <span>${r.colleagueName}</span>
+                            </div>
                         </div>
                     `;
                     list.appendChild(item);
                 });
 
-            } catch(e) { console.error(e); status.textContent = "Error searching."; }
+            } catch(e) { 
+                console.error(e); 
+                status.textContent = "Error searching. Please try again.";
+            }
         };
 
-        window.performAction = async (type) => {
-            const ref = doc(requestsCol, currentRequestId);
-            try {
-                if (type === 'agree') {
-                    await updateDoc(ref, { status: 'pending_tl_oc', colleagueSignatureTimestamp: serverTimestamp() });
-                    const code = Math.random().toString(36).substring(2,8);
-                    await setDoc(doc(linksCol, code), { requestId: currentRequestId, action: 'tl_oc' });
-                    const link = `${window.location.href.split('?')[0]}?code=${code}`;
-                    
-                    document.getElementById('message-title').textContent = "Agreement Sent!";
-                    document.getElementById('message-text').textContent = "Please forward the link below to your TL/OC for final approval.";
-                    const waBtn = document.getElementById('whatsapp-btn');
-                    waBtn.href = `https://wa.me/?text=${encodeURIComponent(`Shift Approval Needed: ${link}`)}`;
-                    waBtn.textContent = "Send to TL/OC";
-                    
-                    window.switchView('message');
-                    ['new-request-view','tracker-view','view-request-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
-                    document.getElementById('message-view').classList.remove('hidden');
-                } 
-                else if (type === 'approve') {
-                    const comment = document.getElementById('admin-comment').value;
-                    await updateDoc(ref, { status: 'approved', tlOcComments: comment, tlOcSignatureTimestamp: serverTimestamp() });
-                    alert("Approved!"); window.location.reload();
-                } 
-                else {
-                    const st = type === 'reject_col' ? 'rejected_colleague' : 'rejected_tl_oc';
-                    await updateDoc(ref, { status: st });
-                    alert("Rejected."); window.location.reload();
+        function getBaseUrl() {
+            if (APP_URL.includes("YOUR_REPO_NAME") || APP_URL.includes("YOUR-REPO-NAME")) {
+                console.warn("APP_URL not set. Falling back to window.location.href, which might fail.");
+                const baseUrl = window.location.href.split('?')[0];
+                return baseUrl;
+            }
+            return APP_URL.split('?')[0];
+        }
+
+        function showError(message) {
+            errorMessageText.textContent = message;
+            errorMessageContainer.classList.remove('hidden');
+        }
+
+        function clearError() {
+            errorMessageText.textContent = "";
+            errorMessageContainer.classList.add('hidden');
+        }
+
+        // UPDATED: Now Async to handle Short Link fetching
+        async function resolveUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const shortCode = params.get('code');
+
+            if (shortCode) {
+                loadingText.textContent = "Resolving short link...";
+                try {
+                    const docRef = doc(shortLinksCollection, shortCode);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        currentRequestId = data.requestId;
+                        currentRequestAction = data.action;
+                        console.log("Resolved short code:", shortCode, "to", data);
+                    } else {
+                        console.error("Short link not found");
+                        showError("Invalid or expired link.");
+                    }
+                } catch (error) {
+                    console.error("Error resolving short link:", error);
+                    showError("Error loading link.");
                 }
-            } catch(e) { alert(e.message); }
-        };
-
-        async function submitForm(e) {
-            e.preventDefault();
-            const btn = document.getElementById('submit-request-btn');
-            const errBox = document.getElementById('error-message-container');
-            errBox.classList.add('hidden');
-            btn.disabled = true; btn.textContent = "Processing...";
-
-            try {
-                const reqId = tomReq.getValue(), colId = tomCol.getValue();
-                const reqEmp = allEmployees.find(e => e.id === reqId);
-                const colEmp = allEmployees.find(e => e.id === colId);
-
-                const data = {
-                    requesterId: reqId, requesterName: reqEmp.name, requesterRankId: reqEmp.emp_id, requesterTeam: document.getElementById('requesterTeam').value,
-                    colleagueId: colId, colleagueName: colEmp.name, colleagueRankId: colEmp.emp_id, colleagueTeam: document.getElementById('colleagueTeam').value,
-                    shiftDate: document.getElementById('shiftDate').value,
-                    requesterOriginalShift: document.getElementById('requesterOriginalShift').value,
-                    requesterNewShift: document.getElementById('requesterNewShift').value,
-                    colleagueOriginalShift: document.getElementById('colleagueOriginalShift').value,
-                    colleagueNewShift: document.getElementById('colleagueNewShift').value,
-                    reason: document.getElementById('reason').value,
-                    status: 'pending_colleague',
-                    requesterSignatureTimestamp: serverTimestamp()
-                };
-
-                const ref = await addDoc(requestsCol, data);
-                
-                const code = Math.random().toString(36).substring(2,8);
-                await setDoc(doc(linksCol, code), { requestId: ref.id, action: 'colleague' });
-                const link = `${window.location.href.split('?')[0]}?code=${code}`;
-
-                document.getElementById('message-title').textContent = "Request Sent!";
-                document.getElementById('message-text').textContent = "Please share the link below with your colleague.";
-                const waBtn = document.getElementById('whatsapp-btn');
-                waBtn.href = `https://wa.me/?text=${encodeURIComponent(`Hi ${colEmp.name}, requesting a shift swap for ${data.shiftDate}. Link: ${link}`)}`;
-                document.getElementById('share-section').classList.remove('hidden');
-                
-                window.switchView('message');
-                ['new-request-view','tracker-view','view-request-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
-                document.getElementById('message-view').classList.remove('hidden');
-
-            } catch (err) {
-                document.getElementById('error-message-text').textContent = err.message;
-                errBox.classList.remove('hidden');
-                btn.disabled = false; btn.textContent = "Submit Request";
+            } else {
+                currentRequestId = params.get('requestId');
+                currentRequestAction = params.get('action');
             }
         }
 
-        async function loadViewRequest(id) {
-            document.getElementById('loading-view').classList.remove('hidden');
-            ['new-request-view','tracker-view','message-view'].forEach(v => document.getElementById(v).classList.add('hidden'));
-
+        // NEW: Generate Short Link Function
+        async function createShortLink(targetParams) {
+            // targetParams = { requestId: '...', action: '...' }
+            const shortCode = Math.random().toString(36).substring(2, 8); // 6 char random string
+            
             try {
-                const snap = await getDoc(doc(requestsCol, id));
-                if (!snap.exists()) throw new Error("Not found");
-                const d = snap.data();
-                currentRequestData = d;
-                currentRequestId = id;
-
-                document.getElementById('view-shiftDate').textContent = d.shiftDate;
-                document.getElementById('view-reason').textContent = d.reason;
-                document.getElementById('view-requesterName').textContent = d.requesterName;
-                document.getElementById('view-req-info').textContent = `${d.requesterRankId} | ${d.requesterTeam}`;
-                document.getElementById('view-requesterOriginalShift').textContent = d.requesterOriginalShift;
-                document.getElementById('view-requesterNewShift').textContent = d.requesterNewShift;
-                document.getElementById('view-colleagueName').textContent = d.colleagueName;
-                document.getElementById('view-col-info').textContent = `${d.colleagueRankId} | ${d.colleagueTeam}`;
-                document.getElementById('view-colleagueOriginalShift').textContent = d.colleagueOriginalShift;
-                document.getElementById('view-colleagueNewShift').textContent = d.colleagueNewShift;
-                document.getElementById('view-tl-oc-Comments').textContent = d.tlOcComments || "No comments.";
-
-                const ban = document.getElementById('status-banner-container');
-                let st = d.status.replace(/_/g, ' ').toUpperCase();
-                let cl = d.status === 'approved' ? 'bg-green-100 text-green-800' : (d.status.includes('rejected') ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800');
-                ban.innerHTML = `<div class="p-4 rounded-lg text-center font-bold text-lg ${cl}">${st}</div>`;
-
-                const act = document.getElementById('action-container');
-                act.innerHTML = '';
+                await setDoc(doc(shortLinksCollection, shortCode), {
+                    ...targetParams,
+                    createdAt: serverTimestamp()
+                });
                 
-                if (d.status === 'pending_colleague' && currentRequestAction === 'colleague') {
-                    act.innerHTML = `
-                        <div class="bg-indigo-50 p-6 rounded-lg text-center border border-indigo-100">
-                            <p class="font-bold text-lg text-indigo-900 mb-4">Do you agree to this swap?</p>
-                            <div class="grid grid-cols-2 gap-4">
-                                <button onclick="window.performAction('agree')" class="bg-green-600 text-white py-3 rounded-lg font-bold shadow hover:bg-green-700">Yes, I Agree</button>
-                                <button onclick="window.performAction('reject_col')" class="bg-white border-2 border-red-500 text-red-600 py-3 rounded-lg font-bold hover:bg-red-50">No, Reject</button>
-                            </div>
-                        </div>`;
-                } else if (d.status === 'pending_tl_oc' && currentRequestAction === 'tl_oc') {
-                    act.innerHTML = `
-                        <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
-                            <p class="font-bold text-lg text-blue-900 mb-2">Admin Approval</p>
-                            <textarea id="admin-comment" class="w-full border p-3 rounded-lg mb-4" placeholder="Optional comments..."></textarea>
-                            <div class="grid grid-cols-2 gap-4">
-                                <button onclick="window.performAction('approve')" class="bg-green-600 text-white py-3 rounded-lg font-bold shadow hover:bg-green-700">Approve Request</button>
-                                <button onclick="window.performAction('reject_tl')" class="bg-white border-2 border-red-500 text-red-600 py-3 rounded-lg font-bold hover:bg-red-50">Reject Request</button>
-                            </div>
-                        </div>`;
-                }
-
-                document.getElementById('loading-view').classList.add('hidden');
-                document.getElementById('view-request-view').classList.remove('hidden');
-
-            } catch(e) { console.error(e); alert("Error loading request."); }
+                const baseUrl = getBaseUrl();
+                return `${baseUrl}?code=${shortCode}`;
+            } catch (error) {
+                console.error("Error creating short link:", error);
+                // Fallback to long link if Firestore fails
+                const baseUrl = getBaseUrl();
+                const queryString = new URLSearchParams(targetParams).toString();
+                return `${baseUrl}?${queryString}`;
+            }
         }
 
-        // Start
-        init();
+        function updateTabs(activeView) {
+            const formBtn = document.getElementById('nav-btn-form');
+            const trackBtn = document.getElementById('nav-btn-track');
+            
+            if (!formBtn || !trackBtn) return;
+
+            // Updated: Explicitly switch classes by re-assigning full strings
+            const activeClasses = "pb-2 px-4 transition-colors text-indigo-600 border-b-2 border-indigo-600";
+            const inactiveClasses = "pb-2 px-4 transition-colors text-gray-500 hover:text-gray-800 border-b-2 border-transparent hover:border-gray-300";
+
+            if (activeView === 'new') {
+                formBtn.className = activeClasses;
+                trackBtn.className = inactiveClasses;
+            } else if (activeView === 'track') {
+                formBtn.className = inactiveClasses;
+                trackBtn.className = activeClasses;
+            }
+        }
+
+        function showView(view) {
+            loadingView.classList.add('hidden');
+            newRequestView.classList.add('hidden');
+            viewRequestView.classList.add('hidden');
+            messageView.classList.add('hidden');
+            trackerView.classList.add('hidden');
+            
+            if (view === 'loading') {
+                loadingView.classList.remove('hidden');
+            } else if (view === 'new') {
+                newRequestView.classList.remove('hidden');
+                updateTabs('new');
+            } else if (view === 'view') {
+                viewRequestView.classList.remove('hidden');
+            } else if (view === 'message') {
+                messageView.classList.remove('hidden');
+            } else if (view === 'track') {
+                trackerView.classList.remove('hidden');
+                updateTabs('track');
+            }
+        }
+        
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return "Pending...";
+            let date;
+            if (timestamp.toDate) { date = timestamp.toDate(); } 
+            else { date = new Date(timestamp); }
+            return date.toLocaleString('en-SG', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short',
+                timeZone: 'Asia/Singapore'
+            });
+        }
+        
+        function getDaysBetween(dateStr1, dateStr2) {
+            try {
+                const [y1, m1, d1] = dateStr1.split('-').map(Number);
+                const [y2, m2, d2] = dateStr2.split('-').map(Number);
+                const utcDate1 = Date.UTC(y1, m1 - 1, d1);
+                const utcDate2 = Date.UTC(y2, m2 - 1, d2);
+                if (isNaN(utcDate1) || isNaN(utcDate2)) { return 0; }
+                return Math.round((utcDate1 - utcDate2) / 86400000);
+            } catch (e) { console.error("Error in getDaysBetween", e); return 0; }
+        }
+        
+        function getOppositeShift(shift) {
+            const normalizedShift = shift ? shift.trim().toUpperCase() : "";
+            switch (normalizedShift) {
+                case '1': return '2';
+                case '2': return '1';
+                case '1A': return '2N';
+                case '2N': return '1A';
+                default: return '';
+            }
+        }
+
+        async function fetchInitialData() {
+            if (allEmployees.length > 0 && teamsMap.size > 0) return;
+
+            loadingText.textContent = "Fetching employee and team list...";
+            try {
+                const [empSnapshot, teamSnapshot] = await Promise.all([
+                    getDocs(query(employeesCollection)),
+                    getDocs(query(teamsCollection))
+                ]);
+
+                allEmployees = empSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                allEmployees.sort((a, b) => a.name.localeCompare(b.name));
+                
+                teamsMap.clear();
+                teamSnapshot.docs.forEach(doc => {
+                    teamsMap.set(doc.id, doc.data());
+                });
+                console.log(`Fetched ${allEmployees.length} employees and ${teamsMap.size} teams.`);
+            } catch (error) {
+                console.error("Error fetching initial data: ", error);
+                loadingText.textContent = "Error fetching data. Cannot proceed.";
+                throw error;
+            }
+        }
+
+        async function getShiftFromRoster(employeeId, date) {
+            if (!employeeId || !date) return "";
+            
+            try {
+                const rosterDocRef = doc(rosterCollection, employeeId);
+                const rosterDocSnap = await getDoc(rosterDocRef);
+                
+                if (rosterDocSnap.exists()) {
+                    const rosterData = rosterDocSnap.data();
+                    if (rosterData.hasOwnProperty(date)) {
+                        return rosterData[date] || ""; 
+                    }
+                }
+
+                const emp = allEmployees.find(e => e.id === employeeId);
+                if (!emp) return "";
+                
+                const team = teamsMap.get(emp.team_id);
+                if (team && team.shiftPattern && team.shiftPattern.length > 0) {
+                    const pattern = team.shiftPattern;
+                    const anchor = team.patternStartDate || patternAnchorDate;
+                    const daysSinceAnchor = getDaysBetween(date, anchor);
+                    
+                    if (isNaN(daysSinceAnchor)) {
+                        return "";
+                    }
+
+                    const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
+                    return pattern[patternIndex] || "";
+                }
+            } catch (error) {
+                console.error(`Error in getShiftFromRoster for ${employeeId} on ${date}:`, error);
+                return "Error";
+            }
+            return "";
+        }
+
+        // --- NEW: UI Logic for Radio Buttons (Auto-Calculation Restored) ---
+        
+        window.setShiftUI = function(role, shiftValue) {
+            // role: 'requester' or 'colleague'
+            // shiftValue: '1' or '2'
+            
+            // 1. Update Hidden Input for current role
+            const hiddenInputId = role === 'requester' ? 'requesterOriginalShift' : 'colleagueOriginalShift';
+            document.getElementById(hiddenInputId).value = shiftValue;
+            
+            // 2. Update Radio Visuals for current role
+            updateShiftToggleVisuals(role, shiftValue);
+            
+            // 3. Logic: Update "New Shift" Display & Cross-Populate
+            if (role === 'requester') {
+                const reqNewShift = getOppositeShift(shiftValue);
+                // Format display nicely
+                const reqNewDisplay = reqNewShift === '1' ? 'Morning (1)' : (reqNewShift === '2' ? 'Night (2)' : reqNewShift);
+                document.getElementById('requesterNewShift').value = reqNewDisplay;
+
+                // --- RESTORED AUTO-CALCULATION ---
+                // If Requester changes shift, assume Colleague is doing the opposite swap.
+                // e.g. Requester: Morning -> Night. Colleague: Night -> Morning.
+                // So Colleague Original = Requester New (2)
+                
+                const autoColleagueOriginal = reqNewShift; 
+                
+                // Update Colleague Hidden Input
+                document.getElementById('colleagueOriginalShift').value = autoColleagueOriginal;
+                
+                // Update Colleague Radio Visuals
+                updateShiftToggleVisuals('colleague', autoColleagueOriginal);
+                
+                // Update Colleague New Shift Text
+                const colNewShift = getOppositeShift(autoColleagueOriginal);
+                const colNewDisplay = colNewShift === '1' ? 'Morning (1)' : (colNewShift === '2' ? 'Night (2)' : colNewShift);
+                document.getElementById('colleagueNewShift').value = colNewDisplay;
+                
+                // Refresh colleague dropdown (keep existing logic)
+                const requesterId = requesterSelect ? requesterSelect.getValue() : "";
+                const date = document.getElementById('shiftDate').value;
+                updateColleagueDropdown(requesterId, date);
+                
+            } else if (role === 'colleague') {
+                 const colNewShift = getOppositeShift(shiftValue);
+                 const colNewDisplay = colNewShift === '1' ? 'Morning (1)' : (colNewShift === '2' ? 'Night (2)' : colNewShift);
+                 document.getElementById('colleagueNewShift').value = colNewDisplay;
+            }
+        }
+        
+        function updateShiftToggleVisuals(role, shiftValue) {
+            // Determine if it's morning or night based on value
+            const isMorning = shiftValue.includes('1');
+            const isNight = shiftValue.includes('2');
+            
+            // IDs for radios
+            const prefix = role === 'requester' ? 'req' : 'col';
+            
+            const radio1 = document.getElementById(`${prefix}-radio-1`);
+            const radio2 = document.getElementById(`${prefix}-radio-2`);
+            
+            if (radio1 && radio2) {
+                if (isMorning) {
+                    radio1.checked = true;
+                } else if (isNight) {
+                    radio2.checked = true;
+                } else {
+                    // Reset if unknown
+                    radio1.checked = false;
+                    radio2.checked = false;
+                }
+            }
+        }
+
+        // --- 4. APP LOGIC - NEW REQUEST ---
+
+        async function initNewRequestForm() {
+            await fetchInitialData();
+            initTomSelectInputs();
+            
+            const today = new Date();
+            today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+            shiftDateInput.min = today.toISOString().split('T')[0];
+
+            shiftDateInput.addEventListener('change', async () => { 
+                await fetchRequesterShiftAndColleagues(); 
+            });
+            
+            newRequestForm.addEventListener('submit', handleFormSubmit);
+            
+            showView('new');
+        }
+
+        function initTomSelectInputs() {
+            if (requesterSelect) return;
+
+            const tomSelectSettings = {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                valueField: 'value',
+                labelField: 'text',
+                searchField: 'text'
+            };
+
+            const employeeOptions = allEmployees.map(emp => ({
+                value: emp.id,
+                text: emp.name
+            }));
+            
+            requesterSelect = new TomSelect(requesterNameSelect, {
+                ...tomSelectSettings,
+                options: employeeOptions,
+                onChange: async (value) => {
+                    await updateEmployeeDetails(value, 'requester'); 
+                }
+            });
+
+            colleagueSelect = new TomSelect(colleagueNameSelect, {
+                ...tomSelectSettings,
+                onChange: async (value) => {
+                    await updateEmployeeDetails(value, 'colleague');
+                }
+            });
+            
+            colleagueSelect.disable();
+            colleagueSelect.clearOptions();
+            colleagueSelect.addOption({ value: "", text: "-- Select Requester & Date First --" });
+        }
+        
+        async function updateEmployeeDetails(employeeId, type) {
+            const emp = allEmployees.find(e => e.id === employeeId);
+            let rankIdInput, teamInput;
+
+            if (type === 'requester') {
+                rankIdInput = requesterRankId;
+                teamInput = requesterTeam;
+            } else {
+                rankIdInput = colleagueRankId;
+                teamInput = colleagueTeam;
+            }
+
+            if (!emp) {
+                rankIdInput.value = "";
+                teamInput.value = "";
+                return;
+            }
+
+            const team = teamsMap.get(emp.team_id);
+            const teamName = team ? team.name : (emp.team_id || 'N/A');
+
+            rankIdInput.value = emp.emp_id || 'N/A';
+            teamInput.value = teamName;
+            
+            if (type === 'requester') {
+                await fetchRequesterShiftAndColleagues(); 
+            } else {
+                await fetchColleagueShift(employeeId);
+            }
+        }
+        
+        async function fetchColleagueShift(colleagueId) {
+             const date = shiftDateInput.value;
+             if (!date || !colleagueId) return;
+             
+             try {
+                // We don't set value directly anymore, use UI helper
+                const colOrigShift = await getShiftFromRoster(colleagueId, date);
+                
+                // If we get a valid shift, update the UI
+                if (colOrigShift) {
+                     window.setShiftUI('colleague', colOrigShift);
+                } else {
+                    // Reset if not found
+                     document.getElementById('colleagueOriginalShift').value = "";
+                     updateShiftToggleVisuals('colleague', '');
+                     document.getElementById('colleagueNewShift').value = "";
+                }
+            } catch (error) {
+                console.error("Error fetching colleague shift:", error);
+            }
+        }
+
+        async function fetchRequesterShiftAndColleagues() {
+            const date = shiftDateInput.value;
+            const requesterId = requesterSelect.getValue();
+            
+            if (!date || !requesterId) {
+                await updateColleagueDropdown(requesterId, date);
+                return;
+            }
+
+            let reqOrigShift = '';
+            
+            try {
+                reqOrigShift = await getShiftFromRoster(requesterId, date);
+                
+                 if (reqOrigShift) {
+                     window.setShiftUI('requester', reqOrigShift);
+                } else {
+                     document.getElementById('requesterOriginalShift').value = "";
+                     updateShiftToggleVisuals('requester', '');
+                     document.getElementById('requesterNewShift').value = "";
+                }
+            } catch (error) {
+                console.error("Error fetching requester shift:", error);
+            } 
+            
+            try {
+                await updateColleagueDropdown(requesterId, date);
+            } catch (dropdownError) {
+                console.error("Error updating colleague dropdown:", dropdownError);
+                colleagueSelect.disable();
+                colleagueSelect.clearOptions();
+                colleagueSelect.addOption({ value: "", text: "-- Error loading --" });
+                colleagueSelect.enable();
+            }
+        }
+
+        async function updateColleagueDropdown(requesterId, date) {
+            if (!requesterId) {
+                colleagueSelect.disable();
+                colleagueSelect.clearOptions();
+                colleagueSelect.addOption({ value: "", text: "-- Select Requester First --" });
+                return;
+            }
+
+            colleagueSelect.disable();
+            colleagueSelect.clear();
+            colleagueSelect.clearOptions();
+            colleagueSelect.load(onLoad => {
+                onLoad([{ value: "", text: "Loading colleagues..." }]);
+            });
+
+            const requester = allEmployees.find(e => e.id === requesterId);
+            if (!requester) {
+                 colleagueSelect.enable();
+                 return;
+            }
+
+            const eligibleColleagues = allEmployees.filter(emp => emp.id !== requesterId);
+
+            colleagueSelect.clearOptions();
+
+            colleagueSelect.addOption({ value: "", text: "-- Select a Colleague --" });
+            
+            eligibleColleagues.sort((a, b) => a.name.localeCompare(b.name));
+            
+            eligibleColleagues.forEach(emp => {
+                const teamName = teamsMap.get(emp.team_id)?.name || "Unknown";
+                colleagueSelect.addOption({ value: emp.id, text: `${emp.name} (${teamName})` });
+            });
+            
+            colleagueSelect.enable();
+            colleagueSelect.setValue("");
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            clearError(); 
+            
+            const submitBtn = document.getElementById('submit-request-btn');
+            submitBtn.disabled = true;
+            submitBtn.firstElementChild.textContent = "Submitting...";
+            submitBtn.classList.add('opacity-75');
+
+            const requesterId = requesterSelect.getValue();
+            const colleagueId = colleagueSelect.getValue();
+            
+            if (requesterId === colleagueId) {
+                showError("You cannot change shifts with yourself. Please select a different colleague.");
+                submitBtn.disabled = false;
+                submitBtn.firstElementChild.textContent = "Submit Request";
+                submitBtn.classList.remove('opacity-75');
+                return;
+            }
+            if (!requesterId || !colleagueId) {
+                 showError("Please select both your name and your colleague's name.");
+                submitBtn.disabled = false;
+                submitBtn.firstElementChild.textContent = "Submit Request";
+                submitBtn.classList.remove('opacity-75');
+                return;
+            }
+            
+            const requester = allEmployees.find(e => e.id === requesterId);
+            const colleague = allEmployees.find(e => e.id === colleagueId);
+
+            const requesterTeamObj = teamsMap.get(requester.team_id);
+            const requesterTeamName = requesterTeamObj ? requesterTeamObj.name : (requester.team_id || 'N/A');
+            const colleagueTeamObj = teamsMap.get(colleague.team_id);
+            const colleagueTeamName = colleagueTeamObj ? colleagueTeamObj.name : (colleague.team_id || 'N/A');
+
+            // IMPORTANT: Parse raw values for validation, ignoring text labels
+            let reqNew = document.getElementById('requesterNewShift').value;
+            let colOrig = document.getElementById('colleagueOriginalShift').value;
+            
+            // Extract just the '1' or '2' if possible, or leave as is
+            const extractShift = (val) => {
+                if(val.includes('1')) return '1';
+                if(val.includes('2')) return '2';
+                return val;
+            };
+
+            const requestData = {
+                requesterId: requesterId,
+                requesterName: requester.name,
+                requesterRankId: requester.emp_id || 'N/A',
+                requesterTeam: requesterTeamName,
+                
+                colleagueId: colleagueId,
+                colleagueName: colleague.name,
+                colleagueRankId: colleague.emp_id || 'N/A',
+                colleagueTeam: colleagueTeamName,
+                
+                shiftDate: shiftDateInput.value,
+                requesterOriginalShift: document.getElementById('requesterOriginalShift').value,
+                requesterNewShift: extractShift(document.getElementById('requesterNewShift').value),
+                colleagueOriginalShift: document.getElementById('colleagueOriginalShift').value,
+                colleagueNewShift: extractShift(document.getElementById('colleagueNewShift').value),
+                
+                reason: document.getElementById('reason').value,
+                status: 'pending_colleague',
+                
+                requesterSignatureTimestamp: serverTimestamp(),
+                colleagueSignatureTimestamp: null,
+                tlOcSignatureTimestamp: null,
+                tlOcComments: "",
+            };
+
+            // Enhanced Validation with extracted values
+            if (requestData.requesterNewShift !== requestData.colleagueOriginalShift ||
+                requestData.requesterOriginalShift !== requestData.colleagueNewShift) {
+                
+                showError(`Shift Mismatch. Your 'Change Shift to' must match your Colleague's 'Original Shift'. Please check the date and selected colleague.`);
+                submitBtn.disabled = false;
+                submitBtn.firstElementChild.textContent = "Submit Request";
+                submitBtn.classList.remove('opacity-75');
+                return;
+            }
+
+            try {
+                const docRef = await addDoc(shiftRequestsCollection, requestData);
+                
+                // --- GENERATE SHORT LINK ---
+                const shortLink = await createShortLink({
+                    requestId: docRef.id,
+                    action: 'colleague'
+                });
+                
+                const whatsAppMessage = `Hi ${colleague.name}, ${requester.name} has requested a shift swap with you for ${requestData.shiftDate}. Please review and agree at this link:`;
+
+                showMessage(
+                    "Request Submitted!",
+                    `Your request has been created. Please send the link below to <strong>${colleague.name}</strong> for their agreement.`,
+                    shortLink,
+                    whatsAppMessage,
+                    "Share to Colleague",
+                    "Step 2: Get Colleague's Agreement"
+                );
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                showError(`An unexpected error occurred: ${error.message}. Please try again.`);
+                submitBtn.disabled = false;
+                submitBtn.firstElementChild.textContent = "Submit Request";
+                submitBtn.classList.remove('opacity-75');
+            }
+        }
+        
+        function showMessage(title, text, link, whatsAppMessage, buttonText, whatsAppTitle) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-text').innerHTML = text;
+            
+            const iconContainer = document.getElementById('message-icon-container');
+            if (title.toLowerCase().includes('success') || title.toLowerCase().includes('approved') || title.toLowerCase().includes('submitted')) {
+                iconContainer.innerHTML = `
+                    <svg class="h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>`;
+                iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100";
+            } else { 
+                iconContainer.innerHTML = `
+                    <svg class="h-10 w-10 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>`;
+                iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100";
+            }
+
+            const linkInput = document.getElementById('message-link');
+            linkInput.value = link;
+            
+            const copyBtn = document.getElementById('copy-link-btn');
+            const copyStatus = document.getElementById('copy-status');
+            
+            copyBtn.onclick = () => {
+                linkInput.select();
+                try {
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(link).then(() => {
+                            copyStatus.textContent = "Copied!";
+                        });
+                    } else {
+                        document.execCommand('copy');
+                        copyStatus.textContent = "Copied!";
+                    }
+                } catch (err) {
+                     copyStatus.textContent = "Error copying.";
+                }
+                setTimeout(() => { copyStatus.textContent = ""; }, 2000);
+            };
+
+            const waBtn = document.getElementById('whatsapp-share-btn');
+            const waBtnText = document.getElementById('whatsapp-share-text');
+            const waBtnCard = waBtn.closest('.bg-white');
+            const waTitleEl = document.getElementById('whatsapp-card-title');
+            
+            const viewDetailsBtn = document.getElementById('view-details-btn');
+            const copyLinkCard = document.getElementById('message-link-container');
+
+            if (waTitleEl) {
+                waTitleEl.textContent = whatsAppTitle || "Step 2: Get Colleague's Agreement";
+            }
+
+            if (whatsAppMessage && buttonText) {
+                const encodedMessage = encodeURIComponent(`${whatsAppMessage}\n\n${link}`);
+                const waHref = `https://wa.me/?text=${encodedMessage}`;
+                waBtn.href = waHref;
+                waBtnText.textContent = buttonText;
+                
+                waBtn.classList.remove('hidden');
+                if (waBtnCard) waBtnCard.classList.remove('hidden');
+
+                viewDetailsBtn.classList.add('hidden'); 
+                copyLinkCard.classList.remove('hidden'); 
+            } else {
+                waBtn.classList.add('hidden');
+                if (waBtnCard) waBtnCard.classList.add('hidden');
+
+                viewDetailsBtn.href = link; 
+                viewDetailsBtn.classList.remove('hidden'); 
+                copyLinkCard.classList.remove('hidden'); 
+            }
+
+            showView('message');
+        }
+
+        // --- 5. APP LOGIC - VIEW REQUEST ---
+
+        async function initViewRequest(fromTracker = false) {
+            await fetchInitialData();
+            loadingText.textContent = "Loading request details...";
+            
+            const docRef = doc(shiftRequestsCollection, currentRequestId);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                loadingText.textContent = "Error: This request does not exist.";
+                return;
+            }
+
+            currentRequestData = docSnap.data();
+            
+            document.getElementById('view-shiftDate').textContent = currentRequestData.shiftDate;
+            document.getElementById('view-reason').textContent = currentRequestData.reason;
+            
+            document.getElementById('view-requesterName').textContent = currentRequestData.requesterName;
+            document.getElementById('view-requesterRankId').textContent = currentRequestData.requesterRankId;
+            document.getElementById('view-requesterTeam').textContent = currentRequestData.requesterTeam;
+            document.getElementById('view-requesterOriginalShift').textContent = currentRequestData.requesterOriginalShift;
+            document.getElementById('view-requesterNewShift').textContent = currentRequestData.requesterNewShift;
+            document.getElementById('view-requesterSignature').textContent = formatTimestamp(currentRequestData.requesterSignatureTimestamp);
+            
+            document.getElementById('view-colleagueName').textContent = currentRequestData.colleagueName;
+            document.getElementById('view-colleagueRankId').textContent = currentRequestData.colleagueRankId;
+            document.getElementById('view-colleagueTeam').textContent = currentRequestData.colleagueTeam;
+            document.getElementById('view-colleagueOriginalShift').textContent = currentRequestData.colleagueOriginalShift;
+            document.getElementById('view-colleagueNewShift').textContent = currentRequestData.colleagueNewShift;
+            document.getElementById('view-colleagueSignature').textContent = formatTimestamp(currentRequestData.colleagueSignatureTimestamp);
+            
+            document.getElementById('view-tl-oc-Comments').textContent = currentRequestData.tlOcComments || "No comments.";
+            document.getElementById('view-tl-oc-Signature').textContent = formatTimestamp(currentRequestData.tlOcSignatureTimestamp);
+
+            const status = currentRequestData.status;
+            let statusText = status.replace('_', ' ').replace('tl oc', 'TL/OC').replace(/\b\w/g, l => l.toUpperCase()); // Capitalize words
+            statusBannerContainer.innerHTML = `<div class="p-4 rounded-lg text-center font-bold text-lg mb-6 shadow-sm status-${status}">${statusText}</div>`;
+
+            // Toggle Back Button visibility
+            const backBtn = document.getElementById('back-to-tracker-btn');
+            if (fromTracker) backBtn.classList.remove('hidden');
+            else backBtn.classList.add('hidden');
+
+            renderActionButtons();
+            showView('view');
+        }
+
+        function renderActionButtons() {
+            actionContainer.innerHTML = "";
+            const status = currentRequestData.status;
+
+            const btnSuccess = "w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 focus:ring-green-500";
+            const btnDanger = "w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-red-600 hover:bg-red-700 focus:ring-red-500";
+            
+            const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+            const xIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+
+            if (status === 'pending_colleague' && currentRequestAction === 'colleague') {
+                actionContainer.innerHTML = `
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 text-center">
+                        <h3 class="text-xl font-semibold">Hi ${currentRequestData.colleagueName},</h3>
+                        <p class="text-gray-700 mt-2">${currentRequestData.requesterName} has requested to change shifts with you. Do you agree?</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <button id="colleague-agree-btn" class="${btnSuccess}">
+                            ${checkIcon}
+                            <span>I Agree</span>
+                        </button>
+                        <button id="colleague-disagree-btn" class="${btnDanger}">
+                            ${xIcon}
+                            <span>I Disagree</span>
+                        </button>
+                    </div>
+                `;
+                document.getElementById('colleague-agree-btn').addEventListener('click', () => handleColleagueAction(true));
+                document.getElementById('colleague-disagree-btn').addEventListener('click', () => handleColleagueAction(false));
+            }
+            else if (status === 'pending_tl_oc' && currentRequestAction === 'tl_oc') {
+                 actionContainer.innerHTML = `
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
+                        <h3 class="text-xl font-semibold text-center border-b pb-2">TL/OC Approval</h3>
+                        <div>
+                            <label for="tl-oc-CommentsInput" class="block text-sm font-medium text-gray-700 mb-1">Comments (Optional):</label>
+                            <textarea id="tl-oc-CommentsInput" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"></textarea>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button id="tl-oc-approve-btn" class="${btnSuccess}">
+                                ${checkIcon}
+                                <span>Approve</span>
+                            </button>
+                            <button id="tl-oc-reject-btn" class="${btnDanger}">
+                                ${xIcon}
+                                <span>Reject</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('tl-oc-approve-btn').addEventListener('click', () => handleTlOcAction(true));
+                document.getElementById('tl-oc-reject-btn').addEventListener('click', () => handleTlOcAction(false));
+            }
+            else {
+                if (currentRequestAction && (status.includes('approved') || status.includes('rejected'))) {
+                    actionContainer.innerHTML = `<p class="text-center text-gray-600">This request has already been <strong>${status.replace('_', ' ').replace('tl oc', 'TL/OC').toUpperCase()}</strong>.</p>`;
+                } else if (!currentRequestAction && status.includes('pending')) {
+                     actionContainer.innerHTML = `<p class="text-center text-gray-600">This request is <strong>${status.replace('_', ' ').replace('tl oc', 'TL/OC').toUpperCase()}</strong>. Waiting for action.</p>`;
+                } else {
+                     actionContainer.innerHTML = `<p class="text-center text-gray-600">This request is finalized. No further actions are needed.</p>`;
+                }
+            }
+        }
+
+        async function handleColleagueAction(didAgree) {
+            const docRef = doc(shiftRequestsCollection, currentRequestId);
+            
+            try {
+                if (didAgree) {
+                    await updateDoc(docRef, {
+                        status: 'pending_tl_oc',
+                        colleagueSignatureTimestamp: serverTimestamp()
+                    });
+                    
+                    // --- GENERATE SHORT LINK ---
+                    const shortLink = await createShortLink({
+                        requestId: currentRequestId,
+                        action: 'tl_oc'
+                    });
+                    
+                    const whatsAppMessage = `Hi, this is a shift change request for ${currentRequestData.requesterName} and ${currentRequestData.colleagueName} on ${currentRequestData.shiftDate}. We have both agreed.\n\n👇 Please tap below to approve:`;
+
+                    showMessage(
+                        "Agreement Submitted!",
+                        `Thank you! Your agreement has been recorded. Please forward the link below to your TL/OC for final approval.`,
+                        shortLink,
+                        whatsAppMessage,
+                        "Share to TL/OC",
+                        "Step 3: Get TL/OC Approval"
+                    );
+                } else {
+                    await updateDoc(docRef, {
+                        status: 'rejected_colleague',
+                        colleagueSignatureTimestamp: serverTimestamp()
+                    });
+
+                     // No short link needed for rejection view
+                     const baseUrl = getBaseUrl();
+                     const link = `${baseUrl}?requestId=${currentRequestId}`;
+                     
+                    showMessage(
+                        "Request Rejected",
+                        `You have rejected this request. The requester has been notified (implicitly).`,
+                        link, null, null, "Request Status"
+                    );
+                }
+            } catch (error) {
+                console.error("Error updating request: ", error);
+            }
+        }
+        
+        async function handleTlOcAction(didApprove) {
+            const docRef = doc(shiftRequestsCollection, currentRequestId);
+            const tlOcComments = document.getElementById('tl-oc-CommentsInput') ? document.getElementById('tl-oc-CommentsInput').value : "";
+            
+            const completionTime = new Date().toLocaleString('en-SG', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short',
+                timeZone: 'Asia/Singapore'
+            });
+
+            try {
+                let whatsAppMessage = "";
+                let shortLink = "";
+                
+                // --- GENERATE SHORT LINK ---
+                // For final view, we just need requestId, no action
+                 shortLink = await createShortLink({
+                    requestId: currentRequestId
+                });
+
+                if (didApprove) {
+                    const { requesterId, colleagueId, shiftDate, requesterNewShift, colleagueNewShift } = currentRequestData;
+                    
+                    const requesterRosterRef = doc(rosterCollection, requesterId);
+                    const colleagueRosterRef = doc(rosterCollection, colleagueId);
+                    
+                    const requesterShiftWithMark = `[${requesterNewShift}]`;
+                    const colleagueShiftWithMark = `[${colleagueNewShift}]`;
+                    
+                    await setDoc(requesterRosterRef, { [shiftDate]: requesterShiftWithMark }, { merge: true });
+                    await setDoc(colleagueRosterRef, { [shiftDate]: colleagueShiftWithMark }, { merge: true });
+                    
+                    await updateDoc(docRef, {
+                        status: 'approved',
+                        tlOcComments: tlOcComments,
+                        tlOcSignatureTimestamp: serverTimestamp()
+                    });
+                    
+                    whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${shiftDate} has been APPROVED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
+
+                } else {
+                    await updateDoc(docRef, {
+                        status: 'rejected_tl_oc',
+                        tlOcComments: tlOcComments,
+                        tlOcSignatureTimestamp: serverTimestamp()
+                    });
+                    
+                     whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${currentRequestData.shiftDate} has been REJECTED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
+                }
+
+                showMessage(
+                    didApprove ? "Request Approved!" : "Request Rejected",
+                    didApprove ? `The request has been approved and the roster updated. Please notify the requester.` : `The request has been rejected. Please notify the requester.`,
+                    shortLink, 
+                    whatsAppMessage, 
+                    "Notify Requester",
+                    "Final Step: Notify Requester"
+                );
+
+            } catch (error) {
+                console.error("Error finalizing request: ", error);
+            }
+        }
+
+        // --- 6. INITIALIZATION ---
+        
+        let authStateProcessed = false;
+        
+        function assignDOMElements() {
+            loadingView = document.getElementById('loading-view');
+            loadingText = document.getElementById('loading-text');
+            newRequestView = document.getElementById('new-request-view');
+            viewRequestView = document.getElementById('view-request-view');
+            messageView = document.getElementById('message-view');
+            trackerView = document.getElementById('tracker-view');
+            newRequestForm = document.getElementById('new-request-form');
+            requesterNameSelect = document.getElementById('requesterName');
+            requesterRankId = document.getElementById('requesterRankId');
+            requesterTeam = document.getElementById('requesterTeam');
+            colleagueNameSelect = document.getElementById('colleagueName');
+            colleagueRankId = document.getElementById('colleagueRankId');
+            colleagueTeam = document.getElementById('colleagueTeam');
+            shiftDateInput = document.getElementById('shiftDate');
+            requesterOriginalShift = document.getElementById('requesterOriginalShift');
+            requesterNewShift = document.getElementById('requesterNewShift');
+            colleagueOriginalShift = document.getElementById('colleagueOriginalShift');
+            colleagueNewShift = document.getElementById('colleagueNewShift');
+            statusBannerContainer = document.getElementById('status-banner-container');
+            actionContainer = document.getElementById('action-container');
+            errorMessageContainer = document.getElementById('error-message-container');
+            errorMessageText = document.getElementById('error-message-text');
+
+            console.log("DOM elements assigned.");
+        }
+        
+        async function initFirebase() {
+            loadingText.textContent = "Authenticating...";
+            
+            const authTimeout = setTimeout(() => {
+                if (!authStateProcessed) {
+                    console.error("Authentication timed out.");
+                    if (loadingText) loadingText.textContent = "Authentication Timed Out. Please check your network and refresh.";
+                }
+            }, 10000);
+
+            onAuthStateChanged(auth, async (user) => {
+                authStateProcessed = true;
+                clearTimeout(authTimeout);
+
+                if (user) {
+                    console.log("User authenticated:", user.uid);
+                    loadingText.textContent = "Authentication successful. Loading data...";
+                    
+                    try {
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                        
+                        employeesCollection = collection(db, "employees");
+                        teamsCollection = collection(db, "teams");
+                        rosterCollection = collection(db, "roster");
+                        shiftRequestsCollection = collection(db, `artifacts/${appId}/public/data/shiftRequests`);
+                        shortLinksCollection = collection(db, `artifacts/${appId}/public/data/shortLinks`);
+                        console.log("Collections defined.");
+
+                        // NOW ASYNC: Wait for short link resolution
+                        await resolveUrlParams();
+                        
+                        if (currentRequestId) {
+                            await initViewRequest();
+                        } else {
+                            await initNewRequestForm();
+                        }
+                    } catch (error) {
+                        console.error("Error during app initialization:", error);
+                        loadingText.textContent = `Error: ${error.message}. Please refresh.`;
+                    }
+
+                } else {
+                    console.log("User not signed in.");
+                    loadingText.textContent = "Authentication Failed. User is not signed in.";
+                }
+            });
+
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication Error:", error);
+                if (!authStateProcessed) { 
+                    authStateProcessed = true;
+                    clearTimeout(authTimeout);
+                    loadingText.textContent = "Authentication Failed. Please refresh.";
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM Loaded. Assigning elements and initializing Firebase.");
+            assignDOMElements();
+            initFirebase();
+        });
+        
     </script>
 </body>
 </html>
-
 
