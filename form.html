@@ -3,1431 +3,555 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Change of Shift Application</title>
+    <title>Shift Change Application</title>
     
-    <!-- === SMART LINK PREVIEW TAGS (For WhatsApp Small Card) === -->
-    <meta property="og:title" content="Shift Change Request">
-    <meta property="og:description" content="Tap to view details.">
-    <!-- Using a 128px image triggers the smaller 'Thumbnail' layout in WhatsApp -->
-    <meta property="og:image" content="https://cdn-icons-png.flaticon.com/128/3652/3652191.png">
-    <meta property="og:image:width" content="128">
-    <meta property="og:image:height" content="128">
-    <meta property="og:type" content="website">
-    <!-- ========================================================= -->
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: #f9fafb; 
-        }
-        
-        /* Read-only/Disabled styles */
-        input:disabled, select:disabled, textarea:disabled,
-        .form-input-readonly {
-            background-color: #f3f4f6;
-            color: #6b7280;
-            cursor: not-allowed;
-            opacity: 1;
-        }
-
-        /* Loading spinner */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6; 
-            border-radius: 50%;
-            width: 48px;
-            height: 48px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Status banners */
-        .status-pending_colleague { @apply bg-yellow-100 text-yellow-800 border border-yellow-200; }
-        .status-pending_tl_oc { @apply bg-blue-100 text-blue-800 border border-blue-200; }
-        .status-approved { @apply bg-green-100 text-green-800 border border-green-200; }
-        .status-rejected_colleague, .status-rejected_tl_oc { @apply bg-red-100 text-red-800 border border-red-200; }
-
-        /* TomSelect overrides */
-        .ts-control {
-            @apply w-full border border-gray-300 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 !important;
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.5rem !important;
-        }
-        .ts-control .ts-input {
-            @apply shadow-none p-0 m-0 !important;
-        }
-        .ts-dropdown {
-            @apply border-gray-300 rounded-lg shadow-lg !important;
-        }
-        .ts-dropdown .ts-option.active, .ts-dropdown .ts-option:hover {
-            @apply bg-indigo-50 text-indigo-700 !important;
-        }
-        .ts-dropdown .optgroup-header {
-            @apply text-xs font-semibold uppercase text-gray-500 bg-gray-50 p-2 !important;
-        }
-        
-        /* Radio Button Custom Styles */
-        .radio-card-label {
-            @apply flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:border-indigo-300;
-        }
-        .radio-card-label:has(input:checked) {
-            @apply bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500;
-        }
-        .radio-custom {
-            @apply h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .loader { border: 3px solid #d1d5db; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .ts-control { border-radius: 0.5rem; border-color: #d1d5db; padding: 8px 12px; }
+        .hidden { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50 text-gray-800 min-h-screen">
 
-    <!-- Main Container -->
-    <div class="container mx-auto max-w-2xl p-4 py-8 sm:py-12">
+    <div class="max-w-xl mx-auto p-4">
         
-        <header class="text-center mb-8">
-            <div class="flex justify-center items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600">
-                    <path d="M8 7h.01"/>
-                    <path d="M12 7h.01"/>
-                    <path d="M16 7h.01"/>
-                    <path d="M16 11h.01"/>
-                    <path d="M12 11h.01"/>
-                    <path d="M8 11h.01"/>
-                    <path d="M16 15h.01"/>
-                    <path d="M12 15h.01"/>
-                    <path d="M8 15h.01"/>
-                    <path d="M2 6l1.45-2.9A2 2 0 0 1 5.24 2h13.52a2 2 0 0 1 1.79 1.1L22 6"/>
-                    <path d="M2 6h20"/>
-                    <path d="M2 6v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6"/>
-                    <path d="M10 19v-4h4v4"/>
-                </svg>
-                <h1 class="text-3xl font-bold text-gray-800">Change of Shift Application</h1>
-            </div>
-            <p class="text-gray-600 mt-2" id="app-subtitle">Submit a new request or view an existing one.</p>
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-xl font-bold text-gray-900">Shift Change</h1>
+            <div class="text-xs font-medium text-gray-500" id="connection-status">Connecting...</div>
         </header>
 
-        <!-- Loading View -->
-        <div id="loading-view" class="text-center p-10">
-            <div class="loader"></div>
-            <p id="loading-text" class="text-gray-600 text-lg">Loading...</p>
+        <!-- Debug / Loading Log -->
+        <div id="system-log" class="bg-blue-50 border border-blue-200 text-blue-800 text-xs p-3 rounded-lg mb-4 font-mono">
+            Initializing System...
         </div>
 
-        <!-- New Request View -->
-        <div id="new-request-view" class="hidden space-y-6">
-            <form id="new-request-form">
-                <!-- Requesting APO's Detail -->
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">1. Requesting APO's Detail</h2>
-                    
-                    <div>
-                        <label for="requesterName" class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
-                        <select id="requesterName" placeholder="Type to search your name..." required>
-                            <option value="">-- Select Your Name --</option>
-                        </select>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label for="requesterRankId" class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
-                            <input type="text" id="requesterRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
-                        </div>
-                        <div>
-                            <label for="requesterTeam" class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
-                            <input type="text" id="requesterTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label for="shiftDate" class="block text-sm font-medium text-gray-700 mb-1">Date/Day of Change:</label>
-                        <input type="date" id="shiftDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" required>
-                    </div>
+        <!-- MAIN VIEW CONTAINER -->
+        <main id="main-container" class="hidden space-y-6">
+            
+            <!-- TABS -->
+            <div class="flex p-1 bg-gray-200 rounded-lg">
+                <button onclick="switchView('form')" id="tab-form" class="flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm text-gray-900 transition">New Request</button>
+                <button onclick="switchView('track')" id="tab-track" class="flex-1 py-2 text-sm font-bold rounded-md text-gray-500 hover:text-gray-900 transition">Track Status</button>
+            </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Requester Original Shift Radio Buttons -->
+            <!-- FORM VIEW -->
+            <div id="view-form" class="block space-y-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-gray-900 mb-4">1. Requester Details</h3>
+                    <div class="space-y-3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Your Name</label>
+                        <select id="req-select" placeholder="Start typing name..."></select>
+                        <div class="flex gap-2">
+                            <input id="req-id" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="ID" disabled>
+                            <input id="req-team" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="Team" disabled>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-gray-900 mb-4">2. Shift Details</h3>
+                    <div class="space-y-3">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Original Shift:</label>
-                            <!-- Hidden input to store value for form submission/logic -->
-                            <input type="hidden" id="requesterOriginalShift" required>
-                            
-                            <!-- Radio Group -->
-                            <div class="grid grid-cols-2 gap-2">
-                                <label class="radio-card-label">
-                                    <input type="radio" name="reqShiftGroup" id="req-radio-1" value="1" class="radio-custom" onclick="setShiftUI('requester', '1')">
-                                    <div class="ml-2 flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                                        <span class="text-sm font-medium text-gray-900">Morning (1)</span>
-                                    </div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                            <input type="date" id="shift-date" class="w-full border rounded p-2">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Current Shift</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="req-shift" value="1">
+                                    <span class="text-sm">Morning (1)</span>
                                 </label>
-                                
-                                <label class="radio-card-label">
-                                    <input type="radio" name="reqShiftGroup" id="req-radio-2" value="2" class="radio-custom" onclick="setShiftUI('requester', '2')">
-                                    <div class="ml-2 flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                                        <span class="text-sm font-medium text-gray-900">Night (2)</span>
-                                    </div>
+                                <label class="flex-1 border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="req-shift" value="2">
+                                    <span class="text-sm">Night (2)</span>
                                 </label>
                             </div>
                         </div>
-                        
-                        <div>
-                            <label for="requesterNewShift" class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</label>
-                            <input type="text" id="requesterNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 form-input-readonly" readonly>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label for="reason" class="block text-sm font-medium text-gray-700 mb-1">Reason for change:</label>
-                        <textarea id="reason" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="e.g., Family gathering" required></textarea>
                     </div>
                 </div>
 
-                <!-- Changing with APO's Detail -->
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">2. Changing with APO's Detail</h2>
-                    
-                    <div>
-                        <label for="colleagueName" class="block text-sm font-medium text-gray-700 mb-1">Name:</label>
-                        <select id="colleagueName" placeholder="Select a colleague..." required>
-                            <option value="">-- Select Requester First --</option>
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">You may select any colleague. If the shift does not match, please coordinate with them.</p>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label for="colleagueRankId" class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</label>
-                            <input type="text" id="colleagueRankId" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-gray-900 mb-4">3. Swap Partner</h3>
+                    <div class="space-y-3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Colleague Name</label>
+                        <select id="col-select" placeholder="Select colleague..."></select>
+                        <div class="flex gap-2">
+                            <input id="col-id" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="ID" disabled>
+                            <input id="col-team" class="w-full bg-gray-50 border rounded p-2 text-xs" placeholder="Team" disabled>
                         </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Reason</label>
+                    <textarea id="reason" class="w-full border rounded p-2" rows="2" placeholder="Reason..."></textarea>
+                    <button id="btn-submit" onclick="submitRequest()" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition">Submit Request</button>
+                </div>
+            </div>
+
+            <!-- TRACK VIEW -->
+            <div id="view-track" class="hidden space-y-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Search by ID or Name</label>
+                    <div class="flex gap-2">
+                        <input id="track-id" type="text" class="flex-1 border rounded p-2" placeholder="Enter number (e.g. 12345)">
+                        <button onclick="trackRequests()" class="bg-indigo-600 text-white px-4 rounded font-bold hover:bg-indigo-700">Search</button>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-2">Partial match enabled (e.g., '123' finds 'S12345')</p>
+                </div>
+                
+                <div id="track-status" class="text-center text-sm font-bold text-gray-500 hidden">Searching...</div>
+                <div id="track-list" class="space-y-3"></div>
+            </div>
+
+            <!-- RESULT VIEW -->
+            <div id="view-result" class="hidden bg-white p-8 rounded-xl shadow-lg border border-gray-200 text-center">
+                <div class="text-4xl mb-4">🎉</div>
+                <h2 class="text-xl font-bold text-gray-900 mb-2" id="res-title">Success</h2>
+                <p class="text-gray-600 mb-6 text-sm" id="res-msg">Operation completed.</p>
+                <a id="res-link" href="#" target="_blank" class="block w-full bg-green-500 text-white font-bold py-3 rounded-lg mb-3">Share on WhatsApp</a>
+                <button onclick="window.location.reload()" class="text-indigo-600 text-sm font-bold">Back to Home</button>
+            </div>
+
+            <!-- DETAILS VIEW -->
+            <div id="view-details" class="hidden space-y-5">
+                <div id="status-banner" class="p-3 text-center font-bold rounded-lg border bg-gray-100 text-gray-600">Loading...</div>
+                
+                <div class="bg-white p-5 rounded-xl shadow-lg border border-gray-200">
+                    <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-3">
                         <div>
-                            <label for="colleagueTeam" class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</label>
-                            <input type="text" id="colleagueTeam" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" disabled>
+                            <p class="text-xs text-gray-400 font-bold uppercase">Date</p>
+                            <p id="det-date" class="text-lg font-bold text-gray-900">-</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-400 font-bold uppercase">Reason</p>
+                            <p id="det-reason" class="text-sm text-gray-600">-</p>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Colleague Original Shift Radio Buttons -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Colleague's Original Shift:</label>
-                            <!-- Hidden input -->
-                            <input type="hidden" id="colleagueOriginalShift" required>
-                            
-                            <!-- Radio Group -->
-                            <div class="grid grid-cols-2 gap-2">
-                                <label class="radio-card-label">
-                                    <input type="radio" name="colShiftGroup" id="col-radio-1" value="1" class="radio-custom" onclick="setShiftUI('colleague', '1')">
-                                    <div class="ml-2 flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                                        <span class="text-sm font-medium text-gray-900">Morning (1)</span>
-                                    </div>
-                                </label>
-                                
-                                <label class="radio-card-label">
-                                    <input type="radio" name="colShiftGroup" id="col-radio-2" value="2" class="radio-custom" onclick="setShiftUI('colleague', '2')">
-                                    <div class="ml-2 flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                                        <span class="text-sm font-medium text-gray-900">Night (2)</span>
-                                    </div>
-                                </label>
+                    <!-- Swap Visual -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-sm">
+                            <span id="det-req-name" class="font-bold text-gray-800">-</span>
+                            <div class="flex items-center gap-1 text-xs">
+                                <span id="det-req-shift-old" class="text-red-500 line-through">-</span>
+                                <span>→</span>
+                                <span id="det-req-shift-new" class="text-green-600 font-bold">-</span>
                             </div>
-                             <p class="text-xs text-gray-500 mt-1">Note: Your 'Change Shift to' should match this.</p>
                         </div>
-
-                        <div>
-                            <label for="colleagueNewShift" class="block text-sm font-medium text-gray-700 mb-1">Colleague's New Shift:</label>
-                            <input type="text" id="colleagueNewShift" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 form-input-readonly" readonly>
-                             <p class="text-xs text-gray-500 mt-1">Note: This should match your 'Original Shift'.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Agreement -->
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75">
-                    <h3 class="font-semibold text-gray-900 mb-2 border-b pb-1">3. Agreement</h3>
-                    <div class="text-xs text-gray-600 space-y-2 mt-3">
-                        <p>We, hereby understand and acknowledged that:</p>
-                        <ul class="list-disc list-inside pl-2 space-y-1">
-                            <li>Changes are subject to approval by TL/OIC/OC.</li>
-                            <li>Changes shall only be effective upon approval TL/OIC/OC.</li>
-                            <li>In any event, anyone of us do not turn up as requested, we understand that we are liable to report back to duty as per original shift/roster.</li>
-                            <li>It is our responsibility to remind TL or OIC on the changes.</li>
-                            <li>*All shift changes shall be made at least 7 days before the actual shift for approval by TL/OIC/OC.</li>
-                        </ul>
-                    </div>
-                    <div class="mt-4 bg-gray-50 p-3 rounded-lg">
-                        <label class="flex items-center">
-                            <input type="checkbox" id="agreement" class="h-4 w-4 rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" required>
-                            <span class="ml-2 text-sm font-medium text-gray-700">By submitting, I (the requester) agree to the terms.</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Error Message Container -->
-                <div id="error-message-container" class="hidden">
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
-                        <strong class="font-bold">Submission Failed!</strong>
-                        <span class="block sm:inline" id="error-message-text"></span>
-                    </div>
-                </div>
-
-                <!-- Submit Button -->
-                <div class="mt-6">
-                    <button type="submit" id="submit-request-btn" class="w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500">
-                        <span>Submit Request</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- View Request View -->
-        <div id="view-request-view" class="hidden space-y-6">
-            <div id="status-banner-container"></div>
-            
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">Request Details</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Date of Change:</span>
-                        <div id="view-shiftDate" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-bold text-indigo-700"></div>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Reason for Change:</span>
-                        <div id="view-reason" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <!-- Requesting APO -->
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                    <h3 class="text-lg font-semibold text-indigo-700 border-b pb-2">Requesting APO</h3>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Name:</span>
-                        <div id="view-requesterName" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</span>
-                        <div id="view-requesterRankId" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
-                        <div id="view-requesterTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <span class="block text-sm font-medium text-gray-700 mb-1">Original Shift:</span>
-                            <div id="view-requesterOriginalShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-red-600"></div>
-                        </div>
-                        <div>
-                            <span class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</span>
-                            <div id="view-requesterNewShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-green-600"></div>
+                        <div class="border-t border-gray-50"></div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span id="det-col-name" class="font-bold text-gray-800">-</span>
+                            <div class="flex items-center gap-1 text-xs">
+                                <span id="det-col-shift-old" class="text-red-500 line-through">-</span>
+                                <span>→</span>
+                                <span id="det-col-shift-new" class="text-green-600 font-bold">-</span>
+                            </div>
                         </div>
                     </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Submitted:</span>
-                        <div id="view-requesterSignature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
-                    </div>
                 </div>
+
+                <!-- Admin Comments -->
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">TL/OC Comments</p>
+                    <p id="det-comments" class="text-sm text-gray-600 italic">No comments yet.</p>
+                </div>
+
+                <!-- Actions -->
+                <div id="action-area" class="space-y-3"></div>
                 
-                <!-- Changing with APO -->
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                    <h3 class="text-lg font-semibold text-blue-700 border-b pb-2">Changing with APO</h3>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Name:</span>
-                        <div id="view-colleagueName" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Emp ID:</span>
-                        <div id="view-colleagueRankId" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                     <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Unit/Team:</span>
-                        <div id="view-colleagueTeam" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center"></div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <span class="block text-sm font-medium text-gray-700 mb-1">Original Shift:</span>
-                            <div id="view-colleagueOriginalShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center font-semibold text-red-600"></div>
-                        </div>
-                        <div>
-                            <span class="block text-sm font-medium text-gray-700 mb-1">Change Shift to:</span>
-                            <div id="view-colleagueNewShift" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[4TwoLinesAdded] flex items-center font-semibold text-green-600"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <span class="block text-sm font-medium text-gray-700 mb-1">Agreed:</span>
-                        <div id="view-colleagueSignature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                <h2 class="text-xl font-semibold text-gray-900 border-b pb-2">3. Approval / Disapproval</h2>
-                <div>
-                    <span class="block text-sm font-medium text-gray-700 mb-1">TL/OC Comments:</span>
-                    <div id="view-tl-oc-Comments" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[60px] flex items-center"></div>
-                </div>
-                <div>
-                    <span class="block text-sm font-medium text-gray-700 mb-1">TL/OC's Signature:</span>
-                    <div id="view-tl-oc-Signature" class="w-full px-3 py-2 border border-gray-100 bg-gray-50 text-gray-800 rounded-lg shadow-sm min-h-[42px] flex items-center text-sm"></div>
-                </div>
+                <button onclick="switchView('track')" class="w-full text-center text-sm text-gray-500 mt-4">Back to Search</button>
             </div>
 
-            <div id="action-container" class="space-y-4"></div>
-        </div>
-
-        <!-- Success/Message View -->
-        <div id="message-view" class="hidden space-y-6">
-            
-            <!-- Top Card: Success -->
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 text-center">
-                <div id="message-icon-container" class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
-                    <svg class="h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                </div>
-                <h2 id="message-title" class="text-2xl font-bold text-gray-900 mt-4">Success!</h2>
-                <p id="message-text" class="mt-2 text-gray-700 max-w-md mx-auto"></p>
-            </div>
-
-            <a id="view-details-btn" href="#" 
-               class="hidden w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 text-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <span>View Request Details</span>
-            </a>
-
-            <!-- Action Card 1: WhatsApp -->
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75">
-                <h3 id="whatsapp-card-title" class="text-lg font-semibold text-gray-900 mb-4 text-center">Step 2: Get Colleague's Agreement</h3>
-                <p class="text-center text-gray-600 mb-5">The easiest way is to send the link via WhatsApp:</p>
-                
-                <a id="whatsapp-share-btn" href="#" target="_blank" 
-                   class="w-full px-5 py-3 rounded-lg shadow-lg font-semibold text-white transition-all duration-300 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 focus:ring-green-500 text-lg hover:shadow-xl transform hover:-translate-y-0.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.627-2.961 6.58-6.591 6.58zM5.59 5.59a.35.35 0 0 0-.273.512c.16.32.555 1.22 1.232 1.89C7.882 9.173 8.82 9.3 9.13 9.21c.31-.09.72-.372 1.038-.724.318-.35.555-.8.7-1.285.145-.485.08-.936-.026-1.083-.105-.146-.318-.24-.635-.426-.318-.187-.72-.187-.986-.113-.265.074-.469.165-.65.339-.181.174-.29.4-.395.572-.105.173-.21.265-.364.265-.155 0-.318-.09-.46-.21a4.9 4.9 0 0 1-1.6-1.485 5 5 0 0 1-1.04-1.745s-.105-.146.026-.28c.13-.134.288-.174.395-.21.105-.036.18-.01.264.04s.24.09.352.21c.112.12.164.195.21.318.047.123.027.265-.04.395-.07.13-.127.21-.184.288a.35.35 0 0 1-.264.112c-.09 0-.17-.036-.21-.074-.047-.036-.144-.165-.21-.28z"/>
-                    </svg>
-                    <span id="whatsapp-share-text" class="ml-3 text-lg">Share to Colleague</span>
-                </a>
-            </div>
-
-            <!-- Action Card 2: Copy Link -->
-            <div id="message-link-container" class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 bg-gray-50">
-                <p class="text-sm font-medium text-gray-800 mb-3 text-center">Or copy the link manually:</p>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="message-link" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm text-indigo-600 flex-grow bg-white" readonly>
-                    <button id="copy-link-btn" class="px-4 py-2 rounded-lg shadow-md font-semibold transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200 focus:ring-indigo-300 w-full sm:w-auto text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                        </svg>
-                        <span>Copy Link</span>
-                    </button>
-                </div>
-                <span id="copy-status" class="mt-2 h-4 block text-sm text-green-600 text-center"></span>
-            </div>
-            
-        </div>
-        
+        </main>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module">
-        console.log("Shift Request App script started.");
-
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, doc, getDoc, setDoc, updateDoc,
-            collection, query, getDocs, addDoc, serverTimestamp, setLogLevel
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, doc, setDoc, serverTimestamp, query, where, getDoc, updateDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 0. FIREBASE SETUP ---
-        let firebaseConfig;
-        const standaloneConfig = {
-            apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
-            authDomain: "roster-4a997.firebaseapp.com",
-            projectId: "roster-4a997",
-            storageBucket: "roster-4a997.firebasestorage.app",
-            messagingSenderId: "901381868881",
-            appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        // LOGGING
+        const sysLog = document.getElementById('system-log');
+        function log(msg, error = false) {
+            console.log(msg);
+            sysLog.textContent = msg;
+            sysLog.className = error ? "bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-lg mb-4 font-mono" : "bg-blue-50 border border-blue-200 text-blue-800 text-xs p-3 rounded-lg mb-4 font-mono";
+        }
+
+        // GLOBALS
+        let db, auth, requestsCol, linksCol, employeesCol, teamsCol;
+        let allEmployees = [], teamsMap = new Map();
+        let tomReq, tomCol;
+        let currentReqId = null, currentAction = null;
+
+        // INIT
+        async function init() {
+            try {
+                log("Starting Firebase...");
+                
+                let firebaseConfig;
+                if (typeof __firebase_config !== 'undefined') {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } else {
+                    firebaseConfig = {
+                        apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+                        authDomain: "roster-4a997.firebaseapp.com",
+                        projectId: "roster-4a997",
+                        storageBucket: "roster-4a997.firebasestorage.app",
+                        messagingSenderId: "901381868881",
+                        appId: "1:901381868881:web:92930481d6c1c85fedd770"
+                    };
+                }
+
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                
+                log("Authenticating...");
+                
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await signInWithCustomToken(auth, token);
+                else await signInAnonymously(auth);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        log("Connected. Loading Data...");
+                        document.getElementById('connection-status').textContent = "Online";
+                        document.getElementById('connection-status').className = "text-xs font-medium text-green-600";
+
+                        requestsCol = collection(db, `artifacts/${appId}/public/data/shiftRequests`);
+                        linksCol = collection(db, `artifacts/${appId}/public/data/shortLinks`);
+                        employeesCol = collection(db, "employees");
+                        teamsCol = collection(db, "teams");
+
+                        await loadData();
+                        await checkDeepLink();
+                    } else {
+                        log("Auth lost. Retrying...");
+                        await signInAnonymously(auth);
+                    }
+                });
+
+            } catch (e) {
+                log("Init Failed: " + e.message, true);
+            }
+        }
+
+        async function checkDeepLink() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            
+            if (code) {
+                log("Resolving Link...");
+                const snap = await getDoc(doc(linksCol, code));
+                if (snap.exists()) {
+                    currentReqId = snap.data().requestId;
+                    currentAction = snap.data().action;
+                    await loadDetails(currentReqId);
+                } else {
+                    alert("Invalid Link");
+                }
+            } else if (params.get('requestId')) {
+                currentReqId = params.get('requestId');
+                currentAction = params.get('action');
+                await loadDetails(currentReqId);
+            }
+        }
+
+        async function loadData() {
+            try {
+                const [eSnap, tSnap] = await Promise.all([getDocs(employeesCol), getDocs(teamsCol)]);
+                allEmployees = eSnap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
+                tSnap.forEach(d => teamsMap.set(d.id, d.data()));
+
+                initUI();
+                log("Ready.");
+                setTimeout(() => sysLog.classList.add('hidden'), 500); 
+                document.getElementById('main-container').classList.remove('hidden');
+                
+            } catch (e) {
+                log("Data Load Failed: " + e.message, true);
+            }
+        }
+
+        function initUI() {
+            const opts = allEmployees.map(e => ({value: e.id, text: e.name}));
+            
+            tomReq = new TomSelect('#req-select', {
+                options: opts, valueField: 'value', labelField: 'text', searchField: 'text',
+                onChange: (v) => {
+                    const emp = allEmployees.find(e => e.id === v);
+                    if(emp) {
+                        document.getElementById('req-id').value = emp.emp_id || '-';
+                        document.getElementById('req-team').value = teamsMap.get(emp.team_id)?.name || '-';
+                        
+                        tomCol.clear();
+                        tomCol.clearOptions();
+                        const others = allEmployees.filter(e => e.id !== v);
+                        others.forEach(o => tomCol.addOption({value: o.id, text: o.name}));
+                        tomCol.enable();
+                    }
+                }
+            });
+
+            tomCol = new TomSelect('#col-select', {
+                valueField: 'value', labelField: 'text', searchField: 'text',
+                onChange: (v) => {
+                    const emp = allEmployees.find(e => e.id === v);
+                    if(emp) {
+                        document.getElementById('col-id').value = emp.emp_id || '-';
+                        document.getElementById('col-team').value = teamsMap.get(emp.team_id)?.name || '-';
+                    }
+                }
+            });
+            tomCol.disable();
+        }
+
+        // --- GLOBAL FUNCTIONS ---
+        
+        window.switchView = (view) => {
+            document.getElementById('view-form').classList.add('hidden');
+            document.getElementById('view-track').classList.add('hidden');
+            document.getElementById('view-result').classList.add('hidden');
+            document.getElementById('view-details').classList.add('hidden');
+            
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            
+            const tForm = document.getElementById('tab-form');
+            const tTrack = document.getElementById('tab-track');
+            
+            if(view === 'form') {
+                tForm.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+                tForm.classList.remove('text-gray-500');
+                tTrack.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+                tTrack.classList.add('text-gray-500');
+            } else if (view === 'track') {
+                tTrack.classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+                tTrack.classList.remove('text-gray-500');
+                tForm.classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+                tForm.classList.add('text-gray-500');
+            }
         };
 
-        if (typeof __firebase_config !== 'undefined') {
-            console.log("Using environment-provided Firebase config.");
-            firebaseConfig = JSON.parse(__firebase_config);
-        } else {
-            console.log("Using standalone Firebase config.");
-            firebaseConfig = standaloneConfig;
-        }
-
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        setLogLevel('Debug');
-
-        // --- 1. GLOBAL VARIABLES & COLLECTIONS ---
-        
-        // !!!!! IMPORTANT !!!!!
-        // SET THIS TO THE FINAL URL OF YOUR HTML FILE
-        const APP_URL = "https://theva73.github.io/YOUR_REPO_NAME/Form_07_11_8S.txt";
-        // !!!!! IMPORTANT !!!!!
-
-        let employeesCollection, teamsCollection, rosterCollection, shiftRequestsCollection, shortLinksCollection;
-        let allEmployees = [];
-        let teamsMap = new Map();
-        let currentRequestId = null;
-        let currentRequestAction = null;
-        let currentRequestData = null;
-        const patternAnchorDate = '2025-01-01';
-
-        let requesterSelect, colleagueSelect;
-
-        // --- 2. DOM ELEMENTS (Will be assigned in DOMContentLoaded) ---
-        let loadingView, loadingText, newRequestView, viewRequestView, messageView, newRequestForm,
-            requesterNameSelect, requesterRankId, requesterTeam, colleagueNameSelect, colleagueRankId,
-            colleagueTeam, shiftDateInput, requesterOriginalShift, requesterNewShift,
-            colleagueOriginalShift, colleagueNewShift, statusBannerContainer, actionContainer,
-            errorMessageContainer, errorMessageText;
-
-        // --- 3. HELPER FUNCTIONS ---
-        
-        function getBaseUrl() {
-            if (APP_URL.includes("YOUR_REPO_NAME") || APP_URL.includes("YOUR-REPO-NAME")) {
-                console.warn("APP_URL not set. Falling back to window.location.href, which might fail.");
-                const baseUrl = window.location.href.split('?')[0];
-                return baseUrl;
-            }
-            return APP_URL.split('?')[0];
-        }
-
-        function showError(message) {
-            errorMessageText.textContent = message;
-            errorMessageContainer.classList.remove('hidden');
-        }
-
-        function clearError() {
-            errorMessageText.textContent = "";
-            errorMessageContainer.classList.add('hidden');
-        }
-
-        // UPDATED: Now Async to handle Short Link fetching
-        async function resolveUrlParams() {
-            const params = new URLSearchParams(window.location.search);
-            const shortCode = params.get('code');
-
-            if (shortCode) {
-                loadingText.textContent = "Resolving short link...";
-                try {
-                    const docRef = doc(shortLinksCollection, shortCode);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        currentRequestId = data.requestId;
-                        currentRequestAction = data.action;
-                        console.log("Resolved short code:", shortCode, "to", data);
-                    } else {
-                        console.error("Short link not found");
-                        showError("Invalid or expired link.");
-                    }
-                } catch (error) {
-                    console.error("Error resolving short link:", error);
-                    showError("Error loading link.");
-                }
-            } else {
-                currentRequestId = params.get('requestId');
-                currentRequestAction = params.get('action');
-            }
-        }
-
-        // NEW: Generate Short Link Function
-        async function createShortLink(targetParams) {
-            // targetParams = { requestId: '...', action: '...' }
-            const shortCode = Math.random().toString(36).substring(2, 8); // 6 char random string
+        window.submitRequest = async () => {
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true; btn.textContent = "Processing...";
             
             try {
-                await setDoc(doc(shortLinksCollection, shortCode), {
-                    ...targetParams,
-                    createdAt: serverTimestamp()
-                });
+                const reqId = tomReq.getValue();
+                const colId = tomCol.getValue();
+                const shift = document.querySelector('input[name="req-shift"]:checked')?.value;
+                const date = document.getElementById('shift-date').value;
                 
-                const baseUrl = getBaseUrl();
-                return `${baseUrl}?code=${shortCode}`;
-            } catch (error) {
-                console.error("Error creating short link:", error);
-                // Fallback to long link if Firestore fails
-                const baseUrl = getBaseUrl();
-                const queryString = new URLSearchParams(targetParams).toString();
-                return `${baseUrl}?${queryString}`;
-            }
-        }
+                if(!reqId || !colId || !shift || !date) throw new Error("Please fill all fields");
 
-        function showView(view) {
-            loadingView.classList.add('hidden');
-            newRequestView.classList.add('hidden');
-            viewRequestView.classList.add('hidden');
-            messageView.classList.add('hidden');
+                const reqEmp = allEmployees.find(e => e.id === reqId);
+                const colEmp = allEmployees.find(e => e.id === colId);
+
+                const reqOrig = shift === '1' ? 'Morning (1)' : 'Night (2)';
+                const reqNew = shift === '1' ? 'Night (2)' : 'Morning (1)'; 
+                const colOrig = reqNew; 
+                const colNew = reqOrig; 
+
+                const data = {
+                    requesterId: reqId, requesterName: reqEmp.name, requesterRankId: reqEmp.emp_id, requesterTeam: document.getElementById('req-team').value,
+                    colleagueId: colId, colleagueName: colEmp.name, colleagueRankId: colEmp.emp_id, colleagueTeam: document.getElementById('col-team').value,
+                    shiftDate: date,
+                    requesterOriginalShift: reqOrig, requesterNewShift: reqNew,
+                    colleagueOriginalShift: colOrig, colleagueNewShift: colNew,
+                    reason: document.getElementById('reason').value,
+                    status: 'pending_colleague',
+                    requesterSignatureTimestamp: serverTimestamp()
+                };
+
+                const ref = await addDoc(requestsCol, data);
+                
+                const code = Math.random().toString(36).substring(2,8);
+                await setDoc(doc(linksCol, code), { requestId: ref.id, action: 'colleague' });
+                const link = `${window.location.href.split('?')[0]}?code=${code}`;
+
+                document.getElementById('res-title').textContent = "Request Sent!";
+                document.getElementById('res-msg').textContent = "Share the link below with your colleague.";
+                document.getElementById('res-link').href = `https://wa.me/?text=${encodeURIComponent(`Shift Swap Request: ${link}`)}`;
+                
+                window.switchView('result');
+
+            } catch(e) {
+                alert("Error: " + e.message);
+                btn.disabled = false; btn.textContent = "Submit Request";
+            }
+        };
+
+        // --- FIXED FUZZY SEARCH ---
+        window.trackRequests = async () => {
+            const inputVal = document.getElementById('track-id').value.trim().toLowerCase();
+            if(!inputVal) return;
             
-            if (view === 'loading') {
-                loadingView.classList.remove('hidden');
-            } else if (view === 'new') {
-                newRequestView.classList.remove('hidden');
-            } else if (view === 'view') {
-                viewRequestView.classList.remove('hidden');
-            } else if (view === 'message') {
-                messageView.classList.remove('hidden');
-            }
-        }
-        
-        function formatTimestamp(timestamp) {
-            if (!timestamp) return "Pending...";
-            let date;
-            if (timestamp.toDate) { date = timestamp.toDate(); } 
-            else { date = new Date(timestamp); }
-            return date.toLocaleString('en-SG', { 
-                dateStyle: 'medium', 
-                timeStyle: 'short',
-                timeZone: 'Asia/Singapore'
-            });
-        }
-        
-        function getDaysBetween(dateStr1, dateStr2) {
-            try {
-                const [y1, m1, d1] = dateStr1.split('-').map(Number);
-                const [y2, m2, d2] = dateStr2.split('-').map(Number);
-                const utcDate1 = Date.UTC(y1, m1 - 1, d1);
-                const utcDate2 = Date.UTC(y2, m2 - 1, d2);
-                if (isNaN(utcDate1) || isNaN(utcDate2)) { return 0; }
-                return Math.round((utcDate1 - utcDate2) / 86400000);
-            } catch (e) { console.error("Error in getDaysBetween", e); return 0; }
-        }
-        
-        function getOppositeShift(shift) {
-            const normalizedShift = shift ? shift.trim().toUpperCase() : "";
-            switch (normalizedShift) {
-                case '1': return '2';
-                case '2': return '1';
-                case '1A': return '2N';
-                case '2N': return '1A';
-                default: return '';
-            }
-        }
-
-        async function fetchInitialData() {
-            if (allEmployees.length > 0 && teamsMap.size > 0) return;
-
-            loadingText.textContent = "Fetching employee and team list...";
-            try {
-                const [empSnapshot, teamSnapshot] = await Promise.all([
-                    getDocs(query(employeesCollection)),
-                    getDocs(query(teamsCollection))
-                ]);
-
-                allEmployees = empSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                allEmployees.sort((a, b) => a.name.localeCompare(b.name));
-                
-                teamsMap.clear();
-                teamSnapshot.docs.forEach(doc => {
-                    teamsMap.set(doc.id, doc.data());
-                });
-                console.log(`Fetched ${allEmployees.length} employees and ${teamsMap.size} teams.`);
-            } catch (error) {
-                console.error("Error fetching initial data: ", error);
-                loadingText.textContent = "Error fetching data. Cannot proceed.";
-                throw error;
-            }
-        }
-
-        async function getShiftFromRoster(employeeId, date) {
-            if (!employeeId || !date) return "";
+            const list = document.getElementById('track-list');
+            const status = document.getElementById('track-status');
+            list.innerHTML = "";
+            status.textContent = "Scanning database...";
+            status.classList.remove('hidden');
             
             try {
-                const rosterDocRef = doc(rosterCollection, employeeId);
-                const rosterDocSnap = await getDoc(rosterDocRef);
+                // FETCH LAST 500 RECORDS (Covers significant history)
+                // This allows us to do proper fuzzy matching (e.g. "123" matching "S12345") in memory
+                const q = query(requestsCol, orderBy('shiftDate', 'desc'), limit(500));
+                const snap = await getDocs(q);
                 
-                if (rosterDocSnap.exists()) {
-                    const rosterData = rosterDocSnap.data();
-                    if (rosterData.hasOwnProperty(date)) {
-                        return rosterData[date] || ""; 
-                    }
-                }
-
-                const emp = allEmployees.find(e => e.id === employeeId);
-                if (!emp) return "";
-                
-                const team = teamsMap.get(emp.team_id);
-                if (team && team.shiftPattern && team.shiftPattern.length > 0) {
-                    const pattern = team.shiftPattern;
-                    const anchor = team.patternStartDate || patternAnchorDate;
-                    const daysSinceAnchor = getDaysBetween(date, anchor);
+                const results = [];
+                snap.forEach(d => {
+                    const data = d.data();
+                    let role = null;
                     
-                    if (isNaN(daysSinceAnchor)) {
-                        return "";
+                    // Helper: Safe string conversion
+                    const rID = String(data.requesterRankId || "").toLowerCase();
+                    const cID = String(data.colleagueRankId || "").toLowerCase();
+                    const rName = String(data.requesterName || "").toLowerCase();
+                    const cName = String(data.colleagueName || "").toLowerCase();
+
+                    // FUZZY MATCH LOGIC (Includes)
+                    if (rID.includes(inputVal) || rName.includes(inputVal)) role = 'Requester';
+                    else if (cID.includes(inputVal) || cName.includes(inputVal)) role = 'Colleague';
+
+                    if (role) {
+                        results.push({id: d.id, ...data, role: role});
                     }
-
-                    const patternIndex = (daysSinceAnchor % pattern.length + pattern.length) % pattern.length;
-                    return pattern[patternIndex] || "";
-                }
-            } catch (error) {
-                console.error(`Error in getShiftFromRoster for ${employeeId} on ${date}:`, error);
-                return "Error";
-            }
-            return "";
-        }
-
-        // --- NEW: UI Logic for Radio Buttons ---
-        
-        // Expose function to global scope so HTML onclick works
-        window.setShiftUI = function(role, shiftValue) {
-            // role: 'requester' or 'colleague'
-            // shiftValue: '1' or '2'
-            
-            const hiddenInputId = role === 'requester' ? 'requesterOriginalShift' : 'colleagueOriginalShift';
-            const hiddenInput = document.getElementById(hiddenInputId);
-            
-            if (!hiddenInput) return;
-            
-            // Set the value in the hidden input
-            hiddenInput.value = shiftValue;
-            
-            // Check the correct radio button visual
-            updateShiftToggleVisuals(role, shiftValue);
-            
-            // Trigger downstream logic
-            if (role === 'requester') {
-                const reqNewShift = getOppositeShift(shiftValue);
-                document.getElementById('requesterNewShift').value = reqNewShift;
-                
-                // Refresh colleague dropdown
-                const requesterId = requesterSelect ? requesterSelect.getValue() : "";
-                const date = document.getElementById('shiftDate').value;
-                updateColleagueDropdown(requesterId, date);
-                
-            } else if (role === 'colleague') {
-                 const colNewShift = getOppositeShift(shiftValue);
-                 document.getElementById('colleagueNewShift').value = colNewShift;
-            }
-        }
-        
-        function updateShiftToggleVisuals(role, shiftValue) {
-            // Determine if it's morning or night based on value
-            const isMorning = shiftValue.includes('1');
-            const isNight = shiftValue.includes('2');
-            
-            // IDs for radios
-            // Requester: req-radio-1, req-radio-2
-            // Colleague: col-radio-1, col-radio-2
-            const prefix = role === 'requester' ? 'req' : 'col';
-            
-            const radio1 = document.getElementById(`${prefix}-radio-1`);
-            const radio2 = document.getElementById(`${prefix}-radio-2`);
-            
-            if (radio1 && radio2) {
-                if (isMorning) {
-                    radio1.checked = true;
-                } else if (isNight) {
-                    radio2.checked = true;
-                } else {
-                    // Reset if unknown
-                    radio1.checked = false;
-                    radio2.checked = false;
-                }
-            }
-        }
-
-        // --- 4. APP LOGIC - NEW REQUEST ---
-
-        async function initNewRequestForm() {
-            await fetchInitialData();
-            initTomSelectInputs();
-            
-            const today = new Date();
-            today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-            shiftDateInput.min = today.toISOString().split('T')[0];
-
-            shiftDateInput.addEventListener('change', async () => { 
-                await fetchRequesterShiftAndColleagues(); 
-            });
-            
-            newRequestForm.addEventListener('submit', handleFormSubmit);
-            
-            showView('new');
-        }
-
-        function initTomSelectInputs() {
-            const tomSelectSettings = {
-                create: false,
-                sortField: { field: "text", direction: "asc" },
-                valueField: 'value',
-                labelField: 'text',
-                searchField: 'text'
-            };
-
-            const employeeOptions = allEmployees.map(emp => ({
-                value: emp.id,
-                text: emp.name
-            }));
-            
-            requesterSelect = new TomSelect(requesterNameSelect, {
-                ...tomSelectSettings,
-                options: employeeOptions,
-                onChange: async (value) => {
-                    await updateEmployeeDetails(value, 'requester'); 
-                }
-            });
-
-            colleagueSelect = new TomSelect(colleagueNameSelect, {
-                ...tomSelectSettings,
-                onChange: async (value) => {
-                    await updateEmployeeDetails(value, 'colleague');
-                }
-            });
-            
-            colleagueSelect.disable();
-            colleagueSelect.clearOptions();
-            colleagueSelect.addOption({ value: "", text: "-- Select Requester & Date First --" });
-        }
-        
-        async function updateEmployeeDetails(employeeId, type) {
-            const emp = allEmployees.find(e => e.id === employeeId);
-            let rankIdInput, teamInput;
-
-            if (type === 'requester') {
-                rankIdInput = requesterRankId;
-                teamInput = requesterTeam;
-            } else {
-                rankIdInput = colleagueRankId;
-                teamInput = colleagueTeam;
-            }
-
-            if (!emp) {
-                rankIdInput.value = "";
-                teamInput.value = "";
-                return;
-            }
-
-            const team = teamsMap.get(emp.team_id);
-            const teamName = team ? team.name : (emp.team_id || 'N/A');
-
-            rankIdInput.value = emp.emp_id || 'N/A';
-            teamInput.value = teamName;
-            
-            if (type === 'requester') {
-                await fetchRequesterShiftAndColleagues(); 
-            } else {
-                await fetchColleagueShift(employeeId);
-            }
-        }
-        
-        async function fetchColleagueShift(colleagueId) {
-             const date = shiftDateInput.value;
-             if (!date || !colleagueId) return;
-             
-             try {
-                // We don't set value directly anymore, use UI helper
-                const colOrigShift = await getShiftFromRoster(colleagueId, date);
-                
-                // If we get a valid shift, update the UI
-                if (colOrigShift) {
-                     window.setShiftUI('colleague', colOrigShift);
-                } else {
-                    // Reset if not found
-                     document.getElementById('colleagueOriginalShift').value = "";
-                     updateShiftToggleVisuals('colleague', '');
-                }
-            } catch (error) {
-                console.error("Error fetching colleague shift:", error);
-            }
-        }
-
-        async function fetchRequesterShiftAndColleagues() {
-            const date = shiftDateInput.value;
-            const requesterId = requesterSelect.getValue();
-            
-            if (!date || !requesterId) {
-                await updateColleagueDropdown(requesterId, date);
-                return;
-            }
-
-            let reqOrigShift = '';
-            
-            try {
-                reqOrigShift = await getShiftFromRoster(requesterId, date);
-                
-                 if (reqOrigShift) {
-                     window.setShiftUI('requester', reqOrigShift);
-                } else {
-                     document.getElementById('requesterOriginalShift').value = "";
-                     updateShiftToggleVisuals('requester', '');
-                }
-            } catch (error) {
-                console.error("Error fetching requester shift:", error);
-            } 
-            
-            try {
-                // CHANGED: We no longer filter by shift. We just show everyone.
-                await updateColleagueDropdown(requesterId, date);
-            } catch (dropdownError) {
-                console.error("Error updating colleague dropdown:", dropdownError);
-                colleagueSelect.disable();
-                colleagueSelect.clearOptions();
-                colleagueSelect.addOption({ value: "", text: "-- Error loading --" });
-                colleagueSelect.enable();
-            }
-        }
-
-        // --- UPDATED: Unrestricted Dropdown ---
-        async function updateColleagueDropdown(requesterId, date) {
-            if (!requesterId) {
-                colleagueSelect.disable();
-                colleagueSelect.clearOptions();
-                colleagueSelect.addOption({ value: "", text: "-- Select Requester First --" });
-                return;
-            }
-
-            colleagueSelect.disable();
-            colleagueSelect.clear();
-            colleagueSelect.clearOptions();
-            colleagueSelect.load(onLoad => {
-                onLoad([{ value: "", text: "Loading colleagues..." }]);
-            });
-
-            const requester = allEmployees.find(e => e.id === requesterId);
-            if (!requester) {
-                 colleagueSelect.enable();
-                 return;
-            }
-
-            // CHANGED: Flexible selection. Load ALL employees except requester.
-            const eligibleColleagues = allEmployees.filter(emp => emp.id !== requesterId);
-
-            colleagueSelect.clearOptions();
-
-            colleagueSelect.addOption({ value: "", text: "-- Select a Colleague --" });
-            
-            // Sort alphabetically for easier searching
-            eligibleColleagues.sort((a, b) => a.name.localeCompare(b.name));
-            
-            eligibleColleagues.forEach(emp => {
-                const teamName = teamsMap.get(emp.team_id)?.name || "Unknown";
-                // Added team name to text for clarity
-                colleagueSelect.addOption({ value: emp.id, text: `${emp.name} (${teamName})` });
-            });
-            
-            colleagueSelect.enable();
-            colleagueSelect.setValue("");
-        }
-
-        async function handleFormSubmit(e) {
-            e.preventDefault();
-            clearError(); 
-            
-            const submitBtn = document.getElementById('submit-request-btn');
-            submitBtn.disabled = true;
-            submitBtn.firstElementChild.textContent = "Submitting...";
-            submitBtn.classList.add('opacity-75');
-
-            const requesterId = requesterSelect.getValue();
-            const colleagueId = colleagueSelect.getValue();
-            
-            if (requesterId === colleagueId) {
-                showError("You cannot change shifts with yourself. Please select a different colleague.");
-                submitBtn.disabled = false;
-                submitBtn.firstElementChild.textContent = "Submit Request";
-                submitBtn.classList.remove('opacity-75');
-                return;
-            }
-            if (!requesterId || !colleagueId) {
-                 showError("Please select both your name and your colleague's name.");
-                submitBtn.disabled = false;
-                submitBtn.firstElementChild.textContent = "Submit Request";
-                submitBtn.classList.remove('opacity-75');
-                return;
-            }
-            
-            const requester = allEmployees.find(e => e.id === requesterId);
-            const colleague = allEmployees.find(e => e.id === colleagueId);
-
-            const requesterTeamObj = teamsMap.get(requester.team_id);
-            const requesterTeamName = requesterTeamObj ? requesterTeamObj.name : (requester.team_id || 'N/A');
-            const colleagueTeamObj = teamsMap.get(colleague.team_id);
-            const colleagueTeamName = colleagueTeamObj ? colleagueTeamObj.name : (colleague.team_id || 'N/A');
-
-            const requestData = {
-                requesterId: requesterId,
-                requesterName: requester.name,
-                requesterRankId: requester.emp_id || 'N/A',
-                requesterTeam: requesterTeamName,
-                
-                colleagueId: colleagueId,
-                colleagueName: colleague.name,
-                colleagueRankId: colleague.emp_id || 'N/A',
-                colleagueTeam: colleagueTeamName,
-                
-                shiftDate: shiftDateInput.value,
-                requesterOriginalShift: requesterOriginalShift.value,
-                requesterNewShift: requesterNewShift.value,
-                colleagueOriginalShift: colleagueOriginalShift.value,
-                colleagueNewShift: colleagueNewShift.value,
-                
-                reason: document.getElementById('reason').value,
-                status: 'pending_colleague',
-                
-                requesterSignatureTimestamp: serverTimestamp(),
-                colleagueSignatureTimestamp: null,
-                tlOcSignatureTimestamp: null,
-                tlOcComments: "",
-            };
-
-            if (requestData.requesterNewShift !== requestData.colleagueOriginalShift ||
-                requestData.requesterOriginalShift !== requestData.colleagueNewShift) {
-                
-                showError(`Shift Mismatch. Your 'Change Shift to' (${requestData.requesterNewShift}) must match your Colleague's 'Original Shift' (${requestData.colleagueOriginalShift}). Please check the date and colleague.`);
-                submitBtn.disabled = false;
-                submitBtn.firstElementChild.textContent = "Submit Request";
-                submitBtn.classList.remove('opacity-75');
-                return;
-            }
-
-            try {
-                const docRef = await addDoc(shiftRequestsCollection, requestData);
-                
-                // --- GENERATE SHORT LINK ---
-                const shortLink = await createShortLink({
-                    requestId: docRef.id,
-                    action: 'colleague'
-                });
-                
-                const whatsAppMessage = `Hi ${colleague.name}, ${requester.name} has requested a shift swap with you for ${requestData.shiftDate}. Please review and agree at this link:`;
-
-                showMessage(
-                    "Request Submitted!",
-                    `Your request has been created. Please send the link below to <strong>${colleague.name}</strong> for their agreement.`,
-                    shortLink,
-                    whatsAppMessage,
-                    "Share to Colleague",
-                    "Step 2: Get Colleague's Agreement"
-                );
-            } catch (error) {
-                console.error("Error adding document: ", error);
-                showError(`An unexpected error occurred: ${error.message}. Please try again.`);
-                submitBtn.disabled = false;
-                submitBtn.firstElementChild.textContent = "Submit Request";
-                submitBtn.classList.remove('opacity-75');
-            }
-        }
-        
-        function showMessage(title, text, link, whatsAppMessage, buttonText, whatsAppTitle) {
-            document.getElementById('message-title').textContent = title;
-            document.getElementById('message-text').innerHTML = text;
-            
-            const iconContainer = document.getElementById('message-icon-container');
-            if (title.toLowerCase().includes('success') || title.toLowerCase().includes('approved') || title.toLowerCase().includes('submitted')) {
-                iconContainer.innerHTML = `
-                    <svg class="h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>`;
-                iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100";
-            } else { 
-                iconContainer.innerHTML = `
-                    <svg class="h-10 w-10 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>`;
-                iconContainer.className = "mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100";
-            }
-
-            const linkInput = document.getElementById('message-link');
-            linkInput.value = link;
-            
-            const copyBtn = document.getElementById('copy-link-btn');
-            const copyStatus = document.getElementById('copy-status');
-            
-            copyBtn.onclick = () => {
-                linkInput.select();
-                try {
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(link).then(() => {
-                            copyStatus.textContent = "Copied!";
-                        });
-                    } else {
-                        document.execCommand('copy');
-                        copyStatus.textContent = "Copied!";
-                    }
-                } catch (err) {
-                     copyStatus.textContent = "Error copying.";
-                }
-                setTimeout(() => { copyStatus.textContent = ""; }, 2000);
-            };
-
-            const waBtn = document.getElementById('whatsapp-share-btn');
-            const waBtnText = document.getElementById('whatsapp-share-text');
-            const waBtnCard = waBtn.closest('.bg-white');
-            const waTitleEl = document.getElementById('whatsapp-card-title');
-            
-            const viewDetailsBtn = document.getElementById('view-details-btn');
-            const copyLinkCard = document.getElementById('message-link-container');
-
-            if (waTitleEl) {
-                waTitleEl.textContent = whatsAppTitle || "Step 2: Get Colleague's Agreement";
-            }
-
-            if (whatsAppMessage && buttonText) {
-                const encodedMessage = encodeURIComponent(`${whatsAppMessage}\n\n${link}`);
-                const waHref = `https://wa.me/?text=${encodedMessage}`;
-                waBtn.href = waHref;
-                waBtnText.textContent = buttonText;
-                
-                waBtn.classList.remove('hidden');
-                if (waBtnCard) waBtnCard.classList.remove('hidden');
-
-                viewDetailsBtn.classList.add('hidden'); 
-                copyLinkCard.classList.remove('hidden'); 
-            } else {
-                waBtn.classList.add('hidden');
-                if (waBtnCard) waBtnCard.classList.add('hidden');
-
-                viewDetailsBtn.href = link; 
-                viewDetailsBtn.classList.remove('hidden'); 
-                copyLinkCard.classList.remove('hidden'); 
-            }
-
-            showView('message');
-        }
-
-        // --- 5. APP LOGIC - VIEW REQUEST ---
-
-        async function initViewRequest() {
-            await fetchInitialData();
-            loadingText.textContent = "Loading request details...";
-            
-            const docRef = doc(shiftRequestsCollection, currentRequestId);
-            const docSnap = await getDoc(docRef);
-
-            if (!docSnap.exists()) {
-                loadingText.textContent = "Error: This request does not exist.";
-                return;
-            }
-
-            currentRequestData = docSnap.data();
-            
-            document.getElementById('view-shiftDate').textContent = currentRequestData.shiftDate;
-            document.getElementById('view-reason').textContent = currentRequestData.reason;
-            
-            document.getElementById('view-requesterName').textContent = currentRequestData.requesterName;
-            document.getElementById('view-requesterRankId').textContent = currentRequestData.requesterRankId;
-            document.getElementById('view-requesterTeam').textContent = currentRequestData.requesterTeam;
-            document.getElementById('view-requesterOriginalShift').textContent = currentRequestData.requesterOriginalShift;
-            document.getElementById('view-requesterNewShift').textContent = currentRequestData.requesterNewShift;
-            document.getElementById('view-requesterSignature').textContent = formatTimestamp(currentRequestData.requesterSignatureTimestamp);
-            
-            document.getElementById('view-colleagueName').textContent = currentRequestData.colleagueName;
-            document.getElementById('view-colleagueRankId').textContent = currentRequestData.colleagueRankId;
-            document.getElementById('view-colleagueTeam').textContent = currentRequestData.colleagueTeam;
-            document.getElementById('view-colleagueOriginalShift').textContent = currentRequestData.colleagueOriginalShift;
-            document.getElementById('view-colleagueNewShift').textContent = currentRequestData.colleagueNewShift;
-            document.getElementById('view-colleagueSignature').textContent = formatTimestamp(currentRequestData.colleagueSignatureTimestamp);
-            
-            document.getElementById('view-tl-oc-Comments').textContent = currentRequestData.tlOcComments || "No comments.";
-            document.getElementById('view-tl-oc-Signature').textContent = formatTimestamp(currentRequestData.tlOcSignatureTimestamp);
-
-            const status = currentRequestData.status;
-            let statusText = status.replace('_', ' ').replace('tl oc', 'TL/OC').replace(/\b\w/g, l => l.toUpperCase()); // Capitalize words
-            statusBannerContainer.innerHTML = `<div class="p-4 rounded-lg text-center font-bold text-lg mb-6 shadow-sm status-${status}">${statusText}</div>`;
-
-            renderActionButtons();
-            showView('view');
-        }
-
-        function renderActionButtons() {
-            actionContainer.innerHTML = "";
-            const status = currentRequestData.status;
-
-            const btnSuccess = "w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 focus:ring-green-500";
-            const btnDanger = "w-full px-5 py-3 rounded-lg shadow-md font-semibold text-white transition-all duration-200 flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-red-600 hover:bg-red-700 focus:ring-red-500";
-            
-            const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-            const xIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-            if (status === 'pending_colleague' && currentRequestAction === 'colleague') {
-                actionContainer.innerHTML = `
-                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 text-center">
-                        <h3 class="text-xl font-semibold">Hi ${currentRequestData.colleagueName},</h3>
-                        <p class="text-gray-700 mt-2">${currentRequestData.requesterName} has requested to change shifts with you. Do you agree?</p>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                        <button id="colleague-agree-btn" class="${btnSuccess}">
-                            ${checkIcon}
-                            <span>I Agree</span>
-                        </button>
-                        <button id="colleague-disagree-btn" class="${btnDanger}">
-                            ${xIcon}
-                            <span>I Disagree</span>
-                        </button>
-                    </div>
-                `;
-                document.getElementById('colleague-agree-btn').addEventListener('click', () => handleColleagueAction(true));
-                document.getElementById('colleague-disagree-btn').addEventListener('click', () => handleColleagueAction(false));
-            }
-            else if (status === 'pending_tl_oc' && currentRequestAction === 'tl_oc') {
-                 actionContainer.innerHTML = `
-                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200/75 space-y-4">
-                        <h3 class="text-xl font-semibold text-center border-b pb-2">TL/OC Approval</h3>
-                        <div>
-                            <label for="tl-oc-CommentsInput" class="block text-sm font-medium text-gray-700 mb-1">Comments (Optional):</label>
-                            <textarea id="tl-oc-CommentsInput" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"></textarea>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <button id="tl-oc-approve-btn" class="${btnSuccess}">
-                                ${checkIcon}
-                                <span>Approve</span>
-                            </button>
-                            <button id="tl-oc-reject-btn" class="${btnDanger}">
-                                ${xIcon}
-                                <span>Reject</span>
-                            </button>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('tl-oc-approve-btn').addEventListener('click', () => handleTlOcAction(true));
-                document.getElementById('tl-oc-reject-btn').addEventListener('click', () => handleTlOcAction(false));
-            }
-            else {
-                if (currentRequestAction && (status.includes('approved') || status.includes('rejected'))) {
-                    actionContainer.innerHTML = `<p class="text-center text-gray-600">This request has already been <strong>${status.replace('_', ' ').replace('tl oc', 'TL/OC').toUpperCase()}</strong>.</p>`;
-                } else if (!currentRequestAction && status.includes('pending')) {
-                     actionContainer.innerHTML = `<p class="text-center text-gray-600">This request is <strong>${status.replace('_', ' ').replace('tl oc', 'TL/OC').toUpperCase()}</strong>. Waiting for action.</p>`;
-                } else {
-                     actionContainer.innerHTML = `<p class="text-center text-gray-600">This request is finalized. No further actions are needed.</p>`;
-                }
-            }
-        }
-
-        async function handleColleagueAction(didAgree) {
-            const docRef = doc(shiftRequestsCollection, currentRequestId);
-            
-            try {
-                if (didAgree) {
-                    await updateDoc(docRef, {
-                        status: 'pending_tl_oc',
-                        colleagueSignatureTimestamp: serverTimestamp()
-                    });
-                    
-                    // --- GENERATE SHORT LINK ---
-                    const shortLink = await createShortLink({
-                        requestId: currentRequestId,
-                        action: 'tl_oc'
-                    });
-                    
-                    const whatsAppMessage = `Hi, this is a shift change request for ${currentRequestData.requesterName} and ${currentRequestData.colleagueName} on ${currentRequestData.shiftDate}. We have both agreed.\n\n👇 Please tap below to approve:`;
-
-                    showMessage(
-                        "Agreement Submitted!",
-                        `Thank you! Your agreement has been recorded. Please forward the link below to your TL/OC for final approval.`,
-                        shortLink,
-                        whatsAppMessage,
-                        "Share to TL/OC",
-                        "Step 3: Get TL/OC Approval"
-                    );
-                } else {
-                    await updateDoc(docRef, {
-                        status: 'rejected_colleague',
-                        colleagueSignatureTimestamp: serverTimestamp()
-                    });
-
-                     // No short link needed for rejection view
-                     const baseUrl = getBaseUrl();
-                     const link = `${baseUrl}?requestId=${currentRequestId}`;
-                     
-                    showMessage(
-                        "Request Rejected",
-                        `You have rejected this request. The requester has been notified (implicitly).`,
-                        link, null, null, "Request Status"
-                    );
-                }
-            } catch (error) {
-                console.error("Error updating request: ", error);
-            }
-        }
-        
-        async function handleTlOcAction(didApprove) {
-            const docRef = doc(shiftRequestsCollection, currentRequestId);
-            const tlOcComments = document.getElementById('tl-oc-CommentsInput') ? document.getElementById('tl-oc-CommentsInput').value : "";
-            
-            const completionTime = new Date().toLocaleString('en-SG', { 
-                dateStyle: 'medium', 
-                timeStyle: 'short',
-                timeZone: 'Asia/Singapore'
-            });
-
-            try {
-                let whatsAppMessage = "";
-                let shortLink = "";
-                
-                // --- GENERATE SHORT LINK ---
-                // For final view, we just need requestId, no action
-                 shortLink = await createShortLink({
-                    requestId: currentRequestId
                 });
 
-                if (didApprove) {
-                    const { requesterId, colleagueId, shiftDate, requesterNewShift, colleagueNewShift } = currentRequestData;
-                    
-                    const requesterRosterRef = doc(rosterCollection, requesterId);
-                    const colleagueRosterRef = doc(rosterCollection, colleagueId);
-                    
-                    const requesterShiftWithMark = `[${requesterNewShift}]`;
-                    const colleagueShiftWithMark = `[${colleagueNewShift}]`;
-                    
-                    await setDoc(requesterRosterRef, { [shiftDate]: requesterShiftWithMark }, { merge: true });
-                    await setDoc(colleagueRosterRef, { [shiftDate]: colleagueShiftWithMark }, { merge: true });
-                    
-                    await updateDoc(docRef, {
-                        status: 'approved',
-                        tlOcComments: tlOcComments,
-                        tlOcSignatureTimestamp: serverTimestamp()
-                    });
-                    
-                    whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${shiftDate} has been APPROVED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
-
+                status.classList.add('hidden');
+                
+                if (results.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-400 text-xs py-4">No records found matching that ID or Name.</div>';
                 } else {
-                    await updateDoc(docRef, {
-                        status: 'rejected_tl_oc',
-                        tlOcComments: tlOcComments,
-                        tlOcSignatureTimestamp: serverTimestamp()
-                    });
+                    list.innerHTML = `<div class="text-xs text-center text-green-600 mb-2 font-bold">Found ${results.length} records</div>`;
                     
-                     whatsAppMessage = `Hi ${currentRequestData.requesterName}, your shift change request for ${currentRequestData.shiftDate} has been REJECTED by TL/OC. Process completed at ${completionTime}.\n\n👇 Tap below to view details:`;
-                }
-
-                showMessage(
-                    didApprove ? "Request Approved!" : "Request Rejected",
-                    didApprove ? `The request has been approved and the roster updated. Please notify the requester.` : `The request has been rejected. Please notify the requester.`,
-                    shortLink, 
-                    whatsAppMessage, 
-                    "Notify Requester",
-                    "Final Step: Notify Requester"
-                );
-
-            } catch (error) {
-                console.error("Error finalizing request: ", error);
-            }
-        }
-
-        // --- 6. INITIALIZATION ---
-        
-        let authStateProcessed = false;
-        
-        function assignDOMElements() {
-            loadingView = document.getElementById('loading-view');
-            loadingText = document.getElementById('loading-text');
-            newRequestView = document.getElementById('new-request-view');
-            viewRequestView = document.getElementById('view-request-view');
-            messageView = document.getElementById('message-view');
-            newRequestForm = document.getElementById('new-request-form');
-            requesterNameSelect = document.getElementById('requesterName');
-            requesterRankId = document.getElementById('requesterRankId');
-            requesterTeam = document.getElementById('requesterTeam');
-            colleagueNameSelect = document.getElementById('colleagueName');
-            colleagueRankId = document.getElementById('colleagueRankId');
-            colleagueTeam = document.getElementById('colleagueTeam');
-            shiftDateInput = document.getElementById('shiftDate');
-            requesterOriginalShift = document.getElementById('requesterOriginalShift');
-            requesterNewShift = document.getElementById('requesterNewShift');
-            colleagueOriginalShift = document.getElementById('colleagueOriginalShift');
-            colleagueNewShift = document.getElementById('colleagueNewShift');
-            statusBannerContainer = document.getElementById('status-banner-container');
-            actionContainer = document.getElementById('action-container');
-            errorMessageContainer = document.getElementById('error-message-container');
-            errorMessageText = document.getElementById('error-message-text');
-
-            console.log("DOM elements assigned.");
-        }
-        
-        async function initFirebase() {
-            loadingText.textContent = "Authenticating...";
-            
-            const authTimeout = setTimeout(() => {
-                if (!authStateProcessed) {
-                    console.error("Authentication timed out.");
-                    if (loadingText) loadingText.textContent = "Authentication Timed Out. Please check your network and refresh.";
-                }
-            }, 10000);
-
-            onAuthStateChanged(auth, async (user) => {
-                authStateProcessed = true;
-                clearTimeout(authTimeout);
-
-                if (user) {
-                    console.log("User authenticated:", user.uid);
-                    loadingText.textContent = "Authentication successful. Loading data...";
-                    
-                    try {
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    results.forEach(r => {
+                        const color = r.status === 'approved' ? 'bg-green-100 text-green-800' : (r.status.includes('pending') ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800');
+                        const div = document.createElement('div');
+                        div.className = "bg-white border rounded-lg p-3 shadow-sm cursor-pointer hover:border-indigo-300 transition";
+                        div.onclick = () => loadDetails(r.id);
                         
-                        employeesCollection = collection(db, "employees");
-                        teamsCollection = collection(db, "teams");
-                        rosterCollection = collection(db, "roster");
-                        shiftRequestsCollection = collection(db, `artifacts/${appId}/public/data/shiftRequests`);
-                        shortLinksCollection = collection(db, `artifacts/${appId}/public/data/shortLinks`);
-                        console.log("Collections defined.");
-
-                        // NOW ASYNC: Wait for short link resolution
-                        await resolveUrlParams();
-                        
-                        if (currentRequestId) {
-                            await initViewRequest();
-                        } else {
-                            await initNewRequestForm();
-                        }
-                    } catch (error) {
-                        console.error("Error during app initialization:", error);
-                        loadingText.textContent = `Error: ${error.message}. Please refresh.`;
-                    }
-
-                } else {
-                    console.log("User not signed in.");
-                    loadingText.textContent = "Authentication Failed. User is not signed in.";
+                        div.innerHTML = `
+                            <div class="flex justify-between mb-1">
+                                <span class="font-bold text-sm text-gray-800">${r.shiftDate}</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded font-bold uppercase ${color}">${r.status.replace(/_/g,' ')}</span>
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                ${r.role === 'Requester' ? 'Swap with ' + r.colleagueName : 'Req by ' + r.requesterName}
+                            </div>
+                        `;
+                        list.appendChild(div);
+                    });
                 }
-            });
 
+            } catch(e) {
+                status.textContent = "Error: " + e.message;
+                status.classList.remove('hidden');
+                console.error(e);
+            }
+        };
+
+        async function loadDetails(id) {
+            sysLog.classList.remove('hidden');
+            log("Loading details...");
+            
             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
+                const snap = await getDoc(doc(requestsCol, id));
+                if (!snap.exists()) throw new Error("Not found");
+                const d = snap.data();
+
+                // Fill UI
+                document.getElementById('det-date').textContent = d.shiftDate;
+                document.getElementById('det-reason').textContent = d.reason;
+                document.getElementById('det-req-name').textContent = d.requesterName;
+                document.getElementById('det-req-shift-old').textContent = d.requesterOriginalShift;
+                document.getElementById('det-req-shift-new').textContent = d.requesterNewShift;
+                document.getElementById('det-col-name').textContent = d.colleagueName;
+                document.getElementById('det-col-shift-old').textContent = d.colleagueOriginalShift;
+                document.getElementById('det-col-shift-new').textContent = d.colleagueNewShift;
+                document.getElementById('det-comments').textContent = d.tlOcComments || "No comments.";
+
+                const ban = document.getElementById('status-banner');
+                ban.textContent = d.status.replace(/_/g, ' ').toUpperCase();
+                
+                const act = document.getElementById('action-area');
+                act.innerHTML = '';
+
+                // If user is accessing via Link Action
+                if (d.status === 'pending_colleague' && currentAction === 'colleague') {
+                    act.innerHTML = `
+                        <div class="bg-indigo-50 p-4 rounded-lg text-center">
+                            <p class="font-bold text-indigo-900 mb-3">Do you agree?</p>
+                            <div class="flex gap-2">
+                                <button id="act-agree" class="flex-1 bg-green-600 text-white py-2 rounded font-bold">Agree</button>
+                                <button id="act-reject" class="flex-1 bg-white border border-red-300 text-red-600 py-2 rounded font-bold">Reject</button>
+                            </div>
+                        </div>`;
+                    document.getElementById('act-agree').onclick = () => performAction(id, 'agree');
+                    document.getElementById('act-reject').onclick = () => performAction(id, 'reject_col');
+                } 
+                else if (d.status === 'pending_tl_oc' && currentAction === 'tl_oc') {
+                    act.innerHTML = `
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <p class="font-bold text-blue-900 mb-2">Approval</p>
+                            <textarea id="admin-note" class="w-full border p-2 rounded mb-2 text-xs" placeholder="Comments"></textarea>
+                            <div class="flex gap-2">
+                                <button id="act-approve" class="flex-1 bg-green-600 text-white py-2 rounded font-bold">Approve</button>
+                                <button id="act-deny" class="flex-1 bg-red-600 text-white py-2 rounded font-bold">Reject</button>
+                            </div>
+                        </div>`;
+                    document.getElementById('act-approve').onclick = () => performAction(id, 'approve');
+                    document.getElementById('act-deny').onclick = () => performAction(id, 'reject_tl');
                 }
-            } catch (error) {
-                console.error("Authentication Error:", error);
-                if (!authStateProcessed) { 
-                    authStateProcessed = true;
-                    clearTimeout(authTimeout);
-                    loadingText.textContent = "Authentication Failed. Please refresh.";
-                }
+
+                window.switchView('details');
+                sysLog.classList.add('hidden');
+            } catch (e) {
+                log("Details Error: " + e.message, true);
+                alert("Error loading request.");
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOM Loaded. Assigning elements and initializing Firebase.");
-            assignDOMElements();
-            initFirebase();
-        });
-        
+        async function performAction(id, type) {
+            const ref = doc(requestsCol, id);
+            try {
+                if (type === 'agree') {
+                    await updateDoc(ref, { status: 'pending_tl_oc', colleagueSignatureTimestamp: serverTimestamp() });
+                    const code = Math.random().toString(36).substring(2,8);
+                    await setDoc(doc(linksCol, code), { requestId: id, action: 'tl_oc' });
+                    const link = `${window.location.href.split('?')[0]}?code=${code}`;
+                    
+                    document.getElementById('res-title').textContent = "Agreed";
+                    document.getElementById('res-msg').textContent = "Send this link to TL/OC";
+                    document.getElementById('res-link').href = `https://wa.me/?text=${encodeURIComponent(`Approval Needed: ${link}`)}`;
+                    window.switchView('result');
+                } 
+                else if (type === 'approve') {
+                    const note = document.getElementById('admin-note').value;
+                    await updateDoc(ref, { status: 'approved', tlOcComments: note, tlOcSignatureTimestamp: serverTimestamp() });
+                    alert("Approved"); window.location.reload();
+                }
+                else {
+                    await updateDoc(ref, { status: type === 'reject_col' ? 'rejected_colleague' : 'rejected_tl_oc' });
+                    alert("Rejected"); window.location.reload();
+                }
+            } catch(e) { alert("Error: " + e.message); }
+        }
+
+        init();
     </script>
 </body>
 </html>
