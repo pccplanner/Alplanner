@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APO Management Portal (Integrated)</title>
-    <!-- 1. Load Tailwind CSS -->
+    <title>APO Management Portal v3.4</title>
+    <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 2. Load React & ReactDOM -->
+    <!-- 2. React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <!-- 3. Load Babel for JSX -->
+    <!-- 3. Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- 4. Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -18,500 +18,448 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, onSnapshot, collection, query, where, getDocs, orderBy, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-        const mockFirebaseConfig = { apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM", authDomain: "roster-4a997.firebaseapp.com", projectId: "roster-4a997", storageBucket: "roster-4a997.firebasestorage.app", messagingSenderId: "901381868881", appId: "1:901381868881:web:92930481d6c1c85fedd770" };
+        // --- CONFIGURATION ---
+        const mockFirebaseConfig = {
+          apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+          authDomain: "roster-4a997.firebaseapp.com",
+          projectId: "roster-4a997",
+          storageBucket: "roster-4a997.firebasestorage.app",
+          messagingSenderId: "901381868881",
+          appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+        
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : mockFirebaseConfig;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        window.firebase = { db, auth, appId, initialAuthToken, doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, updateDoc, signInAnonymously, onAuthStateChanged, signInWithCustomToken, getAuth };
+        window.firebase = { db, auth, appId, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, signInAnonymously, onAuthStateChanged, signInWithCustomToken };
         
         function tryRenderApp() {
-            if (window.firebase && window.firebase.db && window.firebase.auth) {
+            if (window.firebase && window.firebase.db && window.firebase.auth && window.React && window.ReactDOM) {
                 try {
                     const root = ReactDOM.createRoot(document.getElementById('root'));
                     root.render(React.createElement(App));
-                } catch (e) { console.error("Render Failed:", e); }
-            } else { setTimeout(tryRenderApp, 100); }
+                } catch (e) {
+                    console.error("React Mount Error:", e);
+                    document.body.innerHTML = `<div style="color:red; padding:20px;">Error mounting app: ${e.message}</div>`;
+                }
+            } else { 
+                setTimeout(tryRenderApp, 100); 
+            }
         }
         window.onload = tryRenderApp;
     </script>
-    
-    <style>
-        /* --- Portal Layout Styles --- */
-        :root { --sidebar-width: 260px; }
-        body { background-color: #f8fafc; color: #1e293b; }
-        .sidebar { transition: transform 0.3s ease; width: var(--sidebar-width); }
-        .content-area { transition: margin-left 0.3s ease; margin-left: 0; }
-        @media (min-width: 1024px) { .content-area { margin-left: var(--sidebar-width); } }
-        .sidebar-overlay { background: rgba(0,0,0,0.5); }
-        
-        /* --- Original Roster Styles (Preserved for functionality) --- */
-        .highlight-cell { background-color: #FDE047; border: 2px solid #F59E0B; color: #000; font-weight: bold; }
-        .dropdown-permanent { font-weight: bold; color: #1D4ED8; background-image: linear-gradient(45deg, #EFF6FF 50%, #DBEAFE 50%); background-size: 8px 8px; }
-        .dropdown-buffer { font-weight: bold; color: #581c87; background-color: #d8b4fe; }
-        .buffer-id-content { background-color: #FBCFE8 !important; color: #9D174D !important; font-weight: 700 !important; border: 1px solid #F472B6 !important; }
-        .shuffling-highlight { background-color: #FBBF24 !important; border: 2px solid #D97706 !important; animation: pulse-shuffle 1s infinite alternate; }
-        @keyframes pulse-shuffle { from { opacity: 1; } to { opacity: 0.7; } }
-        select, input { text-align: center !important; text-align-last: center !important; }
-        .staff-pool-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        @media (min-width: 640px) { .staff-pool-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (min-width: 1024px) { .staff-pool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-        .staff-card-scheduled { border: 1px solid #10B981; background-color: #F0FDF4; }
-        .staff-card-unscheduled { border: 1px solid #F87171; background-color: #FEF2F2; }
-        .toggle-switch { position: relative; display: inline-block; width: 40px; height: 20px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #3B82F6; }
-        input:checked + .slider:before { transform: translateX(20px); }
-        .matrix-edit-active td { background-color: #f0f9ff !important; }
-        .matrix-edit-active select { background-color: #e0f2fe !important; font-weight: 600; border: 1px solid #93c5fd; padding: 1px !important; height: 18px !important; }
 
-        /* Print Override */
+    <style>
+        body { background-color: #f8fafc; color: #334155; }
+        .sidebar { transition: transform 0.3s ease-in-out; width: 260px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Roster Grid Styles */
+        .roster-grid-table th:first-child, .roster-grid-table td:first-child { position: sticky; left: 0; z-index: 20; width: 180px; min-width: 180px; max-width: 180px; background-color: #f8fafc; border-right: 2px solid #e2e8f0; font-size: 0.75rem; font-weight: 600; text-align: left; padding-left: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .roster-grid-table th:first-child { background-color: #f1f5f9; z-index: 30; }
+        .roster-grid-table th { background-color: #f1f5f9; position: sticky; top: 0; z-index: 10; font-size: 0.7rem; text-transform: uppercase; color: #64748b; padding: 0.5rem; text-align: center; border-bottom: 2px solid #e2e8f0; }
+        .roster-grid-table td { border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 0; height: 36px; width: 60px; text-align: center; vertical-align: middle; }
+        .cell-content { font-size: 0.75rem; font-weight: 500; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; }
+        .cell-permanent { background-color: #ffffff; color: #334155; }
+        .cell-pair { background-image: linear-gradient(45deg, #eff6ff 50%, #dbeafe 50%); color: #1e40af; font-weight: 700; background-size: 10px 10px; }
+        .cell-buffer { background-color: #fce7f3; color: #9d174d; font-weight: 700; border: 1px solid #fbcfe8; }
+        .cell-empty { background-color: #fefce8; color: #ca8a04; }
+        .cell-missing { background-color: #fee2e2; color: #b91c1c; }
+        .glass-panel { background: white; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); border-radius: 0.75rem; }
+
         @media print {
-            .no-print, .sidebar, header, .nav-buttons, .action-buttons { display: none !important; }
-            .content-area { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
-            body { background-color: white; zoom: 70%; -webkit-print-color-adjust: exact; }
-            .card { box-shadow: none !important; border: none !important; }
-            .roster-container { margin: 0; padding: 0; }
+            .sidebar, .sidebar-overlay, .no-print, header { display: none !important; }
+            .content-area { margin-left: 0 !important; padding: 0 !important; }
+            body { background: white; }
+            .roster-grid-table th:first-child, .roster-grid-table td:first-child { border-right: 1px solid #999; width: 150px; min-width: 150px; max-width: 150px; }
         }
     </style>
 </head>
-<body class="font-sans text-gray-800 antialiased">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, createContext, useContext } = React;
-        const FIREBASE_GLOBALS = window.firebase || {};
-        const { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, updateDoc, signInAnonymously, onAuthStateChanged, signInWithCustomToken, initialAuthToken, appId, db, auth } = FIREBASE_GLOBALS;
+        const { useState, useEffect, useMemo, useContext, createContext } = React;
+        const { db, auth, appId, collection, onSnapshot, signInAnonymously, onAuthStateChanged, doc, getDoc, query, where, getDocs, orderBy } = window.firebase;
 
-        // --- CONSTANTS & CONFIG ---
-        const TEAM_COLLECTION = "teams"; 
-        const EMPLOYEES_COLLECTION = "employees";
-        const DAILY_ASSIGNMENTS_COLLECTION = "dailyAssignments_v7";
-        const DAILY_ROSTER_COLLECTION = "dailyRosters_v7";
-        const DAILY_ATTENDANCE_COLLECTION = "dailyAttendance_v7";
-        
-        const SENTRY_POSITIONS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"];
-        const SECURITY_POSITIONS = ["TEAM LEADER (I/C)", "SECTION I/C"];
-        const FOYER_POSITIONS = ["XRAY-VISITOR", "FOYER-OE"];
-        const VERTICAL_PROWLER_POSITION = "VERTICAL PROWLER";
-        const TIME_SLOTS = ["2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs", "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"];
-        const VERTICAL_PROWLER_SLOTS = ["20:30", "23:00", "00:30", "03:00", "04:30", "06:30"];
-        
-        const SENTRY_SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
-        const SENTRY_LOCATION_KEYS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"];
-        const FOYER_ASSIGNMENT_KEYS = ["FOYER 1", "FOYER 2"];
-        const SECURITY_ASSIGNMENT_KEYS = ["TEAM LEADER (I/C)", "SECTION I/C"];
-        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...SENTRY_LOCATION_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
-        const OVERRIDE_LOCATIONS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", VERTICAL_PROWLER_POSITION];
-        const UNFILLED_SLOT = "---";
-        const ROSTER_MODES = { AUTO_SEQUENCE: 'Auto-Sequence', MANUAL_LOCATION_FIXED: 'Manual-Location-Fixed' };
-        const SENTRY_POSITION_SEQUENCES = {
-            "E1": ["E1", "OE", "P2", "N1", "E3", "P1"], "PATROL 1": ["P1", "E1", "OE", "P2", "N1", "E3"],
-            "E3": ["E3", "P1", "E1", "OE", "P2", "N1"], "N1 (CNB)": ["N1", "E3", "P1", "E1", "OE", "P2"],
-            "PATROL 2": ["P2", "N1", "E3", "P1", "E1", "OE"], "OE/ STANDBY": ["OE", "P2", "N1", "E3", "P1", "E1"]
+        // --- CONSTANTS ---
+        const COLLECTIONS = {
+            TEAMS: `teams`, 
+            EMPLOYEES: `employees`, 
+            ROSTERS: `dailyRosters_v7`,
+            ATTENDANCE: `dailyAttendance_v7`
         };
 
+        const POSITIONS = {
+            SECURITY: ["TEAM LEADER (I/C)", "SECTION I/C"],
+            FOYER: ["XRAY-VISITOR", "FOYER-OE"],
+            PROWLER: ["VERTICAL PROWLER"],
+            SENTRY: ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"]
+        };
+        
+        const TIME_SLOTS = ["2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs", "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"];
+        const VP_SLOTS = ["20:30", "23:00", "00:30", "03:00", "04:30", "06:30"];
+
         // --- HELPERS ---
-        const getCollectionRef = (n) => (n===TEAM_COLLECTION || n===EMPLOYEES_COLLECTION) ? collection(db, `artifacts/${appId}/public/data/${n}`) : collection(db, n);
-        const getDocRef = (n, id) => (n===TEAM_COLLECTION || n===EMPLOYEES_COLLECTION) ? doc(db, `artifacts/${appId}/public/data/${n}`, String(id)) : doc(db, n, String(id));
-        const getTodayDate = () => { const t = new Date(); return new Date(t.getTime() - (t.getTimezoneOffset()*60000)).toISOString().split('T')[0]; };
-        const sanitizeForFirestore = (obj) => JSON.parse(JSON.stringify(obj, (k,v) => v === undefined ? null : v));
-        const cleanStaffId = (id) => { const t = (id||'').trim(); return (t.length > 1 && t.toLowerCase().startsWith('t')) ? t.substring(1) : t; };
-        const extractName = (n) => { const m = (n||'').match(/\((.*?)\)\s*(.*)/); return m && m[2] ? m[2].trim() : (n||'').trim(); };
-        const getStaffAssignments = (id, map, keys) => keys.filter(k => map[k] && map[k].includes(id));
+        const getCollectionRef = (name) => {
+            if (name === COLLECTIONS.TEAMS || name === COLLECTIONS.EMPLOYEES) {
+                if (appId === 'default-app-id' || typeof appId === 'undefined') {
+                    return collection(db, name); 
+                }
+                return collection(db, `artifacts/${appId}/public/data/${name}`);
+            }
+            return collection(db, name);
+        };
 
-        // --- CONTEXT ---
-        const StaffContext = createContext();
-        function StaffProvider({ children, selectedDate }) {
-            const [employees, setEmployees] = useState([]);
+        const cleanStaffId = (id) => {
+            if (!id || typeof id !== 'string') return '';
+            const trimmedId = id.trim();
+            if (trimmedId.length > 1 && (trimmedId.startsWith('T') || trimmedId.startsWith('t'))) {
+                return trimmedId.substring(1);
+            }
+            return trimmedId;
+        };
+
+        const extractName = (fullName) => {
+            if (!fullName || typeof fullName !== 'string') return '';
+            const match = fullName.match(/\((.*?)\)\s*(.*)/);
+            if (match && match[2]) return match[2].trim();
+            return fullName.trim();
+        };
+
+        const getToday = () => {
+            const now = new Date();
+            const offset = now.getTimezoneOffset();
+            return new Date(now.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+        };
+        const getMonthStr = (date = new Date()) => {
+            const offset = date.getTimezoneOffset();
+            return new Date(date.getTime() - (offset*60*1000)).toISOString().slice(0, 7);
+        };
+
+        // --- DATA CONTEXT ---
+        const DataContext = createContext();
+
+        function DataProvider({ children }) {
+            const [staff, setStaff] = useState([]);
             const [teams, setTeams] = useState([]);
-            const [dailyAttendance, setDailyAttendance] = useState([]);
-            const [loadingState, setLoadingState] = useState({ teams: true, employees: true, attendance: true });
+            const [staffTypeMap, setStaffTypeMap] = useState(new Map());
+            const [loading, setLoading] = useState(true);
 
-            useEffect(() => { const u=onSnapshot(getCollectionRef(TEAM_COLLECTION),s=>{const d=[];s.forEach(x=>d.push({docId:x.id,...x.data()}));setTeams(d);setLoadingState(p=>({...p,teams:false}));});return u; }, []);
-            useEffect(() => { const u=onSnapshot(getCollectionRef(EMPLOYEES_COLLECTION),s=>{const d=[];s.forEach(x=>d.push({docId:x.id,...x.data()}));setEmployees(d.sort((a,b)=>(a.name||'').localeCompare(b.name||'')));setLoadingState(p=>({...p,employees:false}));});return u; }, []);
-            useEffect(() => { 
-                if(!selectedDate) return; 
-                setLoadingState(p=>({...p,attendance:true}));
-                const u=onSnapshot(getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate),s=>{setDailyAttendance(s.exists()?s.data().scheduledStaff||[]:[]);setLoadingState(p=>({...p,attendance:false}));});
-                return u; 
-            }, [selectedDate]);
-
-            const teamMap = useMemo(() => { const m=new Map(); teams.forEach(t=>m.set(t.docId, t)); return m; }, [teams]);
-            const staffPool = useMemo(() => employees.map(e => {
-                const id=cleanStaffId(e.emp_id||e.id||e.docId); if(!id)return null;
-                return { id, docId:e.docId, name:extractName(e.name||id), rawName:e.name, team_id:e.team_id, team_name:teamMap.get(e.team_id)?.name||'N/A', type:e.is_buffer?'buffer':'permanent' };
-            }).filter(Boolean), [employees, teamMap]);
-            const staffTypeMap = useMemo(() => { const m=new Map(); staffPool.forEach(s=>m.set(s.id, s.type)); return m; }, [staffPool]);
-            const scheduledStaff = useMemo(() => { const s=new Set(dailyAttendance); return staffPool.filter(x=>s.has(x.id)); }, [staffPool, dailyAttendance]);
-
-            return ( <StaffContext.Provider value={{ staffPool, teamMap, staffTypeMap, loading: Object.values(loadingState).some(x=>x), dailyAttendance, scheduledStaff, ALL_ASSIGNMENT_KEYS, OVERRIDE_LOCATIONS }}>{children}</StaffContext.Provider> );
-        }
-
-        // --- DASHBOARD COMPONENTS ---
-        function DashboardHome({ setView, setSelectedDate }) {
-            const [history, setHistory] = useState([]);
-            useEffect(() => onSnapshot(collection(db, DAILY_ROSTER_COLLECTION), s => {
-                const h = []; s.forEach(d => h.push({ id:d.id, updatedAt:d.data().updatedAt?new Date(d.data().updatedAt):new Date(), status:Object.keys(d.data().rosterGrid||{}).length>0?'Published':'Draft' }));
-                setHistory(h.sort((a,b)=>b.updatedAt-a.updatedAt));
-            }), []);
-            const stats = { total: history.filter(h=>h.status==='Published').length, today: history.find(h=>h.id===getTodayDate())?.status||'Not Started' };
-
-            return (
-                <div className="space-y-6 animate-fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><i className="ph ph-calendar-check text-2xl"></i></div>
-                            <div><p className="text-slate-500 text-sm font-medium">Total Rosters</p><h3 className="text-2xl font-bold text-slate-800">{stats.total}</h3></div>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                            <div className={`p-3 rounded-lg ${stats.today==='Published'?'bg-emerald-100 text-emerald-600':'bg-amber-100 text-amber-600'}`}><i className="ph ph-clock text-2xl"></i></div>
-                            <div><p className="text-slate-500 text-sm font-medium">Today's Status</p><h3 className="text-2xl font-bold text-slate-800">{stats.today}</h3></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><i className="ph ph-clock-counter-clockwise text-blue-500"></i> Recent Activity</h3>
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                            {history.slice(0,10).map(r=>(<div key={r.id} onClick={()=>{setSelectedDate(r.id);setView('roster');}} className="flex justify-between p-3 hover:bg-slate-50 rounded-lg cursor-pointer border-b border-slate-50 last:border-0"><div className="flex gap-3"><span className="text-slate-500 bg-slate-100 px-2 rounded font-mono">{r.id}</span><span className={`text-xs px-2 py-1 rounded-full font-medium ${r.status==='Published'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-600'}`}>{r.status}</span></div><span className="text-xs text-slate-400">{r.updatedAt.toLocaleDateString()}</span></div>))}
-                            {history.length===0 && <p className="text-center text-slate-400 py-4">No history found.</p>}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function ManagementReports() {
-            const [month, setMonth] = useState(getTodayDate().substring(0, 7));
-            const [data, setData] = useState(null);
-            const { staffPool } = useContext(StaffContext);
-            
             useEffect(() => {
-                onSnapshot(collection(db, DAILY_ROSTER_COLLECTION), s => {
-                    const docs = []; s.forEach(d => { if(d.id.startsWith(month)) docs.push({date:d.id, ...d.data()}); });
-                    const counts = {}, headcount = {}, types = {sentry:0, patrol:0, admin:0, standby:0};
-                    docs.forEach(day => {
-                        const daySet = new Set();
-                        Object.entries(day.rosterGrid||{}).forEach(([pos, cells]) => {
-                            cells.forEach(c => {
-                                if(c.value && c.value!==UNFILLED_SLOT) {
-                                    counts[c.value] = (counts[c.value]||0)+1; daySet.add(c.value);
-                                    if(pos.includes("PATROL")||pos.includes("PROWLER")) types.patrol++;
-                                    else if(pos.includes("OE/ STANDBY")) types.standby++;
-                                    else if(SECURITY_POSITIONS.includes(pos)) types.admin++;
-                                    else types.sentry++;
-                                }
-                            });
-                        });
-                        headcount[day.date] = daySet.size;
+                const unsubEmp = onSnapshot(getCollectionRef(COLLECTIONS.EMPLOYEES), snap => {
+                    const data = snap.docs.map(d => {
+                        const raw = d.data();
+                        const rawId = raw.emp_id || raw.id || d.id;
+                        return {
+                            docId: d.id,
+                            ...raw,
+                            emp_id: cleanStaffId(String(rawId)), 
+                            name: extractName(raw.name || String(rawId))
+                        };
                     });
-                    setData({ counts, headcount, types, total: Object.values(counts).reduce((a,b)=>a+b,0) });
+                    setStaff(data.sort((a,b) => a.name.localeCompare(b.name)));
+                    const map = new Map();
+                    data.forEach(s => { map.set(s.emp_id, s.is_buffer ? 'buffer' : 'permanent'); });
+                    setStaffTypeMap(map);
                 });
-            }, [month]);
-
-            const stats = useMemo(() => {
-                if(!data) return [];
-                return Object.entries(data.counts).sort(([,a],[,b])=>b-a).map(([id,c]) => { const s=staffPool.find(x=>x.id===id); return { id, name:s?s.name:'Unknown', count:c }; });
-            }, [data, staffPool]);
-
-            return (
-                <div className="space-y-6">
-                    <div className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center border border-slate-200">
-                        <h2 className="text-xl font-bold text-slate-800 flex gap-2"><i className="ph ph-chart-bar text-purple-600"></i> Monthly Reports</h2>
-                        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="bg-slate-50 border-none rounded p-2" />
-                    </div>
-                    {data ? (
-                        <>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="bg-blue-600 text-white p-5 rounded-xl shadow-md">
-                                    <p className="text-blue-100 text-sm">Total Shifts</p><h3 className="text-3xl font-bold">{data.total}</h3>
-                                </div>
-                                <div className="bg-white p-5 rounded-xl shadow-sm border col-span-3">
-                                    <p className="text-slate-500 text-sm mb-2">Duty Distribution</p>
-                                    <div className="flex h-6 rounded-lg overflow-hidden w-full">
-                                        {['sentry','patrol','admin','standby'].map((t,i) => <div key={t} style={{width:`${(data.types[t]/data.total)*100}%`}} className={['bg-blue-500','bg-emerald-500','bg-purple-500','bg-slate-400'][i]} title={t}></div>)}
-                                    </div>
-                                    <div className="flex gap-4 mt-2 text-xs text-slate-500 font-bold">
-                                        {['Sentry','Patrol','Admin','Standby'].map((t,i)=><span key={t} className="flex items-center gap-1"><div className={['w-2 h-2 bg-blue-500','w-2 h-2 bg-emerald-500','w-2 h-2 bg-purple-500','w-2 h-2 bg-slate-400'][i]}></div> {t}</span>)}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                <div className="p-4 bg-slate-50 border-b font-bold text-slate-700">Top Staff Utilization</div>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm">
-                                        <thead className="bg-slate-100 text-slate-500"><tr><th className="p-3 text-left">ID</th><th className="p-3 text-left">Name</th><th className="p-3 text-right">Hours</th><th className="p-3 w-1/3">Load</th></tr></thead>
-                                        <tbody className="divide-y">{stats.slice(0,50).map(s=>(<tr key={s.id}><td className="p-3 font-mono">{s.id}</td><td className="p-3">{s.name}</td><td className="p-3 text-right">{s.count}</td><td className="p-3"><div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-blue-600 h-2 rounded-full" style={{width:`${Math.min(100,(s.count/200)*100)}%`}}></div></div></td></tr>))}</tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </>
-                    ) : <div className="text-center py-10">Loading Data...</div>}
-                </div>
-            );
-        }
-
-        // --- ORIGINAL ROSTER LOGIC (Integrated) ---
-        function StaffAssignmentCard({ staff, isScheduled, scheduledSet, handleAttendanceToggle, handleRemoveStaff, staffTypeMap, sequenceMap, locationBufferMap, rosterMode, handleSequenceChange, handleUnassign, handleLocationBufferChange, availableAssignmentKeys }) {
-            const { ALL_ASSIGNMENT_KEYS, OVERRIDE_LOCATIONS } = useContext(StaffContext);
-            const [isExpanded, setIsExpanded] = useState(false);
-            const assignedKeys = getStaffAssignments(staff.id, sequenceMap, ALL_ASSIGNMENT_KEYS);
-            const assignedKey = assignedKeys[0] || "";
-            const isAuto = rosterMode === ROSTER_MODES.AUTO_SEQUENCE;
-
-            return (
-                <div className={`p-3 rounded-lg shadow-sm border transition-all ${isScheduled ? 'staff-card-scheduled' : 'staff-card-unscheduled'}`}>
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-lg text-slate-900">{staff.id}</span>
-                        <button onClick={()=>setIsExpanded(!isExpanded)} className="text-slate-400 hover:text-blue-600"><i className={`ph ph-caret-${isExpanded?'up':'down'}`}></i></button>
-                    </div>
-                    {isExpanded && (
-                        <div className="border-t border-slate-300 py-2 mt-1 mb-2 text-sm">
-                            <p className="font-medium">{staff.name}</p>
-                            <div className="flex justify-between mt-1"><span className="text-xs bg-blue-100 text-blue-800 px-2 rounded">{staff.type} - {staff.team_name}</span><button onClick={()=>handleRemoveStaff(staff)} className="text-xs text-red-600 hover:underline">Remove</button></div>
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center mt-1">
-                        <span className={`text-xs font-bold ${isScheduled?'text-emerald-700':'text-red-700'}`}>{isScheduled?'SCHEDULED':'OFF'}</span>
-                        <label className="toggle-switch"><input type="checkbox" checked={isScheduled} onChange={()=>handleAttendanceToggle(staff.id)}/><span className="slider"></span></label>
-                    </div>
-                    {isScheduled && (
-                        <div className="mt-2 space-y-2">
-                            <select value={assignedKey} onChange={e=>e.target.value===""?handleUnassign(staff.id):handleSequenceChange(e.target.value, staff.id)} className={`w-full p-1 border rounded text-xs font-bold ${assignedKey?'bg-blue-100 border-blue-300':'bg-slate-50'}`}>
-                                <option value="">{assignedKey || (isAuto?"Rotation Key":"Location")}</option>
-                                {availableAssignmentKeys.map(k=><option key={k} value={k}>{k}</option>)}
-                            </select>
-                            {staff.type==='buffer' && (
-                                <select value={locationBufferMap[staff.id]||""} onChange={e=>handleLocationBufferChange(staff.id, e.target.value)} className="w-full p-1 border rounded text-xs bg-purple-50 text-purple-700 border-purple-200">
-                                    <option value="">Override: {locationBufferMap[staff.id]||"None"}</option>
-                                    {OVERRIDE_LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}
-                                </select>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        function ConsolidatedStaffManagement({ selectedDate, setSelectedDate }) {
-            const { staffPool, dailyAttendance, staffTypeMap, loading, scheduledStaff, ALL_ASSIGNMENT_KEYS } = useContext(StaffContext);
-            const [localAtt, setLocalAtt] = useState([]);
-            const [status, setStatus] = useState("idle");
-            const [rosterMode, setRosterMode] = useState(ROSTER_MODES.AUTO_SEQUENCE);
-            const [sequenceMap, setSeqMap] = useState({});
-            const [locBuffMap, setLocBuffMap] = useState({});
-            const [newId, setNewId] = useState(""); const [newName, setNewName] = useState(""); const [newTeam, setNewTeam] = useState(""); const [newType, setNewType] = useState("permanent");
-            const scheduledSet = useMemo(()=>new Set(localAtt), [localAtt]);
-
-            useEffect(() => { setLocalAtt(dailyAttendance); setStatus("idle"); }, [dailyAttendance, selectedDate]);
-            useEffect(() => {
-                if(!selectedDate) return;
-                const unsub = onSnapshot(getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate), snap => {
-                    if(snap.exists()) { const d=snap.data(); setRosterMode(d.rosterMode||ROSTER_MODES.AUTO_SEQUENCE); setSeqMap(d.sequenceMap||{}); setLocBuffMap(d.locationBufferMap||{}); }
-                    else { setRosterMode(ROSTER_MODES.AUTO_SEQUENCE); setSeqMap({}); setLocBuffMap({}); }
+                const unsubTeam = onSnapshot(getCollectionRef(COLLECTIONS.TEAMS), snap => {
+                    setTeams(snap.docs.map(d => ({ docId: d.id, ...d.data() })));
                 });
-                return unsub;
-            }, [selectedDate]);
-
-            const handleAttToggle = (id) => { setStatus("unsaved"); setLocalAtt(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id].sort()); if(localAtt.includes(id)) handleUnassign(id); };
-            const handleUnassign = (id) => { const m={...sequenceMap}; ALL_ASSIGNMENT_KEYS.forEach(k=>{if(m[k]) m[k]=m[k].filter(x=>x!==id);}); setSeqMap(m); setStatus("unsaved"); };
-            const handleSeqChange = (key, id) => { const m={...sequenceMap}; ALL_ASSIGNMENT_KEYS.forEach(k=>{if(m[k] && staffTypeMap.get(id)!=='buffer') m[k]=m[k].filter(x=>x!==id);}); if(!m[key]) m[key]=[]; if(!m[key].includes(id)) m[key].push(id); setSeqMap(m); setStatus("unsaved"); };
-            const handleLocBuffChange = (id, loc) => { const m={...locBuffMap}; if(loc) m[id]=loc; else delete m[id]; setLocBuffMap(m); setStatus("unsaved"); };
-
-            const saveAll = async () => {
-                setStatus("saving");
-                await setDoc(getDocRef(DAILY_ATTENDANCE_COLLECTION, selectedDate), { scheduledStaff: localAtt, updatedAt: new Date().toISOString() });
-                await setDoc(getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate), { rosterMode, sequenceMap, locationBufferMap: locBuffMap, updatedAt: new Date().toISOString() });
-                setStatus("saved"); setTimeout(()=>setStatus("idle"), 2000);
-            };
-
-            const addStaff = async () => { if(newId && newName && newTeam) { await setDoc(getDocRef(EMPLOYEES_COLLECTION, newId), { emp_id:newId, name:newName, team_id:newTeam, is_buffer:newType==='buffer', docId:newId }); setNewId(""); setNewName(""); } };
-
-            const availKeys = rosterMode===ROSTER_MODES.AUTO_SEQUENCE ? SENTRY_SEQUENCE_KEYS : SENTRY_LOCATION_KEYS;
-            const fullKeys = [...availKeys, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
-            const filteredStaff = staffPool.filter(s=>scheduledSet.has(s.id)); // Simple view for now
+                setTimeout(() => setLoading(false), 800);
+                return () => { unsubEmp(); unsubTeam(); };
+            }, []);
 
             return (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="flex flex-col md:flex-row justify-between mb-6 gap-4">
-                        <h3 className="text-xl font-bold text-slate-800">Staff & Daily Setup</h3>
-                        <div className="flex gap-2">
-                            <button onClick={saveAll} disabled={status==='saving'} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-md transition-colors">{status==='saving'?'Saving...':status==='saved'?'Saved!':'Save All Changes'}</button>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-1 space-y-4">
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                <h4 className="font-bold mb-2">1. Roster Mode</h4>
-                                <div className="flex gap-2">
-                                    <button onClick={()=>setRosterMode(ROSTER_MODES.AUTO_SEQUENCE)} className={`flex-1 py-2 text-sm rounded border ${rosterMode===ROSTER_MODES.AUTO_SEQUENCE?'bg-blue-100 border-blue-400 text-blue-800 font-bold':'bg-white'}`}>Auto-Sequence</button>
-                                    <button onClick={()=>setRosterMode(ROSTER_MODES.MANUAL_LOCATION_FIXED)} className={`flex-1 py-2 text-sm rounded border ${rosterMode===ROSTER_MODES.MANUAL_LOCATION_FIXED?'bg-blue-100 border-blue-400 text-blue-800 font-bold':'bg-white'}`}>Fixed Loc</button>
-                                </div>
-                            </div>
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                <h4 className="font-bold mb-2">2. Add New Staff</h4>
-                                <div className="space-y-2">
-                                    <input placeholder="ID (e.g. 12345)" value={newId} onChange={e=>setNewId(e.target.value)} className="w-full p-2 border rounded"/>
-                                    <input placeholder="Name" value={newName} onChange={e=>setNewName(e.target.value)} className="w-full p-2 border rounded"/>
-                                    <input placeholder="Team ID" value={newTeam} onChange={e=>setNewTeam(e.target.value)} className="w-full p-2 border rounded"/>
-                                    <select value={newType} onChange={e=>setNewType(e.target.value)} className="w-full p-2 border rounded"><option value="permanent">Permanent</option><option value="buffer">Buffer</option></select>
-                                    <button onClick={addStaff} className="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Add to Pool</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="lg:col-span-2">
-                             <div className="flex justify-between items-center mb-2"><h4 className="font-bold">3. Staff Pool ({staffPool.length})</h4><span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Scheduled: {localAtt.length}</span></div>
-                             <div className="staff-pool-grid grid gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {staffPool.map(s => <StaffAssignmentCard key={s.id} staff={s} isScheduled={scheduledSet.has(s.id)} scheduledSet={scheduledSet} handleAttendanceToggle={handleAttToggle} handleRemoveStaff={()=>{}} staffTypeMap={staffTypeMap} sequenceMap={sequenceMap} locationBufferMap={locBuffMap} rosterMode={rosterMode} handleSequenceChange={handleSeqChange} handleUnassign={handleUnassign} handleLocationBufferChange={handleLocBuffChange} availableAssignmentKeys={fullKeys} />)}
-                             </div>
-                        </div>
-                    </div>
-                </div>
+                <DataContext.Provider value={{ staff, teams, staffTypeMap, loading }}>
+                    {children}
+                </DataContext.Provider>
             );
         }
 
-        function RosterView({ selectedDate }) {
-            const { staffTypeMap, scheduledStaff } = useContext(StaffContext);
-            const [data, setData] = useState(null);
-            const [assignments, setAssignments] = useState(null);
-            const [matrixMode, setMatrixMode] = useState(false);
-            const [dirty, setDirty] = useState(false);
+        // --- COMPONENTS ---
 
-            useEffect(() => {
-                if(!selectedDate) return;
-                const u1=onSnapshot(getDocRef(DAILY_ASSIGNMENTS_COLLECTION, selectedDate), s=>setAssignments(s.exists()?s.data():null));
-                const u2=onSnapshot(getDocRef(DAILY_ROSTER_COLLECTION, selectedDate), s=>setData(s.exists()?s.data().rosterGrid:null));
-                return ()=>{u1();u2();};
-            }, [selectedDate]);
-
-            const generate = async () => {
-                if(!assignments) return alert("Please save assignments first.");
-                const grid = {};
-                const { sequenceMap, locationBufferMap, rosterMode } = assignments;
-                
-                // Logic derived from original: Sentry Gen
-                SENTRY_POSITIONS.forEach(pos => {
-                    if(pos.includes("PROWLER")) return; // Skip prowler
-                    const row = [];
-                    const seq = (rosterMode===ROSTER_MODES.AUTO_SEQUENCE) ? SENTRY_POSITION_SEQUENCES[pos] : Array(12).fill(pos);
-                    
-                    if(seq) {
-                        for(let i=0; i<12; i++) {
-                            const key = seq[i%6] || seq[i]; // Handle manual vs auto array length
-                            const ids = assignments.sequenceMap[key] || [];
-                            const perm = ids.find(id=>staffTypeMap.get(id)!=='buffer') || UNFILLED_SLOT;
-                            const buff = ids.find(id=>staffTypeMap.get(id)==='buffer');
-                            row.push({ value: perm!==UNFILLED_SLOT?perm:(buff||UNFILLED_SLOT), permanent: perm, buffer: buff, isPair: !!(perm!==UNFILLED_SLOT && buff) });
-                        }
-                        grid[pos] = row;
-                    }
-                });
-
-                // Simplified Logic for Demo: Apply overrides & Prowlers would go here in full implementation. 
-                // We assume basic generation works for the portal proof.
-                
-                await setDoc(getDocRef(DAILY_ROSTER_COLLECTION, selectedDate), { rosterGrid: grid, updatedAt: new Date().toISOString() });
-                setDirty(false);
-            };
-
-            const save = async () => { await setDoc(getDocRef(DAILY_ROSTER_COLLECTION, selectedDate), { rosterGrid: data, updatedAt: new Date().toISOString() }); setDirty(false); };
-            const updateCell = (pos, i, val) => { const d={...data}; d[pos][i].value=val; setData(d); setDirty(true); };
-
-            return (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center mb-4 no-print">
-                        <h3 className="text-xl font-bold">Daily Roster Grid</h3>
-                        <div className="flex gap-2">
-                            <button onClick={()=>setMatrixMode(!matrixMode)} className={`px-4 py-2 rounded text-white ${matrixMode?'bg-red-500':'bg-blue-500'}`}>{matrixMode?'Exit Edit':'Edit Grid'}</button>
-                            <button onClick={generate} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Generate/Reset</button>
-                            {dirty && <button onClick={save} className="bg-purple-600 text-white px-4 py-2 rounded animate-pulse">Save Changes</button>}
-                            <button onClick={()=>window.print()} className="bg-slate-600 text-white px-4 py-2 rounded">Print</button>
-                        </div>
-                    </div>
-                    {data ? (
-                        <div className="overflow-x-auto shadow rounded border">
-                            <table className="min-w-full divide-y divide-slate-200">
-                                <thead className="bg-slate-100">
-                                    <tr><th className="p-2 text-left sticky left-0 bg-slate-100 z-10">Location</th>{TIME_SLOTS.map(t=><th key={t} className="p-2 text-center text-xs">{t}</th>)}</tr>
-                                </thead>
-                                <tbody className={`bg-white divide-y ${matrixMode?'matrix-edit-active':''}`}>
-                                    {Object.keys(data).sort().map(pos => (
-                                        <tr key={pos}>
-                                            <td className="p-2 text-sm font-bold bg-slate-50 sticky left-0 z-10 border-r">{pos}</td>
-                                            {data[pos].map((c,i)=>(
-                                                <td key={i} className="p-0 border-r min-w-[60px]">
-                                                    {matrixMode ? (
-                                                        <select value={c.value} onChange={e=>updateCell(pos,i,e.target.value)} className="w-full text-xs p-1 h-full"><option value="">-</option>{scheduledStaff.map(s=><option key={s.id} value={s.id}>{s.id}</option>)}</select>
-                                                    ) : (
-                                                        <div className={`text-xs py-2 text-center ${c.isPair?'dropdown-permanent':''} ${c.value===UNFILLED_SLOT?'bg-yellow-100':''}`}>{c.value}</div>
-                                                    )}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : <div className="text-center py-10 bg-slate-50 text-slate-400">No roster generated yet. Click Generate.</div>}
-                </div>
-            );
-        }
-
-        // --- APP LAYOUT ---
-        function App() {
-            const [view, setView] = useState('dashboard');
-            const [selectedDate, setSelectedDate] = useState(getTodayDate());
-            const [user, setUser] = useState(null);
-            const [sidebarOpen, setSidebarOpen] = useState(false);
-
-            useEffect(() => onAuthStateChanged(auth, u => { if(u) setUser(u); else signInAnonymously(auth); }), []);
-
-            if(!user) return <div className="h-screen flex items-center justify-center bg-slate-100 text-slate-400">Connecting to APO Portal...</div>;
-
-            const NavItem = ({id, label, icon}) => (
-                <button onClick={()=>{setView(id);setSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${view===id?'bg-blue-600 text-white shadow-lg':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-                    <i className={`ph ${icon} text-xl`}></i><span className="font-medium">{label}</span>
+        function Sidebar({ view, setView, isOpen, setIsOpen }) {
+            const NavItem = ({ id, icon, label }) => (
+                <button 
+                    onClick={() => { setView(id); setIsOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-1 font-medium text-sm ${view === id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                >
+                    <i className={`ph ${icon} text-lg`}></i>{label}
                 </button>
             );
+            return (
+                <>
+                    {isOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden sidebar-overlay" onClick={() => setIsOpen(false)}></div>}
+                    <div className={`sidebar fixed inset-y-0 left-0 bg-slate-900 text-white p-4 flex flex-col z-30 shadow-xl border-r border-slate-800 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static`}>
+                        <div className="mb-8 flex items-center gap-3 px-2 mt-2">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/30"><i className="ph ph-shield-check text-lg text-white"></i></div>
+                            <div><h1 className="font-bold text-base leading-none tracking-tight">Management</h1><p className="text-[10px] text-slate-500 font-mono mt-1">PORTAL v3.4</p></div>
+                            <button onClick={()=>setIsOpen(false)} className="lg:hidden ml-auto text-slate-400"><i className="ph ph-x text-xl"></i></button>
+                        </div>
+                        <nav className="flex-1 space-y-6 overflow-y-auto">
+                            <div><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-3">Overview</p><NavItem id="dashboard" icon="ph-squares-four" label="Dashboard" /><NavItem id="history" icon="ph-calendar-blank" label="Roster History" /></div>
+                            <div><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-3">Analytics</p><NavItem id="fairness" icon="ph-scales" label="Workload Balance" /><NavItem id="location" icon="ph-map-pin" label="Location Scorecard" /><NavItem id="profiler" icon="ph-users-three" label="Staff Profiler" /></div>
+                        </nav>
+                        <div className="mt-auto pt-6 border-t border-slate-800"><div className="flex items-center gap-2 opacity-60 px-2"><i className="ph ph-lock-key text-xs"></i><span className="text-[10px] font-mono">SECURE ADMIN</span></div></div>
+                    </div>
+                </>
+            );
+        }
+
+        function RosterGridRenderer({ data, staffTypeMap }) {
+            if (!data) return <div className="p-10 flex flex-col items-center justify-center text-slate-400 h-full"><i className="ph ph-calendar-x text-4xl mb-4 opacity-50"></i><p>No roster data available for this date.</p></div>;
+            const manualStandbyRows = Object.keys(data).filter(key => key.startsWith("OE/ STANDBY-")).sort((a,b) => parseInt(a.split('-')[1]||0) - parseInt(b.split('-')[1]||0));
+            const renderCell = (cell) => {
+                if (!cell) return <td className="cell-missing">?</td>;
+                const val = cell.value;
+                const type = staffTypeMap.get(val);
+                let className = "cell-content ";
+                if (!val || val === "---") className += "cell-empty";
+                else if (type === 'buffer') className += "cell-buffer";
+                else if (cell.isPair) className += "cell-pair";
+                else className += "cell-permanent";
+                return <td><div className={className} title={val !== "---" ? `Staff: ${val}` : "Empty"}>{val}</div></td>;
+            };
+            const RenderTableSection = ({ title, rows, slots }) => (
+                <div className="mb-6 border border-slate-200 rounded-lg overflow-hidden shadow-sm bg-white break-inside-avoid">
+                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-bold text-xs text-slate-600 uppercase tracking-wider">{title}</div>
+                    <div className="overflow-x-auto"><table className="roster-grid-table w-full border-collapse"><thead><tr><th>Location</th>{slots.map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{rows.map(pos => (<tr key={pos}><td>{pos.replace("OE/ STANDBY", "OE").replace("PERIMETER PROWLER", "PROWLER")}</td>{slots.map((t, i) => { const cell = (data[pos] && data[pos][i]) ? data[pos][i] : { value: "---" }; return renderCell(cell); })}</tr>))}</tbody></table></div>
+                </div>
+            );
+            return <div className="space-y-6 animate-fade-in-up"><RenderTableSection title="Security Control" rows={POSITIONS.SECURITY} slots={TIME_SLOTS} /><RenderTableSection title="Foyer Deployment" rows={POSITIONS.FOYER} slots={TIME_SLOTS} /><RenderTableSection title="Vertical Prowler" rows={POSITIONS.PROWLER} slots={VP_SLOTS} /><RenderTableSection title="Sentry & Patrol" rows={[...POSITIONS.SENTRY, ...manualStandbyRows]} slots={TIME_SLOTS} /></div>;
+        }
+
+        function FullCalendar({ markedDates, onSelectDate }) {
+            const [currentMonth, setCurrentMonth] = useState(new Date());
+            const year = currentMonth.getFullYear(); const month = currentMonth.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDayOfWeek = new Date(year, month, 1).getDay();
+            const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+            const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+            const jumpToday = () => setCurrentMonth(new Date());
+            const todayStr = getToday();
+            const days = [];
+            for (let i = 0; i < firstDayOfWeek; i++) days.push(null);
+            for (let i = 1; i <= daysInMonth; i++) { days.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`); }
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            return (
+                <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50"><div className="flex items-center gap-4"><h2 className="text-xl font-bold text-slate-800">{monthNames[month]} {year}</h2><div className="flex gap-1"><button onClick={prevMonth} className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i className="ph ph-caret-left text-lg"></i></button><button onClick={nextMonth} className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i className="ph ph-caret-right text-lg"></i></button></div></div><button onClick={jumpToday} className="text-sm font-medium text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">Today</button></div>
+                    <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (<div key={d} className="py-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">{d}</div>))}</div>
+                    <div className="grid grid-cols-7 grid-rows-5 flex-1 auto-rows-fr bg-slate-100 gap-px border-b border-slate-200">
+                        {days.map((dateStr, idx) => {
+                            if (!dateStr) return <div key={`empty-${idx}`} className="bg-white min-h-[80px]"></div>;
+                            const isToday = dateStr === todayStr; const hasRoster = markedDates.has(dateStr);
+                            return (
+                                <div key={dateStr} onClick={() => onSelectDate(dateStr)} className={`bg-white min-h-[80px] p-2 relative cursor-pointer hover:bg-blue-50 transition-colors group flex flex-col items-start`}><span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 group-hover:text-blue-600'}`}>{parseInt(dateStr.split('-')[2])}</span>{hasRoster && (<div className="mt-1 w-full flex justify-center"><span className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold w-auto border border-emerald-200 shadow-sm whitespace-nowrap overflow-hidden"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span><span className="hidden sm:inline">Published</span><span className="sm:hidden">Pub</span></span></div>)}{!hasRoster && isToday && (<div className="mt-1 w-full opacity-0 group-hover:opacity-100 transition-opacity"><span className="inline-flex items-center justify-center px-2 py-1 rounded-md border border-dashed border-slate-300 text-slate-400 text-[10px] w-full">+</span></div>)}</div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function RosterHistoryView() {
+            const { staffTypeMap } = useContext(DataContext);
+            const [history, setHistory] = useState(new Set());
+            const [rosterDataMap, setRosterDataMap] = useState({});
+            const [viewMode, setViewMode] = useState('calendar');
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [loadingList, setLoadingList] = useState(true);
+            useEffect(() => {
+                const q = query(collection(db, COLLECTIONS.ROSTERS)); 
+                const unsub = onSnapshot(q, snap => {
+                    const dates = new Set(); const map = {};
+                    snap.forEach(d => { if (d.data().rosterGrid && Object.keys(d.data().rosterGrid).length > 0) { dates.add(d.id); map[d.id] = d.data().rosterGrid; } });
+                    setHistory(dates); setRosterDataMap(map); setLoadingList(false);
+                });
+                return unsub;
+            }, []);
+            const handleDateSelect = (dateStr) => { setSelectedDate(dateStr); setViewMode('detail'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+            const handleBackToCalendar = () => { setViewMode('calendar'); setSelectedDate(null); };
+            if (loadingList) return <div className="p-20 text-center text-slate-400 animate-pulse">Loading Roster Calendar...</div>;
+            return (
+                <div className="h-full flex flex-col">
+                    {viewMode === 'calendar' ? (
+                        <div className="h-full flex flex-col animate-fade-in-up"><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><i className="ph ph-calendar text-blue-600"></i> Roster Calendar</h2><div className="text-sm text-slate-500 flex gap-4"><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Published</span><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white border border-slate-300"></span> Empty</span></div></div><div className="flex-1 min-h-[600px]"><FullCalendar markedDates={history} onSelectDate={handleDateSelect} /></div></div>
+                    ) : (
+                        <div className="h-full flex flex-col animate-fade-in-up"><div className="mb-4 flex items-center gap-4 sticky top-0 z-20 bg-slate-50/95 backdrop-blur py-2 border-b border-slate-200 no-print"><button onClick={handleBackToCalendar} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium px-3 py-2 rounded-lg hover:bg-white transition-colors"><i className="ph ph-arrow-left text-lg"></i> Back to Calendar</button><div className="h-6 w-px bg-slate-300"></div><h2 className="text-xl font-bold text-slate-800">Roster: <span className="font-mono text-blue-600">{selectedDate}</span></h2><div className="ml-auto"><button onClick={() => window.print()} className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium shadow-sm flex items-center gap-2"><i className="ph ph-printer"></i> Print</button></div></div><div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 overflow-auto"><RosterGridRenderer data={rosterDataMap[selectedDate]} staffTypeMap={staffTypeMap} /></div></div>
+                    )}
+                </div>
+            );
+        }
+
+        // 5. Staff Profile (Updated Layout)
+        function StaffProfileView() {
+            const { staff } = useContext(DataContext);
+            const [month, setMonth] = useState(getMonthStr());
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedStaffIds, setSelectedStaffIds] = useState(new Set());
+            const [profileData, setProfileData] = useState({});
+            const [processing, setProcessing] = useState(false);
+
+            const filteredStaffList = useMemo(() => {
+                const term = searchTerm.toLowerCase();
+                return staff.filter(s => (s.name?.toLowerCase().includes(term) || s.emp_id?.toLowerCase().includes(term) || s.docId?.toLowerCase().includes(term)));
+            }, [staff, searchTerm]);
+
+            const toggleStaff = (id) => { const newSet = new Set(selectedStaffIds); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedStaffIds(newSet); };
+
+            useEffect(() => {
+                if (selectedStaffIds.size === 0) { setProfileData({}); return; }
+                setProcessing(true);
+                const q = query(collection(db, COLLECTIONS.ROSTERS));
+                onSnapshot(q, snap => {
+                    const allStats = {};
+                    selectedStaffIds.forEach(id => { allStats[id] = { locationCounts: {}, totalShifts: 0, uniqueLocations: new Set(), dutyTypeCounts: { sentry: 0, patrol: 0, admin: 0, foyer: 0 }, badges: [], sortedLocs: [] }; });
+                    snap.forEach(d => {
+                        if (d.id.startsWith(month) && d.data().rosterGrid) {
+                            const grid = d.data().rosterGrid; const workedToday = new Set();
+                            Object.entries(grid).forEach(([pos, slots]) => {
+                                slots.forEach(slot => {
+                                    if (selectedStaffIds.has(slot.value)) {
+                                        const stats = allStats[slot.value]; const locName = pos.replace("OE/ STANDBY", "OE").replace("PERIMETER PROWLER", "PROWLER");
+                                        stats.locationCounts[locName] = (stats.locationCounts[locName] || 0) + 1; stats.uniqueLocations.add(locName); workedToday.add(slot.value);
+                                        if (pos.includes("PATROL") || pos.includes("PROWLER")) stats.dutyTypeCounts.patrol++; else if (pos.includes("FOYER") || pos.includes("XRAY")) stats.dutyTypeCounts.foyer++; else if (POSITIONS.SECURITY.includes(pos)) stats.dutyTypeCounts.admin++; else stats.dutyTypeCounts.sentry++;
+                                    }
+                                });
+                            });
+                            workedToday.forEach(id => allStats[id].totalShifts++);
+                        }
+                    });
+                    Object.keys(allStats).forEach(id => {
+                        const s = allStats[id]; s.totalSlots = Object.values(s.dutyTypeCounts).reduce((a,b) => a+b, 0);
+                        s.sortedLocs = Object.entries(s.locationCounts).sort(([,a], [,b]) => b - a).map(([name, count]) => ({ name, count, pct: s.totalSlots > 0 ? Math.round((count / s.totalSlots) * 100) : 0 }));
+                        if (s.totalSlots > 0) {
+                            if (s.dutyTypeCounts.patrol / s.totalSlots > 0.4) s.badges.push({ l: "Patrol Specialist", c: "bg-orange-100 text-orange-800" });
+                            if (s.dutyTypeCounts.foyer / s.totalSlots > 0.4) s.badges.push({ l: "Foyer Expert", c: "bg-green-100 text-green-800" });
+                            if (s.uniqueLocations.size > 4) s.badges.push({ l: "All-Rounder", c: "bg-purple-100 text-purple-800" });
+                            if (s.totalShifts > 20) s.badges.push({ l: "High Availability", c: "bg-blue-100 text-blue-800" });
+                        }
+                    });
+                    setProfileData(allStats); setProcessing(false);
+                });
+            }, [selectedStaffIds, month]);
 
             return (
-                <StaffProvider selectedDate={selectedDate}>
-                    <div className="flex min-h-screen relative bg-slate-100">
-                        <aside className={`sidebar fixed inset-y-0 left-0 bg-[#0f172a] text-white z-40 transform ${sidebarOpen?'translate-x-0':'-translate-x-full'} lg:translate-x-0 flex flex-col`}>
-                            <div className="p-6 border-b border-slate-800"><h1 className="text-xl font-bold flex gap-2"><i className="ph ph-shield-check text-blue-500"></i> APO Portal</h1></div>
-                            <nav className="p-4 flex-1 overflow-y-auto">
-                                <p className="text-xs font-bold text-slate-500 uppercase px-4 mb-2 mt-2">Overview</p>
-                                <NavItem id="dashboard" label="Dashboard" icon="ph-squares-four"/>
-                                <NavItem id="reports" label="Reports" icon="ph-chart-bar"/>
-                                <p className="text-xs font-bold text-slate-500 uppercase px-4 mb-2 mt-6">Operations</p>
-                                <NavItem id="roster" label="Daily Roster" icon="ph-table"/>
-                                <NavItem id="settings" label="Staff & Setup" icon="ph-users-three"/>
-                            </nav>
-                            <div className="p-4 border-t border-slate-800 bg-[#0b1120] text-xs text-slate-500 flex justify-between"><span>User: {user.uid.slice(0,4)}</span><span>v2.0</span></div>
-                        </aside>
-                        {sidebarOpen && <div className="fixed inset-0 sidebar-overlay z-30 lg:hidden" onClick={()=>setSidebarOpen(false)}></div>}
-                        <main className="content-area flex-1 flex flex-col min-h-screen">
-                            <header className="bg-white/80 backdrop-blur border-b h-16 flex items-center justify-between px-6 sticky top-0 z-20 no-print">
-                                <div className="flex items-center gap-4"><button onClick={()=>setSidebarOpen(true)} className="lg:hidden text-2xl"><i className="ph ph-list"></i></button><h2 className="text-lg font-bold capitalize text-slate-700">{view.replace('-',' ')}</h2></div>
-                                {(view==='roster'||view==='settings') && <div className="flex items-center border rounded px-3 py-1 bg-white"><i className="ph ph-calendar text-slate-400 mr-2"></i><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="outline-none text-sm"/></div>}
-                            </header>
-                            <div className="p-6 flex-1 overflow-x-hidden">
-                                {view==='dashboard' && <DashboardHome setView={setView} setSelectedDate={setSelectedDate}/>}
-                                {view==='reports' && <ManagementReports/>}
-                                {view==='roster' && <RosterView selectedDate={selectedDate}/>}
-                                {view==='settings' && <ConsolidatedStaffManagement selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
-                            </div>
-                        </main>
+                <div className="flex flex-col lg:flex-row h-full gap-6 animate-fade-in-up">
+                    <div className="w-full lg:w-96 flex flex-col glass-panel overflow-hidden shrink-0 h-[400px] lg:h-auto">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-3"><h3 className="font-bold text-slate-700 flex justify-between items-center"><span>Staff Directory</span><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{selectedStaffIds.size} Selected</span></h3><div className="relative"><i className="ph ph-magnifying-glass absolute left-2.5 top-2.5 text-slate-400"></i><input type="text" placeholder="Search ID or Name" className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="w-full border p-2 rounded text-sm bg-white"/></div>
+                        
+                        {/* Improved Grid Layout for Staff List */}
+                        <div className="flex-1 overflow-y-auto p-2">
+                            {filteredStaffList.length === 0 ? (
+                                <div className="text-center p-4 text-xs text-slate-400">No staff found.</div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                    {filteredStaffList.map(s => {
+                                        const isSelected = selectedStaffIds.has(s.emp_id || s.docId);
+                                        return (
+                                            <button
+                                                key={s.docId}
+                                                onClick={() => toggleStaff(s.emp_id || s.docId)}
+                                                className={`text-left p-2 rounded-lg border transition-all flex flex-col ${
+                                                    isSelected 
+                                                    ? 'bg-blue-50 border-blue-400 shadow-sm ring-1 ring-blue-300' 
+                                                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="flex justify-between items-start w-full">
+                                                    <span className={`text-xs font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                        {s.emp_id}
+                                                    </span>
+                                                    {isSelected && <i className="ph ph-check-circle text-blue-600 text-sm"></i>}
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 truncate w-full mt-1">
+                                                    {s.name}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </StaffProvider>
+                    <div className="flex-1 overflow-y-auto min-h-[500px]">
+                        {selectedStaffIds.size === 0 ? <div className="h-full flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-300 text-slate-400 p-10"><i className="ph ph-users-three text-5xl mb-4 opacity-50"></i><p className="text-lg font-medium">Select staff from the list to analyze workload.</p><p className="text-sm">Select multiple to compare.</p></div> : selectedStaffIds.size === 1 ? (() => { const id = Array.from(selectedStaffIds)[0]; const sStats = profileData[id]; const sInfo = staff.find(st => st.emp_id === id || st.docId === id); if (!sStats) return <div className="text-center p-10">Loading...</div>; return (<div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up"><div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><div className="text-center mb-6"><div className="w-16 h-16 bg-slate-100 rounded-full mx-auto flex items-center justify-center text-xl font-bold text-slate-600 mb-2 border-2 border-white shadow">{id.slice(0, 2)}</div><h3 className="font-bold text-xl text-slate-800">{sInfo?.name || id}</h3><p className="text-slate-500 font-mono text-sm">{id}</p><div className="flex flex-wrap justify-center gap-2 mt-3">{sStats.badges.map((b, i) => <span key={i} className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${b.c}`}>{b.l}</span>)}</div></div><div className="grid grid-cols-2 gap-4 mb-6"><div className="bg-blue-50 p-4 rounded-xl text-center"><div className="text-2xl font-bold text-blue-700">{sStats.totalShifts}</div><div className="text-[10px] text-blue-600 uppercase font-bold tracking-wider">Total Shifts</div></div><div className="bg-purple-50 p-4 rounded-xl text-center"><div className="text-2xl font-bold text-purple-700">{sStats.uniqueLocations.size}</div><div className="text-[10px] text-purple-600 uppercase font-bold tracking-wider">Unique Posts</div></div></div><div className="space-y-3"><h4 className="font-bold text-xs text-slate-400 uppercase tracking-wide">Role Split</h4>{[{ l: 'Sentry', v: sStats.dutyTypeCounts.sentry, c: 'bg-blue-500' }, { l: 'Patrol', v: sStats.dutyTypeCounts.patrol, c: 'bg-orange-500' }, { l: 'Foyer', v: sStats.dutyTypeCounts.foyer, c: 'bg-green-500' }, { l: 'Admin', v: sStats.dutyTypeCounts.admin, c: 'bg-purple-500' }].map(d => { const pct = sStats.totalSlots ? (d.v / sStats.totalSlots) * 100 : 0; return (<div key={d.l}><div className="flex justify-between text-xs mb-1"><span>{d.l}</span><span className="font-bold">{Math.round(pct)}%</span></div><div className="w-full bg-slate-100 rounded-full h-1.5"><div className={`h-1.5 rounded-full ${d.c}`} style={{width: `${pct}%`}}></div></div></div>) })}</div></div><div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"><div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700">Location Frequency</div><div className="p-4 overflow-y-auto flex-1">{sStats.sortedLocs.length === 0 ? <div className="text-center p-10 text-slate-400">No data.</div> : (<div className="space-y-4">{sStats.sortedLocs.map((loc, i) => (<div key={loc.name} className="flex items-center gap-3"><div className="w-6 text-right text-slate-400 font-mono text-xs">#{i+1}</div><div className="flex-1"><div className="flex justify-between mb-1"><span className="font-bold text-slate-700 text-xs">{loc.name}</span><span className="text-[10px] text-slate-500">{loc.count} Slots</span></div><div className="w-full bg-slate-100 rounded-r-full h-6 relative overflow-hidden"><div className={`h-full flex items-center pl-2 text-[10px] font-bold text-white ${loc.name.includes('PATROL')?'bg-orange-400':'bg-blue-500'}`} style={{width: `${Math.max(loc.pct, 5)}%`}}>{loc.pct}%</div></div></div></div>))}</div>)}</div></div></div>); })() : (<div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in-up"><div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-slate-700 text-lg">Comparison Matrix ({selectedStaffIds.size})</h3><button onClick={()=>setSelectedStaffIds(new Set())} className="text-xs text-red-600 hover:text-red-800 font-medium">Clear All</button></div><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4 text-left">Staff Member</th><th className="p-4 text-center">Total Shifts</th><th className="p-4 w-1/3">Role Distribution</th><th className="p-4 text-left">Top Location</th></tr></thead><tbody className="divide-y divide-slate-100">{Array.from(selectedStaffIds).map(id => { const sStats = profileData[id]; const sInfo = staff.find(st => st.emp_id === id || st.docId === id); if (!sStats) return null; const patrolPct = sStats.totalSlots ? (sStats.dutyTypeCounts.patrol / sStats.totalSlots) * 100 : 0; const sentryPct = sStats.totalSlots ? (sStats.dutyTypeCounts.sentry / sStats.totalSlots) * 100 : 0; return (<tr key={id} className="hover:bg-slate-50"><td className="p-4"><div className="font-bold text-slate-800">{sInfo?.name || id}</div><div className="text-xs text-slate-400 font-mono">{id}</div></td><td className="p-4 text-center"><span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">{sStats.totalShifts}</span></td><td className="p-4"><div className="flex items-center gap-1 text-[10px] font-bold text-white text-center h-4 rounded-full overflow-hidden"><div className="bg-orange-400 h-full" style={{width: `${patrolPct}%`}} title={`Patrol: ${Math.round(patrolPct)}%`}></div><div className="bg-blue-500 h-full" style={{width: `${sentryPct}%`}} title={`Sentry: ${Math.round(sentryPct)}%`}></div><div className="bg-green-500 h-full flex-1" title="Other"></div></div><div className="flex justify-between text-[10px] text-slate-400 mt-1"><span>Patrol {Math.round(patrolPct)}%</span><span>Static {Math.round(sentryPct)}%</span></div></td><td className="p-4 text-xs font-medium text-slate-600">{sStats.sortedLocs[0] ? (<span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span>{sStats.sortedLocs[0].name} ({sStats.sortedLocs[0].pct}%)</span>) : <span className="text-slate-300">--</span>}</td></tr>); })}</tbody></table></div></div>)}
+                    </div>
+                </div>
             );
+        }
+
+        // 6. Location Scorecard
+        function LocationScorecardView() {
+            const { staffTypeMap } = useContext(DataContext);
+            const [month, setMonth] = useState(getMonthStr());
+            const [locationStats, setLocationStats] = useState([]);
+            const [processing, setProcessing] = useState(false);
+            useEffect(() => {
+                setProcessing(true);
+                const q = query(collection(db, COLLECTIONS.ROSTERS));
+                onSnapshot(q, snap => {
+                    const stats = {};
+                    snap.forEach(d => {
+                        if (d.id.startsWith(month) && d.data().rosterGrid) {
+                            const grid = d.data().rosterGrid;
+                            Object.entries(grid).forEach(([pos, slots]) => {
+                                if (!stats[pos]) { stats[pos] = { name: pos.replace("OE/ STANDBY", "OE").replace("PERIMETER PROWLER", "PROWLER"), totalSlots: 0, filledSlots: 0, uniqueStaff: new Set() }; }
+                                slots.forEach(slot => { stats[pos].totalSlots++; const id = slot.value; if (id && id !== "---" && id !== "") { stats[pos].filledSlots++; stats[pos].uniqueStaff.add(id); } });
+                            });
+                        }
+                    });
+                    const EXCLUDED_LOCATIONS = ["PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)", "SECTION I/C", "TEAM LEADER (I/C)", "OE/ STANDBY-2"];
+                    const result = Object.entries(stats).filter(([pos]) => !EXCLUDED_LOCATIONS.includes(pos)).map(([pos, s]) => ({ ...s, uniqueStaffCount: s.uniqueStaff.size, coverage: s.totalSlots > 0 ? (s.filledSlots / s.totalSlots) * 100 : 0, })).sort((a,b) => b.coverage - a.coverage);
+                    setLocationStats(result); setProcessing(false);
+                });
+            }, [month, staffTypeMap]);
+            const getStatusBadge = (stat) => {
+                if (stat.coverage < 80) return <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-bold">Critical</span>;
+                if (stat.uniqueStaffCount < 3) return <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded font-bold">Stagnant</span>;
+                return <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded font-bold">Stable</span>;
+            };
+            return (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200"><div><h2 className="text-xl font-bold text-slate-800">Location Scorecard</h2><p className="text-sm text-slate-500">Analyze coverage efficiency per post.</p></div><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="border p-2 rounded text-sm"/></div>
+                    {processing ? <div className="p-20 text-center text-slate-400">Analyzing location data...</div> : (
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><table className="min-w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-semibold border-b"><tr><th className="p-4">Location Name</th><th className="p-4 w-1/3">Coverage Efficiency</th><th className="p-4 text-center">Unique Staff</th><th className="p-4 text-center">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{locationStats.map(stat => (<tr key={stat.name} className="hover:bg-slate-50"><td className="p-4 font-bold text-slate-700">{stat.name}</td><td className="p-4"><div className="flex items-center gap-2"><div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden"><div className={`h-full ${stat.coverage < 90 ? 'bg-orange-400' : 'bg-green-500'}`} style={{width: `${stat.coverage}%`}}></div></div><span className="text-xs font-bold text-slate-600">{Math.round(stat.coverage)}%</span></div></td><td className="p-4 text-center"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">{stat.uniqueStaffCount}</span></td><td className="p-4 text-center">{getStatusBadge(stat)}</td></tr>))}{locationStats.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-slate-400">No data found for this month.</td></tr>}</tbody></table></div>
+                    )}
+                </div>
+            );
+        }
+
+        // 7. Workload
+        function WorkloadBalanceView() {
+            const { staff } = useContext(DataContext); const [month, setMonth] = useState(getMonthStr()); const [stats, setStats] = useState([]); const [processing, setProcessing] = useState(false);
+            useEffect(() => { setProcessing(true); const q = query(collection(db, COLLECTIONS.ROSTERS)); onSnapshot(q, snap => { const counts = {}; snap.forEach(d => { if (d.id.startsWith(month) && d.data().rosterGrid) { const grid = d.data().rosterGrid; const seen = new Set(); Object.values(grid).forEach(row => row.forEach(c => { if (c.value && c.value !== "---" && c.value !== "" && !seen.has(c.value)) { counts[c.value] = (counts[c.value] || 0) + 1; seen.add(c.value); } })); } }); const res = Object.entries(counts).map(([id, n]) => ({ id, n, name: staff.find(s=>s.emp_id===id||s.id===id||s.docId===id)?.name || id, type: staff.find(s=>s.emp_id===id||s.id===id||s.docId===id)?.is_buffer ? 'Buffer' : 'Perm' })); setStats(res.sort((a,b) => b.n - a.n)); setProcessing(false); }); }, [month, staff]);
+            return ( <div className="space-y-6"><div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border"><h2 className="text-xl font-bold text-slate-800">Workload Balance</h2><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="border p-2 rounded text-sm"/></div>{processing ? <div className="p-8 text-center text-slate-400">Calculating...</div> : <div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4 text-left">Staff</th><th className="p-4 text-center">Shifts ({month})</th><th className="p-4">Load</th></tr></thead><tbody className="divide-y">{stats.map(s => (<tr key={s.id}><td className="p-4"><div className="font-bold text-slate-700">{s.name}</div><div className="text-xs text-slate-400 font-mono">{s.id} • {s.type}</div></td><td className="p-4 text-center font-bold">{s.n}</td><td className="p-4"><div className="w-full bg-slate-100 rounded-full h-2"><div className={`h-2 rounded-full ${s.n > 20 ? 'bg-orange-400' : 'bg-blue-600'}`} style={{width: `${(s.n/25)*100}%`}}></div></div></td></tr>))}</tbody></table></div>}</div> );
+        }
+
+        // 8. Dashboard
+        function DashboardView() {
+            const { staff } = useContext(DataContext); const [todayRoster, setTodayRoster] = useState(null);
+            useEffect(() => { getDoc(doc(db, COLLECTIONS.ROSTERS, getToday())).then(s => setTodayRoster(s.exists() ? s.data() : null)); }, []);
+            const isPublished = todayRoster && Object.keys(todayRoster.rosterGrid || {}).length > 0;
+            return ( <div className="space-y-6 animate-fade-in-up"><header className="mb-8"><h2 className="text-2xl font-bold text-slate-800">Operational Overview</h2><p className="text-slate-500">Real-time insight into resource allocation and readiness.</p></header><div className="grid grid-cols-1 md:grid-cols-3 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div className="flex justify-between items-start mb-4"><div><p className="text-xs font-bold text-slate-400 uppercase">Today's Roster</p><h3 className={`text-2xl font-bold mt-1 ${isPublished ? 'text-emerald-600' : 'text-amber-500'}`}>{isPublished ? 'Active' : 'Pending'}</h3></div><div className={`p-3 rounded-xl ${isPublished ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}><i className={`ph ${isPublished ? 'ph-check-circle' : 'ph-warning-circle'} text-2xl`}></i></div></div><p className="text-xs text-slate-400">{isPublished ? "Operations normal." : "Roster generation required."}</p></div><div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div className="flex justify-between items-start mb-4"><div><p className="text-xs font-bold text-slate-400 uppercase">Staff Pool</p><h3 className="text-2xl font-bold mt-1 text-slate-800">{staff.length}</h3></div><div className="p-3 rounded-xl bg-blue-100 text-blue-600"><i className="ph ph-users text-2xl"></i></div></div><p className="text-xs text-slate-400">Total active profiles.</p></div><div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div className="flex justify-between items-start mb-4"><div><p className="text-xs font-bold text-slate-400 uppercase">System Health</p><h3 className="text-2xl font-bold mt-1 text-purple-600">Online</h3></div><div className="p-3 rounded-xl bg-purple-100 text-purple-600"><i className="ph ph-lightning text-2xl"></i></div></div><p className="text-xs text-slate-400">Database connection stable.</p></div></div></div> );
+        }
+
+        // --- MAIN APP ---
+        function App() {
+            const [view, setView] = useState('dashboard');
+            const [user, setUser] = useState(null);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            useEffect(() => { const unsub = onAuthStateChanged(auth, u => { if (u) setUser(u); else signInAnonymously(auth).catch(e => console.error("Auth Error", e)); }); return unsub; }, []);
+            if (!user) return <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-400 font-mono text-sm">Connecting Secure Portal...</div>;
+            return ( <DataProvider><div className="flex min-h-screen bg-slate-50 relative"><Sidebar view={view} setView={setView} isOpen={sidebarOpen} setIsOpen={setSidebarOpen} /><div className="flex-1 flex flex-col min-h-screen transition-all duration-300 content-area"><header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between lg:hidden sticky top-0 z-10 no-print"><h1 className="font-bold text-slate-700">APO Portal</h1><button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"><i className="ph ph-list text-2xl"></i></button></header><main className="flex-1 p-4 lg:p-8 h-full">{view === 'dashboard' && <DashboardView />}{view === 'history' && <RosterHistoryView />}{view === 'fairness' && <WorkloadBalanceView />}{view === 'location' && <LocationScorecardView />}{view === 'profiler' && <StaffProfileView />}{view === 'trends' && <div className="text-center p-20 text-slate-400">Trend Analysis Module (Coming Soon)</div>}</main></div></div></DataProvider> );
         }
     </script>
 </body>
