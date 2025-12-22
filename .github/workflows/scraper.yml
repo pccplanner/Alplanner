@@ -1,0 +1,41 @@
+name: Manual TimeTree Scraper
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape-calendar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install TimeTree Exporter
+        run: pip install timetree-exporter
+
+      - name: Run Scraper
+        env:
+          TIMETREE_EMAIL: ${{ secrets.TIMETREE_EMAIL }}
+          TIMETREE_PASSWORD: ${{ secrets.TIMETREE_PASSWORD }}
+        run: |
+          timetree-exporter -o timetree_export.ics
+
+      - name: Commit and Push .ics file
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add timetree_export.ics
+          if git diff --staged --quiet; then
+            echo "No changes to calendar detected."
+          else
+            git commit -m "Manual export of TimeTree calendar"
+            git push
+          fi
