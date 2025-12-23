@@ -144,7 +144,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v13.5</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v14.0</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -266,6 +266,52 @@
           </div>
       </div>
       
+      <!-- NEW: JSON Smart Import Section (Admin Only) -->
+      <div id="importSection" class="p-4 rounded-lg bg-indigo-50 border border-indigo-200 mb-4 max-w-3xl mx-auto" style="display: none;">
+        <h3 class="text-lg font-bold mb-2 text-indigo-800 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            Smart Import Leave Data
+        </h3>
+        <p class="text-xs text-indigo-600 mb-3">
+            <b>Advanced Processing:</b> Select the <b>Year</b> and <b>Month</b>. The system will <b>DELETE existing entries</b> for that specific range only, then import new data. 
+            <br><b>Note:</b> Block leave requests (e.g. Jan 9-10) in your JSON will be automatically split into individual daily entries for better management.
+        </p>
+        
+        <div class="flex flex-col sm:flex-row gap-3 items-center bg-white p-3 rounded border border-indigo-100">
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <label for="importYear" class="text-sm font-bold text-gray-700">Year:</label>
+                <input type="number" id="importYear" class="border rounded px-2 py-1 w-20 text-center font-semibold" value="2026" min="2024" max="2030">
+            </div>
+            
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <label for="importMonth" class="text-sm font-bold text-gray-700">Month:</label>
+                <select id="importMonth" class="border rounded px-2 py-1 font-semibold text-gray-700">
+                    <option value="all">All Months</option>
+                    <option value="1" selected>January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+            
+            <div class="w-full h-px bg-gray-200 sm:w-px sm:h-8"></div>
+
+            <input type="file" id="jsonImportInput" accept=".json" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/>
+            
+            <button id="triggerImportBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-semibold whitespace-nowrap shadow-sm">
+                Clear & Import
+            </button>
+        </div>
+      </div>
+
       <!-- Team Buttons -->
       <div id="team-buttons" class="team-buttons text-center my-3 space-x-2">
         <!-- Buttons populated by JS -->
@@ -467,7 +513,7 @@
                     </tr>
                 </thead>
                 <tbody id="historyTableBody" class="bg-white divide-y divide-gray-200 text-sm">
-                    <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above to view their history.</td></tr>
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above to view history.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -609,7 +655,8 @@
       where,
       writeBatch,
       setLogLevel,
-      deleteField
+      deleteField,
+      getDocs // Added getDocs for advanced deletion logic
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- !! IMPORTANT !! ---
@@ -1092,6 +1139,9 @@
       document.getElementById("tab-staff-history").style.display = isAdmin ? "block" : "none"; // NEW
       document.getElementById("monthlySummary").style.display = isAdmin ? "block" : "none";
       
+      // NEW: Show import section only for admins
+      document.getElementById("importSection").style.display = isAdmin ? "block" : "none";
+
       // Set leave form readonly state
       document.getElementById("staffName").readOnly = !isAdmin; 
       document.getElementById("staffID").readOnly = !isAdmin;  
@@ -1914,6 +1964,164 @@
         URL.revokeObjectURL(pdfURL);
       };
     }
+
+    // --- NEW: JSON Smart Import Logic (Clear & Replace with Flattening) ---
+    document.getElementById('triggerImportBtn').addEventListener('click', () => {
+        const fileInput = document.getElementById('jsonImportInput');
+        const file = fileInput.files[0];
+        const targetYear = parseInt(document.getElementById('importYear').value);
+        const targetMonthVal = document.getElementById('importMonth').value; // 'all' or '1'...'12'
+
+        if (!file) {
+            return showAlert("Please select a JSON file to import.");
+        }
+        if (!targetYear || targetYear < 2020 || targetYear > 2030) {
+            return showAlert("Please enter a valid target year (e.g., 2026).");
+        }
+
+        let confirmMsg = "";
+        let deleteStartStr = "";
+        let deleteEndStr = "";
+        
+        if (targetMonthVal === 'all') {
+            confirmMsg = `WARNING: This will DELETE ALL existing leave requests for the FULL YEAR ${targetYear} and replace them with the data from the file.\n\nAre you sure?`;
+            deleteStartStr = `${targetYear}-01-01`;
+            deleteEndStr = `${targetYear}-12-31`;
+        } else {
+            const mInt = parseInt(targetMonthVal);
+            const mStr = String(mInt).padStart(2, '0');
+            const monthName = document.getElementById('importMonth').options[document.getElementById('importMonth').selectedIndex].text;
+            
+            // Calculate last day of month
+            const lastDay = new Date(targetYear, mInt, 0).getDate();
+            
+            confirmMsg = `WARNING: This will DELETE existing leave requests for ${monthName} ${targetYear} ONLY, and replace them with matching data from the file.\n\nAre you sure?`;
+            deleteStartStr = `${targetYear}-${mStr}-01`;
+            deleteEndStr = `${targetYear}-${mStr}-${lastDay}`;
+        }
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        if (!allUsers || allUsers.length === 0) {
+            showAlert("System users not loaded. Please wait or refresh.", true);
+            return;
+        }
+
+        // Show loading
+        loadingEl.style.display = "flex";
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if (!data.leaveRequests || !Array.isArray(data.leaveRequests)) {
+                    throw new Error("Invalid JSON format. Expected 'leaveRequests' array.");
+                }
+
+                // 1. DELETE existing entries for the target range
+                console.log(`Starting deletion range: ${deleteStartStr} to ${deleteEndStr}`);
+                const q = query(
+                    collection(db, leaveRequestsCollectionPath),
+                    where("fromDate", ">=", deleteStartStr),
+                    where("fromDate", "<=", deleteEndStr)
+                );
+                
+                const existingDocs = await getDocs(q);
+                const deleteBatch = writeBatch(db);
+                let deleteCount = 0;
+                
+                existingDocs.forEach((doc) => {
+                    deleteBatch.delete(doc.ref);
+                    deleteCount++;
+                });
+
+                if (deleteCount > 0) {
+                    await deleteBatch.commit();
+                    console.log(`Deleted ${deleteCount} existing records.`);
+                }
+
+                // 2. Import New Data (FLATTENING LOGIC)
+                const batchArray = [];
+                let batch = writeBatch(db);
+                let opCount = 0;
+                let processedCount = 0;
+
+                for (const req of data.leaveRequests) {
+                    // Check if 'days' array exists
+                    if (!req.days || !Array.isArray(req.days)) continue;
+
+                    // Iterate through EACH DAY in the 'days' array
+                    // This forces every day to be a separate database entry
+                    for (const dayObj of req.days) {
+                        const dateStr = dayObj.date;
+                        
+                        // Filter: Check if this specific day falls within the selected import range
+                        // Simple string comparison works for ISO dates (yyyy-mm-dd)
+                        if (dateStr < deleteStartStr || dateStr > deleteEndStr) {
+                            continue; // Skip if outside range
+                        }
+
+                        // Map Employee ID to Real User
+                        const targetStaffId = req.staffID;
+                        const userObj = allUsers.find(u => u.staffID === targetStaffId);
+
+                        let targetUserId = "IMPORT_Admin"; 
+                        let targetUserName = req.staffName;
+
+                        if (userObj) {
+                            targetUserId = userObj.id; // The auth uid
+                            targetUserName = userObj.username;
+                        } else {
+                            if (!targetUserName) targetUserName = targetStaffId; 
+                        }
+
+                        // Create a single-day request object
+                        // Note: userId is key for permissions. If mapped correctly, user can see it.
+                        const newDocRef = doc(collection(db, leaveRequestsCollectionPath));
+                        batch.set(newDocRef, {
+                            staffName: targetUserName,
+                            staffID: targetStaffId,
+                            userId: targetUserId,
+                            fromDate: dateStr,  // Single day start
+                            toDate: dateStr,    // Single day end
+                            leaveType: req.leaveType,
+                            days: [{ date: dateStr, status: "Pending" }], // Always "Pending" status
+                            importedAt: new Date().toISOString()
+                        });
+
+                        processedCount++;
+                        opCount++;
+                        
+                        // Handle batch limits
+                        if (opCount >= 450) { 
+                            batchArray.push(batch);
+                            batch = writeBatch(db);
+                            opCount = 0;
+                        }
+                    }
+                }
+
+                if (opCount > 0) batchArray.push(batch);
+
+                // Commit all batches
+                for (const b of batchArray) {
+                    await b.commit();
+                }
+
+                showAlert(`Advanced Sync Successful! Cleared ${deleteCount} old records. Imported ${processedCount} new daily entries for selected period.`, false);
+                fileInput.value = ''; // Reset input
+
+            } catch (err) {
+                console.error(err);
+                showAlert("Error importing: " + err.message);
+            } finally {
+                loadingEl.style.display = "none";
+            }
+        };
+        reader.readAsText(file);
+    });
     
     // --- User Management (Admin) ---
 
