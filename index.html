@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -913,10 +914,8 @@
               colorIndex++;
           });
           
-          regTeamSelect.innerHTML = '<option value="">Select a team...</option>';
-          sortedTeams.forEach(team => {
-              regTeamSelect.innerHTML += `<option value="${team.docId}">${team.name}</option>`;
-          });
+          // Populate the registration team dropdown
+          populateRegistrationTeamDropdown();
           
           if (currentUserProfile) {
               populateTeamButtons();
@@ -1017,6 +1016,11 @@
     window.showRegisterForm = () => {
       loginForm.style.display = "none";
       registerForm.style.display = "block";
+      // When showing the registration form, refresh the team list from teamsMap.  If
+      // teams have been loaded already, this will populate the dropdown.  If not,
+      // the placeholder will remain and the dropdown will be updated once teams
+      // snapshot arrives.
+      populateRegistrationTeamDropdown();
     }
 
     window.showLoginForm = () => {
@@ -1449,6 +1453,21 @@
             selectTeam(selectedTeamId);
         }
     }
+
+    // Populate the registration team dropdown from the current teamsMap.  This ensures that
+    // when a user clicks "Register", the team list is refreshed even if the teams were
+    // loaded before the registration form was shown.  If no teams exist, the dropdown
+    // will only contain the placeholder option.
+    function populateRegistrationTeamDropdown() {
+        if (!regTeamSelect) return;
+        regTeamSelect.innerHTML = '<option value="">Select a team...</option>';
+        // Sort teams alphabetically and append to dropdown
+        const teamsArr = Array.from(teamsMap.values());
+        teamsArr.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+        teamsArr.forEach(team => {
+            regTeamSelect.innerHTML += `<option value="${team.docId}">${team.name}</option>`;
+        });
+    }
     
     
     /* Render Calendar */
@@ -1580,7 +1599,8 @@
         dayEntries.forEach(e => {
           // The CSS class will handle the color
           const entry = document.createElement("div");
-          entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5 truncate`;
+          // Remove 'truncate' so the full ID is visible on mobile.  Keep padding and rounding.
+          entry.className = `leave-entry ${e.status.toLowerCase()} p-1 rounded mt-0.5`;
           
           let teamColorClass = 'bg-gray-400'; // Default
           let userForLeave = null;
@@ -1603,7 +1623,8 @@
           // Always display the staff ID in the calendar, even if a name exists.  Remove
           // any leading alphabet characters from the ID for clarity (e.g., "T075540" -> "075540").
           const numericId = String(e.staffID).replace(/^[A-Za-z]+/, '');
-          entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass} flex-shrink-0"></div><span>${numericId}</span></div>`;
+          // Remove the colored dot and gap so the ID is not clipped on narrow screens.
+          entry.innerHTML = `<span>${numericId}</span>`;
 
           cell.appendChild(entry);
         });
@@ -1738,7 +1759,10 @@
             </span>
           </div>
           <div class="accordion-content p-3 bg-white" data-group-id="${groupID}" style="display: none;">
-            ${group.requests.sort((a,b) => new Date(b.fromDate) - new Date(a.fromDate)).map((req) => {
+            ${group.requests
+              // Sort requests in ascending order by start date so that earlier months (Jan, Feb, Mar…) appear first
+              .sort((a,b) => new Date(a.fromDate) - new Date(b.fromDate))
+              .map((req) => {
               const isPending = req.days.every(d => d.status === 'Pending');
               return `
               <div class="mb-3 border-b pb-3">
@@ -3006,8 +3030,8 @@
             return;
         }
 
-        // Sort by newest date first
-        userRequests.sort((a,b) => new Date(b.fromDate) - new Date(a.fromDate));
+        // Sort requests in ascending order by start date to show earlier months first
+        userRequests.sort((a,b) => new Date(a.fromDate) - new Date(b.fromDate));
 
         userRequests.forEach(req => {
             // Calculate status overview (limit to days inside range, if days array exists)
