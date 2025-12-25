@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -144,7 +145,7 @@
   <!-- Main Container (hidden until login) -->
   <div class="container max-w-7xl w-full mx-auto bg-white p-4 rounded-lg shadow-lg min-h-[calc(100vh-2rem)]" style="display: none;">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-gray-500">v14.5 Smart Fix</sup></h1>
+      <h1 class="text-2xl font-bold text-gray-800">Leave & Roster System <sup class="text-xs text-blue-500">v14.6 ID Fix</sup></h1>
       <button id="logoutButton" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm">Logout</button>
     </div>
     <div class="text-sm text-gray-600 mb-2">Logged in as: <span id="currentUserDisplay" class="font-semibold"></span></div>
@@ -499,6 +500,8 @@
             </div>
 
             <p class="text-xs text-gray-500">1) Select a staff member. 2) Pick a date range. 3) Click <b>Generate</b> to view history.</p>
+            <!-- Display the selected staff name and ID above the history table -->
+            <h3 id="historyStaffLabel" class="text-lg font-semibold text-gray-800 mb-2"></h3>
         </div>
 
         <div class="overflow-hidden border rounded-lg">
@@ -726,6 +729,14 @@
     let teamsUnsubscriber = null; 
     let leaveFreezeUnsubscriber = null; 
     var calendarViewMode = 'personal'; 
+
+    // Additional global state for roster employees.  This map caches names keyed by
+    // staff ID (emp_id) from the roster's employees collection.  It is
+    // populated via a Firestore listener in attachDataListeners(), so that
+    // employees who are not yet registered as users can still have their
+    // names displayed in the leave planner.
+    var employeesMap = new Map();
+    var employeesUnsubscriber = null;
 
     const leaveTypeCodes = {
         'Annual Leave': 'AL',
@@ -1072,6 +1083,31 @@
           annualLeaveAllocated: annualLeave, // NEW
           publicHolidayAllocated: publicHoliday // NEW
         });
+        // -----------------------------------------------------------------------------------
+        // Integrate with the roster's employees collection.  Create or update the employee
+        // document so that leave planning and roster share the same staff data.  Use the
+        // Firebase Auth UID as the document ID and include both roster fields and leave
+        // balance fields.  Merging prevents overwriting existing roster-specific fields
+        // such as patternOffset or role if they already exist.
+        try {
+          const empDocRef = doc(db, "employees", user.uid);
+          const empData = {
+            id: user.uid,
+            docId: user.uid,
+            name: username,
+            emp_id: staffID,
+            team_id: teamId,
+            role: "member",
+            patternOffset: 0,
+            email: email,
+            mobile: mobile,
+            annualLeaveAllocated: annualLeave,
+            publicHolidayAllocated: publicHoliday
+          };
+          await setDoc(empDocRef, empData, { merge: true });
+        } catch (empError) {
+          console.error("Error writing to employees collection: ", empError);
+        }
         
         console.log("Registration successful, user doc created.");
         showAlert("Registration successful! Please log in.", false);
@@ -1227,6 +1263,53 @@
           showAlert("Error loading users.");
         });
       }
+
+      // Listen to the roster employees collection to pick up names for staff IDs
+      // that are not registered in the users collection.  This collection stores
+      // employee documents keyed by auth UID, containing properties like emp_id and name.
+      if (employeesUnsubscriber) employeesUnsubscriber();
+      try {
+        const employeesQuery = collection(db, "employees");
+        employeesUnsubscriber = onSnapshot(employeesQuery, (snapshot) => {
+          console.log("Employees snapshot received:", snapshot.size, "docs");
+        employeesMap.clear();
+          snapshot.forEach(doc => {
+            const data = doc.data() || {};
+            // emp_id is the staff ID in the roster and name is the employee name
+            if (data.emp_id && data.name) {
+              const raw = String(data.emp_id);
+              // We want to support IDs that may have a leading alphabet character
+              // (e.g., "T075540"). Remove any leading alphabet(s) first, then remove
+              // leading zeros. We'll store all forms as keys so that lookups work
+              // regardless of format.
+              const cleaned = raw.replace(/^[A-Za-z]+/, '');
+              const trimmed = cleaned.replace(/^0+/, '');
+              // Always store the raw form as well as the cleaned and trimmed forms
+              employeesMap.set(raw, data.name);
+              if (cleaned && cleaned !== raw) {
+                employeesMap.set(cleaned, data.name);
+              }
+              if (trimmed && trimmed !== raw && trimmed !== cleaned) {
+                employeesMap.set(trimmed, data.name);
+              }
+            }
+          });
+          // After updating employeesMap, re-render name-dependent components
+          renderCalendar();
+          if (userType === "admin") {
+            renderMonthlySummary();
+            // Update staff history panel if visible
+            renderStaffHistoryPanel();
+            if (document.getElementById("staffHistoryPanel").style.display === "block" && historyStaffSelect.value) {
+              updateHistoryTable(historyStaffSelect.value, historyFromDate.value, historyToDate.value);
+            }
+          }
+        }, (error) => {
+          console.error("Error listening to employees collection:", error);
+        });
+      } catch (empErr) {
+        console.error("Could not set up employees listener:", empErr);
+      }
     }
 
     // --- Date & shift helpers ---
@@ -1236,6 +1319,64 @@
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       return y + "-" + m + "-" + dd;
+    }
+
+    //
+    // Helper: Get the display name for a staff ID.
+    // Returns the user's username if found in allUsers, then
+    // falls back to the staffName found on any leave request, and
+    // finally to the staffID itself.  This ensures that names are
+    // displayed consistently across the calendar, summary, and history.
+    function getDisplayName(staffID) {
+      try {
+        if (!staffID) return '';
+        const staffStr = String(staffID).trim();
+        
+        // Check roster employees map first.  Try the exact form, then form
+        // without leading alphabet(s), then trimmed of leading zeros.  This
+        // allows IDs like "T075540" to match entries stored as "075540"
+        // or "75450".
+        if (employeesMap) {
+          if (employeesMap.has(staffStr)) {
+            return employeesMap.get(staffStr);
+          }
+          // Remove leading alphabet characters
+          const cleanedID = staffStr.replace(/^[A-Za-z]+/, '');
+          if (employeesMap.has(cleanedID)) {
+            return employeesMap.get(cleanedID);
+          }
+          // Remove leading zeros from the cleaned ID
+          const trimmedID = cleanedID.replace(/^0+/, '');
+          if (employeesMap.has(trimmedID)) {
+            return employeesMap.get(trimmedID);
+          }
+        }
+        // Look up in the users list (match normalized IDs: remove leading alpha and zeros)
+        if (Array.isArray(allUsers)) {
+          const cleanedStaffID = staffStr.replace(/^[A-Za-z]+/, '');
+          const trimmedStaffID = cleanedStaffID.replace(/^0+/, '');
+          const userMatch = allUsers.find(u => {
+            const userIdStr = String(u.staffID);
+            const userClean = userIdStr.replace(/^[A-Za-z]+/, '');
+            const userTrim = userClean.replace(/^0+/, '');
+            return userIdStr === staffStr || userClean === cleanedStaffID || userTrim === trimmedStaffID;
+          });
+          if (userMatch && userMatch.username) {
+            return userMatch.username;
+          }
+        }
+        // Look up in leave requests for a name (exact match only)
+        if (Array.isArray(requests)) {
+          const reqMatch = requests.find(r => r.staffID === staffStr && r.staffName);
+          if (reqMatch && reqMatch.staffName) {
+            return reqMatch.staffName;
+          }
+        }
+        return staffStr;
+      } catch (err) {
+        console.error('Error in getDisplayName for staffID', staffID, err);
+        return staffID || '';
+      }
     }
     
     function displayFormatDate(yyyyMmDd) {
@@ -1459,8 +1600,11 @@
                   teamColorClass = team.colorSet.dot;
               }
           }
-          entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass} flex-shrink-0"></div><span>${e.staffID}</span></div>`;
-          
+          // Always display the staff ID in the calendar, even if a name exists.  Remove
+          // any leading alphabet characters from the ID for clarity (e.g., "T075540" -> "075540").
+          const numericId = String(e.staffID).replace(/^[A-Za-z]+/, '');
+          entry.innerHTML = `<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full ${teamColorClass} flex-shrink-0"></div><span>${numericId}</span></div>`;
+
           cell.appendChild(entry);
         });
         
@@ -1477,11 +1621,37 @@
     
     function groupRequestsByStaffID(requests) {
       const grouped = {};
+      
+      // Helper to check if a name is likely just the ID (fallback case)
+      const isNameJustID = (name, id) => {
+          if (!name) return true;
+          return String(name).trim() === String(id).trim() || 
+                 String(name).trim() === String(id).replace(/^[A-Za-z]+/, '').trim();
+      };
+      
       requests.forEach(req => {
         const staffID = req.staffID;
+        
         if (!grouped[staffID]) {
-          grouped[staffID] = { staffName: req.staffName, staffID: req.staffID, requests: [] };
+          // Try standard global lookup first
+          let bestName = getDisplayName(staffID);
+          
+          // If global lookup failed (returned ID) AND request has a better name, use it
+          if (isNameJustID(bestName, staffID) && req.staffName && !isNameJustID(req.staffName, staffID)) {
+             bestName = req.staffName;
+          }
+          
+          // Initialize group with best available name
+          grouped[staffID] = { staffName: bestName, staffID: staffID, requests: [] };
+        } else {
+             // If we already have a group, but the name is just the ID...
+             // ...and THIS request has a real name, update the group name!
+             const currentName = grouped[staffID].staffName;
+             if (isNameJustID(currentName, staffID) && req.staffName && !isNameJustID(req.staffName, staffID)) {
+                 grouped[staffID].staffName = req.staffName;
+             }
         }
+        
         grouped[staffID].requests.push(req);
       });
       return Object.values(grouped);
@@ -1533,15 +1703,14 @@
           sum + r.days.filter(d => d.status === "Pending").length, 0
         );
         
-        let teamColorClass = 'bg-gray-400'; // Default
+        let teamColorClass = 'bg-gray-400';
         let userForGroup = null;
-        
+        // Determine the team color using the user record if available
         if (userType === 'admin') {
             userForGroup = allUsers.find(u => u.staffID === group.staffID);
         } else if (currentUserProfile.staffID === group.staffID) {
             userForGroup = currentUserProfile;
         }
-
         if(userForGroup) {
             const team = teamsMap.get(userForGroup.team_id);
             if (team && team.colorSet) {
@@ -1549,11 +1718,20 @@
             }
         }
         
+        // Compute display name using helper (group.staffName is prioritised now)
+        let displayName = group.staffName || getDisplayName(group.staffID);
+        
+        // Final fallback to ID if empty
+        if (!displayName) displayName = group.staffID;
+        
+        // For display purposes, remove any leading alphabet characters from the staff ID
+        const numericIdForGroup = String(group.staffID).replace(/^[A-Za-z]+/, '');
+        
         item.innerHTML = `
           <div class="accordion-header flex justify-between items-start p-3 bg-gray-50 cursor-pointer hover:bg-gray-100" data-group-id="${groupID}">
             <span class="font-semibold text-gray-700 flex items-center gap-2">
               <div class="w-3 h-3 rounded-full ${teamColorClass} flex-shrink-0"></div>
-              ${group.staffName} (${group.staffID})
+              ${displayName} (${numericIdForGroup})
             </span>
             <span class="badge text-xs px-2 py-0.5 rounded-full ${pendingCount > 0 ? "bg-yellow-500 text-white" : "bg-blue-500 text-white"} whitespace-nowrap">
               ${totalDays} days (${pendingCount} pending)
@@ -1562,7 +1740,6 @@
           <div class="accordion-content p-3 bg-white" data-group-id="${groupID}" style="display: none;">
             ${group.requests.sort((a,b) => new Date(b.fromDate) - new Date(a.fromDate)).map((req) => {
               const isPending = req.days.every(d => d.status === 'Pending');
-              
               return `
               <div class="mb-3 border-b pb-3">
                 <div class="font-semibold text-gray-800 mb-2">${req.leaveType || 'Leave'} 
@@ -1831,12 +2008,16 @@
         g => Object.keys(g.days).length > 0
       );
       
-      // Sort by staff name, then leave type
+      // Sort by display name (fallback to staff ID) using helper, then leave type
       groupedRequests.sort((a, b) => {
-          if (a.staffName < b.staffName) return -1;
-          if (a.staffName > b.staffName) return 1;
-          if (a.leaveType < b.leaveType) return -1;
-          if (a.leaveType > b.leaveType) return 1;
+          const nameA = getDisplayName(a.staffID);
+          const nameB = getDisplayName(b.staffID);
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          const leaveA = a.leaveType || '';
+          const leaveB = b.leaveType || '';
+          if (leaveA < leaveB) return -1;
+          if (leaveA > leaveB) return 1;
           return 0;
       });
       
@@ -1873,9 +2054,13 @@
 
         const row = document.createElement("tr");
         row.className = "border-b hover:bg-gray-50";
+        // Determine a display name using helper
+        const displayName = getDisplayName(group.staffID);
+        // Remove any leading alphabet characters for display ID
+        const displayId = String(group.staffID).replace(/^[A-Za-z]+/, '');
         row.innerHTML = `
           <td class="p-2 staff-name font-medium text-gray-800">
-            ${group.staffName} (${group.staffID})
+            ${displayName} (${displayId})
             <span class="ml-2 px-2 py-0.5 rounded text-xs font-semibold ${shiftInfo.color} ${shiftInfo.textColor}">
               ${shiftInfo.text}
             </span>
@@ -2065,16 +2250,31 @@
 
                         // Map Employee ID to Real User
                         const targetStaffId = req.staffID;
-                        const userObj = allUsers.find(u => u.staffID === targetStaffId);
+                        // Attempt to match users ignoring leading alphabet characters on the staff ID
+                        const cleanedTargetId = String(targetStaffId).replace(/^[A-Za-z]+/, '');
+                        const userObj = allUsers.find(u => {
+                            const userClean = String(u.staffID).replace(/^[A-Za-z]+/, '');
+                            return userClean === cleanedTargetId;
+                        });
 
                         let targetUserId = "IMPORT_Admin"; 
+                        // Prefer the staffName from the JSON if provided
                         let targetUserName = req.staffName;
 
                         if (userObj) {
                             targetUserId = userObj.id; // The auth uid
                             targetUserName = userObj.username;
                         } else {
-                            if (!targetUserName) targetUserName = targetStaffId; 
+                            // If no registered user exists and no name provided, try to look up a display name
+                            // using the helper that checks the employees roster and other sources
+                            if (!targetUserName || targetUserName === targetStaffId) {
+                                const lookupName = typeof getDisplayName === 'function' ? getDisplayName(targetStaffId) : null;
+                                if (lookupName && lookupName !== targetStaffId) {
+                                    targetUserName = lookupName;
+                                } else {
+                                    targetUserName = targetStaffId;
+                                }
+                            }
                         }
 
                         // Create a single-day request object
@@ -2459,10 +2659,22 @@
                 annualLeaveAllocated: newAL,
                 publicHolidayAllocated: newPH
             });
-            
+
+            // Also update the shared employees collection so that roster and leave planner
+            // remain in sync.  Only update the leave balance fields.
+            try {
+                const empDocRef = doc(db, "employees", currentUserProfile.id);
+                await updateDoc(empDocRef, {
+                    annualLeaveAllocated: newAL,
+                    publicHolidayAllocated: newPH
+                });
+            } catch (empUpdateError) {
+                console.error("Error updating employees collection:", empUpdateError);
+            }
+
             profileSaveStatus.textContent = "Saved successfully!";
             setTimeout(() => { profileSaveStatus.textContent = ""; }, 3000);
-            
+
         } catch (err) {
             console.error("Error saving profile:", err);
             profileSaveStatus.textContent = "Error saving.";
@@ -2509,8 +2721,9 @@
 
             const tr = document.createElement("tr");
             tr.className = "border-b hover:bg-gray-50";
+            const numericIdForUser = String(user.staffID).replace(/^[A-Za-z]+/, '');
             tr.innerHTML = `
-                <td class="p-3">${user.username} (${user.staffID})</td>
+                <td class="p-3">${user.username} (${numericIdForUser})</td>
                 <td class="p-3">
                     <div class="flex items-center gap-2">
                         <div class="w-3 h-3 rounded-full ${teamColorClass} flex-shrink-0"></div>
@@ -2672,6 +2885,11 @@
     function renderStaffHistoryPanel() {
         // Clear existing options
         historyStaffSelect.innerHTML = '<option value="">-- Select a Staff Member --</option>';
+        // Reset the label showing the selected staff name/ID
+        const historyStaffLabelEl = document.getElementById('historyStaffLabel');
+        if (historyStaffLabelEl) {
+            historyStaffLabelEl.textContent = '';
+        }
         // Default date range = current month
         const now = new Date();
         const y = now.getFullYear();
@@ -2684,13 +2902,54 @@
         
         if (!allUsers || allUsers.length === 0) return;
         
-        // Sort users alphabetically
-        const sortedUsers = [...allUsers].sort((a,b) => a.username.localeCompare(b.username));
-        
-        sortedUsers.forEach(user => {
+        // Build a unique set of staff IDs from leave requests, user profiles,
+        // and roster employees.  This ensures that all staff who have either
+        // submitted leave requests, are registered users, or exist in the roster
+        // appear in the dropdown.
+        const staffIdsSet = new Set();
+        if (Array.isArray(requests)) {
+            requests.forEach(req => {
+                if (req && req.staffID) staffIdsSet.add(req.staffID);
+            });
+        }
+        if (Array.isArray(allUsers)) {
+            allUsers.forEach(user => {
+                if (user && user.staffID) staffIdsSet.add(user.staffID);
+            });
+        }
+        if (employeesMap && employeesMap.size > 0) {
+            employeesMap.forEach((name, empId) => {
+                staffIdsSet.add(empId);
+            });
+        }
+        // Build canonical IDs by normalizing staff IDs.  We remove any leading
+        // alphabet characters (e.g., 'T' for training IDs) and then strip
+        // leading zeros.  If multiple IDs normalize to the same trimmed form,
+        // keep the first encountered as the canonical value.  This avoids
+        // duplicate entries such as "T05045", "05045" and "5045".
+        const idToCanonical = {};
+        staffIdsSet.forEach((origId) => {
+            const rawStr = String(origId);
+            const cleaned = rawStr.replace(/^[A-Za-z]+/, '');
+            const trimmed = cleaned.replace(/^0+/, '');
+            if (!(trimmed in idToCanonical)) {
+                idToCanonical[trimmed] = origId;
+            }
+        });
+        const canonicalIds = Object.values(idToCanonical);
+        // Convert to array with names using helper
+        const staffList = canonicalIds.map(id => {
+            return { id, name: getDisplayName(id) };
+        });
+        // Sort alphabetically by name
+        staffList.sort((a,b) => a.name.localeCompare(b.name));
+        // Populate the dropdown
+        staffList.forEach(({ id, name }) => {
             const opt = document.createElement("option");
-            opt.value = user.staffID; // Use Staff ID as value
-            opt.textContent = `${user.username} (${user.staffID})`;
+            opt.value = id;
+            // Remove any leading alphabet characters for display only
+            const displayId = String(id).replace(/^[A-Za-z]+/, '');
+            opt.textContent = `${name} (${displayId})`;
             historyStaffSelect.appendChild(opt);
         });
     }
@@ -2698,11 +2957,25 @@
     // Update the table when a user is selected
     window.updateHistoryTable = (selectedStaffID, fromStr, toStr) => {
         historyTableBody.innerHTML = "";
+        // Display the selected staff name and ID when generating history
+        const staffLabelElement = document.getElementById('historyStaffLabel');
+        if (staffLabelElement) {
+            if (selectedStaffID) {
+                const name = getDisplayName(selectedStaffID);
+                // Remove any leading alphabet characters for display ID
+                const displayId = String(selectedStaffID).replace(/^[A-Za-z]+/, '');
+                staffLabelElement.textContent = `${name} (${displayId})`;
+            } else {
+                staffLabelElement.textContent = '';
+            }
+        }
 
         // Guard
-        if (!selectedStaffID) {
+            if (!selectedStaffID) {
             historyTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">Select a staff member above.</td></tr>`;
             historyDownloadBtn.disabled = true;
+            // Clear the label when nothing is selected
+            if (staffLabelElement) staffLabelElement.textContent = '';
             return;
         }
 
@@ -2792,8 +3065,17 @@
 
     // Export current history table to PDF
     window.downloadHistoryPDF = () => {
-        const staffOpt = historyStaffSelect.options[historyStaffSelect.selectedIndex];
-        const staffLabel = staffOpt ? staffOpt.textContent : (historyStaffSelect.value || 'Staff');
+        const selectedId = historyStaffSelect.value;
+        let staffLabel;
+        if (selectedId) {
+            const name = getDisplayName(selectedId);
+            // Remove leading alphabet characters for display ID
+            const displayId = String(selectedId).replace(/^[A-Za-z]+/, '');
+            staffLabel = `${name} (${displayId})`;
+        } else {
+            const staffOpt = historyStaffSelect.options[historyStaffSelect.selectedIndex];
+            staffLabel = staffOpt ? staffOpt.textContent : (historyStaffSelect.value || 'Staff');
+        }
         const fromStr = historyFromDate.value;
         const toStr = historyToDate.value;
 
