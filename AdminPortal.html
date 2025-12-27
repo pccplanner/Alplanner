@@ -225,7 +225,7 @@
         <div id="tab-leave" class="tab-content">
             
             <!-- LOGIN SCREEN (Shown when not connected to Leave DB) -->
-            <div id="leave-login-container" class="max-w-md mx-auto mt-10 bg-white p-8 rounded-xl shadow-lg border border-gray-100 text-center hidden">
+            <div id="leave-login-container" class="max-w-md mx-auto mt-10 bg-white p-8 rounded-xl shadow-lg border border-gray-100 text-center">
                 <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -250,7 +250,7 @@
             </div>
 
             <!-- DASHBOARD CONTENT (Hidden until logged in) -->
-            <div id="leave-dashboard-container" class="space-y-6">
+            <div id="leave-dashboard-container" class="space-y-6 hidden">
                 <!-- Top Stats -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
@@ -688,13 +688,15 @@
             for(let d=1; d<=daysInMonth; d++) {
                 const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 const div = document.createElement('div');
-                div.className = 'calendar-day';
+                // Use both 'calendar-day' and 'day-cell' so the cell gets the same styling defined in CSS (e.g. position relative)
+                div.className = 'calendar-day day-cell';
                 div.innerHTML = `<span class="text-gray-400 font-bold block mb-1">${d}</span>`;
                 
                 if (leaveFreezeDates.has(dateStr)) {
                     div.classList.add("bg-stripes"); 
                     const lockIcon = document.createElement("div");
-                    lockIcon.className = "absolute bottom-1 right-1 text-red-700 font-bold text-sm z-0";
+                    // Raise the z-index so the lock sits above other elements (leave/shift entries)
+                    lockIcon.className = "absolute bottom-1 right-1 text-red-700 font-bold text-sm z-20";
                     lockIcon.innerHTML = `🔒`;
                     div.appendChild(lockIcon);
                 }
