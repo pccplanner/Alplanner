@@ -114,6 +114,12 @@
             margin-bottom: 2px;
             padding-left: 2px;
         }
+        
+        /* Custom Scrollbar for Modal */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col text-gray-800">
@@ -193,14 +199,14 @@
 
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full overflow-hidden">
         
-        <!-- ERROR BANNER -->
-        <div id="permission-error-banner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r shadow-sm">
+        <!-- ERROR BANNER (This handles the 'red message' gracefully) -->
+        <div id="permission-error-banner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r shadow-sm transition-all duration-500 ease-in-out">
             <div class="flex justify-between items-center">
                 <div class="flex items-center">
                     <svg class="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                     <div>
                         <p class="text-sm text-red-700 font-bold">Leave Database Disconnected</p>
-                        <p class="text-xs text-red-600">You must log in to the <strong>Leave Planner</strong> database to see this data.</p>
+                        <p class="text-xs text-red-600">Permission denied. Please log in to the <strong>Leave Planner</strong> database to view this data.</p>
                     </div>
                 </div>
                 <button onclick="toggleLoginModal()" class="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 transition shadow">Connect Leave DB</button>
@@ -417,11 +423,15 @@
         const leaveRequestsCollection = collection(dbLeave, 'artifacts', appId, 'public', 'data', 'leaveRequests');
         const teamsCollection = collection(dbLeave, 'artifacts', appId, 'public', 'data', 'teams');
         const leaveFreezeCollectionPath = collection(dbLeave, 'artifacts', appId, 'public', 'data', 'leaveFreezeDates');
+        
+        // NEW: Users collection for balance info
+        const usersCollection = collection(dbLeave, 'artifacts', appId, 'public', 'data', 'users');
 
         // STATE
         let allShiftRequests = [];
         let allLeaveRequests = [];
         let allTeams = [];
+        let allUsers = []; // New state for users
         let leaveFreezeDates = new Set(); 
         let selectedTeamId = null;
         let teamsMap = new Map();
@@ -445,13 +455,37 @@
 
         const patternAnchorDate = '2025-01-01';
 
+        // --- ERROR HANDLING HELPER (NEW) ---
+        function showErrorBanner(show) {
+            const banner = document.getElementById('permission-error-banner');
+            if (show) {
+                banner.classList.remove('hidden');
+                // Auto hide logic handled by auth state change mainly, but we can animate it
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+        
+        window.toggleLoginModal = () => {
+            const modal = document.getElementById('login-modal');
+            modal.classList.toggle('hidden');
+        };
+
         // --- AUTH & LOGIN ---
         window.handleLeaveLogin = async (e) => {
             e.preventDefault();
             const email = document.getElementById('leave-email').value;
             const pass = document.getElementById('leave-password').value;
+            // Also grab from modal if that's where it was triggered
+            const modalEmail = document.getElementById('login-email').value;
+            const modalPass = document.getElementById('login-password').value;
+            
+            const finalEmail = email || modalEmail;
+            const finalPass = pass || modalPass;
+
             try {
-                await signInWithEmailAndPassword(authLeave, email, pass);
+                await signInWithEmailAndPassword(authLeave, finalEmail, finalPass);
+                document.getElementById('login-modal').classList.add('hidden');
                 // Toggle view handled by observer
             } catch (err) {
                 Swal.fire('Login Failed', err.message, 'error');
@@ -479,10 +513,12 @@
             const dashboardContainer = document.getElementById('leave-dashboard-container');
             
             if (user) {
+                showErrorBanner(false); // Hide error if user logs in
                 loginContainer.classList.add('hidden');
                 dashboardContainer.classList.remove('hidden');
                 refreshLeaveData();
             } else {
+                // Don't necessarily show error here, just the login container
                 loginContainer.classList.remove('hidden');
                 dashboardContainer.classList.add('hidden');
                 allLeaveRequests = [];
@@ -496,7 +532,11 @@
         };
 
         async function refreshLeaveData() {
+            // Trigger fetches only if user is logged in to avoid spamming errors
+            if (!authLeave.currentUser) return;
+            
             await fetchTeams();
+            await fetchUsers(); // Added User Fetching
             await fetchFreezeDates();
             await fetchLeaveRequests();
         }
@@ -533,7 +573,21 @@
                     selectedTeamId = allTeams[0].id;
                     select.value = selectedTeamId;
                 }
-            } catch (e) { console.error("Teams Fetch Error", e); }
+            } catch (e) { 
+                console.error("Teams Fetch Error", e);
+                // IF permission denied, show banner instead of alert
+                if (e.code === 'permission-denied' || e.message.includes('permission')) {
+                    showErrorBanner(true);
+                }
+            }
+        }
+
+        // NEW: Fetch Users for Balance Info
+        async function fetchUsers() {
+            try {
+                const snap = await getDocs(usersCollection);
+                allUsers = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            } catch(e) { console.error("Users Fetch Error", e); }
         }
 
         async function fetchFreezeDates() {
@@ -562,7 +616,13 @@
                 renderLeaveDashboard();
             } catch (e) {
                 console.warn("Leave Fetch Failed:", e);
-                Swal.fire('Data Error', `Leave Data: ${e.message}`, 'error');
+                
+                // FIXED: Use Banner for permission errors, Swal for others
+                if (e.code === 'permission-denied' || e.message.includes('permission')) {
+                    showErrorBanner(true);
+                } else {
+                    Swal.fire('Data Error', `Leave Data: ${e.message}`, 'error');
+                }
             }
         }
 
@@ -750,17 +810,138 @@
         window.openLeaveActionModal = async (id) => {
             const req = allLeaveRequests.find(r => r.id === id);
             if(!req) return;
+
+            // 1. Fetch User Details & Balances
+            const user = allUsers.find(u => u.staffID === req.staffID);
+            
+            // Calculate Used Leaves (AL & PH) from Approved/Write-in requests
+            const usedAL = allLeaveRequests.reduce((acc, r) => {
+                if(r.staffID === req.staffID && r.leaveType === 'Annual Leave') {
+                    return acc + r.days.filter(d => d.status === 'Approved' || d.status === 'Write-in').length;
+                }
+                return acc;
+            }, 0);
+            
+            const usedPH = allLeaveRequests.reduce((acc, r) => {
+                if(r.staffID === req.staffID && r.leaveType === 'Public Holiday') {
+                    return acc + r.days.filter(d => d.status === 'Approved' || d.status === 'Write-in').length;
+                }
+                return acc;
+            }, 0);
+
+            const allocAL = user ? (user.annualLeaveAllocated || 0) : 0;
+            const allocPH = user ? (user.publicHolidayAllocated || 0) : 0;
+            const balAL = allocAL - usedAL;
+            const balPH = allocPH - usedPH;
+            const teamName = user ? (teamsMap.get(user.team_id)?.name || 'Unknown Team') : 'Unknown Team';
+            const mobile = user ? (user.mobile || 'N/A') : 'N/A';
+
+            // Construct Profile HTML
+            const profileHtml = `
+                <div class="grid grid-cols-2 gap-3 mb-4 bg-white p-3 rounded-lg border border-gray-100 shadow-sm text-xs">
+                    <div>
+                        <p class="text-gray-400 uppercase tracking-wider font-bold mb-1">Contact</p>
+                        <p class="text-gray-800"><span class="font-semibold">Team:</span> ${teamName}</p>
+                        <p class="text-gray-800"><span class="font-semibold">Mobile:</span> ${mobile}</p>
+                        <p class="text-gray-800"><span class="font-semibold">Email:</span> ${user?.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 uppercase tracking-wider font-bold mb-1">Balances</p>
+                        <div class="flex justify-between mb-1">
+                            <span>Annual Leave:</span>
+                            <span class="font-bold ${balAL < 0 ? 'text-red-600' : 'text-green-600'}">${balAL} / ${allocAL}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Public Holiday:</span>
+                            <span class="font-bold ${balPH < 0 ? 'text-red-600' : 'text-green-600'}">${balPH} / ${allocPH}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 2. History Logic
+            const history = allLeaveRequests
+                .filter(r => r.staffID === req.staffID && r.id !== id) // Get other requests by same staff
+                .sort((a,b) => b.fromDate.localeCompare(a.fromDate)); // Sort newest first
+
+            const historyHtml = history.length ? `
+                <div class="mt-4 pt-3 border-t border-gray-200">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Past Leave History</h4>
+                    <div class="max-h-40 overflow-y-auto border rounded bg-white shadow-inner custom-scrollbar">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-gray-50 text-gray-500 font-semibold sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-2 py-1.5 border-b">Date Range</th>
+                                    <th class="px-2 py-1.5 border-b">Type</th>
+                                    <th class="px-2 py-1.5 border-b">Days</th>
+                                    <th class="px-2 py-1.5 border-b">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                ${history.map(h => {
+                                    const approvedCount = h.days.filter(d => d.status === 'Approved').length;
+                                    const totalDays = h.days.length;
+                                    let statusColor = 'text-gray-500';
+                                    let statusText = h.days[0].status;
+                                    if(h.days.every(d => d.status === 'Approved')) {
+                                        statusColor = 'text-green-600 font-bold';
+                                    } else if(h.days.some(d => d.status === 'Approved')) {
+                                        statusColor = 'text-orange-500'; statusText = 'Mixed';
+                                    } else if(h.days.every(d => d.status === 'Rejected')) {
+                                        statusColor = 'text-red-500 line-through';
+                                    }
+                                    if(h.days.some(d => d.status === 'Write-in' || d.status === 'Freeze')) {
+                                        statusColor = 'text-purple-600 font-bold'; statusText = 'Write-in';
+                                    }
+                                    return `<tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-2 py-1.5 whitespace-nowrap">${h.fromDate} <span class="text-gray-300">-></span> ${h.toDate}</td>
+                                        <td class="px-2 py-1.5">${h.leaveType || 'AL'}</td>
+                                        <td class="px-2 py-1.5 text-center">${approvedCount}/${totalDays}</td>
+                                        <td class="px-2 py-1.5 ${statusColor}">${statusText}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>` : '<div class="mt-4 pt-2 border-t text-xs text-gray-400 italic">No previous history found.</div>';
+
             const daysHtml = req.days.map((d,i) => `
-                <div class="flex justify-between items-center mb-1 text-sm border-b pb-1">
-                    <span>${d.date}</span>
-                    <select id="ls-${i}" class="text-xs border rounded"><option ${d.status==='Pending'?'selected':''}>Pending</option><option ${d.status==='Approved'?'selected':''}>Approved</option><option ${d.status==='Rejected'?'selected':''}>Rejected</option><option value="Freeze" ${d.status==='Freeze' || d.status==='Write-in'?'selected':''}>Freeze / Write-in</option></select>
+                <div class="flex justify-between items-center mb-1 text-sm border-b border-gray-100 pb-1 last:border-0">
+                    <span class="font-medium text-gray-700">${d.date}</span>
+                    <select id="ls-${i}" class="text-xs border-gray-300 border rounded py-1 px-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
+                        <option ${d.status==='Pending'?'selected':''}>Pending</option>
+                        <option ${d.status==='Approved'?'selected':''} class="text-green-600 font-bold">Approved</option>
+                        <option ${d.status==='Rejected'?'selected':''} class="text-red-600">Rejected</option>
+                        <option value="Freeze" ${d.status==='Freeze' || d.status==='Write-in'?'selected':''} class="text-orange-600">Freeze / Write-in</option>
+                    </select>
                 </div>`).join('');
             
             const res = await Swal.fire({
-                title: 'Manage Leave',
-                html: `<div class="text-left bg-gray-50 p-2 mb-2 rounded"><p><strong>${req.staffName}</strong></p></div><div class="max-h-64 overflow-y-auto">${daysHtml}</div>`,
+                title: `<span class="text-lg font-bold text-gray-800">Manage Leave</span>`,
+                html: `
+                    <div class="text-left">
+                        <div class="bg-indigo-50 p-3 mb-2 rounded-t-lg border-b border-indigo-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-indigo-900 font-bold">${req.staffName}</p>
+                                <p class="text-xs text-indigo-500">${req.staffID}</p>
+                            </div>
+                            <span class="px-2 py-1 rounded bg-indigo-100 text-indigo-700 text-xs font-bold">${req.leaveType || 'AL'}</span>
+                        </div>
+                        
+                        ${profileHtml}
+
+                        <div class="mb-2 font-semibold text-xs text-gray-500 uppercase tracking-wide">Edit Request Status</div>
+                        <div class="max-h-32 overflow-y-auto pr-1 mb-2 custom-scrollbar border-b border-gray-100 pb-2">
+                            ${daysHtml}
+                        </div>
+                        ${historyHtml}
+                    </div>`,
                 showCancelButton: true,
-                confirmButtonText: 'Save Changes'
+                confirmButtonText: 'Save Changes',
+                confirmButtonColor: '#4f46e5',
+                cancelButtonColor: '#9ca3af',
+                width: '600px', 
+                customClass: { popup: 'rounded-xl shadow-xl' }
             });
             
             if(res.isConfirmed) {
@@ -819,5 +1000,4 @@
     </script>
 </body>
 </html>
-
 
