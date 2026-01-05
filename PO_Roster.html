@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Staff Command Center v3.7 (Reordered)</title>
+    <title>Staff Command Center v3.8 (Smart Rotation)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
@@ -132,7 +132,6 @@
                 });
                 await batch.commit();
             },
-            // --- ROSTER PERSISTENCE ---
             saveRoster: async (dateStr, rosterData) => {
                 if (!currentUser || !dateStr) return;
                 try {
@@ -171,39 +170,11 @@
         .staff-card.inactive { background-color: #f8fafc; opacity: 0.75; border-style: dashed; border-color: #cbd5e1; }
         .staff-card.inactive .avatar { filter: grayscale(1); opacity: 0.5; }
         
-        /* TABLE STYLES - STICKY HEADERS ENABLED */
         .styled-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; table-layout: auto; }
-        
-        .styled-table thead th { 
-            background-color: #f8fafc; 
-            color: #64748b; 
-            font-size: 0.7rem; 
-            text-transform: uppercase; 
-            border-bottom: 2px solid #e2e8f0; 
-            font-weight: 700; 
-            padding: 6px 4px; 
-            min-width: 85px; /* Forced min-width to trigger scroll */
-            width: 85px;
-            position: sticky; 
-            top: 0; 
-            z-index: 20; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        
+        .styled-table thead th { background-color: #f8fafc; color: #64748b; font-size: 0.7rem; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; font-weight: 700; padding: 6px 4px; min-width: 85px; width: 85px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .styled-table td { border-bottom: 1px solid #e2e8f0; padding: 0; vertical-align: top; min-width: 85px; width: 85px; }
         .styled-table tbody tr:hover td { background-color: #f8fafc; }
-        
-        /* Sticky First Column */
-        .styled-table thead th:first-child,
-        .styled-table tbody td:first-child {
-            position: sticky;
-            left: 0;
-            z-index: 30;
-            background-color: #ffffff;
-            border-right: 2px solid #e2e8f0;
-            min-width: 100px;
-            width: 100px;
-        }
+        .styled-table thead th:first-child, .styled-table tbody td:first-child { position: sticky; left: 0; z-index: 30; background-color: #ffffff; border-right: 2px solid #e2e8f0; min-width: 100px; width: 100px; }
         .styled-table thead th:first-child { z-index: 40; }
 
         .roster-input { background: transparent; color: #0f172a; border: none; width: 100%; text-align: center; font-size: 0.85rem; height: 32px; font-weight: 700; padding: 0 2px; }
@@ -217,15 +188,7 @@
         .not-applicable { background-color: #f8fafc; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, #e2e8f0 5px, #e2e8f0 6px); }
         .conflict-cell { background-color: #fee2e2 !important; box-shadow: inset 0 0 0 1px #ef4444; }
         
-        /* SCROLLBAR & TOUCH OPTIMIZATION */
-        .scroll-container {
-            overflow: auto;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-            touch-action: pan-x pan-y;
-        }
-        
-        /* Ensure horizontal scroll works reliably on iOS/landscape */
+        .scroll-container { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-x pan-y; }
         #rosterContainer { overflow-x: auto; overflow-y: auto; position: relative; }
         #rosterContainer table { width: max-content; min-width: 100%; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -237,91 +200,25 @@
         .filter-chip { transition: all 0.2s; } .filter-chip.active { background-color: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
         .modal { transition: opacity 0.2s ease-in-out; } .modal.hidden { pointer-events: none; opacity: 0; } .modal.flex { pointer-events: auto; opacity: 1; }
 
-        /* FULLSCREEN MODES - FLEXBOX SCROLL FIX */
-        .roster-panel.fullscreen {
-            position: fixed !important; 
-            inset: 0;
-            width: 100vw; 
-            height: 100dvh; 
-            z-index: 9999; 
-            margin: 0; 
-            border: none; 
-            border-radius: 0;
-            background-color: #f8fafc;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .roster-panel.fullscreen .controls-bar {
-            flex-shrink: 0;
-            z-index: 50;
-        }
-
-        .roster-panel.fullscreen .roster-content-wrapper {
-            flex: 1;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            padding: 0 !important;
-        }
-
-        .roster-panel.fullscreen .roster-inner-card {
-            flex: 1;
-            height: 100%;
-            border-radius: 0;
-            border: none;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .roster-panel.fullscreen #rosterContainer { 
-            flex: 1;
-            width: 100%;
-            height: 100%;
-            overflow: scroll; /* Force native scroll */
-            -webkit-overflow-scrolling: touch; 
-            padding-bottom: 80px; 
-        }
-        
-        .roster-panel.fullscreen #rosterActionsContainer {
-            position: fixed; bottom: 20px; right: 20px; z-index: 100;
-        }
+        .roster-panel.fullscreen { position: fixed !important; inset: 0; width: 100vw; height: 100dvh; z-index: 9999; margin: 0; border: none; border-radius: 0; background-color: #f8fafc; display: flex; flex-direction: column; }
+        .roster-panel.fullscreen .controls-bar { flex-shrink: 0; z-index: 50; }
+        .roster-panel.fullscreen .roster-content-wrapper { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 0 !important; }
+        .roster-panel.fullscreen .roster-inner-card { flex: 1; height: 100%; border-radius: 0; border: none; display: flex; flex-direction: column; }
+        .roster-panel.fullscreen #rosterContainer { flex: 1; width: 100%; height: 100%; overflow: scroll; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+        .roster-panel.fullscreen #rosterActionsContainer { position: fixed; bottom: 20px; right: 20px; z-index: 100; }
     
-
-        /* === LANDSCAPE (PHONE) OPTIMIZATION === */
         @media (orientation: landscape) and (max-height: 520px) {
-            /* Use full width for roster (hide left panel on small-height landscape like iPhone) */
             #leftPanel { display: none !important; }
             #rosterPanel { width: 100% !important; }
-
-            /* Reduce wasted padding so roster hits the left edge */
             .roster-content-wrapper { padding: 6px !important; }
-
-            /* Keep top controls visible + prevent right-side clipping (iPhone notch/safe-area) */
-            .controls-bar {
-                padding-left: calc(env(safe-area-inset-left) + 8px) !important;
-                padding-right: calc(env(safe-area-inset-right) + 12px) !important;
-                flex-wrap: wrap;
-            }
+            .controls-bar { padding-left: calc(env(safe-area-inset-left) + 8px) !important; padding-right: calc(env(safe-area-inset-right) + 12px) !important; flex-wrap: wrap; }
         }
 
-        /* Extra safe-area padding for all iOS orientations */
-        .controls-bar {
-            padding-left: max(8px, env(safe-area-inset-left));
-            padding-right: max(10px, env(safe-area-inset-right));
-        }
-
-        /* Make roster table reliably overflow horizontally (prevents column squeezing) */
+        .controls-bar { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
         #rosterContainer { overflow-x: scroll; -webkit-overflow-scrolling: touch; }
         #rosterContainer table { width: max-content !important; min-width: 100% !important; }
 
-        .saved-indicator {
-            font-size: 10px;
-            font-weight: 600;
-            color: #10b981;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
+        .saved-indicator { font-size: 10px; font-weight: 600; color: #10b981; opacity: 0; transition: opacity 0.5s; }
         .saved-indicator.visible { opacity: 1; }
 
 </style>
@@ -335,7 +232,6 @@
                 <i data-lucide="shield" class="w-3.5 h-3.5 text-white"></i>
             </div>
             <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Command Center</h1>
-            <!-- NEW LOCATION FOR SETTINGS BUTTON -->
             <button onclick="rosterSystem.openSettings()" class="ml-2 text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-slate-100" title="Configuration">
                 <i data-lucide="settings" class="w-4 h-4"></i>
             </button>
@@ -383,20 +279,17 @@
 
     <!-- RIGHT PANEL (Roster) -->
     <div id="rosterPanel" class="roster-panel flex-1 flex flex-col bg-slate-50 overflow-hidden relative min-h-0">
-        <!-- Controls Bar - min-h-12 allows expansion if needed -->
         <div class="controls-bar min-h-12 border-b border-slate-200 bg-white px-4 py-1 flex items-center justify-between shrink-0 gap-2 overflow-x-auto">
             <div class="flex items-center gap-3 shrink-0">
                 <div class="flex items-center gap-1">
                     <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
                     <input type="date" id="rosterDate" class="text-xs font-semibold bg-transparent border-none focus:ring-0 text-slate-700 p-0 w-24 cursor-pointer">
                 </div>
-                <!-- Day Dropdown (Disabled to show it's auto-synced) -->
                 <select id="rosterDay" class="text-xs font-bold text-slate-700 bg-transparent border-none focus:ring-0 cursor-pointer w-24" disabled><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select>
                 <div id="loadingIndicator" class="hidden text-slate-400"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i></div>
                 <span id="saveIndicator" class="saved-indicator flex items-center gap-1"><i data-lucide="cloud-check" class="w-3 h-3"></i> Saved</span>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-                <!-- Fill Gaps Button -->
                 <button id="fillGapsBtn" onclick="rosterSystem.fillRosterGaps()" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded shadow-sm transition-all" title="Fill Empty Slots"><i data-lucide="paint-bucket" class="w-3.5 h-3.5"></i></button>
                 <button id="shuffleRosterBtn" onclick="rosterSystem.runRosterGeneration(true)" class="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded shadow-sm transition-all" title="Shuffle Roster"><i data-lucide="shuffle" class="w-3.5 h-3.5"></i></button>
                 <button id="generateRosterBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 md:px-4 rounded shadow-sm flex items-center gap-2 transition-transform active:scale-95 whitespace-nowrap"><i data-lucide="zap" class="w-3.5 h-3.5"></i> <span class="hidden md:inline">GENERATE</span><span class="md:hidden">GO</span></button>
@@ -436,82 +329,30 @@
                 <div class="w-1/3"><label class="text-[10px] font-bold text-slate-400 uppercase">ID</label><input type="text" id="modalStaffId" class="w-full mt-1 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-mono focus:border-indigo-500 focus:outline-none"></div>
                 <div class="w-2/3"><label class="text-[10px] font-bold text-slate-400 uppercase">Name</label><input type="text" id="modalName" class="w-full mt-1 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"></div>
             </div>
-            
             <div class="bg-slate-50 p-3 rounded border border-slate-100">
                 <label class="text-[10px] font-bold text-indigo-600 uppercase mb-1 block">Break Time</label>
                 <div class="flex items-center gap-2">
-                    <input type="time" id="modalBreakStart" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs w-full text-center">
-                    <span class="text-slate-300 text-[10px]">&rarr;</span>
-                    <input type="time" id="modalBreakEnd" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs w-full text-center">
+                    <input type="time" id="modalBreakStart" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs w-full text-center"><span class="text-slate-300 text-[10px]">&rarr;</span><input type="time" id="modalBreakEnd" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs w-full text-center">
                 </div>
             </div>
-
-            <!-- Two Predefined Dropdowns -->
             <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-50 p-3 rounded border border-slate-100">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">First Hour (20:00)</label>
-                    <select id="modalStartLoc" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none">
-                        <option value="">Any</option>
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
-                <div class="bg-slate-50 p-3 rounded border border-slate-100">
-                    <label class="text-[10px] font-bold text-blue-600 uppercase mb-1 block">Vertical Patrol</label>
-                    <select id="modalVPSlot" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none">
-                        <option value="">None</option>
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-100"><label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">First Hour (20:00)</label><select id="modalStartLoc" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none"><option value="">Any</option></select></div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-100"><label class="text-[10px] font-bold text-blue-600 uppercase mb-1 block">Vertical Patrol</label><select id="modalVPSlot" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none"><option value="">None</option></select></div>
             </div>
-
-            <div class="flex items-center justify-between pt-1">
-                <label class="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" id="modalHHMD" class="w-4 h-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500">
-                    <span class="text-xs font-semibold text-slate-700">HHMD Qualified</span>
-                </label>
-            </div>
-            
-            <div class="flex gap-2 pt-3 border-t border-slate-100 mt-2">
-                <button id="modalDeleteBtn" onclick="rosterSystem.deleteCurrentStaff()" class="hidden px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded">Remove</button>
-                <div class="flex-1"></div>
-                <button onclick="rosterSystem.saveStaffFromModal()" class="px-6 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save</button>
-            </div>
+            <div class="flex items-center justify-between pt-1"><label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="modalHHMD" class="w-4 h-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500"><span class="text-xs font-semibold text-slate-700">HHMD Qualified</span></label></div>
+            <div class="flex gap-2 pt-3 border-t border-slate-100 mt-2"><button id="modalDeleteBtn" onclick="rosterSystem.deleteCurrentStaff()" class="hidden px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded">Remove</button><div class="flex-1"></div><button onclick="rosterSystem.saveStaffFromModal()" class="px-6 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save</button></div>
         </div>
     </div>
 </div>
 
-<!-- Settings Modal -->
 <div id="settingsModal" class="modal hidden fixed inset-0 z-[1001] bg-black/40 backdrop-blur-[1px] items-center justify-center">
     <div class="bg-white rounded-lg w-full max-w-sm shadow-2xl border border-slate-200 m-4 flex flex-col max-h-[80vh]">
-        <div class="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50 rounded-t-lg shrink-0">
-            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i data-lucide="settings" class="w-4 h-4"></i> Configuration</h3>
-            <button onclick="rosterSystem.closeSettings()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
-        </div>
+        <div class="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50 rounded-t-lg shrink-0"><h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i data-lucide="settings" class="w-4 h-4"></i> Configuration</h3><button onclick="rosterSystem.closeSettings()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button></div>
         <div class="p-4 overflow-y-auto flex-1">
-            
-            <div class="mb-5 pb-5 border-b border-slate-100">
-                <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Global Settings</h4>
-                <div class="flex items-center justify-between bg-slate-50 p-3 rounded border border-slate-200">
-                     <div class="flex flex-col">
-                        <span class="text-xs font-bold text-slate-700">Standard Break Duration</span>
-                        <span class="text-[9px] text-slate-400">Updates all staff break end times</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <input type="number" id="settingBreakDuration" class="w-16 text-center text-xs border border-slate-300 rounded px-1 py-1 font-mono" min="0" step="15" value="60">
-                        <span class="text-[10px] text-slate-400 font-bold">mins</span>
-                    </div>
-                </div>
-            </div>
-
-            <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Duty Durations</h4>
-            <p class="text-[10px] text-slate-400 mb-3 italic">Set the credit (in minutes) a staff member receives for one slot at each location.</p>
-            <div id="settingsList" class="space-y-3">
-                <!-- Populated by JS -->
-            </div>
+            <div class="mb-5 pb-5 border-b border-slate-100"><h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Global Settings</h4><div class="flex items-center justify-between bg-slate-50 p-3 rounded border border-slate-200"><div class="flex flex-col"><span class="text-xs font-bold text-slate-700">Standard Break Duration</span><span class="text-[9px] text-slate-400">Updates all staff break end times</span></div><div class="flex items-center gap-1"><input type="number" id="settingBreakDuration" class="w-16 text-center text-xs border border-slate-300 rounded px-1 py-1 font-mono" min="0" step="15" value="60"><span class="text-[10px] text-slate-400 font-bold">mins</span></div></div></div>
+            <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Duty Durations</h4><p class="text-[10px] text-slate-400 mb-3 italic">Set the credit (in minutes) a staff member receives for one slot at each location.</p><div id="settingsList" class="space-y-3"></div>
         </div>
-        <div class="p-3 border-t border-slate-100 bg-slate-50 rounded-b-lg shrink-0 flex justify-end">
-             <button onclick="rosterSystem.saveSettings()" class="px-6 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save Configuration</button>
-        </div>
+        <div class="p-3 border-t border-slate-100 bg-slate-50 rounded-b-lg shrink-0 flex justify-end"><button onclick="rosterSystem.saveSettings()" class="px-6 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save Configuration</button></div>
     </div>
 </div>
 
@@ -531,6 +372,7 @@ const rosterSystem = {
     OUTPUT_ORDER: ["Pass Counter", "KIOSK", "Lobby", "HHMD", "Guard House", "Report Room", "Vertical Patrol", "Tango Papa"],
     CRITICAL_DUTIES: { "Vertical Patrol": ["20:00", "23:00", "01:00", "04:00", "06:00"], "Report Room": ["20:00", "21:00"], "Tango Papa": ["07:00"] },
     VP_CYCLES: { "VP-2030": { time: "20:00", label: "20:30" }, "VP-2300": { time: "23:00", label: "23:00" }, "VP-0130": { time: "01:00", label: "01:30" }, "VP-0400": { time: "04:00", label: "04:00" }, "VP-0630": { time: "06:00", label: "06:30" } },
+    STANDING_LOCATIONS: ["Lobby", "KIOSK"], // Smart Fatigue Logic
     
     generatedRoster: null, staffDataCache: [], currentFilter: 'all', isFullscreen: false,
     durations: {}, breakDuration: 60, currentDateStr: "", rosterUnsubscribe: null,
@@ -545,19 +387,11 @@ const rosterSystem = {
         document.getElementById("copyTSVBtn").addEventListener("click", () => this.copyTSV());
         document.getElementById("downloadPDFBtn").addEventListener("click", () => this.downloadPDF());
         document.getElementById("modalStartLoc").addEventListener("change", (e) => this.handleStartLocChange(e));
-        
-        // Date Change Logic
         const dateInput = document.getElementById("rosterDate");
-        dateInput.addEventListener("change", (e) => {
-             this.handleDateChange(e.target.value);
-        });
-
-        // Auto-update Break End in Modal
+        dateInput.addEventListener("change", (e) => { this.handleDateChange(e.target.value); });
         document.getElementById("modalBreakStart").addEventListener("change", (e) => {
-            const start = e.target.value;
-            if(start) document.getElementById("modalBreakEnd").value = this.calculateEndTime(start, this.breakDuration);
+            const start = e.target.value; if(start) document.getElementById("modalBreakEnd").value = this.calculateEndTime(start, this.breakDuration);
         });
-
         document.querySelectorAll('.filter-chip').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.filter-chip').forEach(b => { b.classList.remove('active', 'bg-indigo-50', 'text-indigo-700'); b.classList.add('text-slate-400'); });
@@ -568,277 +402,93 @@ const rosterSystem = {
     },
 
     initializeDate() { 
-        const today = new Date(); 
-        // Format YYYY-MM-DD local time to avoid timezone issues
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-        
-        document.getElementById("rosterDate").value = dateStr;
-        this.handleDateChange(dateStr);
+        const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); const dateStr = `${year}-${month}-${day}`;
+        document.getElementById("rosterDate").value = dateStr; this.handleDateChange(dateStr);
     },
 
     async handleDateChange(dateStr) {
-        this.currentDateStr = dateStr;
-        if (!dateStr) return;
-
-        // 1. Sync Day of Week (Fix for "day should follow calendar")
-        const parts = dateStr.split('-');
-        const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        this.currentDateStr = dateStr; if (!dateStr) return;
+        const parts = dateStr.split('-'); const dateObj = new Date(parts[0], parts[1] - 1, parts[2]); const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
         document.getElementById("rosterDay").value = dayName;
-
-        // 2. Clear old subscription and listener
-        if (this.rosterUnsubscribe) {
-            this.rosterUnsubscribe();
-            this.rosterUnsubscribe = null;
-        }
-
-        // 3. UI Loading State
+        if (this.rosterUnsubscribe) { this.rosterUnsubscribe(); this.rosterUnsubscribe = null; }
         document.getElementById('loadingIndicator').classList.remove('hidden');
-        document.getElementById("rosterContainer").innerHTML = `
-            <div class="flex flex-col items-center justify-center h-40 text-slate-400">
-                <i data-lucide="loader-2" class="w-8 h-8 mb-2 animate-spin"></i>
-                <p class="text-xs">Loading Roster...</p>
-            </div>`;
-
-        // 4. Subscribe to new date (Real-time Fix)
+        document.getElementById("rosterContainer").innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-slate-400"><i data-lucide="loader-2" class="w-8 h-8 mb-2 animate-spin"></i><p class="text-xs">Loading Roster...</p></div>`;
         this.rosterUnsubscribe = window.firebaseOperations.subscribeToRoster(dateStr, (rosterData) => {
              document.getElementById('loadingIndicator').classList.add('hidden');
-             if (rosterData) {
-                 this.generatedRoster = rosterData;
-                 this.displayRoster(rosterData);
-                 document.getElementById('rosterActionsContainer').classList.remove('hidden');
-             } else {
-                this.generatedRoster = null;
-                document.getElementById("rosterContainer").innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-40 text-slate-400">
-                        <i data-lucide="calendar" class="w-10 h-10 mb-2 opacity-20"></i>
-                        <p class="text-xs">No roster for ${dateStr}</p>
-                        <p class="text-[10px] mt-1">Click GENERATE to create one</p>
-                    </div>`;
-                document.getElementById('rosterActionsContainer').classList.add('hidden');
-                lucide.createIcons();
-             }
+             if (rosterData) { this.generatedRoster = rosterData; this.displayRoster(rosterData); document.getElementById('rosterActionsContainer').classList.remove('hidden'); } 
+             else { this.generatedRoster = null; document.getElementById("rosterContainer").innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-slate-400"><i data-lucide="calendar" class="w-10 h-10 mb-2 opacity-20"></i><p class="text-xs">No roster for ${dateStr}</p><p class="text-[10px] mt-1">Click GENERATE to create one</p></div>`; document.getElementById('rosterActionsContainer').classList.add('hidden'); lucide.createIcons(); }
         });
     },
     
     toggleFullscreen() {
-        this.isFullscreen = !this.isFullscreen;
-        const panel = document.getElementById("rosterPanel");
-        if (this.isFullscreen) {
-            panel.classList.add("fullscreen");
-            document.querySelector('#toggleFullscreenBtn i').setAttribute('data-lucide', 'minimize');
-        } else {
-            panel.classList.remove("fullscreen");
-            document.querySelector('#toggleFullscreenBtn i').setAttribute('data-lucide', 'maximize');
-        }
-        lucide.createIcons();
+        this.isFullscreen = !this.isFullscreen; const panel = document.getElementById("rosterPanel");
+        if (this.isFullscreen) { panel.classList.add("fullscreen"); document.querySelector('#toggleFullscreenBtn i').setAttribute('data-lucide', 'minimize'); } else { panel.classList.remove("fullscreen"); document.querySelector('#toggleFullscreenBtn i').setAttribute('data-lucide', 'maximize'); } lucide.createIcons();
     },
 
     calculateEndTime(startTimeStr, durationMins) {
-        if (!startTimeStr) return "";
-        const [h, m] = startTimeStr.split(':').map(Number);
-        let totalMins = h * 60 + m + parseInt(durationMins);
-        let newH = Math.floor(totalMins / 60) % 24;
-        let newM = totalMins % 60;
-        return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+        if (!startTimeStr) return ""; const [h, m] = startTimeStr.split(':').map(Number); let totalMins = h * 60 + m + parseInt(durationMins); let newH = Math.floor(totalMins / 60) % 24; let newM = totalMins % 60; return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
     },
 
     renderOptions(currentStaffId) {
-        const startSelect = document.getElementById("modalStartLoc");
-        const vpSelect = document.getElementById("modalVPSlot");
-        startSelect.innerHTML = '<option value="">Any</option>';
-        vpSelect.innerHTML = '<option value="">None</option>';
-
+        const startSelect = document.getElementById("modalStartLoc"); const vpSelect = document.getElementById("modalVPSlot");
+        startSelect.innerHTML = '<option value="">Any</option>'; vpSelect.innerHTML = '<option value="">None</option>';
         const usage = { start: {}, vp: {} };
-        this.staffDataCache.forEach(s => { 
-            if (s.attendance === 'Yes' && s.firebaseId !== currentStaffId) {
-                if (s.startLoc) usage.start[s.startLoc] = (usage.start[s.startLoc] || 0) + 1;
-                if (s.vpSlot) usage.vp[s.vpSlot] = (usage.vp[s.vpSlot] || 0) + 1;
-            } 
-        });
-
-        this.LOCATIONS.forEach(loc => {
-            if (loc.name !== "Vertical Patrol") { 
-                const count = usage.start[loc.name] || 0; const isFull = count >= loc.needed;
-                const option = document.createElement("option"); option.value = loc.name; option.text = `${loc.name} ${isFull ? '(Full)' : `(${count}/${loc.needed})`}`;
-                if (isFull) { option.disabled = true; option.classList.add('text-slate-400', 'italic'); }
-                startSelect.appendChild(option);
-            }
-        });
-
-        for (const [key, config] of Object.entries(this.VP_CYCLES)) {
-            const count = usage.vp[key] || 0; const isFull = count >= 1;
-            const option = document.createElement("option"); option.value = key; option.text = `${config.label} ${isFull ? '(Taken)' : ''}`;
-            if (isFull) { option.disabled = true; option.classList.add('text-slate-400', 'italic'); }
-            vpSelect.appendChild(option);
-        }
+        this.staffDataCache.forEach(s => { if (s.attendance === 'Yes' && s.firebaseId !== currentStaffId) { if (s.startLoc) usage.start[s.startLoc] = (usage.start[s.startLoc] || 0) + 1; if (s.vpSlot) usage.vp[s.vpSlot] = (usage.vp[s.vpSlot] || 0) + 1; } });
+        this.LOCATIONS.forEach(loc => { if (loc.name !== "Vertical Patrol") { const count = usage.start[loc.name] || 0; const isFull = count >= loc.needed; const option = document.createElement("option"); option.value = loc.name; option.text = `${loc.name} ${isFull ? '(Full)' : `(${count}/${loc.needed})`}`; if (isFull) { option.disabled = true; option.classList.add('text-slate-400', 'italic'); } startSelect.appendChild(option); } });
+        for (const [key, config] of Object.entries(this.VP_CYCLES)) { const count = usage.vp[key] || 0; const isFull = count >= 1; const option = document.createElement("option"); option.value = key; option.text = `${config.label} ${isFull ? '(Taken)' : ''}`; if (isFull) { option.disabled = true; option.classList.add('text-slate-400', 'italic'); } vpSelect.appendChild(option); }
     },
 
     handleStartLocChange(e) {
-        const vpSelect = document.getElementById("modalVPSlot");
-        Array.from(vpSelect.options).forEach(opt => opt.disabled = opt.text.includes('(Taken)')); 
-        if (e.target.value !== "") {
-            const vp2030Opt = Array.from(vpSelect.options).find(o => o.value === "VP-2030");
-            if (vp2030Opt) vp2030Opt.disabled = true;
-            if (vpSelect.value === "VP-2030") vpSelect.value = "";
-        }
+        const vpSelect = document.getElementById("modalVPSlot"); Array.from(vpSelect.options).forEach(opt => opt.disabled = opt.text.includes('(Taken)')); 
+        if (e.target.value !== "") { const vp2030Opt = Array.from(vpSelect.options).find(o => o.value === "VP-2030"); if (vp2030Opt) vp2030Opt.disabled = true; if (vpSelect.value === "VP-2030") vpSelect.value = ""; }
     },
 
     renderStaffCards(staffList) {
-        const grid = document.getElementById('staffGrid'); grid.innerHTML = '';
-        let filteredList = staffList;
-        if (this.currentFilter === 'present') filteredList = staffList.filter(s => s.attendance === 'Yes');
-        if (this.currentFilter === 'hhmd') filteredList = staffList.filter(s => s.hhmd === 'Yes');
+        const grid = document.getElementById('staffGrid'); grid.innerHTML = ''; let filteredList = staffList;
+        if (this.currentFilter === 'present') filteredList = staffList.filter(s => s.attendance === 'Yes'); if (this.currentFilter === 'hhmd') filteredList = staffList.filter(s => s.hhmd === 'Yes');
         if (filteredList.length === 0) { grid.innerHTML = `<div class="col-span-2 text-center py-6 text-xs text-slate-400 italic">No staff found.</div>`; return; }
-        
         filteredList.forEach(staff => {
-            const isPresent = staff.attendance === 'Yes';
-            const initials = staff.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-            const colorIndex = (staff.staffId.charCodeAt(staff.staffId.length - 1) || 0) % 8;
-            
-            let indicators = "";
-            if (staff.startLoc) indicators += `<div class="w-2 h-2 bg-indigo-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
-            if (staff.vpSlot) indicators += `<div class="w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
-            if (indicators) indicators = `<div class="absolute -top-1 -right-1 flex gap-0.5">${indicators}</div>`;
-
-            const card = document.createElement('div');
-            card.className = `staff-card h-16 rounded flex items-center pr-2 pl-2 gap-3 ${!isPresent ? 'inactive' : ''}`;
-            card.innerHTML = `
-                <button onclick="rosterSystem.toggleAttendance('${staff.firebaseId}', '${staff.attendance}')" class="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${isPresent ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}"><i data-lucide="power" class="w-4 h-4"></i></button>
-                <div class="relative w-10 h-10 rounded shrink-0 avatar-bg-${colorIndex} flex items-center justify-center text-white font-bold text-xs cursor-pointer avatar shadow-sm" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">${initials}${indicators}</div>
-                <div class="flex flex-col min-w-0 flex-1 cursor-pointer justify-center" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">
-                    <div class="flex items-center gap-1.5 mb-0.5"><span class="text-sm font-bold text-slate-800 truncate leading-tight">${staff.name}</span>${staff.hhmd === 'Yes' ? `<div class="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white" title="HHMD Qualified"></div>` : ''}</div>
-                    <div class="flex items-center justify-between text-xs w-full"><span class="font-mono font-bold text-slate-600 bg-slate-100 px-1 rounded">${staff.staffId}</span><div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100"><i data-lucide="clock" class="w-3 h-3 text-slate-400"></i><span>${staff.breakStart}-${staff.breakEnd}</span></div></div>
-                </div>`;
-            grid.appendChild(card);
-        });
-        lucide.createIcons();
+            const isPresent = staff.attendance === 'Yes'; const initials = staff.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(); const colorIndex = (staff.staffId.charCodeAt(staff.staffId.length - 1) || 0) % 8;
+            let indicators = ""; if (staff.startLoc) indicators += `<div class="w-2 h-2 bg-indigo-500 rounded-full shadow-sm ring-1 ring-white"></div>`; if (staff.vpSlot) indicators += `<div class="w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-white"></div>`; if (indicators) indicators = `<div class="absolute -top-1 -right-1 flex gap-0.5">${indicators}</div>`;
+            const card = document.createElement('div'); card.className = `staff-card h-16 rounded flex items-center pr-2 pl-2 gap-3 ${!isPresent ? 'inactive' : ''}`;
+            card.innerHTML = `<button onclick="rosterSystem.toggleAttendance('${staff.firebaseId}', '${staff.attendance}')" class="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${isPresent ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}"><i data-lucide="power" class="w-4 h-4"></i></button><div class="relative w-10 h-10 rounded shrink-0 avatar-bg-${colorIndex} flex items-center justify-center text-white font-bold text-xs cursor-pointer avatar shadow-sm" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">${initials}${indicators}</div><div class="flex flex-col min-w-0 flex-1 cursor-pointer justify-center" onclick="rosterSystem.openEditModal('${staff.firebaseId}')"><div class="flex items-center gap-1.5 mb-0.5"><span class="text-sm font-bold text-slate-800 truncate leading-tight">${staff.name}</span>${staff.hhmd === 'Yes' ? `<div class="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white" title="HHMD Qualified"></div>` : ''}</div><div class="flex items-center justify-between text-xs w-full"><span class="font-mono font-bold text-slate-600 bg-slate-100 px-1 rounded">${staff.staffId}</span><div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100"><i data-lucide="clock" class="w-3 h-3 text-slate-400"></i><span>${staff.breakStart}-${staff.breakEnd}</span></div></div></div>`; grid.appendChild(card);
+        }); lucide.createIcons();
     },
 
     updateStats() {
-        const total = this.staffDataCache.length;
-        const present = this.staffDataCache.filter(s => s.attendance === 'Yes').length;
-        const hhmd = this.staffDataCache.filter(s => s.hhmd === 'Yes' && s.attendance === 'Yes').length;
-        document.getElementById('stat-total').textContent = total;
-        document.getElementById('stat-present').textContent = present;
-        document.getElementById('stat-hhmd').textContent = hhmd;
-        document.getElementById('stat-present-m').textContent = present;
+        const total = this.staffDataCache.length; const present = this.staffDataCache.filter(s => s.attendance === 'Yes').length; const hhmd = this.staffDataCache.filter(s => s.hhmd === 'Yes' && s.attendance === 'Yes').length;
+        document.getElementById('stat-total').textContent = total; document.getElementById('stat-present').textContent = present; document.getElementById('stat-hhmd').textContent = hhmd; document.getElementById('stat-present-m').textContent = present;
     },
     updateStaffDatalist() {
-        const datalist = document.getElementById('staff-id-list'); if (!datalist) return;
-        const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
-        datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
+        const datalist = document.getElementById('staff-id-list'); if (!datalist) return; const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes'); datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
     },
     toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, { attendance: currentStatus === 'Yes' ? 'No' : 'Yes' }); },
     openAddModal() {
-        document.getElementById('modalTitle').innerText = "Add Staff"; 
-        document.getElementById('modalFirebaseId').value = ""; 
-        document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; 
-        document.getElementById('modalName').value = ""; 
-        
-        // Auto-calc end time based on global setting
-        const defStart = "22:00";
-        document.getElementById('modalBreakStart').value = defStart; 
-        document.getElementById('modalBreakEnd').value = this.calculateEndTime(defStart, this.breakDuration); 
-
-        this.renderOptions(null); 
-        document.getElementById('modalStartLoc').value = ""; 
-        document.getElementById('modalVPSlot').value = ""; 
-        document.getElementById('modalHHMD').checked = false; 
-        document.getElementById('modalDeleteBtn').classList.add('hidden'); 
-        document.getElementById('staffModal').classList.remove('hidden'); 
-        document.getElementById('staffModal').classList.add('flex');
+        document.getElementById('modalTitle').innerText = "Add Staff"; document.getElementById('modalFirebaseId').value = ""; document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; document.getElementById('modalName').value = ""; document.getElementById('modalBreakStart').value = "22:00"; document.getElementById('modalBreakEnd').value = "00:00"; this.renderOptions(null); document.getElementById('modalStartLoc').value = ""; document.getElementById('modalVPSlot').value = ""; document.getElementById('modalHHMD').checked = false; document.getElementById('modalDeleteBtn').classList.add('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
     },
     openEditModal(id) {
         const staff = this.staffDataCache.find(s => s.firebaseId === id); if(!staff) return;
-        document.getElementById('modalTitle').innerText = "Edit Staff"; 
-        document.getElementById('modalFirebaseId').value = staff.firebaseId; 
-        document.getElementById('modalStaffId').value = staff.staffId; 
-        document.getElementById('modalName').value = staff.name; 
-        
-        document.getElementById('modalBreakStart').value = staff.breakStart || "22:00"; 
-        // If end time missing, calc it, otherwise use existing
-        document.getElementById('modalBreakEnd').value = staff.breakEnd || this.calculateEndTime(staff.breakStart || "22:00", this.breakDuration); 
-
-        this.renderOptions(staff.firebaseId); 
-        document.getElementById('modalStartLoc').value = staff.startLoc || ""; 
-        document.getElementById('modalVPSlot').value = staff.vpSlot || ""; 
-        document.getElementById('modalHHMD').checked = staff.hhmd === 'Yes'; 
-        document.getElementById('modalDeleteBtn').classList.remove('hidden'); 
-        document.getElementById('staffModal').classList.remove('hidden'); 
-        document.getElementById('staffModal').classList.add('flex');
+        document.getElementById('modalTitle').innerText = "Edit Staff"; document.getElementById('modalFirebaseId').value = staff.firebaseId; document.getElementById('modalStaffId').value = staff.staffId; document.getElementById('modalName').value = staff.name; document.getElementById('modalBreakStart').value = staff.breakStart || "22:00"; document.getElementById('modalBreakEnd').value = "00:00"; this.renderOptions(staff.firebaseId); document.getElementById('modalStartLoc').value = staff.startLoc || ""; document.getElementById('modalVPSlot').value = staff.vpSlot || ""; document.getElementById('modalHHMD').checked = staff.hhmd === 'Yes'; document.getElementById('modalDeleteBtn').classList.remove('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
         this.handleStartLocChange({target: {value: staff.startLoc || ""}});
     },
     closeModal() { document.getElementById('staffModal').classList.add('hidden'); document.getElementById('staffModal').classList.remove('flex'); },
     async saveStaffFromModal() {
-        const id = document.getElementById('modalFirebaseId').value;
-        const data = { staffId: document.getElementById('modalStaffId').value, name: document.getElementById('modalName').value || "Unknown", breakStart: document.getElementById('modalBreakStart').value, breakEnd: document.getElementById('modalBreakEnd').value, hhmd: document.getElementById('modalHHMD').checked ? 'Yes' : 'No', startLoc: document.getElementById('modalStartLoc').value, vpSlot: document.getElementById('modalVPSlot').value, attendance: 'Yes' };
-        if (id) { delete data.attendance; await window.firebaseOperations.updateStaff(id, data); this.showToast("Saved", "success"); } else { await window.firebaseOperations.addStaff(data); }
-        this.closeModal();
+        const id = document.getElementById('modalFirebaseId').value; const data = { staffId: document.getElementById('modalStaffId').value, name: document.getElementById('modalName').value || "Unknown", breakStart: document.getElementById('modalBreakStart').value, breakEnd: document.getElementById('modalBreakEnd').value, hhmd: document.getElementById('modalHHMD').checked ? 'Yes' : 'No', startLoc: document.getElementById('modalStartLoc').value, vpSlot: document.getElementById('modalVPSlot').value, attendance: 'Yes' };
+        if (id) { delete data.attendance; await window.firebaseOperations.updateStaff(id, data); this.showToast("Saved", "success"); } else { await window.firebaseOperations.addStaff(data); } this.closeModal();
     },
     deleteCurrentStaff() { const id = document.getElementById('modalFirebaseId').value; if(confirm("Remove?")) { window.firebaseOperations.deleteStaff(id); this.closeModal(); } },
     
-    // --- SETTINGS MODAL LOGIC ---
     openSettings() {
-        document.getElementById('settingBreakDuration').value = this.breakDuration;
-        const list = document.getElementById('settingsList');
-        list.innerHTML = this.OUTPUT_ORDER.map(locName => {
-            const currentDur = this.durations[locName] || (locName === 'Vertical Patrol' ? 90 : 60);
-            return `<div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-200">
-                <span class="text-xs font-bold text-slate-700">${locName}</span>
-                <div class="flex items-center gap-1">
-                    <input type="number" id="dur-${locName.replace(/\s+/g, '-')}" value="${currentDur}" class="w-16 text-center text-xs border border-slate-300 rounded px-1 py-1 font-mono" min="0" step="15">
-                    <span class="text-[10px] text-slate-400 font-bold">mins</span>
-                </div>
-            </div>`;
-        }).join('');
-        document.getElementById('settingsModal').classList.remove('hidden');
-        document.getElementById('settingsModal').classList.add('flex');
+        document.getElementById('settingBreakDuration').value = this.breakDuration; const list = document.getElementById('settingsList');
+        list.innerHTML = this.OUTPUT_ORDER.map(locName => { const currentDur = this.durations[locName] || (locName === 'Vertical Patrol' ? 90 : 60); return `<div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-200"><span class="text-xs font-bold text-slate-700">${locName}</span><div class="flex items-center gap-1"><input type="number" id="dur-${locName.replace(/\s+/g, '-')}" value="${currentDur}" class="w-16 text-center text-xs border border-slate-300 rounded px-1 py-1 font-mono" min="0" step="15"><span class="text-[10px] text-slate-400 font-bold">mins</span></div></div>`; }).join('');
+        document.getElementById('settingsModal').classList.remove('hidden'); document.getElementById('settingsModal').classList.add('flex');
     },
-    closeSettings() {
-        document.getElementById('settingsModal').classList.add('hidden');
-        document.getElementById('settingsModal').classList.remove('flex');
-    },
+    closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); document.getElementById('settingsModal').classList.remove('flex'); },
     async saveSettings() {
-        const newBreakDur = parseInt(document.getElementById('settingBreakDuration').value) || 60;
-        const newDurations = {};
-        this.OUTPUT_ORDER.forEach(locName => {
-            const val = document.getElementById(`dur-${locName.replace(/\s+/g, '-')}`).value;
-            newDurations[locName] = parseInt(val) || 60;
-        });
-
-        const settingsData = { 
-            locationDurations: newDurations,
-            breakDuration: newBreakDur
-        };
-        
-        await window.firebaseOperations.saveSettings(settingsData);
-        
-        // Batch update break times if duration changed
-        if (newBreakDur !== this.breakDuration || true) { 
-            const updates = [];
-            this.staffDataCache.forEach(staff => {
-                if (staff.breakStart) {
-                    const newEnd = this.calculateEndTime(staff.breakStart, newBreakDur);
-                    if (newEnd !== staff.breakEnd) {
-                        updates.push({ id: staff.firebaseId, data: { breakEnd: newEnd } });
-                    }
-                }
-            });
-            if (updates.length > 0) {
-                await window.firebaseOperations.batchUpdateStaff(updates);
-                this.showToast(`Updated ${updates.length} staff breaks`, "success");
-            }
-        }
-
-        this.durations = newDurations;
-        this.breakDuration = newBreakDur;
-        this.showToast("Config Saved", "success");
-        this.closeSettings();
-        if(this.generatedRoster) this.validateAllCells(); 
+        const newBreakDur = parseInt(document.getElementById('settingBreakDuration').value) || 60; const newDurations = {};
+        this.OUTPUT_ORDER.forEach(locName => { const val = document.getElementById(`dur-${locName.replace(/\s+/g, '-')}`).value; newDurations[locName] = parseInt(val) || 60; });
+        await window.firebaseOperations.saveSettings({ locationDurations: newDurations, breakDuration: newBreakDur });
+        this.durations = newDurations; this.breakDuration = newBreakDur; this.showToast("Config Saved", "success"); this.closeSettings(); if(this.generatedRoster) this.validateAllCells();
     },
 
     shuffleBreaks() {
@@ -848,22 +498,15 @@ const rosterSystem = {
     },
     clearAssignments() {
         if(!confirm("Clear manual assignments? (HHMD preserved)")) return;
-        this.staffDataCache.forEach(staff => {
-            const updates = {};
-            let changed = false;
-            if (staff.startLoc && staff.startLoc !== 'HHMD') { updates.startLoc = ""; changed = true; }
-            if (staff.vpSlot) { updates.vpSlot = ""; changed = true; }
-            if (changed) window.firebaseOperations.updateStaff(staff.firebaseId, updates);
-        });
+        this.staffDataCache.forEach(staff => { const updates = {}; let changed = false; if (staff.startLoc && staff.startLoc !== 'HHMD') { updates.startLoc = ""; changed = true; } if (staff.vpSlot) { updates.vpSlot = ""; changed = true; } if (changed) window.firebaseOperations.updateStaff(staff.firebaseId, updates); });
         this.showToast("Cleared (HHMD kept)", "success");
     },
 
     // --- FILL GAPS ---
     fillRosterGaps() {
         if (!this.generatedRoster) return this.showToast("No roster to fill", "warning");
-        
         const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
-        const roster = JSON.parse(JSON.stringify(this.generatedRoster)); // Deep copy
+        const roster = JSON.parse(JSON.stringify(this.generatedRoster)); 
         
         const assignmentsByStaff = Object.fromEntries(presentStaff.map(s => [s.staffId, []]));
         const staffMap = Object.fromEntries(presentStaff.map(s => [s.staffId, s]));
@@ -896,7 +539,7 @@ const rosterSystem = {
                     if (roster[locName][time][i] === '') {
                          const staffPool = presentStaff.map(s => s.staffId).sort(() => Math.random() - 0.5);
                          for (const sId of staffPool) {
-                             if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker)) {
+                             if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, roster)) {
                                  roster[locName][time][i] = sId;
                                  assignmentsByStaff[sId].push(time);
                                  if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(sId);
@@ -916,9 +559,7 @@ const rosterSystem = {
     },
 
     runRosterGeneration(isShuffle = false) {
-        if (this.generatedRoster && !isShuffle) {
-            if(!confirm("Overwrite existing roster for this date?")) return;
-        }
+        if (this.generatedRoster && !isShuffle) { if(!confirm("Overwrite existing roster for this date?")) return; }
 
         const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
         if (presentStaff.length === 0) return this.showToast("No active staff!", 'error');
@@ -933,42 +574,21 @@ const rosterSystem = {
         const specificAssignments = {}; 
         presentStaff.forEach(staff => {
             if (staff.startLoc) {
-                if (!specificAssignments["20:00"]) specificAssignments["20:00"] = {};
-                if (!specificAssignments["20:00"][staff.startLoc]) specificAssignments["20:00"][staff.startLoc] = [];
-                specificAssignments["20:00"][staff.startLoc].push(staff.staffId);
+                if (!specificAssignments["20:00"]) specificAssignments["20:00"] = {}; if (!specificAssignments["20:00"][staff.startLoc]) specificAssignments["20:00"][staff.startLoc] = []; specificAssignments["20:00"][staff.startLoc].push(staff.staffId);
             }
             if (staff.vpSlot && this.VP_CYCLES[staff.vpSlot]) {
-                const time = this.VP_CYCLES[staff.vpSlot].time;
-                if (!specificAssignments[time]) specificAssignments[time] = {};
-                if (!specificAssignments[time]["Vertical Patrol"]) specificAssignments[time]["Vertical Patrol"] = [];
-                specificAssignments[time]["Vertical Patrol"].push(staff.staffId);
+                const time = this.VP_CYCLES[staff.vpSlot].time; if (!specificAssignments[time]) specificAssignments[time] = {}; if (!specificAssignments[time]["Vertical Patrol"]) specificAssignments[time]["Vertical Patrol"] = []; specificAssignments[time]["Vertical Patrol"].push(staff.staffId);
             }
         });
 
         const attemptAssignment = (time, locName, positionIndex, forceStaffId = null) => {
-            const lockKey = `${locName}-${time}`;
-            let lockedId = lockedValues[lockKey] || (locks[lockKey] ? this.getStaffIdByLock(lockKey) : null);
-            
-            if (lockedId) {
-                roster[locName][time][positionIndex] = lockedId;
-                if (assignmentsByStaff[lockedId]) { assignmentsByStaff[lockedId].push(time); if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(lockedId); }
-                return true;
-            }
+            const lockKey = `${locName}-${time}`; let lockedId = lockedValues[lockKey] || (locks[lockKey] ? this.getStaffIdByLock(lockKey) : null);
+            if (lockedId) { roster[locName][time][positionIndex] = lockedId; if (assignmentsByStaff[lockedId]) { assignmentsByStaff[lockedId].push(time); if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(lockedId); } return true; }
             if (roster[locName][time][positionIndex] !== '') return true;
 
             if (forceStaffId) {
-                const staff = staffMap[forceStaffId];
-                const isOverlapping = assignmentsByStaff[forceStaffId].includes(time);
-                const isBreak = this.isOnBreak(staff, time);
-                const isHHMD = (locName === 'HHMD' && staff.hhmd !== 'Yes');
-                
-                if (!isOverlapping && !isBreak && !isHHMD) {
-                    roster[locName][time][positionIndex] = forceStaffId;
-                    assignmentsByStaff[forceStaffId].push(time);
-                    if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(forceStaffId);
-                    return true;
-                }
-                return false;
+                const staff = staffMap[forceStaffId]; const isOverlapping = assignmentsByStaff[forceStaffId].includes(time); const isBreak = this.isOnBreak(staff, time); const isHHMD = (locName === 'HHMD' && staff.hhmd !== 'Yes');
+                if (!isOverlapping && !isBreak && !isHHMD) { roster[locName][time][positionIndex] = forceStaffId; assignmentsByStaff[forceStaffId].push(time); if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(forceStaffId); return true; } return false;
             }
             return false;
         };
@@ -981,57 +601,52 @@ const rosterSystem = {
                 
                 for (let i = 0; i < needed; i++) {
                     let preAssignedId = null;
-                    if (specificAssignments[time] && specificAssignments[time][locName] && specificAssignments[time][locName].length > 0) {
-                        preAssignedId = specificAssignments[time][locName].shift();
-                    }
+                    if (specificAssignments[time] && specificAssignments[time][locName] && specificAssignments[time][locName].length > 0) { preAssignedId = specificAssignments[time][locName].shift(); }
                     
-                    // --- CHANGED LOGIC: Pass Counter Buffer ---
-                    // One slot acts as a "buffer" for whoever did VP previously
-                    if (!preAssignedId && locName === "Pass Counter") {
+                    // --- VP BUFFER LOGIC: Check previous VP and assign to Pass Counter Slot 1 ---
+                    if (!preAssignedId && locName === "Pass Counter" && i === 1) { // i=1 is the Buffer Slot
                         const prevTimeIndex = this.ROSTER_TIMES.indexOf(time) - 1;
                         if (prevTimeIndex >= 0) {
                             const prevTime = this.ROSTER_TIMES[prevTimeIndex];
                             const vpStaffId = roster['Vertical Patrol']?.[prevTime]?.[0];
-                            if (vpStaffId) {
-                                // Assign to the SECOND slot (index 1) to prioritize buffer logic
-                                if (i === 1) preAssignedId = vpStaffId; 
-                            }
+                            if (vpStaffId) preAssignedId = vpStaffId;
                         }
                     }
-                    // ----------------------------------------
-
                     attemptAssignment(time, locName, i, preAssignedId);
                 }
             });
         });
 
+        // Smart Random Fill with Fatigue Check
         const fillRandomly = (time, locName, positionIndex) => {
             if (roster[locName][time][positionIndex] !== '') return true;
-            
-            let candidateId = null;
+            let candidateId = null; let fallbackCandidateId = null;
             const staffPool = presentStaff.map(s => s.staffId).sort(() => Math.random() - 0.5);
+            
             for (const sId of staffPool) { 
                 let isReservedElsewhere = false;
-                if (specificAssignments[time]) {
-                    for (const assignedLoc in specificAssignments[time]) {
-                        if (assignedLoc !== locName && specificAssignments[time][assignedLoc].includes(sId)) {
-                            isReservedElsewhere = true; break;
-                        }
-                    }
-                }
+                if (specificAssignments[time]) { for (const assignedLoc in specificAssignments[time]) { if (assignedLoc !== locName && specificAssignments[time][assignedLoc].includes(sId)) { isReservedElsewhere = true; break; } } }
                 if (isReservedElsewhere) continue;
 
-                if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker)) { 
-                    candidateId = sId; break; 
+                if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, roster)) { 
+                    // SOFT CONSTRAINT: Check Standing Fatigue
+                    const isStandingNow = this.STANDING_LOCATIONS.includes(locName);
+                    let isFatigued = false;
+                    if (isStandingNow) {
+                        const prevTimeIndex = this.ROSTER_TIMES.indexOf(time) - 1;
+                        if (prevTimeIndex >= 0) {
+                            const prevTime = this.ROSTER_TIMES[prevTimeIndex];
+                            const prevLoc = this.findStaffLocation(roster, prevTime, sId);
+                            if (prevLoc && this.STANDING_LOCATIONS.includes(prevLoc)) isFatigued = true;
+                        }
+                    }
+
+                    if (!isFatigued) { candidateId = sId; break; } else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
                 } 
             }
             
-            if (candidateId) {
-                roster[locName][time][positionIndex] = candidateId;
-                assignmentsByStaff[candidateId].push(time);
-                if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(candidateId);
-                return true;
-            }
+            const finalId = candidateId || fallbackCandidateId;
+            if (finalId) { roster[locName][time][positionIndex] = finalId; assignmentsByStaff[finalId].push(time); if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(finalId); return true; }
             return false;
         };
 
@@ -1040,24 +655,16 @@ const rosterSystem = {
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 if (locName === "Report Room" && isWeekend) return;
                 const needed = this.LOCATIONS.find(l => l.name === locName).needed;
-                for (let i = 0; i < needed; i++) {
-                    if (!fillRandomly(time, locName, i)) { 
-                        if(!shortfalls.includes(`Shortfall: ${locName} @ ${time}`)) shortfalls.push(`Shortfall: ${locName} @ ${time}`); 
-                    }
-                }
+                for (let i = 0; i < needed; i++) { if (!fillRandomly(time, locName, i)) { if(!shortfalls.includes(`Shortfall: ${locName} @ ${time}`)) shortfalls.push(`Shortfall: ${locName} @ ${time}`); } }
             });
         });
 
-        this.generatedRoster = roster; 
-        this.displayRoster(roster); 
-        document.getElementById('rosterActionsContainer').classList.remove('hidden');
-        window.firebaseOperations.saveRoster(this.currentDateStr, roster);
-        this.triggerSaveIndicator();
-
+        this.generatedRoster = roster; this.displayRoster(roster); document.getElementById('rosterActionsContainer').classList.remove('hidden');
+        window.firebaseOperations.saveRoster(this.currentDateStr, roster); this.triggerSaveIndicator();
         if (shortfalls.length > 0) this.showToast(`${shortfalls.length} Shortfalls`, 'warning'); else this.showToast("Roster Generated", "success");
     },
     
-    canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker) {
+    canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, rosterRef) {
         const staffMember = staffMap[sId];
         const isAlreadyAssigned = assignmentsByStaff[sId].includes(time);
         const isonBreak = this.isOnBreak(staffMember, time);
@@ -1066,6 +673,15 @@ const rosterSystem = {
         if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isPatrolDuplicate) return false;
         return true;
     },
+    
+    findStaffLocation(roster, time, staffId) {
+        for (const loc of this.OUTPUT_ORDER) {
+            const slot = roster[loc]?.[time];
+            if (slot && slot.includes(staffId)) return loc;
+        }
+        return null;
+    },
+
     preserveLockedValues() {
         const lockedValues = {}; const locks = window.firebaseOperations.getLocks();
         document.querySelectorAll(".roster-input").forEach(input => { const loc = input.dataset.loc; const time = input.dataset.time; const key = `${loc}-${time}`; if(locks[key] && input.value.trim()) lockedValues[key] = input.value.trim(); });
@@ -1080,69 +696,12 @@ const rosterSystem = {
     },
 
     enableRosterDragScroll() {
-        const el = document.getElementById('rosterContainer');
-        if (!el) return;
-        if (el.__dragScrollBound) return;
-        el.__dragScrollBound = true;
-        let isDown = false;
-        let startX = 0, startY = 0;
-        let startScrollLeft = 0, startScrollTop = 0;
-        const isInteractiveTarget = (t) => {
-            if (!t) return false;
-            const tag = (t.tagName || '').toLowerCase();
-            return tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button' || t.isContentEditable;
-        };
-        const onDown = (e) => {
-            if (isInteractiveTarget(e.target)) return;
-            isDown = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            startScrollLeft = el.scrollLeft;
-            startScrollTop = el.scrollTop;
-            try { el.setPointerCapture(e.pointerId); } catch (_) {}
-        };
-        const onMove = (e) => {
-            if (!isDown) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            el.scrollLeft = startScrollLeft - dx;
-            el.scrollTop = startScrollTop - dy;
-            e.preventDefault();
-        };
-        const onUp = () => { isDown = false; };
-        el.addEventListener('pointerdown', onDown, { passive: true });
-        el.addEventListener('pointermove', onMove, { passive: false });
-        el.addEventListener('pointerup', onUp, { passive: true });
-        el.addEventListener('pointercancel', onUp, { passive: true });
-        let touchId = null;
-        el.addEventListener('touchstart', (e) => {
-            if (isInteractiveTarget(e.target)) return;
-            if (!e.touches || !e.touches.length) return;
-            const t = e.touches[0];
-            touchId = t.identifier;
-            isDown = true;
-            startX = t.clientX;
-            startY = t.clientY;
-            startScrollLeft = el.scrollLeft;
-            startScrollTop = el.scrollTop;
-        }, { passive: true });
-        el.addEventListener('touchmove', (e) => {
-            if (!isDown) return;
-            if (isInteractiveTarget(e.target)) return;
-            const t = [...e.touches].find(tt => tt.identifier === touchId) || e.touches[0];
-            if (!t) return;
-            const dx = t.clientX - startX;
-            const dy = t.clientY - startY;
-            el.scrollLeft = startScrollLeft - dx;
-            el.scrollTop = startScrollTop - dy;
-            e.preventDefault();
-        }, { passive: false });
-        el.addEventListener('touchend', () => { isDown = false; touchId = null; }, { passive: true });
-        el.addEventListener('touchcancel', () => { isDown = false; touchId = null; }, { passive: true });
-        el.addEventListener('touchmove', (e) => {
-            if (isInteractiveTarget(e.target)) return;
-            if (el.scrollWidth > el.clientWidth) e.preventDefault();
-        }, { passive: false });
+        const el = document.getElementById('rosterContainer'); if (!el) return; if (el.__dragScrollBound) return; el.__dragScrollBound = true;
+        let isDown = false; let startX; let startScrollLeft;
+        el.addEventListener('mousedown', (e) => { if(['INPUT','SELECT'].includes(e.target.tagName)) return; isDown = true; startX = e.pageX - el.offsetLeft; startScrollLeft = el.scrollLeft; });
+        el.addEventListener('mouseleave', () => { isDown = false; });
+        el.addEventListener('mouseup', () => { isDown = false; });
+        el.addEventListener('mousemove', (e) => { if (!isDown) return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const walk = (x - startX) * 2; el.scrollLeft = startScrollLeft - walk; });
     },
 
     isSlotApplicable(locName, time) {
@@ -1204,8 +763,6 @@ const rosterSystem = {
         const { loc, time, index } = event.target.dataset; 
         this.generatedRoster[loc][time][parseInt(index, 10)] = event.target.value; 
         this.validateAllCells(); 
-        
-        // Auto Save on change
         window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
         this.triggerSaveIndicator();
     },
@@ -1232,7 +789,6 @@ const rosterSystem = {
     },
     validateAllCells() {
         document.querySelectorAll('td.conflict-cell').forEach(cell => cell.classList.remove('conflict-cell')); const timeSlotUsage = {};
-        
         document.querySelectorAll('.roster-input').forEach(input => {
             const time = input.dataset.time; const cell = input.closest('td'); const inputValue = input.value.trim(); if (!time || !inputValue) return;
             if (!timeSlotUsage[time]) timeSlotUsage[time] = {}; const staffIds = inputValue.split(/[\s,;\/]+/).filter(id => id);
