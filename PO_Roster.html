@@ -711,7 +711,197 @@ const rosterSystem = {
         return true;
     },
 
-    displayRoster(roster) {
+
+    // Build a compact list of ACTIVE staff who are actually assigned anywhere in the roster (for the selected day)
+    getAssignedActiveStaff(roster) {
+        const assignedIds = new Set();
+        this.OUTPUT_ORDER.forEach(loc => {
+            this.ROSTER_TIMES.forEach(time => {
+                const arr = roster?.[loc]?.[time] || [];
+                arr.forEach(val => {
+                    if (!val) return;
+                    String(val).split(/[\s,\/|]+/).filter(Boolean).forEach(id => assignedIds.add(id));
+                });
+            });
+        });
+
+        const rows = [];
+        assignedIds.forEach(id => {
+            const staff = this.staffDataCache.find(s => s.staffId === id);
+            if (!staff) return;
+            if (staff.attendance !== 'Yes') return; // active only
+            rows.push({
+                staffId: staff.staffId || id,
+                name: staff.name || '',
+                breakStart: staff.breakStart || '',
+                breakEnd: staff.breakEnd || ''
+            });
+        });
+        return rows;
+    },
+
+    renderBreakTable(roster) {
+    const rows = this.getAssignedActiveStaff(roster);
+
+    // Helpers for time math (night shift ordering)
+    const timeToMinutes = (t) => {
+        if (!t || typeof t !== 'string' || !t.includes(':')) return NaN;
+        const [h, m] = t.split(':').map(n => parseInt(n, 10));
+        if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+        return (h * 60) + m;
+    };
+    const toShiftMinute = (t) => {
+        const base = timeToMinutes(t);
+        if (Number.isNaN(base)) return NaN;
+        // Treat early morning as "next day" so 00:xx comes after 23:xx
+        return (base < 12 * 60) ? (base + 24 * 60) : base;
+    };
+
+    // Build interval metadata + detect overlaps
+    const enriched = rows.map(r => {
+        const startMin = toShiftMinute(r.breakStart);
+        let endMin = toShiftMinute(r.breakEnd);
+        let valid = !(Number.isNaN(startMin) || Number.isNaN(endMin));
+        if (valid && endMin <= startMin) endMin += 24 * 60; // cross-midnight (or bad end) -> next day
+        return {
+            ...r,
+            _startMin: startMin,
+            _endMin: endMin,
+            _valid: valid,
+            _overlap: false
+        };
+    });
+
+    // Overlap marking (only among valid intervals)
+    const validIdx = enriched
+        .map((r, i) => ({ r, i }))
+        .filter(x => x.r._valid)
+        .sort((a, b) => a.r._startMin - b.r._startMin || String(a.r.staffId).localeCompare(String(b.r.staffId)));
+
+    for (let k = 0; k < validIdx.length; k++) {
+        const cur = validIdx[k].r;
+        // compare with any previous interval that still extends beyond cur.start
+        for (let j = k - 1; j >= 0; j--) {
+            const prev = validIdx[j].r;
+            if (prev._endMin <= cur._startMin) break; // no more possible overlaps
+            // overlap
+            prev._overlap = true;
+            cur._overlap = true;
+        }
+    }
+
+    // Sort by break start time (shift order), then by ID
+    enriched.sort((a, b) => {
+        const aKey = a._valid ? a._startMin : Number.POSITIVE_INFINITY;
+        const bKey = b._valid ? b._startMin : Number.POSITIVE_INFINITY;
+        if (aKey !== bKey) return aKey - bKey;
+        return String(a.staffId).localeCompare(String(b.staffId));
+    });
+
+    if (!enriched.length) {
+        return `<div class="border border-slate-200 rounded bg-slate-50 p-3 text-xs text-slate-500">
+                    <div class="font-bold text-slate-600 mb-1">Break Time (Assigned Staff)</div>
+                    <div>No active assigned staff found for this roster.</div>
+                </div>`;
+    }
+
+    const rowHtml = enriched.map(r => {
+        const overlapClass = r._overlap ? "bg-rose-50" : "";
+        const leftAccent = r._overlap ? "border-l-4 border-rose-500" : "";
+        const badge = r._overlap
+            ? `<span class="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold bg-rose-100 text-rose-700">OVERLAP</span>`
+            : "";
+        return `
+            <tr class="border-b border-slate-200 last:border-b-0 ${overlapClass} ${leftAccent}">
+                <td class="px-2 py-1 font-mono font-bold text-slate-700 whitespace-nowrap">${r.staffId}</td>
+                <td class="px-2 py-1 text-slate-700 whitespace-nowrap">${r.name}</td>
+                <td class="px-2 py-1 font-mono font-bold text-slate-700 whitespace-nowrap">
+                    ${(r.breakStart || '--:--')} - ${(r.breakEnd || '--:--')}
+                    ${badge}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // Timeline bar view (20:00 -> 08:00 next day)
+    const shiftStart = 20 * 60;
+    const shiftEnd = (24 + 8) * 60; // 08:00 next day
+    const total = shiftEnd - shiftStart;
+
+    const ticks = [
+        "20:00","22:00","00:00","02:00","04:00","06:00","08:00"
+    ].map(t => {
+        const m = toShiftMinute(t);
+        const left = ((m - shiftStart) / total) * 100;
+        return `<div class="absolute top-0 bottom-0" style="left:${left}%;">
+                    <div class="w-px h-full bg-slate-200"></div>
+                    <div class="mt-1 -translate-x-1/2 text-[9px] font-mono text-slate-500 whitespace-nowrap">${t}</div>
+                </div>`;
+    }).join('');
+
+    const bars = enriched
+        .filter(r => r._valid)
+        .map(r => {
+            const left = ((r._startMin - shiftStart) / total) * 100;
+            const width = ((r._endMin - r._startMin) / total) * 100;
+            const segClass = r._overlap ? "bg-rose-500" : "bg-indigo-500";
+            return `
+                <div class="flex items-center gap-2 py-1">
+                    <div class="w-28 shrink-0">
+                        <div class="text-[10px] font-mono font-bold text-slate-700">${r.staffId}</div>
+                        <div class="text-[9px] text-slate-500 truncate">${r.name}</div>
+                    </div>
+                    <div class="relative flex-1 h-2 bg-slate-200 rounded overflow-hidden">
+                        <div class="absolute top-0 h-full ${segClass} rounded" style="left:${left}%; width:${Math.max(0.5, width)}%;"></div>
+                    </div>
+                    <div class="w-20 shrink-0 text-right text-[9px] font-mono text-slate-500">${r.breakStart}–${r.breakEnd}</div>
+                </div>
+            `;
+        }).join('');
+
+    const timeline = `
+        <div class="mt-3 border border-slate-200 rounded bg-white overflow-hidden">
+            <div class="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                <div class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Break Timeline</div>
+                <div class="text-[10px] text-slate-500">20:00 → 08:00 (next day) • Overlaps shown in red</div>
+            </div>
+            <div class="p-3">
+                <div class="relative h-6">
+                    ${ticks}
+                </div>
+                <div class="mt-2">
+                    ${bars || `<div class="text-xs text-slate-500">No valid break times to show on the timeline.</div>`}
+                </div>
+            </div>
+        </div>
+    `;
+
+    return `
+        <div class="border border-slate-200 rounded bg-white overflow-hidden">
+            <div class="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="coffee" class="w-4 h-4 text-indigo-600"></i>
+                    <div class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Break Time (Assigned Staff)</div>
+                </div>
+                <div class="text-[10px] font-mono font-bold text-slate-500">${enriched.length} staff</div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-[10px]">
+                    <thead class="bg-slate-50">
+                        <tr class="border-b border-slate-200">
+                            <th class="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                            <th class="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider">Name</th>
+                            <th class="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider">Break</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowHtml}</tbody>
+                </table>
+            </div>
+        </div>
+        ${timeline}
+    `;
+},
+displayRoster(roster) {
         const container = document.getElementById("rosterContainer");
         const tableHead = `<thead><tr><th class="p-2 bg-slate-50 border-b border-slate-200 text-left sticky left-0 z-10 text-[10px] text-slate-500 font-bold uppercase tracking-wider">Location</th>${this.ROSTER_TIMES.map(t => `<th class="p-1 text-center bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 font-bold border-l border-slate-100">${t}</th>`).join('')}</tr></thead>`;
         
@@ -754,7 +944,9 @@ const rosterSystem = {
             return `<tr>${locationCell}${timeCells}</tr>`;
         }).join('');
 
-        container.innerHTML = `<table class="styled-table w-full text-left">${tableHead}<tbody>${tableBody}</tbody></table>`;
+        const mainTableHtml = `<table class="styled-table w-full text-left">${tableHead}<tbody>${tableBody}</tbody></table>`;
+        const breakTableHtml = this.renderBreakTable(roster);
+        container.innerHTML = `<div class="flex flex-col gap-3">${mainTableHtml}${breakTableHtml}</div>`;
         container.querySelectorAll('.roster-input').forEach(input => input.addEventListener('change', (e) => this.handleCellChange(e)));
         this.applyPadlocksVisuals(); this.validateAllCells(); this.enableRosterDragScroll(); lucide.createIcons();
     },
@@ -823,6 +1015,24 @@ const rosterSystem = {
                 }); return [locName, ...rowData];
             });
             doc.autoTable({ head: [['Location', ...this.ROSTER_TIMES]], body: mainRosterBody, startY: 20, theme: 'grid', styles: { fontSize: 6, cellPadding: 1, halign: 'center', valign: 'middle', lineColor: [200, 200, 200] }, headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 7, fontStyle: 'bold' }, columnStyles: { 0: { fontStyle: "bold", cellWidth: 28, halign: 'left', fillColor: [241, 245, 249] } } });
+
+            // --- Break time table (assigned ACTIVE staff) ---
+            const assignedActive = this.getAssignedActiveStaff(this.generatedRoster);
+            const breakBody = assignedActive.map(s => [s.staffId, s.name, `${(s.breakStart || '--:--')} - ${(s.breakEnd || '--:--')}`]);
+            if (breakBody.length) {
+                const y = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 6 : 120;
+                doc.setFontSize(10);
+                doc.text('Break Time (Assigned Staff)', 14, y);
+                doc.autoTable({
+                    head: [['ID', 'Name', 'Break']],
+                    body: breakBody,
+                    startY: y + 2,
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 1.5, valign: 'middle', lineColor: [200, 200, 200] },
+                    headStyles: { fillColor: [241, 245, 249], textColor: 30, fontStyle: 'bold' },
+                    columnStyles: { 0: { cellWidth: 18, fontStyle: 'bold' }, 1: { cellWidth: 55 }, 2: { cellWidth: 30, fontStyle: 'bold' } }
+                });
+            }
             const blobUrl = doc.output('bloburl'); document.getElementById('pdfDownloadLink').href = blobUrl; document.getElementById('pdfPreview').src = blobUrl; document.getElementById('pdfModal').classList.remove('hidden'); document.getElementById('pdfModal').classList.add('flex');
         } catch (e) { console.error(e); this.showToast('Error creating PDF', 'error'); }
     },
