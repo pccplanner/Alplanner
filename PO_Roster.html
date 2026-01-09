@@ -308,7 +308,7 @@
             </div>
             <div id="rosterActionsContainer" class="hidden absolute bottom-4 right-4 flex gap-2 z-20">
                 <button id="copyTSVBtn" class="bg-white border border-slate-300 text-slate-600 hover:text-slate-800 hover:border-slate-400 p-2 rounded-full shadow-lg flex items-center justify-center w-10 h-10 transition-all" title="Copy TSV"><i data-lucide="copy" class="w-4 h-4"></i></button>
-                <button id="downloadPDFBtn" class="bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-full shadow-lg flex items-center justify-center w-10 h-10 transition-all" title="Export PDF"><i data-lucide="file-down" class="w-4 h-4"></i></button>
+                <button id="downloadPDFBtn" type="button" class="bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-full shadow-lg flex items-center justify-center w-10 h-10 transition-all" title="Export PDF"><i data-lucide="file-down" class="w-4 h-4"></i></button>
             </div>
         </div>
     </div>
@@ -386,7 +386,14 @@ const rosterSystem = {
     setupUI() {
         document.getElementById("generateRosterBtn").addEventListener("click", () => this.runRosterGeneration());
         document.getElementById("copyTSVBtn").addEventListener("click", () => this.copyTSV());
-        document.getElementById("downloadPDFBtn").addEventListener("click", () => this.downloadPDF());
+        // Robust PDF download handler (works even if UI re-renders on mobile)
+        document.addEventListener("click", (ev) => {
+            const btn = ev.target.closest && ev.target.closest("#downloadPDFBtn");
+            if (!btn) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.downloadPDF();
+        }, { passive: false });
         document.getElementById("modalStartLoc").addEventListener("change", (e) => this.handleStartLocChange(e));
         const dateInput = document.getElementById("rosterDate");
         dateInput.addEventListener("change", (e) => { this.handleDateChange(e.target.value); });
@@ -1212,6 +1219,15 @@ displayRoster(roster) {
         navigator.clipboard.writeText(`Location\t${this.ROSTER_TIMES.join("\t")}\n${tsv}`).then(() => this.showToast("Copied", "success"), () => this.showToast("Failed", "error"));
     },
     downloadPDF() {
+        // Ensure libs are ready (prevents "sometimes works" on slow mobile loads)
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            this.showToast("PDF engine not loaded yet. Try again in 2s.", "warning");
+            return;
+        }
+        if (!window.jspdf.jsPDF.API || !window.jspdf.jsPDF.API.autoTable) {
+            // Some builds expose autoTable via doc.autoTable after plugin load; verify by creating doc
+            // We'll still proceed and catch if missing.
+        }
         if (!this.generatedRoster) return this.showToast('No roster', 'error');
         try {
             const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
