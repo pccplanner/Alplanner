@@ -221,6 +221,19 @@
         .saved-indicator { font-size: 10px; font-weight: 600; color: #10b981; opacity: 0; transition: opacity 0.5s; }
         .saved-indicator.visible { opacity: 1; }
 
+
+/* --- ROSTER VISIBILITY TOGGLE --- */
+body.roster-hidden #rosterPanel { display: none !important; }
+body.roster-hidden #leftPanel { 
+  width: 100% !important; 
+  max-width: none !important; 
+  flex: 1 1 auto !important; 
+}
+body.roster-hidden #mainSplit { flex-direction: column !important; }
+@media (min-width: 768px){
+  body.roster-hidden #mainSplit { flex-direction: row !important; }
+}
+
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
@@ -234,6 +247,9 @@
             <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Command Center</h1>
             <button onclick="rosterSystem.openSettings()" class="ml-2 text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-slate-100" title="Configuration">
                 <i data-lucide="settings" class="w-4 h-4"></i>
+            </button>
+            <button id="toggleRosterBtn" onclick="toggleRosterVisibility()" class="ml-1 text-slate-400 hover:text-indigo-600 transition" title="Hide roster panel">
+                <i data-lucide="eye-off" class="w-4 h-4"></i>
             </button>
         </div>
         <div class="hidden md:flex items-center gap-6">
@@ -1264,7 +1280,34 @@ displayRoster(roster) {
     },
     closePdfModal() { const preview = document.getElementById('pdfPreview'); preview.src = 'about:blank'; document.getElementById('pdfModal').classList.add('hidden'); document.getElementById('pdfModal').classList.remove('flex'); }
 };
-document.addEventListener('DOMContentLoaded', () => rosterSystem.init());
+document.addEventListener('DOMContentLoaded', () => { rosterSystem.init(); applyRosterVisibilityPref(); });
+
+function setRosterHidden(hidden){
+  document.body.classList.toggle('roster-hidden', !!hidden);
+  try { localStorage.setItem('roster_hide', hidden ? '1' : '0'); } catch(e){}
+  const btn = document.getElementById('toggleRosterBtn');
+  if(btn){
+    btn.title = hidden ? 'Show roster panel' : 'Hide roster panel';
+    const icon = btn.querySelector('i[data-lucide]');
+    if(icon){
+      icon.setAttribute('data-lucide', hidden ? 'eye' : 'eye-off');
+      // refresh lucide icons
+      if(window.lucide && typeof window.lucide.createIcons === 'function'){
+        window.lucide.createIcons();
+      }
+    }
+  }
+}
+function toggleRosterVisibility(){
+  const hidden = document.body.classList.contains('roster-hidden');
+  setRosterHidden(!hidden);
+}
+function applyRosterVisibilityPref(){
+  let pref = '0';
+  try { pref = localStorage.getItem('roster_hide') || '0'; } catch(e){}
+  setRosterHidden(pref === '1');
+}
+
 </script>
 </body>
 </html>
