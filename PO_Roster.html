@@ -378,7 +378,8 @@ const rosterSystem = {
     durations: {}, breakDuration: 60, currentDateStr: "", rosterUnsubscribe: null,
 
     init() { 
-        lucide.createIcons(); 
+        lucide.createIcons();
+        this.bindModalBreakAutoCalc(); 
         this.setupUI(); 
     },
 
@@ -429,6 +430,34 @@ const rosterSystem = {
         if (!startTimeStr) return ""; const [h, m] = startTimeStr.split(':').map(Number); let totalMins = h * 60 + m + parseInt(durationMins); let newH = Math.floor(totalMins / 60) % 24; let newM = totalMins % 60; return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
     },
 
+    // Apply global break duration change to all staff cards (updates break END times)
+    async applyGlobalBreakDurationToStaff(durationMins) {
+        try {
+            const staffList = Array.isArray(this.staffDataCache) ? this.staffDataCache : [];
+            const updates = [];
+            staffList.forEach(staff => {
+                const start = staff.breakStart;
+                if (!start) return;
+                const newEnd = this.calculateEndTime(start, durationMins);
+                if (newEnd && staff.breakEnd !== newEnd) {
+                    staff.breakEnd = newEnd; // update local cache immediately
+                    if (staff.firebaseId) {
+                        updates.push(window.firebaseOperations.updateStaff(staff.firebaseId, { breakEnd: newEnd }));
+                    }
+                }
+            });
+            if (updates.length) await Promise.all(updates);
+            // Re-render cards + break table so UI reflects the new time-out
+            this.renderStaffCards(this.staffDataCache);
+            this.syncOpenEditModalBreakFields();
+            if (typeof this.renderBreakTable === 'function') this.renderBreakTable();
+        } catch (e) {
+            console.error("applyGlobalBreakDurationToStaff failed:", e);
+            this.showToast("Failed to apply break duration", "error");
+        }
+    },
+
+
     renderOptions(currentStaffId) {
         const startSelect = document.getElementById("modalStartLoc"); const vpSelect = document.getElementById("modalVPSlot");
         startSelect.innerHTML = '<option value="">Any</option>'; vpSelect.innerHTML = '<option value="">None</option>';
@@ -448,11 +477,100 @@ const rosterSystem = {
         if (this.currentFilter === 'present') filteredList = staffList.filter(s => s.attendance === 'Yes'); if (this.currentFilter === 'hhmd') filteredList = staffList.filter(s => s.hhmd === 'Yes');
         if (filteredList.length === 0) { grid.innerHTML = `<div class="col-span-2 text-center py-6 text-xs text-slate-400 italic">No staff found.</div>`; return; }
         filteredList.forEach(staff => {
-            const isPresent = staff.attendance === 'Yes'; const initials = staff.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(); const colorIndex = (staff.staffId.charCodeAt(staff.staffId.length - 1) || 0) % 8;
-            let indicators = ""; if (staff.startLoc) indicators += `<div class="w-2 h-2 bg-indigo-500 rounded-full shadow-sm ring-1 ring-white"></div>`; if (staff.vpSlot) indicators += `<div class="w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-white"></div>`; if (indicators) indicators = `<div class="absolute -top-1 -right-1 flex gap-0.5">${indicators}</div>`;
-            const card = document.createElement('div'); card.className = `staff-card h-16 rounded flex items-center pr-2 pl-2 gap-3 ${!isPresent ? 'inactive' : ''}`;
-            card.innerHTML = `<button onclick="rosterSystem.toggleAttendance('${staff.firebaseId}', '${staff.attendance}')" class="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${isPresent ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}"><i data-lucide="power" class="w-4 h-4"></i></button><div class="relative w-10 h-10 rounded shrink-0 avatar-bg-${colorIndex} flex items-center justify-center text-white font-bold text-xs cursor-pointer avatar shadow-sm" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">${initials}${indicators}</div><div class="flex flex-col min-w-0 flex-1 cursor-pointer justify-center" onclick="rosterSystem.openEditModal('${staff.firebaseId}')"><div class="flex items-center gap-1.5 mb-0.5"><span class="text-sm font-bold text-slate-800 truncate leading-tight">${staff.name}</span>${staff.hhmd === 'Yes' ? `<div class="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white" title="HHMD Qualified"></div>` : ''}</div><div class="flex items-center justify-between text-xs w-full"><span class="font-mono font-bold text-slate-600 bg-slate-100 px-1 rounded">${staff.staffId}</span><div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100"><i data-lucide="clock" class="w-3 h-3 text-slate-400"></i><span>${staff.breakStart}-${staff.breakEnd}</span></div></div></div>`; grid.appendChild(card);
-        }); lucide.createIcons();
+            const isPresent = staff.attendance === 'Yes';
+            const initials = staff.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+            const colorIndex = (staff.staffId.charCodeAt(staff.staffId.length - 1) || 0) % 8;
+
+            let indicators = "";
+            if (staff.startLoc) indicators += `<div class="w-2 h-2 bg-indigo-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
+            if (staff.vpSlot) indicators += `<div class="w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
+            if (indicators) indicators = `<div class="absolute -top-1 -right-1 flex gap-0.5">${indicators}</div>`;
+
+            // Quick VP assignment options (advance assignment from Command Center)
+            const vpOptionsHTML = [
+                `<option value="">VP: None</option>`,
+                ...Object.entries(this.VP_CYCLES).map(([key, cfg]) => {
+                    const isTakenByOther = this.staffDataCache.some(s => s.vpSlot === key && s.firebaseId !== staff.firebaseId);
+                    const selected = (staff.vpSlot === key) ? 'selected' : '';
+                    const disabled = isTakenByOther ? 'disabled' : '';
+                    const takenTxt = isTakenByOther ? ' (Taken)' : '';
+                    return `<option value="${key}" ${selected} ${disabled}>VP ${cfg.label}${takenTxt}</option>`;
+                })
+            ].join('');
+
+            const card = document.createElement('div');
+            card.className = `staff-card h-16 rounded flex items-center pr-2 pl-2 gap-3 ${!isPresent ? 'inactive' : ''}`;
+
+            card.innerHTML =
+`<button onclick="rosterSystem.toggleAttendance('${staff.firebaseId}', '${staff.attendance}')" class="w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${isPresent ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}"><i data-lucide="power" class="w-4 h-4"></i></button>
+<div class="relative w-10 h-10 rounded shrink-0 avatar-bg-${colorIndex} flex items-center justify-center text-white font-bold text-xs cursor-pointer avatar shadow-sm" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">${initials}${indicators}</div>
+<div class="flex flex-col min-w-0 flex-1 cursor-pointer justify-center" onclick="rosterSystem.openEditModal('${staff.firebaseId}')">
+  <div class="flex items-center gap-1.5 mb-0.5">
+    <span class="text-sm font-bold text-slate-800 truncate leading-tight">${staff.name}</span>
+    ${staff.hhmd === 'Yes' ? `<div class="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white" title="HHMD Qualified"></div>` : ''}
+  </div>
+  <div class="flex items-center justify-between text-xs w-full">
+    <span class="font-mono font-bold text-slate-600 bg-slate-100 px-1 rounded">${staff.staffId}</span>
+    <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+        <i data-lucide="clock" class="w-3 h-3 text-slate-400"></i>
+        <span>${staff.breakStart}-${staff.breakEnd}</span>
+      </div>
+      <select class="vp-quick text-[10px] font-bold bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-700 max-w-[92px]" data-fbid="${staff.firebaseId}" title="Advance Vertical Patrol assignment">
+        ${vpOptionsHTML}
+      </select>
+    </div>
+  </div>
+</div>`;
+            grid.appendChild(card);
+        });
+
+// Bind quick VP assignment events (prevent modal open when interacting with select)
+grid.querySelectorAll('.vp-quick').forEach(sel => {
+            sel.addEventListener('click', (e) => e.stopPropagation());
+            sel.addEventListener('mousedown', (e) => e.stopPropagation());
+            sel.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+            sel.addEventListener('change', (e) => {
+                e.stopPropagation();
+                rosterSystem.setVPSlotQuick(e.target.dataset.fbid, e.target.value);
+            });
+        });
+        lucide.createIcons();
+    },
+    
+    // Quick advance assignment for Vertical Patrol (Command Center card level)
+    async setVPSlotQuick(firebaseId, newSlot) {
+        const staff = this.staffDataCache.find(s => s.firebaseId === firebaseId);
+        if (!staff) return;
+
+        // No change
+        if ((staff.vpSlot || "") === (newSlot || "")) return;
+
+        // If assigning a VP slot that is already taken by someone else, offer to swap
+        if (newSlot) {
+            const other = this.staffDataCache.find(s => s.vpSlot === newSlot && s.firebaseId !== firebaseId);
+            if (other) {
+                const label = this.VP_CYCLES?.[newSlot]?.label || newSlot;
+                const ok = confirm(`VP ${label} is already assigned to ${other.name} (${other.staffId}).\n\nSwap it to ${staff.name} (${staff.staffId})?`);
+                if (!ok) {
+                    // Re-render to revert the dropdown selection
+                    this.renderStaffCards(this.staffDataCache);
+                    return;
+                }
+                // Optimistic update
+                other.vpSlot = "";
+                await window.firebaseOperations.updateStaff(other.firebaseId, { vpSlot: "" });
+            }
+        }
+
+        // Optimistic update for immediate UI
+        staff.vpSlot = newSlot || "";
+        await window.firebaseOperations.updateStaff(firebaseId, { vpSlot: newSlot || "" });
+
+        this.showToast("Vertical Patrol updated", "success");
+        this.renderStaffCards(this.staffDataCache);
+        // If roster already generated, re-validate / reflect predefined VP assignments
+        if (this.generatedRoster) this.validateAllCells();
     },
 
     updateStats() {
@@ -462,18 +580,72 @@ const rosterSystem = {
     updateStaffDatalist() {
         const datalist = document.getElementById('staff-id-list'); if (!datalist) return; const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes'); datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
     },
+// ---- Break time utilities (used by cards + edit modal + break table) ----
+timeToMinutesHHMM(t) {
+    if (!t || typeof t !== 'string' || !t.includes(':')) return NaN;
+    const [h, m] = t.split(':').map(n => parseInt(n, 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+    return (h * 60) + m;
+},
+minutesToHHMM(totalMin) {
+    let m = totalMin % (24 * 60);
+    if (m < 0) m += 24 * 60;
+    const hh = String(Math.floor(m / 60)).padStart(2, '0');
+    const mm = String(m % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+},
+addMinutesToHHMM(startHHMM, addMins) {
+    const base = this.timeToMinutesHHMM(startHHMM);
+    if (Number.isNaN(base)) return "00:00";
+    return this.minutesToHHMM(base + (parseInt(addMins, 10) || 0));
+},
+computeBreakEndFromStart(startHHMM) {
+    return this.addMinutesToHHMM(startHHMM, this.breakDuration || 60);
+},
+syncOpenEditModalBreakFields() {
+    const modal = document.getElementById('staffModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    const fbId = document.getElementById('modalFirebaseId')?.value;
+    if (!fbId) return;
+    const staff = this.staffDataCache.find(s => s.firebaseId === fbId);
+    if (!staff) return;
+
+    const startEl = document.getElementById('modalBreakStart');
+    const endEl = document.getElementById('modalBreakEnd');
+    if (!startEl || !endEl) return;
+
+    // Keep the user's selected start time, but always sync end time from latest staff record.
+    startEl.value = staff.breakStart || startEl.value || "22:00";
+    endEl.value = staff.breakEnd || this.computeBreakEndFromStart(startEl.value);
+},
+bindModalBreakAutoCalc() {
+    const startEl = document.getElementById('modalBreakStart');
+    const endEl = document.getElementById('modalBreakEnd');
+    if (!startEl || !endEl) return;
+
+    // Whenever break START changes in the edit modal, auto recompute END using global break duration.
+    startEl.addEventListener('change', () => {
+        endEl.value = this.computeBreakEndFromStart(startEl.value);
+    });
+    startEl.addEventListener('input', () => {
+        // lightweight live update (helps iOS picker)
+        endEl.value = this.computeBreakEndFromStart(startEl.value);
+    });
+},
+
     toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, { attendance: currentStatus === 'Yes' ? 'No' : 'Yes' }); },
     openAddModal() {
-        document.getElementById('modalTitle').innerText = "Add Staff"; document.getElementById('modalFirebaseId').value = ""; document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; document.getElementById('modalName').value = ""; document.getElementById('modalBreakStart').value = "22:00"; document.getElementById('modalBreakEnd').value = "00:00"; this.renderOptions(null); document.getElementById('modalStartLoc').value = ""; document.getElementById('modalVPSlot').value = ""; document.getElementById('modalHHMD').checked = false; document.getElementById('modalDeleteBtn').classList.add('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
+        document.getElementById('modalTitle').innerText = "Add Staff"; document.getElementById('modalFirebaseId').value = ""; document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; document.getElementById('modalName').value = ""; document.getElementById('modalBreakStart').value = "22:00"; document.getElementById('modalBreakEnd').value = this.computeBreakEndFromStart("22:00"); this.renderOptions(null); document.getElementById('modalStartLoc').value = ""; document.getElementById('modalVPSlot').value = ""; document.getElementById('modalHHMD').checked = false; document.getElementById('modalDeleteBtn').classList.add('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
     },
     openEditModal(id) {
         const staff = this.staffDataCache.find(s => s.firebaseId === id); if(!staff) return;
-        document.getElementById('modalTitle').innerText = "Edit Staff"; document.getElementById('modalFirebaseId').value = staff.firebaseId; document.getElementById('modalStaffId').value = staff.staffId; document.getElementById('modalName').value = staff.name; document.getElementById('modalBreakStart').value = staff.breakStart || "22:00"; document.getElementById('modalBreakEnd').value = "00:00"; this.renderOptions(staff.firebaseId); document.getElementById('modalStartLoc').value = staff.startLoc || ""; document.getElementById('modalVPSlot').value = staff.vpSlot || ""; document.getElementById('modalHHMD').checked = staff.hhmd === 'Yes'; document.getElementById('modalDeleteBtn').classList.remove('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
+        document.getElementById('modalTitle').innerText = "Edit Staff"; document.getElementById('modalFirebaseId').value = staff.firebaseId; document.getElementById('modalStaffId').value = staff.staffId; document.getElementById('modalName').value = staff.name; document.getElementById('modalBreakStart').value = staff.breakStart || "22:00"; const __bs = document.getElementById('modalBreakStart').value; const __beRaw = (staff.breakEnd || "").trim(); const __be = (!__beRaw || (__beRaw === "00:00" && __bs !== "00:00")) ? this.computeBreakEndFromStart(__bs) : __beRaw; document.getElementById('modalBreakEnd').value = __be; this.renderOptions(staff.firebaseId); document.getElementById('modalStartLoc').value = staff.startLoc || ""; document.getElementById('modalVPSlot').value = staff.vpSlot || ""; document.getElementById('modalHHMD').checked = staff.hhmd === 'Yes'; document.getElementById('modalDeleteBtn').classList.remove('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
         this.handleStartLocChange({target: {value: staff.startLoc || ""}});
     },
     closeModal() { document.getElementById('staffModal').classList.add('hidden'); document.getElementById('staffModal').classList.remove('flex'); },
     async saveStaffFromModal() {
         const id = document.getElementById('modalFirebaseId').value; const data = { staffId: document.getElementById('modalStaffId').value, name: document.getElementById('modalName').value || "Unknown", breakStart: document.getElementById('modalBreakStart').value, breakEnd: document.getElementById('modalBreakEnd').value, hhmd: document.getElementById('modalHHMD').checked ? 'Yes' : 'No', startLoc: document.getElementById('modalStartLoc').value, vpSlot: document.getElementById('modalVPSlot').value, attendance: 'Yes' };
+        if (!data.breakEnd) data.breakEnd = this.computeBreakEndFromStart(data.breakStart);
         if (id) { delete data.attendance; await window.firebaseOperations.updateStaff(id, data); this.showToast("Saved", "success"); } else { await window.firebaseOperations.addStaff(data); } this.closeModal();
     },
     deleteCurrentStaff() { const id = document.getElementById('modalFirebaseId').value; if(confirm("Remove?")) { window.firebaseOperations.deleteStaff(id); this.closeModal(); } },
@@ -485,10 +657,26 @@ const rosterSystem = {
     },
     closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); document.getElementById('settingsModal').classList.remove('flex'); },
     async saveSettings() {
-        const newBreakDur = parseInt(document.getElementById('settingBreakDuration').value) || 60; const newDurations = {};
-        this.OUTPUT_ORDER.forEach(locName => { const val = document.getElementById(`dur-${locName.replace(/\s+/g, '-')}`).value; newDurations[locName] = parseInt(val) || 60; });
+        const newBreakDur = parseInt(document.getElementById('settingBreakDuration').value) || 60;
+        const newDurations = {};
+        this.OUTPUT_ORDER.forEach(locName => {
+            const val = document.getElementById(`dur-${locName.replace(/\s+/g, '-')}`).value;
+            newDurations[locName] = parseInt(val) || 60;
+        });
+
+        // 1) Save settings (durations + global break duration)
         await window.firebaseOperations.saveSettings({ locationDurations: newDurations, breakDuration: newBreakDur });
-        this.durations = newDurations; this.breakDuration = newBreakDur; this.showToast("Config Saved", "success"); this.closeSettings(); if(this.generatedRoster) this.validateAllCells();
+        this.durations = newDurations;
+        this.breakDuration = newBreakDur;
+
+        // 2) IMPORTANT: Apply the new global break duration to staff break END times
+        //    so the Staff Command Center cards reflect the updated "time out".
+        await this.applyGlobalBreakDurationToStaff(newBreakDur);
+        this.syncOpenEditModalBreakFields();
+
+        this.showToast("Saved", "success");
+        this.closeSettings();
+        if (this.generatedRoster) this.validateAllCells();
     },
 
     shuffleBreaks() {
@@ -757,14 +945,30 @@ const rosterSystem = {
         return (base < 12 * 60) ? (base + 24 * 60) : base;
     };
 
+    const normalizeEnd = (startHHMM, endHHMM) => {
+        const s = (startHHMM || "").trim();
+        const e = (endHHMM || "").trim();
+        if (!s) return e;
+        // If end is missing OR still the default 00:00 while start is not 00:00,
+        // compute it from the current global break duration so timeline/overlap stay correct.
+        if (!e || (e === "00:00" && s !== "00:00")) return this.computeBreakEndFromStart(s);
+        // If malformed, also compute.
+        if (!e.includes(":")) return this.computeBreakEndFromStart(s);
+        return e;
+    };
+
     // Build interval metadata + detect overlaps
     const enriched = rows.map(r => {
-        const startMin = toShiftMinute(r.breakStart);
-        let endMin = toShiftMinute(r.breakEnd);
+        const startHHMM = (r.breakStart || '').trim();
+        const endHHMM = normalizeEnd(startHHMM, r.breakEnd);
+        const startMin = toShiftMinute(startHHMM);
+        let endMin = toShiftMinute(endHHMM);
         let valid = !(Number.isNaN(startMin) || Number.isNaN(endMin));
-        if (valid && endMin <= startMin) endMin += 24 * 60; // cross-midnight (or bad end) -> next day
+        if (valid && endMin <= startMin) endMin += 24 * 60; // cross-midnight -> next day
         return {
             ...r,
+            breakStart: startHHMM,
+            breakEnd: endHHMM,
             _startMin: startMin,
             _endMin: endMin,
             _valid: valid,
@@ -804,6 +1008,11 @@ const rosterSystem = {
                     <div>No active assigned staff found for this roster.</div>
                 </div>`;
     }
+
+    const overlapCount = enriched.filter(r => r._overlap).length;
+    const overlapBanner = overlapCount
+        ? `<div class="mx-3 mt-3 mb-1 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] text-rose-700 font-bold">⚠ ${overlapCount} staff break(s) overlapping. Please adjust to avoid clashes.</div>`
+        : `<div class="mx-3 mt-3 mb-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 font-bold">✓ No overlapping breaks detected.</div>`;
 
     const rowHtml = enriched.map(r => {
         const overlapClass = r._overlap ? "bg-rose-50" : "";
@@ -885,6 +1094,7 @@ const rosterSystem = {
                 </div>
                 <div class="text-[10px] font-mono font-bold text-slate-500">${enriched.length} staff</div>
             </div>
+            ${overlapBanner}
             <div class="overflow-x-auto">
                 <table class="min-w-full text-[10px]">
                     <thead class="bg-slate-50">
