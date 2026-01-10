@@ -234,6 +234,33 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
   body.roster-hidden #mainSplit { flex-direction: row !important; }
 }
 
+
+
+/* === Break Timeline Start Guide === */
+#breakTimelineRoot .bt-guide{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:0;
+  border-left:2px dotted rgba(100,116,139,0.8);
+  pointer-events:none;
+}
+/* === Break Timeline Drag Handles === */
+#breakTimelineRoot .bt-seg { touch-action: none; cursor: grab; }
+#breakTimelineRoot .bt-seg:active { cursor: grabbing; }
+#breakTimelineRoot .bt-handle {
+  position: absolute;
+  top: -4px;
+  width: 12px;
+  height: calc(100% + 8px);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(15,23,42,0.15);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+#breakTimelineRoot .bt-handle-l { left: -6px; cursor: ew-resize; }
+#breakTimelineRoot .bt-handle-r { right: -6px; cursor: ew-resize; }
+
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
@@ -473,7 +500,7 @@ const rosterSystem = {
             // Re-render cards + break table so UI reflects the new time-out
             this.renderStaffCards(this.staffDataCache);
             this.syncOpenEditModalBreakFields();
-            if (typeof this.renderBreakTable === 'function') this.renderBreakTable();
+            if (this.generatedRoster) this.displayRoster(this.generatedRoster);
         } catch (e) {
             console.error("applyGlobalBreakDurationToStaff failed:", e);
             this.showToast("Failed to apply break duration", "error");
@@ -660,6 +687,154 @@ bindModalBreakAutoCalc() {
     openAddModal() {
         document.getElementById('modalTitle').innerText = "Add Staff"; document.getElementById('modalFirebaseId').value = ""; document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; document.getElementById('modalName').value = ""; document.getElementById('modalBreakStart').value = "22:00"; document.getElementById('modalBreakEnd').value = this.computeBreakEndFromStart("22:00"); this.renderOptions(null); document.getElementById('modalStartLoc').value = ""; document.getElementById('modalVPSlot').value = ""; document.getElementById('modalHHMD').checked = false; document.getElementById('modalDeleteBtn').classList.add('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
     },
+    // === Break Timeline: Drag to adjust break start/end ===
+    initBreakTimelineDrag() {
+        if (this._btDragInit) return;
+        this._btDragInit = true;
+
+        document.addEventListener('pointerdown', (e) => {
+            const root = document.getElementById('breakTimelineRoot');
+            if (!root || !root.contains(e.target)) return;
+
+            const seg = e.target.closest('.bt-seg');
+            if (!seg) return;
+
+            e.preventDefault();
+
+            const staffId = seg.getAttribute('data-staff-id');
+            const mode = 'move'; // fixed-duration: drag moves the window (no resize)
+
+            const track = seg.parentElement; // relative bar track
+            const trackRect = track.getBoundingClientRect();
+            const shiftStart = 20 * 60;
+            const shiftEnd = (24 + 8) * 60;
+            const total = shiftEnd - shiftStart;
+            const snap = 30; // minutes
+
+            const toShiftMin = (hhmm) => {
+                const base = this.timeToMinutesHHMM(hhmm);
+                if (Number.isNaN(base)) return NaN;
+                return (base < shiftStart) ? (base + 24 * 60) : base;
+            };
+            const fromShiftMin = (m) => {
+                // m is in [shiftStart..shiftEnd]
+                let mm = m;
+                if (mm >= 24 * 60) mm -= 24 * 60;
+                return this.minutesToHHMM(mm);
+            };
+            const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+            const snapMin = (v) => Math.round(v / snap) * snap;
+
+            // current mins (fall back: compute end from duration if end is 00:00)
+            let startMin = toShiftMin(seg.getAttribute('data-break-start') || '00:00');
+            let endMin = toShiftMin(seg.getAttribute('data-break-end') || '00:00');
+            if (!Number.isFinite(startMin)) startMin = shiftStart;
+
+            // Always enforce fixed length from Global Break Duration (when start is set)
+            const fixedDur = Number(this.breakDuration || 60);
+            if (seg.getAttribute('data-break-start') && seg.getAttribute('data-break-start') !== '00:00') {
+                endMin = startMin + fixedDur;
+            } else if (!Number.isFinite(endMin)) {
+                endMin = startMin + fixedDur;
+            }
+
+            startMin = clamp(startMin, shiftStart, shiftEnd);
+            endMin = clamp(endMin, shiftStart, shiftEnd);
+            // ensure within window
+            if (endMin - startMin !== fixedDur && seg.getAttribute('data-break-start') !== '00:00') {
+                startMin = clamp(startMin, shiftStart, shiftEnd - fixedDur);
+                endMin = startMin + fixedDur;
+            }
+
+            const pointerId = e.pointerId;
+            seg.setPointerCapture(pointerId);
+
+            const startX = e.clientX;
+            const startStart = startMin;
+            const startEnd = endMin;
+
+            const pxToMin = (dx) => (dx / trackRect.width) * total;
+
+            const renderSeg = (sMin, eMin) => {
+                const leftPct = ((sMin - shiftStart) / total) * 100;
+                const widthPct = ((eMin - sMin) / total) * 100;
+                seg.style.left = `${leftPct}%`;
+                seg.style.width = `${Math.max(0.5, widthPct)}%`;
+
+                const row = seg.closest('.bt-row');
+                if (row) {
+                    const guide = row.querySelector('.bt-guide');
+                    if (guide) guide.style.left = `${leftPct}%`;
+                }
+
+                // update right-side label (the HH:MM–HH:MM text)
+                const row2 = seg.closest('.bt-row');
+                if (row2) {
+                    const lab = row2.querySelector('.bt-range');
+                    if (lab) lab.textContent = `${fromShiftMin(sMin)}–${fromShiftMin(eMin)}`;
+                }
+            };
+
+            const onMove = (ev) => {
+                if (ev.pointerId !== pointerId) return;
+                const dx = ev.clientX - startX;
+                const deltaMin = pxToMin(dx);
+
+                let s = startStart;
+                let en = startEnd;
+
+                const dur = fixedDur;
+                s = snapMin(startStart + deltaMin);
+                s = clamp(s, shiftStart, shiftEnd - dur);
+                en = s + dur;
+                startMin = s;
+                endMin = en;
+                renderSeg(startMin, endMin);
+            };
+
+            const onUp = async (ev) => {
+                if (ev.pointerId !== pointerId) return;
+                seg.releasePointerCapture(pointerId);
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+
+                const breakStart = fromShiftMin(startMin);
+                const breakEnd = fromShiftMin(endMin);
+
+                // Update local cache + persist
+                await this.setStaffBreakByStaffId(staffId, breakStart, breakEnd, true);
+
+                // Refresh UI pieces
+                this.renderStaffCards(this.staffDataCache);
+                this.syncOpenEditModalBreakFields();
+                if (this.generatedRoster) this.displayRoster(this.generatedRoster);
+            };
+
+            document.addEventListener('pointermove', onMove, { passive: false });
+            document.addEventListener('pointerup', onUp, { passive: false });
+        }, { passive: false });
+    },
+
+    async setStaffBreakByStaffId(staffId, breakStart, breakEnd, persist = true) {
+        const staff = this.staffDataCache.find(s => String(s.staffId) === String(staffId));
+        if (!staff) return;
+
+        staff.breakStart = breakStart;
+        staff.breakEnd = breakEnd;
+
+        // If modal is open for this staff, sync fields immediately
+        const fbId = staff.firebaseId;
+        if (persist && fbId && window.firebaseOperations?.updateStaff) {
+            try {
+                await window.firebaseOperations.updateStaff(fbId, { breakStart, breakEnd });
+                this.showToast(`Break updated: ${staffId}`, "success");
+            } catch (e) {
+                console.error("Failed to persist break update:", e);
+                this.showToast("Failed to save break time", "error");
+            }
+        }
+    },
+
     openEditModal(id) {
         const staff = this.staffDataCache.find(s => s.firebaseId === id); if(!staff) return;
         document.getElementById('modalTitle').innerText = "Edit Staff"; document.getElementById('modalFirebaseId').value = staff.firebaseId; document.getElementById('modalStaffId').value = staff.staffId; document.getElementById('modalName').value = staff.name; document.getElementById('modalBreakStart').value = staff.breakStart || "22:00"; const __bs = document.getElementById('modalBreakStart').value; const __beRaw = (staff.breakEnd || "").trim(); const __be = (!__beRaw || (__beRaw === "00:00" && __bs !== "00:00")) ? this.computeBreakEndFromStart(__bs) : __beRaw; document.getElementById('modalBreakEnd').value = __be; this.renderOptions(staff.firebaseId); document.getElementById('modalStartLoc').value = staff.startLoc || ""; document.getElementById('modalVPSlot').value = staff.vpSlot || ""; document.getElementById('modalHHMD').checked = staff.hhmd === 'Yes'; document.getElementById('modalDeleteBtn').classList.remove('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
@@ -945,7 +1120,8 @@ bindModalBreakAutoCalc() {
                 staffId: staff.staffId || id,
                 name: staff.name || '',
                 breakStart: staff.breakStart || '',
-                breakEnd: staff.breakEnd || ''
+                breakEnd: staff.breakEnd || '',
+                vpSlot: staff.vpSlot || ''
             });
         });
         return rows;
@@ -988,6 +1164,27 @@ bindModalBreakAutoCalc() {
         let endMin = toShiftMinute(endHHMM);
         let valid = !(Number.isNaN(startMin) || Number.isNaN(endMin));
         if (valid && endMin <= startMin) endMin += 24 * 60; // cross-midnight -> next day
+
+        // --- VP overlay (red bar) ---
+        // Uses rosterSystem.VP_CYCLES mapping (label preferred for true start like 20:30 / 01:30 etc).
+        const vpCfg = (r.vpSlot && this.VP_CYCLES) ? this.VP_CYCLES[r.vpSlot] : null;
+
+        // VP time for the red marker: prefer the *label* (e.g., "20:30", "01:30") if present.
+        // Accepts "2030" style too and normalizes to "20:30".
+        const normalizeHHMM = (t) => {
+            if (!t) return "";
+            const s = String(t).trim();
+            if (s.includes(":")) return s;
+            // If numeric 4-digits like 2030 -> 20:30
+            const m = s.match(/^(\d{2})(\d{2})$/);
+            return m ? `${m[1]}:${m[2]}` : s;
+        };
+        const vpHHMM = vpCfg ? (normalizeHHMM(vpCfg.label) || normalizeHHMM(vpCfg.time)) : "";
+        const vpStartMin = vpHHMM ? toShiftMinute(vpHHMM) : NaN;
+        const vpDur = 60; // minutes (visual only)
+        const vpEndMin = (Number.isFinite(vpStartMin)) ? (vpStartMin + vpDur) : NaN;
+        const vpValid = Number.isFinite(vpStartMin) && Number.isFinite(vpEndMin);
+
         return {
             ...r,
             breakStart: startHHMM,
@@ -995,7 +1192,10 @@ bindModalBreakAutoCalc() {
             _startMin: startMin,
             _endMin: endMin,
             _valid: valid,
-            _overlap: false
+            _overlap: false,
+            _vpStartMin: vpStartMin,
+            _vpEndMin: vpEndMin,
+            _vpValid: vpValid
         };
     });
 
@@ -1078,28 +1278,34 @@ bindModalBreakAutoCalc() {
             const width = ((r._endMin - r._startMin) / total) * 100;
             const segClass = r._overlap ? "bg-rose-500" : "bg-indigo-500";
             return `
-                <div class="flex items-center gap-2 py-1">
+                <div class="bt-row flex items-center gap-2 py-1">
                     <div class="w-28 shrink-0">
                         <div class="text-[10px] font-mono font-bold text-slate-700">${r.staffId}</div>
                         <div class="text-[9px] text-slate-500 truncate">${r.name}</div>
                     </div>
-                    <div class="relative flex-1 h-2 bg-slate-200 rounded overflow-hidden">
-                        <div class="absolute top-0 h-full ${segClass} rounded" style="left:${left}%; width:${Math.max(0.5, width)}%;"></div>
+                    <div class="relative flex-1 h-4 bg-slate-200 rounded overflow-hidden">
+                        <div class="bt-guide" style="left:${left}%"></div>
+                        ${r._vpValid ? `<div class="bt-vp absolute top-0 h-1 rounded bg-red-500/90 shadow-sm" style="left:${((r._vpStartMin - shiftStart) / total) * 100}%; width:${Math.max(0.5, ((r._vpEndMin - r._vpStartMin) / total) * 100)}%;"></div>` : ``}
+                        <div class="bt-seg absolute bottom-0 h-2 ${segClass} rounded" data-staff-id="${r.staffId}" data-break-start="${r.breakStart}" data-break-end="${r.breakEnd}" style="left:${left}%; width:${Math.max(0.5, width)}%;"></div>
                     </div>
-                    <div class="w-20 shrink-0 text-right text-[9px] font-mono text-slate-500">${r.breakStart}–${r.breakEnd}</div>
+                    <div class="w-20 shrink-0 text-right text-[10px] font-mono text-slate-500"><span class="bt-range">${r.breakStart}–${r.breakEnd}</span></div>
                 </div>
             `;
         }).join('');
 
     const timeline = `
-        <div class="mt-3 border border-slate-200 rounded bg-white overflow-hidden">
+        <div id="breakTimelineRoot" class="mt-3 border border-slate-200 rounded bg-white overflow-hidden">
             <div class="px-3 py-2 bg-slate-50 border-b border-slate-200">
                 <div class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Break Timeline</div>
                 <div class="text-[10px] text-slate-500">20:00 → 08:00 (next day) • Overlaps shown in red</div>
             </div>
             <div class="p-3">
-                <div class="relative h-6">
-                    ${ticks}
+                <div class="flex items-end gap-2 h-6">
+                    <div class="w-28 shrink-0"></div>
+                    <div class="relative flex-1 h-6">
+                        ${ticks}
+                    </div>
+                    <div class="w-20 shrink-0"></div>
                 </div>
                 <div class="mt-2">
                     ${bars || `<div class="text-xs text-slate-500">No valid break times to show on the timeline.</div>`}
@@ -1180,6 +1386,7 @@ displayRoster(roster) {
         const mainTableHtml = `<table class="styled-table w-full text-left">${tableHead}<tbody>${tableBody}</tbody></table>`;
         const breakTableHtml = this.renderBreakTable(roster);
         container.innerHTML = `<div class="flex flex-col gap-3">${mainTableHtml}${breakTableHtml}</div>`;
+        this.initBreakTimelineDrag();
         container.querySelectorAll('.roster-input').forEach(input => input.addEventListener('change', (e) => this.handleCellChange(e)));
         this.applyPadlocksVisuals(); this.validateAllCells(); this.enableRosterDragScroll(); lucide.createIcons();
     },
