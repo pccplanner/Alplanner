@@ -245,6 +245,15 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
   border-left:2px dotted rgba(100,116,139,0.8);
   pointer-events:none;
 }
+
+/* Make drag stable on iOS (avoid page scroll while sliding break bars) */
+#breakTimelineRoot{
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+/* While dragging, we temporarily lock the page scroll */
+body.bt-dragging{ overflow: hidden !important; }
 /* === Break Timeline Drag Handles === */
 #breakTimelineRoot .bt-seg { touch-action: none; cursor: grab; }
 #breakTimelineRoot .bt-seg:active { cursor: grabbing; }
@@ -692,6 +701,53 @@ bindModalBreakAutoCalc() {
         if (this._btDragInit) return;
         this._btDragInit = true;
 
+        // --- iOS/Touch stability ---
+        // While dragging the break bar, prevent the page from scrolling.
+        this._btDragState = this._btDragState || { active: false, scrollY: 0, prev: {} };
+
+        const lockPageScroll = () => {
+            if (this._btDragState.active) return;
+            this._btDragState.active = true;
+            // Save current scroll position (even though body is usually overflow-hidden, iOS can still drift)
+            this._btDragState.scrollY = window.scrollY || 0;
+            // Save styles to restore later
+            this._btDragState.prev = {
+                position: document.body.style.position,
+                top: document.body.style.top,
+                left: document.body.style.left,
+                right: document.body.style.right,
+                width: document.body.style.width
+            };
+            document.body.classList.add('bt-dragging');
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${this._btDragState.scrollY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+        };
+
+        const unlockPageScroll = () => {
+            if (!this._btDragState.active) return;
+            document.body.classList.remove('bt-dragging');
+            const prev = this._btDragState.prev || {};
+            document.body.style.position = prev.position || '';
+            document.body.style.top = prev.top || '';
+            document.body.style.left = prev.left || '';
+            document.body.style.right = prev.right || '';
+            document.body.style.width = prev.width || '';
+            window.scrollTo(0, this._btDragState.scrollY || 0);
+            this._btDragState.active = false;
+        };
+
+        // Hard block touchmove scrolling inside the Break Timeline while dragging (Safari iOS)
+        document.addEventListener('touchmove', (ev) => {
+            if (!this._btDragState.active) return;
+            const root = document.getElementById('breakTimelineRoot');
+            if (root && root.contains(ev.target)) {
+                ev.preventDefault();
+            }
+        }, { passive: false });
+
         document.addEventListener('pointerdown', (e) => {
             const root = document.getElementById('breakTimelineRoot');
             if (!root || !root.contains(e.target)) return;
@@ -700,6 +756,9 @@ bindModalBreakAutoCalc() {
             if (!seg) return;
 
             e.preventDefault();
+
+            // Lock scrolling so the page doesn't drift while user drags the bar
+            lockPageScroll();
 
             const staffId = seg.getAttribute('data-staff-id');
             const mode = 'move'; // fixed-duration: drag moves the window (no resize)
@@ -797,6 +856,10 @@ bindModalBreakAutoCalc() {
                 seg.releasePointerCapture(pointerId);
                 document.removeEventListener('pointermove', onMove);
                 document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onCancel);
+
+                // Re-enable scrolling after drag
+                unlockPageScroll();
 
                 const breakStart = fromShiftMin(startMin);
                 const breakEnd = fromShiftMin(endMin);
@@ -810,8 +873,19 @@ bindModalBreakAutoCalc() {
                 if (this.generatedRoster) this.displayRoster(this.generatedRoster);
             };
 
+            const onCancel = (ev) => {
+                if (ev.pointerId !== pointerId) return;
+                try { seg.releasePointerCapture(pointerId); } catch(e) {}
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onCancel);
+                // Re-enable scrolling even if the gesture was interrupted
+                unlockPageScroll();
+            };
+
             document.addEventListener('pointermove', onMove, { passive: false });
             document.addEventListener('pointerup', onUp, { passive: false });
+            document.addEventListener('pointercancel', onCancel, { passive: false });
         }, { passive: false });
     },
 
