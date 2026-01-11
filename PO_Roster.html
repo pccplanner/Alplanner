@@ -1152,7 +1152,7 @@ bindModalBreakAutoCalc() {
             // Lobby overseen by HHMD -> fill Lobby with HHMD if Lobby empty
             const hh = roster["HHMD"]?.[time]?.[0];
             const lob = roster["Lobby"]?.[time];
-            if (hh && lob && !lob[0]) lob[0] = hh;
+            if (hh && lob && !lob[0] && !this.isOnBreak(staffMap[hh], time)) lob[0] = hh;
         });
 
         this.generatedRoster = roster; this.displayRoster(roster); document.getElementById('rosterActionsContainer').classList.remove('hidden');
@@ -1184,11 +1184,32 @@ bindModalBreakAutoCalc() {
         return lockedValues;
     },
     getStaffIdByLock(key) { return null; },
-    isOnBreak(staff, timeSlot) {
+        // STRICT BREAK CHECK: true if ANY part of the duty hour overlaps the staff break window.
+    // Works with half-hour breaks (e.g. 03:30–04:30) and midnight wrap.
+    isOnBreak(staff, timeSlot, slotMins = 60) {
         if (!staff || !staff.breakStart || !staff.breakEnd) return false;
-        const timeToMins = t => { let [h,m] = t.split(':').map(Number); return (h<12?h+24:h)*60+m; };
-        const start = timeToMins(staff.breakStart), end = timeToMins(staff.breakEnd), slot = timeToMins(timeSlot);
-        return start >= end ? false : (slot >= start && slot < end);
+
+        const toShiftMins = (t) => {
+            if (!t || typeof t !== 'string' || !t.includes(':')) return NaN;
+            let [h, m] = t.split(':').map(Number);
+            if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+            // Our shift runs 20:00 → 08:00 next day, so treat 00:00–11:59 as "next day"
+            if (h < 12) h += 24;
+            return (h * 60) + m;
+        };
+
+        let bStart = toShiftMins(staff.breakStart);
+        let bEnd   = toShiftMins(staff.breakEnd);
+        let sStart = toShiftMins(timeSlot);
+        if (!Number.isFinite(bStart) || !Number.isFinite(bEnd) || !Number.isFinite(sStart)) return false;
+
+        // If someone mistakenly sets an end earlier than start, assume it wraps midnight
+        if (bEnd <= bStart) bEnd += 24 * 60;
+
+        const sEnd = sStart + (parseInt(slotMins, 10) || 60);
+
+        // Overlap test: [sStart,sEnd) intersects [bStart,bEnd)
+        return (sStart < bEnd) && (sEnd > bStart);
     },
 
     enableRosterDragScroll() {
