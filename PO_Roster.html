@@ -1088,6 +1088,73 @@ bindModalBreakAutoCalc() {
             });
         });
 
+
+        // --- HARD COVERAGE: keep core posts filled (no blanks) ---
+        // Priority: HHMD + Guard House + KIOSK must be filled every hour.
+        // If staff is short, we allow:
+        // - Pass Counter handled by 1 person (duplicate into 2nd slot)
+        // - Lobby overseen by HHMD (Lobby filled with same HHMD ID)
+        const ESSENTIAL_LOCS = ["HHMD", "Guard House", "KIOSK"];
+        const donorPriority = ["Lobby", "Pass Counter", "Report Room"];
+
+        this.ROSTER_TIMES.forEach(time => {
+            // 1) Ensure essential locations are filled by moving staff from non-essential posts (same hour).
+            for (const essential of ESSENTIAL_LOCS) {
+                const slotArr = roster[essential]?.[time];
+                if (!slotArr) continue;
+                if (slotArr[0] !== '') continue;
+
+                let moved = false;
+
+                const tryMoveFrom = (fromLoc) => {
+                    const arr = roster[fromLoc]?.[time];
+                    if (!arr) return false;
+                    // Don't steal from essential locations
+                    if (ESSENTIAL_LOCS.includes(fromLoc)) return false;
+                    // Don't steal from a location that is critical at this time
+                    if (this.CRITICAL_DUTIES[fromLoc] && this.CRITICAL_DUTIES[fromLoc].includes(time)) return false;
+
+                    for (let i = 0; i < arr.length; i++) {
+                        const sId = arr[i];
+                        if (!sId) continue;
+
+                        roster[essential][time][0] = sId;
+                        arr[i] = '';
+                        moved = true;
+                        return true;
+                    }
+                    return false;
+                };
+
+                // Prefer moving from lower-impact locations first
+                for (const fromLoc of donorPriority) { if (tryMoveFrom(fromLoc)) break; }
+
+                // Last resort: move from any other non-essential, non-critical location
+                if (!moved) {
+                    for (const fromLoc of this.OUTPUT_ORDER) {
+                        if (tryMoveFrom(fromLoc)) break;
+                    }
+                }
+
+                if (!moved) {
+                    if (!shortfalls.includes(`Shortfall: ${essential} @ ${time}`)) shortfalls.push(`Shortfall: ${essential} @ ${time}`);
+                }
+            }
+
+            // 2) Critical-mode fallbacks to remove blanks (by design, duplicates are allowed here)
+            // Pass Counter managed by one person -> copy to 2nd slot if empty
+            const pc = roster["Pass Counter"]?.[time];
+            if (pc && pc.length >= 2) {
+                if (pc[0] && !pc[1]) pc[1] = pc[0];
+                if (!pc[0] && pc[1]) pc[0] = pc[1];
+            }
+
+            // Lobby overseen by HHMD -> fill Lobby with HHMD if Lobby empty
+            const hh = roster["HHMD"]?.[time]?.[0];
+            const lob = roster["Lobby"]?.[time];
+            if (hh && lob && !lob[0]) lob[0] = hh;
+        });
+
         this.generatedRoster = roster; this.displayRoster(roster); document.getElementById('rosterActionsContainer').classList.remove('hidden');
         window.firebaseOperations.saveRoster(this.currentDateStr, roster); this.triggerSaveIndicator();
         if (shortfalls.length > 0) this.showToast(`${shortfalls.length} Shortfalls`, 'warning'); else this.showToast("Roster Generated", "success");
