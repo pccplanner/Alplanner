@@ -248,14 +248,12 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 
 /* Make drag stable on iOS (avoid page scroll while sliding break bars) */
 #breakTimelineRoot{
-  overscroll-behavior: contain;
-  touch-action: none;
+  /* Allow normal vertical scrolling; horizontal drift is prevented by drag logic */
+  touch-action: pan-y;
+  overscroll-behavior: auto;
 }
-
-/* While dragging, we temporarily lock the page scroll */
-body.bt-dragging{ overflow: hidden !important; }
 /* === Break Timeline Drag Handles === */
-#breakTimelineRoot .bt-seg { touch-action: none; cursor: grab; }
+#breakTimelineRoot .bt-seg { touch-action: pan-y; cursor: grab; }
 #breakTimelineRoot .bt-seg:active { cursor: grabbing; }
 #breakTimelineRoot .bt-handle {
   position: absolute;
@@ -698,196 +696,167 @@ bindModalBreakAutoCalc() {
     },
     // === Break Timeline: Drag to adjust break start/end ===
     initBreakTimelineDrag() {
-        if (this._btDragInit) return;
-        this._btDragInit = true;
+    if (this._btDragInit) return;
+    this._btDragInit = true;
 
-        // --- iOS/Touch stability ---
-        // While dragging the break bar, prevent the page from scrolling.
-        this._btDragState = this._btDragState || { active: false, scrollY: 0, prev: {} };
+    this._btDragState = { active: false };
 
-        const lockPageScroll = () => {
-            if (this._btDragState.active) return;
-            this._btDragState.active = true;
-            // Save current scroll position (even though body is usually overflow-hidden, iOS can still drift)
-            this._btDragState.scrollY = window.scrollY || 0;
-            // Save styles to restore later
-            this._btDragState.prev = {
-                position: document.body.style.position,
-                top: document.body.style.top,
-                left: document.body.style.left,
-                right: document.body.style.right,
-                width: document.body.style.width
-            };
-            document.body.classList.add('bt-dragging');
-            document.body.style.position = 'fixed';
-            document.body.style.top = `-${this._btDragState.scrollY}px`;
-            document.body.style.left = '0';
-            document.body.style.right = '0';
-            document.body.style.width = '100%';
+    const DRAG_THRESHOLD_PX = 6; // direction-lock threshold (mobile friendly)
+
+    document.addEventListener('pointerdown', (e) => {
+        const root = document.getElementById('breakTimelineRoot');
+        if (!root || !root.contains(e.target)) return;
+
+        const seg = e.target.closest('.bt-seg');
+        if (!seg) return;
+
+        // If we are already dragging, ignore new pointers.
+        if (this._btDragState.active) return;
+
+        const track = seg.parentElement; // relative bar track
+        const trackRect = track.getBoundingClientRect();
+
+        const shiftStart = 20 * 60;
+        const shiftEnd = (24 + 8) * 60;
+        const total = shiftEnd - shiftStart;
+        const snap = 30; // minutes
+
+        const toShiftMin = (hhmm) => {
+            const base = this.timeToMinutesHHMM(hhmm);
+            if (Number.isNaN(base)) return NaN;
+            return (base < shiftStart) ? (base + 24 * 60) : base;
+        };
+        const fromShiftMin = (m) => {
+            let mm = m;
+            if (mm >= 24 * 60) mm -= 24 * 60;
+            return this.minutesToHHMM(mm);
+        };
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const snapMin = (v) => Math.round(v / snap) * snap;
+
+        const fixedDur = Number(this.breakDuration || 60);
+
+        // current mins
+        let startMin = toShiftMin(seg.getAttribute('data-break-start') || '00:00');
+        if (!Number.isFinite(startMin)) startMin = shiftStart;
+
+        // enforce fixed duration
+        startMin = clamp(startMin, shiftStart, shiftEnd - fixedDur);
+        let endMin = startMin + fixedDur;
+
+        const renderSeg = (sMin, eMin) => {
+            const leftPct = ((sMin - shiftStart) / total) * 100;
+            const widthPct = ((eMin - sMin) / total) * 100;
+            seg.style.left = `${leftPct}%`;
+            seg.style.width = `${Math.max(0.5, widthPct)}%`;
+
+            const row = seg.closest('.bt-row');
+            if (row) {
+                const guide = row.querySelector('.bt-guide');
+                if (guide) guide.style.left = `${leftPct}%`;
+
+                const lab = row.querySelector('.bt-range');
+                if (lab) lab.textContent = `${fromShiftMin(sMin)}–${fromShiftMin(eMin)}`;
+            }
         };
 
-        const unlockPageScroll = () => {
-            if (!this._btDragState.active) return;
-            document.body.classList.remove('bt-dragging');
-            const prev = this._btDragState.prev || {};
-            document.body.style.position = prev.position || '';
-            document.body.style.top = prev.top || '';
-            document.body.style.left = prev.left || '';
-            document.body.style.right = prev.right || '';
-            document.body.style.width = prev.width || '';
-            window.scrollTo(0, this._btDragState.scrollY || 0);
-            this._btDragState.active = false;
+        const pointerId = e.pointerId;
+        const downX = e.clientX;
+        const downY = e.clientY;
+        let decided = false;
+
+        const cleanupDecision = () => {
+            document.removeEventListener('pointermove', onDecideMove);
+            document.removeEventListener('pointerup', onDecideUp);
+            document.removeEventListener('pointercancel', onDecideUp);
         };
 
-        // Hard block touchmove scrolling inside the Break Timeline while dragging (Safari iOS)
-        document.addEventListener('touchmove', (ev) => {
-            if (!this._btDragState.active) return;
-            const root = document.getElementById('breakTimelineRoot');
-            if (root && root.contains(ev.target)) {
+        const onDecideMove = (ev) => {
+            if (ev.pointerId !== pointerId) return;
+
+            const dx = ev.clientX - downX;
+            const dy = ev.clientY - downY;
+
+            // Wait until user movement is clear enough
+            if (!decided && (Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD_PX)) return;
+
+            if (!decided) {
+                decided = true;
+
+                // If user is scrolling vertically, do NOT hijack the gesture.
+                if (Math.abs(dy) > Math.abs(dx)) {
+                    cleanupDecision();
+                    return; // allow normal vertical scroll
+                }
+
+                // User intends horizontal drag -> start drag mode
+                cleanupDecision();
+
+                this._btDragState.active = true;
+
+                // capture pointer so it won't "slip" off the seg while dragging
+                try { seg.setPointerCapture(pointerId); } catch (_) {}
+
                 ev.preventDefault();
+
+                const startStart = startMin;
+                const startX2 = ev.clientX;
+
+                const pxToMin = (dx2) => (dx2 / trackRect.width) * total;
+
+                const onMove = (mv) => {
+                    if (mv.pointerId !== pointerId) return;
+                    // Prevent horizontal scroll while dragging, but vertical scroll was already rejected at decision phase.
+                    mv.preventDefault();
+
+                    const dx3 = mv.clientX - startX2;
+                    const deltaMin = pxToMin(dx3);
+
+                    let s = snapMin(startStart + deltaMin);
+                    s = clamp(s, shiftStart, shiftEnd - fixedDur);
+                    startMin = s;
+                    endMin = s + fixedDur;
+                    renderSeg(startMin, endMin);
+                };
+
+                const onUp = async (up) => {
+                    if (up.pointerId !== pointerId) return;
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                    document.removeEventListener('pointercancel', onUp);
+
+                    try { seg.releasePointerCapture(pointerId); } catch (_) {}
+
+                    this._btDragState.active = false;
+
+                    const breakStart = fromShiftMin(startMin);
+                    const breakEnd = fromShiftMin(endMin);
+
+                    await this.setStaffBreakByStaffId(seg.getAttribute('data-staff-id'), breakStart, breakEnd, true);
+
+                    this.renderStaffCards(this.staffDataCache);
+                    this.syncOpenEditModalBreakFields();
+                    if (this.generatedRoster) this.displayRoster(this.generatedRoster);
+                };
+
+                document.addEventListener('pointermove', onMove, { passive: false });
+                document.addEventListener('pointerup', onUp, { passive: false });
+                document.addEventListener('pointercancel', onUp, { passive: false });
+
+                return;
             }
-        }, { passive: false });
+        };
 
-        document.addEventListener('pointerdown', (e) => {
-            const root = document.getElementById('breakTimelineRoot');
-            if (!root || !root.contains(e.target)) return;
+        const onDecideUp = (ev) => {
+            if (ev.pointerId !== pointerId) return;
+            cleanupDecision();
+        };
 
-            const seg = e.target.closest('.bt-seg');
-            if (!seg) return;
-
-            e.preventDefault();
-
-            // Lock scrolling so the page doesn't drift while user drags the bar
-            lockPageScroll();
-
-            const staffId = seg.getAttribute('data-staff-id');
-            const mode = 'move'; // fixed-duration: drag moves the window (no resize)
-
-            const track = seg.parentElement; // relative bar track
-            const trackRect = track.getBoundingClientRect();
-            const shiftStart = 20 * 60;
-            const shiftEnd = (24 + 8) * 60;
-            const total = shiftEnd - shiftStart;
-            const snap = 30; // minutes
-
-            const toShiftMin = (hhmm) => {
-                const base = this.timeToMinutesHHMM(hhmm);
-                if (Number.isNaN(base)) return NaN;
-                return (base < shiftStart) ? (base + 24 * 60) : base;
-            };
-            const fromShiftMin = (m) => {
-                // m is in [shiftStart..shiftEnd]
-                let mm = m;
-                if (mm >= 24 * 60) mm -= 24 * 60;
-                return this.minutesToHHMM(mm);
-            };
-            const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-            const snapMin = (v) => Math.round(v / snap) * snap;
-
-            // current mins (fall back: compute end from duration if end is 00:00)
-            let startMin = toShiftMin(seg.getAttribute('data-break-start') || '00:00');
-            let endMin = toShiftMin(seg.getAttribute('data-break-end') || '00:00');
-            if (!Number.isFinite(startMin)) startMin = shiftStart;
-
-            // Always enforce fixed length from Global Break Duration (when start is set)
-            const fixedDur = Number(this.breakDuration || 60);
-            if (seg.getAttribute('data-break-start') && seg.getAttribute('data-break-start') !== '00:00') {
-                endMin = startMin + fixedDur;
-            } else if (!Number.isFinite(endMin)) {
-                endMin = startMin + fixedDur;
-            }
-
-            startMin = clamp(startMin, shiftStart, shiftEnd);
-            endMin = clamp(endMin, shiftStart, shiftEnd);
-            // ensure within window
-            if (endMin - startMin !== fixedDur && seg.getAttribute('data-break-start') !== '00:00') {
-                startMin = clamp(startMin, shiftStart, shiftEnd - fixedDur);
-                endMin = startMin + fixedDur;
-            }
-
-            const pointerId = e.pointerId;
-            seg.setPointerCapture(pointerId);
-
-            const startX = e.clientX;
-            const startStart = startMin;
-            const startEnd = endMin;
-
-            const pxToMin = (dx) => (dx / trackRect.width) * total;
-
-            const renderSeg = (sMin, eMin) => {
-                const leftPct = ((sMin - shiftStart) / total) * 100;
-                const widthPct = ((eMin - sMin) / total) * 100;
-                seg.style.left = `${leftPct}%`;
-                seg.style.width = `${Math.max(0.5, widthPct)}%`;
-
-                const row = seg.closest('.bt-row');
-                if (row) {
-                    const guide = row.querySelector('.bt-guide');
-                    if (guide) guide.style.left = `${leftPct}%`;
-                }
-
-                // update right-side label (the HH:MM–HH:MM text)
-                const row2 = seg.closest('.bt-row');
-                if (row2) {
-                    const lab = row2.querySelector('.bt-range');
-                    if (lab) lab.textContent = `${fromShiftMin(sMin)}–${fromShiftMin(eMin)}`;
-                }
-            };
-
-            const onMove = (ev) => {
-                if (ev.pointerId !== pointerId) return;
-                const dx = ev.clientX - startX;
-                const deltaMin = pxToMin(dx);
-
-                let s = startStart;
-                let en = startEnd;
-
-                const dur = fixedDur;
-                s = snapMin(startStart + deltaMin);
-                s = clamp(s, shiftStart, shiftEnd - dur);
-                en = s + dur;
-                startMin = s;
-                endMin = en;
-                renderSeg(startMin, endMin);
-            };
-
-            const onUp = async (ev) => {
-                if (ev.pointerId !== pointerId) return;
-                seg.releasePointerCapture(pointerId);
-                document.removeEventListener('pointermove', onMove);
-                document.removeEventListener('pointerup', onUp);
-                document.removeEventListener('pointercancel', onCancel);
-
-                // Re-enable scrolling after drag
-                unlockPageScroll();
-
-                const breakStart = fromShiftMin(startMin);
-                const breakEnd = fromShiftMin(endMin);
-
-                // Update local cache + persist
-                await this.setStaffBreakByStaffId(staffId, breakStart, breakEnd, true);
-
-                // Refresh UI pieces
-                this.renderStaffCards(this.staffDataCache);
-                this.syncOpenEditModalBreakFields();
-                if (this.generatedRoster) this.displayRoster(this.generatedRoster);
-            };
-
-            const onCancel = (ev) => {
-                if (ev.pointerId !== pointerId) return;
-                try { seg.releasePointerCapture(pointerId); } catch(e) {}
-                document.removeEventListener('pointermove', onMove);
-                document.removeEventListener('pointerup', onUp);
-                document.removeEventListener('pointercancel', onCancel);
-                // Re-enable scrolling even if the gesture was interrupted
-                unlockPageScroll();
-            };
-
-            document.addEventListener('pointermove', onMove, { passive: false });
-            document.addEventListener('pointerup', onUp, { passive: false });
-            document.addEventListener('pointercancel', onCancel, { passive: false });
-        }, { passive: false });
-    },
+        document.addEventListener('pointermove', onDecideMove, { passive: false });
+        document.addEventListener('pointerup', onDecideUp, { passive: true });
+        document.addEventListener('pointercancel', onDecideUp, { passive: true });
+    }, { passive: false });
+},
 
     async setStaffBreakByStaffId(staffId, breakStart, breakEnd, persist = true) {
         const staff = this.staffDataCache.find(s => String(s.staffId) === String(staffId));
