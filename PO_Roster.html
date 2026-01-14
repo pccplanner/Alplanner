@@ -1016,15 +1016,28 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
                 for (let i = 0; i < locConfig.needed; i++) {
                     if (roster[locName][time][i] === '') {
                          const staffPool = presentStaff.map(s => s.staffId).sort(() => Math.random() - 0.5);
-                         for (const sId of staffPool) {
-                             if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, roster)) {
-                                 roster[locName][time][i] = sId;
-                                 assignmentsByStaff[sId].push(time);
-                                 if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(sId);
-                                 filledCount++;
-                                 break;
-                             }
-                         }
+
+// Soft consecutive-location rule:
+// Prefer candidates who have NOT already been in the same location for too many consecutive hours.
+// If we cannot fill the slot otherwise, we will fall back to allowing it (last resort).
+const preferred = [];
+const fallback = [];
+
+for (const sId of staffPool) {
+    if (!this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, roster)) continue;
+    if (this.wouldHitSoftConsecutiveLimit(sId, time, locName, roster)) fallback.push(sId);
+    else preferred.push(sId);
+}
+
+const pickList = preferred.length ? preferred : fallback;
+
+for (const sId of pickList) {
+    roster[locName][time][i] = sId;
+    assignmentsByStaff[sId].push(time);
+    if (locName === 'Vertical Patrol' || locName === 'Tango Papa') verticalPatrolTracker.add(sId);
+    filledCount++;
+    break;
+}
                     }
                 }
             });
@@ -1117,19 +1130,39 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
                 if (isReservedElsewhere) continue;
 
                 if (this.canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, roster)) { 
-                    // SOFT CONSTRAINT: Check Standing Fatigue
-                    const isStandingNow = this.STANDING_LOCATIONS.includes(locName);
-                    let isFatigued = false;
-                    if (isStandingNow) {
-                        const prevTimeIndex = this.ROSTER_TIMES.indexOf(time) - 1;
-                        if (prevTimeIndex >= 0) {
-                            const prevTime = this.ROSTER_TIMES[prevTimeIndex];
-                            const prevLoc = this.findStaffLocation(roster, prevTime, sId);
-                            if (prevLoc && this.STANDING_LOCATIONS.includes(prevLoc)) isFatigued = true;
-                        }
-                    }
+                    // SOFT CONSTRAINTS (fundamental rotation)
+// 1) Standing fatigue: avoid standing locations back-to-back (soft)
+// 2) Rotation rule: prefer staff to move every hour (no same location consecutively).
+//    Allow 2 consecutive hours only as LAST RESORT (when no other staff can fill).
+const isStandingNow = this.STANDING_LOCATIONS.includes(locName);
 
-                    if (!isFatigued) { candidateId = sId; break; } else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
+// Count consecutive previous hours the staff has already been in *this same location*
+const timeIdxNow = this.ROSTER_TIMES.indexOf(time);
+let consecSameLoc = 0;
+for (let tIdx = timeIdxNow - 1; tIdx >= 0; tIdx--) {
+    const tPrev = this.ROSTER_TIMES[tIdx];
+    const prevLocAny = this.findStaffLocation(roster, tPrev, sId);
+    if (prevLocAny === locName) consecSameLoc++;
+    else break;
+}
+// Hard cap: never allow 3+ consecutive hours at the same location
+if (consecSameLoc >= 2) continue;
+
+let isFatigued = false;
+if (isStandingNow) {
+    const prevTimeIndex = timeIdxNow - 1;
+    if (prevTimeIndex >= 0) {
+        const prevTime = this.ROSTER_TIMES[prevTimeIndex];
+        const prevLoc = this.findStaffLocation(roster, prevTime, sId);
+        if (prevLoc && this.STANDING_LOCATIONS.includes(prevLoc)) isFatigued = true;
+    }
+}
+
+// PRIMARY: best candidate = not fatigued AND not consecutive in same location
+// FALLBACK (last resort): allow 2nd consecutive hour in same location OR standing fatigue
+const isPrimaryOK = (!isFatigued && consecSameLoc === 0);
+if (isPrimaryOK) { candidateId = sId; break; }
+else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
                 } 
             }
             
@@ -1254,10 +1287,39 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
             const prevLoc = this.findStaffLocation(rosterRef, prevTime, sId);
             isGuardKioskSwitch = ((prevLoc === 'Guard House' && locName === 'KIOSK') || (prevLoc === 'KIOSK' && locName === 'Guard House'));
         }
+
         const isPatrolDuplicate = ((locName === 'Vertical Patrol' || locName === 'Tango Papa') && verticalPatrolTracker.has(sId));
         if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isGuardKioskSwitch || isPatrolDuplicate) return false;
         return true;
     },
+
+    // SOFT RULE: avoid placing the same staff at the same location for too many consecutive hours.
+    // This is a "last resort" constraint: it is NOT enforced inside canAssign(); instead it is used
+    // to rank candidates. If the roster cannot be filled otherwise, the generator may still use it.
+    wouldHitSoftConsecutiveLimit(sId, time, locName, rosterRef) {
+        const DEFAULT_MAX = 2; // prefer rotation after 2 consecutive hours (soft)
+        const MAX_BY_LOC = {
+            'Guard House': 2,
+            'KIOSK': 2,
+            'HHMD': 2,
+            'Lobby': 2,
+            'Report Room': 2,
+            'Pass Counter': 2
+        };
+        const maxConsec = (MAX_BY_LOC[locName] ?? DEFAULT_MAX);
+        if (!maxConsec || maxConsec <= 0) return false;
+
+        let streak = 0;
+        let tIdx = this.ROSTER_TIMES.indexOf(time) - 1;
+        while (tIdx >= 0) {
+            const tPrev = this.ROSTER_TIMES[tIdx];
+            const prevLoc = this.findStaffLocation(rosterRef, tPrev, sId);
+            if (prevLoc === locName) { streak++; tIdx--; }
+            else break;
+        }
+        return (streak >= maxConsec);
+    }
+,
     
     findStaffLocation(roster, time, staffId) {
         for (const loc of this.OUTPUT_ORDER) {
