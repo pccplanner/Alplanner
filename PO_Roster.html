@@ -1009,6 +1009,9 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 const isWeekend = ['Saturday', 'Sunday'].includes(document.getElementById('rosterDay').value);
                 if (locName === "Report Room" && isWeekend) return;
+                // RULE: When POOL <= 6, Lobby must remain empty
+                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+
                 
                 const locConfig = this.LOCATIONS.find(l => l.name === locName);
                 if (!roster[locName][time]) roster[locName][time] = new Array(locConfig.needed).fill('');
@@ -1098,6 +1101,9 @@ for (const sId of pickList) {
             this.OUTPUT_ORDER.forEach(locName => {
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 if (locName === "Report Room" && isWeekend) return;
+                // RULE: When POOL <= 6, Lobby must remain empty
+                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+
                 const needed = this.LOCATIONS.find(l => l.name === locName).needed;
                 
                 for (let i = 0; i < needed; i++) {
@@ -1175,6 +1181,9 @@ else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
             this.OUTPUT_ORDER.forEach(locName => {
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 if (locName === "Report Room" && isWeekend) return;
+                // RULE: When POOL <= 6, Lobby must remain empty
+                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+
                 const needed = this.LOCATIONS.find(l => l.name === locName).needed;
                 for (let i = 0; i < needed; i++) { if (!fillRandomly(time, locName, i)) { if(!shortfalls.includes(`Shortfall: ${locName} @ ${time}`)) shortfalls.push(`Shortfall: ${locName} @ ${time}`); } }
             });
@@ -1184,8 +1193,8 @@ else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
                 // --- HARD COVERAGE: keep core posts filled (no blanks) ---
         // Priority: HHMD + Guard House + KIOSK must be filled every hour.
         // If staff is short, we allow:
-        // - Pass Counter handled by 1 person (duplicate into 2nd slot)
-        // - Lobby overseen by HHMD (Lobby filled with same HHMD ID)
+        // - Pass Counter may run single-person (leave 2nd slot blank)
+        // - Lobby is NOT auto-filled by HHMD (must be separate staff)
         const ESSENTIAL_LOCS = ["HHMD", "Guard House", "KIOSK"];
         const donorPriority = ["Lobby", "Pass Counter", "Report Room"];
 
@@ -1254,19 +1263,9 @@ else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
             // Pass Counter managed by one person -> duplicate into missing slot
             const pc = roster["Pass Counter"]?.[time];
             if (pc && pc.length >= 2) {
-                if (pc[0] && !pc[1]) pc[1] = pc[0];
-                if (!pc[0] && pc[1]) pc[0] = pc[1];
+                                if (!pc[0] && pc[1]) { pc[0] = pc[1]; pc[1] = ""; }
             }
-
-            // Lobby overseen by HHMD -> fill Lobby with HHMD if Lobby empty
-            const hh = roster["HHMD"]?.[time]?.[0];
-            const lob = roster["Lobby"]?.[time];
-            if (hh && lob && !lob[0]) {
-                const hhStaff = staffMap[hh];
-                // Only copy if HHMD staff exists, is HHMD-qualified, and is not on break
-                if (hhStaff && hhStaff.hhmd === "Yes" && !this.isOnBreak(hhStaff, time)) lob[0] = hh;
-            }
-        });
+});
 
 this.generatedRoster = roster; this.displayRoster(roster); document.getElementById('rosterActionsContainer').classList.remove('hidden');
         this.enforceHHMDOnly(roster, { source: 'preSave', silent: true });
@@ -1279,6 +1278,9 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
         const isAlreadyAssigned = assignmentsByStaff[sId].includes(time);
         const isonBreak = this.isOnBreak(staffMember, time);
         const isHhmdMismatch = (locName === 'HHMD' && staffMember.hhmd !== 'Yes');
+        // HARD RULE: Pass Counter cannot have duplicate ID in the same hour
+        const isPassCounterDup = (locName === 'Pass Counter' && rosterRef && rosterRef['Pass Counter'] && Array.isArray(rosterRef['Pass Counter'][time]) && rosterRef['Pass Counter'][time].includes(sId));
+
         // HARD RULE: prevent Guard House <-> KIOSK switches across consecutive hours
         let isGuardKioskSwitch = false;
         const prevIdx = this.ROSTER_TIMES.indexOf(time) - 1;
@@ -1289,7 +1291,7 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
         }
 
         const isPatrolDuplicate = ((locName === 'Vertical Patrol' || locName === 'Tango Papa') && verticalPatrolTracker.has(sId));
-        if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isGuardKioskSwitch || isPatrolDuplicate) return false;
+        if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isPassCounterDup || isGuardKioskSwitch || isPatrolDuplicate) return false;
         return true;
     },
 
