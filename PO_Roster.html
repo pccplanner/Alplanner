@@ -473,7 +473,8 @@ const rosterSystem = {
         document.getElementById("rosterContainer").innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-slate-400"><i data-lucide="loader-2" class="w-8 h-8 mb-2 animate-spin"></i><p class="text-xs">Loading Roster...</p></div>`;
         this.rosterUnsubscribe = window.firebaseOperations.subscribeToRoster(dateStr, (rosterData) => {
              document.getElementById('loadingIndicator').classList.add('hidden');
-             if (rosterData) { this.generatedRoster = rosterData; this.enforceHHMDOnly(this.generatedRoster, { source: 'load' }); this.displayRoster(this.generatedRoster); document.getElementById('rosterActionsContainer').classList.remove('hidden'); } 
+             if (rosterData) { this.generatedRoster = rosterData; this.enforceHHMDOnly(this.generatedRoster, { source: 'load' });
+                 this.enforceGuardHouseMax2(this.generatedRoster, { source: 'load' }); this.displayRoster(this.generatedRoster); document.getElementById('rosterActionsContainer').classList.remove('hidden'); } 
              else { this.generatedRoster = null; document.getElementById("rosterContainer").innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-slate-400"><i data-lucide="calendar" class="w-10 h-10 mb-2 opacity-20"></i><p class="text-xs">No roster for ${dateStr}</p><p class="text-[10px] mt-1">Click GENERATE to create one</p></div>`; document.getElementById('rosterActionsContainer').classList.add('hidden'); lucide.createIcons(); }
         });
     },
@@ -635,7 +636,9 @@ grid.querySelectorAll('.vp-quick').forEach(sel => {
         document.getElementById('stat-total').textContent = total; document.getElementById('stat-present').textContent = present; document.getElementById('stat-hhmd').textContent = hhmd; document.getElementById('stat-present-m').textContent = present;
     },
     updateStaffDatalist() {
-        const datalist = document.getElementById('staff-id-list'); if (!datalist) return; const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes'); datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
+        const datalist = document.getElementById('staff-id-list'); if (!datalist) return; const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes'); 
+        this.currentPoolCount = presentStaff.length;
+datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
     },
 // ---- Break time utilities (used by cards + edit modal + break table) ----
 timeToMinutesHHMM(t) {
@@ -984,7 +987,9 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
     fillRosterGaps() {
         if (!this.generatedRoster) return this.showToast("No roster to fill", "warning");
         const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
-        const roster = JSON.parse(JSON.stringify(this.generatedRoster)); 
+        
+        this.currentPoolCount = presentStaff.length;
+const roster = JSON.parse(JSON.stringify(this.generatedRoster)); 
         
         const assignmentsByStaff = Object.fromEntries(presentStaff.map(s => [s.staffId, []]));
         const staffMap = Object.fromEntries(presentStaff.map(s => [s.staffId, s]));
@@ -1048,8 +1053,10 @@ for (const sId of pickList) {
 
         this.generatedRoster = roster;
         this.enforceHHMDOnly(roster, { source: 'generation' });
+        this.enforceGuardHouseMax2(roster, { source: 'generation' });
         this.displayRoster(roster);
         this.enforceHHMDOnly(roster, { source: 'preSave', silent: true });
+        this.enforceGuardHouseMax2(roster, { source: 'preSave', silent: true });
         window.firebaseOperations.saveRoster(this.currentDateStr, roster);
         this.showToast(`Filled ${filledCount} gaps`, "success");
     },
@@ -1273,6 +1280,146 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
         if (shortfalls.length > 0) this.showToast(`${shortfalls.length} Shortfalls`, 'warning'); else this.showToast("Roster Generated", "success");
     },
     
+
+    // Count how many times a staff ID appears at a given location across the whole shift.
+    // Used for Guard House cap enforcement.
+    countAssignmentsInLocation(sId, locName, rosterRef) {
+        if (!rosterRef || !rosterRef[locName]) return 0;
+        let count = 0;
+        for (const t of this.ROSTER_TIMES) {
+            const cell = rosterRef[locName]?.[t];
+            if (Array.isArray(cell)) {
+                if (cell.includes(sId)) count += 1;
+            } else if (cell === sId) {
+                count += 1;
+            }
+        }
+        return count;
+    },
+
+    // HARD RULE: Within the 12-hour shift, a staff can be assigned to Guard House at most twice.
+    // If violated in existing data (manual edits / older rosters), we clear the extra assignments.
+    enforceGuardHouseMax2(rosterRef, opts = {}) {
+        try {
+            if (!rosterRef || !rosterRef['Guard House']) return { fixed: 0, removed: [] };
+
+            const poolCount = (opts.poolCount != null ? opts.poolCount : (typeof this.currentPoolCount === 'number' ? this.currentPoolCount : (this.staffDataCache ? this.staffDataCache.filter(s => s.attendance === 'Yes').length : 0)));
+            const CAP = (poolCount <= 6 ? 3 : 2);
+            const counts = {};
+            const removed = [];
+            let fixed = 0;
+
+            // Walk time in order.
+            // Rules:
+            // 1) Guard House not back-to-back for same staff.
+            // 2) CAP per staff across the shift (CAP=3 when pool<=6, else CAP=2).
+            let prevStaff = null;
+            for (const t of this.ROSTER_TIMES) {
+                const arr = rosterRef['Guard House']?.[t];
+                if (!Array.isArray(arr) || !arr.length) continue;
+
+                const sId = arr[0];
+                if (!sId) { prevStaff = null; continue; }
+
+                // Rule 1: no back-to-back Guard House for the same staff
+                if (prevStaff && prevStaff === sId) {
+                    rosterRef['Guard House'][t][0] = '';
+                    fixed += 1;
+                    removed.push({ time: t, staffId: sId, reason: 'back-to-back' });
+                    // do not count this cleared slot; keep prevStaff as-is
+                    continue;
+                }
+
+                counts[sId] = (counts[sId] || 0) + 1;
+                if (counts[sId] > CAP) {
+                    rosterRef['Guard House'][t][0] = '';
+                    fixed += 1;
+                    removed.push({ time: t, staffId: sId, reason: 'cap' });
+                    // cleared slot breaks chain
+                    prevStaff = null;
+                    continue;
+                }
+
+                prevStaff = sId;
+            }
+
+            // Auto-replace cleared Guard House slots (best-effort) while obeying all existing rules.
+            // This runs AFTER clearing violations (cap / back-to-back), so we never re-introduce them.
+            if (opts.autoReplace !== false) {
+                const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
+                const staffMap = Object.fromEntries(presentStaff.map(s => [s.staffId, s]));
+                const assignmentsByStaff = Object.fromEntries(presentStaff.map(s => [s.staffId, []]));
+
+                // Build current assignmentsByStaff from rosterRef (so canAssign() can enforce 1-location-per-hour).
+                for (const loc of Object.keys(rosterRef)) {
+                    const byTime = rosterRef[loc];
+                    if (!byTime) continue;
+                    for (const tt of this.ROSTER_TIMES) {
+                        const arr2 = byTime[tt];
+                        if (!Array.isArray(arr2)) continue;
+                        for (const id2 of arr2) {
+                            if (!id2) continue;
+                            if (assignmentsByStaff[id2]) assignmentsByStaff[id2].push(tt);
+                        }
+                    }
+                }
+
+                const verticalPatrolTracker = {}; // not needed for Guard House enforcement, but required by canAssign()
+
+                // Recompute Guard House counts after the clearing step, then fill blanks in order.
+                const guardCounts = {};
+                for (const tt of this.ROSTER_TIMES) {
+                    const cur = rosterRef['Guard House']?.[tt]?.[0];
+                    if (cur) guardCounts[cur] = (guardCounts[cur] || 0) + 1;
+                }
+
+                for (let i = 0; i < this.ROSTER_TIMES.length; i++) {
+                    const tt = this.ROSTER_TIMES[i];
+                    const slotArr = rosterRef['Guard House']?.[tt];
+                    if (!Array.isArray(slotArr) || slotArr.length === 0) continue;
+
+                    if (slotArr[0]) continue; // already filled
+
+                    // Back-to-back guard check vs previous and next hour
+                    const prevT = (i > 0 ? this.ROSTER_TIMES[i - 1] : null);
+                    const nextT = (i < this.ROSTER_TIMES.length - 1 ? this.ROSTER_TIMES[i + 1] : null);
+                    const prevId = (prevT ? rosterRef['Guard House']?.[prevT]?.[0] : null);
+                    const nextId = (nextT ? rosterRef['Guard House']?.[nextT]?.[0] : null);
+
+                    // Try candidates in a stable order (you can randomize if desired)
+                    for (const cand of presentStaff) {
+                        const cId = cand.staffId;
+                        if (!cId) continue;
+
+                        // Never allow back-to-back at Guard House
+                        if ((prevId && prevId === cId) || (nextId && nextId === cId)) continue;
+
+                        // Respect cap (CAP already computed based on pool size)
+                        if ((guardCounts[cId] || 0) >= CAP) continue;
+
+                        // Respect ALL existing assignment rules
+                        if (!this.canAssign(cId, tt, 'Guard House', assignmentsByStaff, staffMap, verticalPatrolTracker, rosterRef)) continue;
+
+                        // Assign
+                        rosterRef['Guard House'][tt][0] = cId;
+                        assignmentsByStaff[cId].push(tt);
+                        guardCounts[cId] = (guardCounts[cId] || 0) + 1;
+                        break;
+                    }
+                }
+            }
+
+
+            if (!opts.silent && fixed > 0) {
+                this.showToast(`Guard House cap applied: cleared ${fixed} extra slot(s)`, 'warning');
+            }
+            return { fixed, removed };
+        } catch (e) {
+            console.warn('[enforceGuardHouseMax2] failed', e);
+            return { fixed: 0, removed: [] };
+        }
+    },
+
     canAssign(sId, time, locName, assignmentsByStaff, staffMap, verticalPatrolTracker, rosterRef) {
         const staffMember = staffMap[sId];
         const isAlreadyAssigned = assignmentsByStaff[sId].includes(time);
@@ -1281,17 +1428,24 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
         // HARD RULE: Pass Counter cannot have duplicate ID in the same hour
         const isPassCounterDup = (locName === 'Pass Counter' && rosterRef && rosterRef['Pass Counter'] && Array.isArray(rosterRef['Pass Counter'][time]) && rosterRef['Pass Counter'][time].includes(sId));
 
+        const poolCount = (typeof this.currentPoolCount === 'number' ? this.currentPoolCount : (this.staffDataCache ? this.staffDataCache.filter(s => s.attendance === 'Yes').length : 0));
+        const GUARD_HOUSE_CAP = (poolCount <= 6 ? 3 : 2);
+        const isGuardHouseCapExceeded = (locName === 'Guard House' && this.countAssignmentsInLocation(sId, 'Guard House', rosterRef) >= GUARD_HOUSE_CAP);
+
         // HARD RULE: prevent Guard House <-> KIOSK switches across consecutive hours
         let isGuardKioskSwitch = false;
         const prevIdx = this.ROSTER_TIMES.indexOf(time) - 1;
         if (prevIdx >= 0) {
             const prevTime = this.ROSTER_TIMES[prevIdx];
             const prevLoc = this.findStaffLocation(rosterRef, prevTime, sId);
+            // HARD RULE: Guard House cannot be assigned back-to-back (even in shortfall)
+            const isGuardHouseBackToBack = (locName === 'Guard House' && prevLoc === 'Guard House');
+            if (isGuardHouseBackToBack) return false;
             isGuardKioskSwitch = ((prevLoc === 'Guard House' && locName === 'KIOSK') || (prevLoc === 'KIOSK' && locName === 'Guard House'));
         }
 
         const isPatrolDuplicate = ((locName === 'Vertical Patrol' || locName === 'Tango Papa') && verticalPatrolTracker.has(sId));
-        if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isPassCounterDup || isGuardKioskSwitch || isPatrolDuplicate) return false;
+        if (isAlreadyAssigned || isonBreak || isHhmdMismatch || isPassCounterDup || isGuardHouseCapExceeded || isGuardKioskSwitch || isPatrolDuplicate) return false;
         return true;
     },
 
@@ -1630,7 +1784,7 @@ displayRoster(roster) {
         
         const tableBody = this.OUTPUT_ORDER.map(locName => {
             const locConfig = this.LOCATIONS.find(l => l.name === locName);
-            let locationCell = `<td class="p-2 text-xs font-bold text-slate-700 bg-white border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] whitespace-nowrap">${locName}</td>`;
+            let locationCell = `<td class="p-2 text-xs font-bold text-slate-700 bg-white border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] whitespace-nowrap align-middle">${locName}</td>`;
 
             const timeCells = this.ROSTER_TIMES.map(time => {
                 let content = '', classes = [];
@@ -1680,6 +1834,7 @@ displayRoster(roster) {
         this.generatedRoster[loc][time][parseInt(index, 10)] = event.target.value; 
         this.validateAllCells(); 
         this.enforceHHMDOnly(this.generatedRoster, { source: 'preSave', silent: true });
+        this.enforceGuardHouseMax2(this.generatedRoster, { source: 'preSave', silent: true });
         window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
         this.triggerSaveIndicator();
     },
