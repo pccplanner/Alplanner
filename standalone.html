@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Staff Table</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for the table container */
+        .table-container::-webkit-scrollbar { height: 8px; width: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f5f9; }
+        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.2rem center;
+            background-repeat: no-repeat;
+            background-size: 1.25em 1.25em;
+        }
+    </style>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, query } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // Your specific configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+          authDomain: "roster-4a997.firebaseapp.com",
+          projectId: "roster-4a997",
+          storageBucket: "roster-4a997.firebasestorage.app",
+          messagingSenderId: "901381868881",
+          appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Use the same appId logic as your main app to ensure we read the SAME data
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
+
+        // Configuration for the table
+        const LOCATIONS = ["Pass Counter", "KIOSK", "Lobby", "HHMD", "Guard House", "Report Room", "Vertical Patrol", "Tango Papa"];
+        const TIMES = ["20:00", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"];
+
+        let staffList = [];
+        let tableData = {}; // Stores the selections
+
+        // --- Authentication ---
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Auth Error:", error);
+                alert("Could not connect to database.");
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log("Connected as", user.uid);
+                document.getElementById('status-dot').classList.remove('bg-red-500');
+                document.getElementById('status-dot').classList.add('bg-green-500');
+                document.getElementById('status-text').textContent = "Online & Connected";
+                
+                fetchStaffAndRender();
+                loadSavedTableData();
+            }
+        });
+
+        // --- Data Fetching ---
+        function fetchStaffAndRender() {
+            // Pointing to your existing 'employees' collection
+            const staffPath = collection(db, 'artifacts', appId, 'public', 'data', 'employees');
+            
+            onSnapshot(query(staffPath), (snapshot) => {
+                staffList = snapshot.docs.map(doc => ({ 
+                    id: doc.id, 
+                    ...doc.data() 
+                }));
+                
+                // Sort by ID
+                staffList.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+                
+                console.log(`Loaded ${staffList.length} staff members.`);
+                renderTable(); // Re-render table when staff loads to populate dropdowns
+            });
+        }
+
+        // --- Table Rendering ---
+        function renderTable() {
+            const theadRow = document.getElementById('table-head-row');
+            const tbody = document.getElementById('table-body');
+
+            // 1. Render Header (Times)
+            if (theadRow.children.length === 1) { // Only render if empty (except the corner cell)
+                TIMES.forEach(time => {
+                    const th = document.createElement('th');
+                    th.className = "px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 min-w-[120px]";
+                    th.textContent = time;
+                    theadRow.appendChild(th);
+                });
+            }
+
+            // 2. Render Body (Locations + Dropdowns)
+            tbody.innerHTML = ''; // Clear existing
+            
+            LOCATIONS.forEach(loc => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                // Location Name Cell (Sticky Left)
+                const tdLoc = document.createElement('td');
+                tdLoc.className = "px-4 py-3 text-sm font-bold text-slate-700 bg-white border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                tdLoc.textContent = loc;
+                tr.appendChild(tdLoc);
+
+                // Time Cells
+                TIMES.forEach(time => {
+                    const td = document.createElement('td');
+                    td.className = "p-1 border-b border-r border-slate-100 min-w-[120px]";
+                    
+                    // Create dropdown
+                    const select = document.createElement('select');
+                    select.className = "w-full text-xs p-1.5 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-slate-700 font-medium cursor-pointer";
+                    select.dataset.loc = loc;
+                    select.dataset.time = time;
+                    
+                    // Default option
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.value = "";
+                    defaultOpt.text = "- Select -";
+                    select.appendChild(defaultOpt);
+
+                    // Staff options
+                    staffList.forEach(staff => {
+                        const opt = document.createElement('option');
+                        opt.value = staff.staffId; 
+                        // Display format: ID - Name (truncated)
+                        opt.text = `${staff.staffId} - ${staff.name}`; 
+                        select.appendChild(opt);
+                    });
+
+                    // Set value if it exists in loaded data
+                    const key = `${loc}_${time}`;
+                    if (tableData[key]) {
+                        select.value = tableData[key];
+                    }
+
+                    // Event Listener
+                    select.addEventListener('change', (e) => {
+                        handleSelectionChange(loc, time, e.target.value);
+                    });
+
+                    td.appendChild(select);
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Logic ---
+        function handleSelectionChange(loc, time, value) {
+            const key = `${loc}_${time}`;
+            if (value === "") {
+                delete tableData[key];
+            } else {
+                tableData[key] = value;
+            }
+            updateSaveStatus("Unsaved changes");
+        }
+
+        function updateSaveStatus(msg, type = 'neutral') {
+            const el = document.getElementById('save-status');
+            el.textContent = msg;
+            if (type === 'success') el.className = "text-xs font-bold text-green-600";
+            else if (type === 'neutral') el.className = "text-xs font-bold text-amber-600";
+        }
+
+        // --- Save / Load ---
+        // We save to a separate demo collection to avoid messing with your main roster
+        async function saveTable() {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...`;
+            lucide.createIcons();
+
+            try {
+                // Save to 'standalone_table_demo' collection
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'standalone_table_demo', 'current_state');
+                await setDoc(docRef, { 
+                    gridData: tableData,
+                    updatedAt: new Date().toISOString()
+                });
+                
+                updateSaveStatus("All changes saved", "success");
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Table`;
+                    lucide.createIcons();
+                }, 500);
+            } catch (e) {
+                console.error("Save failed", e);
+                alert("Failed to save: " + e.message);
+                btn.disabled = false;
+            }
+        }
+
+        function loadSavedTableData() {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'standalone_table_demo', 'current_state');
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    tableData = docSnap.data().gridData || {};
+                    renderTable(); // Re-render to show loaded values
+                    updateSaveStatus("Data loaded", "success");
+                }
+            });
+        }
+
+        // Expose save function globally
+        window.saveTable = saveTable;
+
+        // Init
+        initAuth();
+        lucide.createIcons();
+    </script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-800">
+
+    <!-- Header -->
+    <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="p-2 bg-indigo-600 rounded-lg text-white">
+                <i data-lucide="table-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800">Independent Roster Table</h1>
+                <div class="flex items-center gap-2">
+                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span id="status-text" class="text-xs text-slate-500 font-medium">Connecting to database...</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+             <span id="save-status" class="text-xs font-bold text-slate-400"></span>
+            <button id="save-btn" onclick="saveTable()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                Save Table
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-6 overflow-hidden flex flex-col">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+            
+            <!-- Instructions/Toolbar -->
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2 text-xs text-slate-500">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                <span>This table fetches staff IDs from your existing database. Changes saved here do not affect your main roster.</span>
+            </div>
+
+            <!-- Scrollable Table Wrapper -->
+            <div class="table-container flex-1 overflow-auto bg-white">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 z-20 shadow-sm">
+                        <tr id="table-head-row">
+                            <!-- Empty corner cell -->
+                            <th class="p-3 bg-white border-b border-r border-slate-200 sticky left-0 z-30 w-40 min-w-[160px]">
+                                <span class="text-xs font-bold text-slate-400 uppercase">Location \ Time</span>
+                            </th>
+                            <!-- Time headers injected here by JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Rows injected here by JS -->
+                        <tr>
+                            <td colspan="10" class="p-8 text-center text-slate-400 italic">
+                                Loading data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
+
