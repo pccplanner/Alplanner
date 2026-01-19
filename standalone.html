@@ -50,7 +50,18 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
 
         // Configuration for the table
-        const LOCATIONS = ["Pass Counter", "KIOSK", "Lobby", "HHMD", "Guard House", "Report Room", "Vertical Patrol", "Tango Papa"];
+        // Defined as objects to handle slot counts easily if needed later
+        const LOCATION_CONFIG = [
+            { name: "Pass Counter", slots: 2 },
+            { name: "KIOSK", slots: 1 },
+            { name: "Lobby", slots: 1 },
+            { name: "HHMD", slots: 1 },
+            { name: "Guard House", slots: 1 },
+            { name: "Report Room", slots: 1 },
+            { name: "Vertical Patrol", slots: 1 },
+            { name: "Tango Papa", slots: 1 }
+        ];
+
         const TIMES = ["20:00", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"];
 
         let staffList = [];
@@ -80,7 +91,6 @@
 
         // --- Data Fetching ---
         function fetchStaffAndRender() {
-            // Pointing to your existing 'employees' collection
             const staffPath = collection(db, 'artifacts', appId, 'public', 'data', 'employees');
             
             onSnapshot(query(staffPath), (snapshot) => {
@@ -93,7 +103,7 @@
                 staffList.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
                 
                 console.log(`Loaded ${staffList.length} staff members.`);
-                renderTable(); // Re-render table when staff loads to populate dropdowns
+                renderTable(); // Re-render table when staff loads
             });
         }
 
@@ -103,7 +113,7 @@
             const tbody = document.getElementById('table-body');
 
             // 1. Render Header (Times)
-            if (theadRow.children.length === 1) { // Only render if empty (except the corner cell)
+            if (theadRow.children.length === 1) { 
                 TIMES.forEach(time => {
                     const th = document.createElement('th');
                     th.className = "px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 min-w-[120px]";
@@ -112,57 +122,66 @@
                 });
             }
 
-            // 2. Render Body (Locations + Dropdowns)
-            tbody.innerHTML = ''; // Clear existing
+            // 2. Render Body
+            tbody.innerHTML = ''; 
             
-            LOCATIONS.forEach(loc => {
+            LOCATION_CONFIG.forEach(locConfig => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
 
-                // Location Name Cell (Sticky Left)
+                // Location Name Cell
                 const tdLoc = document.createElement('td');
                 tdLoc.className = "px-4 py-3 text-sm font-bold text-slate-700 bg-white border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
-                tdLoc.textContent = loc;
+                tdLoc.innerHTML = `
+                    ${locConfig.name}
+                    ${locConfig.slots > 1 ? '<span class="block text-[9px] text-slate-400 font-normal mt-0.5">(2 Staff)</span>' : ''}
+                `;
                 tr.appendChild(tdLoc);
 
                 // Time Cells
                 TIMES.forEach(time => {
                     const td = document.createElement('td');
-                    td.className = "p-1 border-b border-r border-slate-100 min-w-[120px]";
+                    td.className = "p-1 border-b border-r border-slate-100 min-w-[120px] align-top";
                     
-                    // Create dropdown
-                    const select = document.createElement('select');
-                    select.className = "w-full text-xs p-1.5 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-slate-700 font-medium cursor-pointer";
-                    select.dataset.loc = loc;
-                    select.dataset.time = time;
-                    
-                    // Default option
-                    const defaultOpt = document.createElement('option');
-                    defaultOpt.value = "";
-                    defaultOpt.text = "- Select -";
-                    select.appendChild(defaultOpt);
+                    // Create wrapper for potential multiple slots
+                    const wrapper = document.createElement('div');
+                    wrapper.className = "flex flex-col gap-1";
 
-                    // Staff options
-                    staffList.forEach(staff => {
-                        const opt = document.createElement('option');
-                        opt.value = staff.staffId; 
-                        // Display format: ID - Name (truncated)
-                        opt.text = `${staff.staffId} - ${staff.name}`; 
-                        select.appendChild(opt);
-                    });
+                    // Loop for number of slots (Pass Counter = 2, others = 1)
+                    for (let i = 0; i < locConfig.slots; i++) {
+                        const select = document.createElement('select');
+                        select.className = "w-full text-xs p-1.5 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-slate-700 font-medium cursor-pointer font-mono";
+                        
+                        // Default option
+                        const defaultOpt = document.createElement('option');
+                        defaultOpt.value = "";
+                        defaultOpt.text = "-";
+                        select.appendChild(defaultOpt);
 
-                    // Set value if it exists in loaded data
-                    const key = `${loc}_${time}`;
-                    if (tableData[key]) {
-                        select.value = tableData[key];
+                        // Staff options (ID ONLY)
+                        staffList.forEach(staff => {
+                            const opt = document.createElement('option');
+                            opt.value = staff.staffId; 
+                            opt.text = staff.staffId; // ONLY ID, NO NAME
+                            select.appendChild(opt);
+                        });
+
+                        // Set value from save data
+                        // Key format: Location_Time_Index
+                        const key = `${locConfig.name}_${time}_${i}`;
+                        if (tableData[key]) {
+                            select.value = tableData[key];
+                        }
+
+                        // Event Listener
+                        select.addEventListener('change', (e) => {
+                            handleSelectionChange(locConfig.name, time, i, e.target.value);
+                        });
+
+                        wrapper.appendChild(select);
                     }
 
-                    // Event Listener
-                    select.addEventListener('change', (e) => {
-                        handleSelectionChange(loc, time, e.target.value);
-                    });
-
-                    td.appendChild(select);
+                    td.appendChild(wrapper);
                     tr.appendChild(td);
                 });
 
@@ -171,8 +190,8 @@
         }
 
         // --- Logic ---
-        function handleSelectionChange(loc, time, value) {
-            const key = `${loc}_${time}`;
+        function handleSelectionChange(locName, time, index, value) {
+            const key = `${locName}_${time}_${index}`;
             if (value === "") {
                 delete tableData[key];
             } else {
@@ -189,7 +208,6 @@
         }
 
         // --- Save / Load ---
-        // We save to a separate demo collection to avoid messing with your main roster
         async function saveTable() {
             const btn = document.getElementById('save-btn');
             btn.disabled = true;
@@ -197,7 +215,6 @@
             lucide.createIcons();
 
             try {
-                // Save to 'standalone_table_demo' collection
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'standalone_table_demo', 'current_state');
                 await setDoc(docRef, { 
                     gridData: tableData,
@@ -222,16 +239,13 @@
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     tableData = docSnap.data().gridData || {};
-                    renderTable(); // Re-render to show loaded values
+                    renderTable();
                     updateSaveStatus("Data loaded", "success");
                 }
             });
         }
 
-        // Expose save function globally
         window.saveTable = saveTable;
-
-        // Init
         initAuth();
         lucide.createIcons();
     </script>
@@ -265,10 +279,10 @@
     <div class="flex-1 p-6 overflow-hidden flex flex-col">
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
             
-            <!-- Instructions/Toolbar -->
+            <!-- Instructions -->
             <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2 text-xs text-slate-500">
                 <i data-lucide="info" class="w-3.5 h-3.5"></i>
-                <span>This table fetches staff IDs from your existing database. Changes saved here do not affect your main roster.</span>
+                <span>Showing User IDs only. Pass Counter has 2 allocation slots.</span>
             </div>
 
             <!-- Scrollable Table Wrapper -->
@@ -280,16 +294,10 @@
                             <th class="p-3 bg-white border-b border-r border-slate-200 sticky left-0 z-30 w-40 min-w-[160px]">
                                 <span class="text-xs font-bold text-slate-400 uppercase">Location \ Time</span>
                             </th>
-                            <!-- Time headers injected here by JS -->
                         </tr>
                     </thead>
                     <tbody id="table-body">
-                        <!-- Rows injected here by JS -->
-                        <tr>
-                            <td colspan="10" class="p-8 text-center text-slate-400 italic">
-                                Loading data...
-                            </td>
-                        </tr>
+                        <tr><td colspan="10" class="p-8 text-center text-slate-400 italic">Loading data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -299,4 +307,5 @@
 
 </body>
 </html>
+
 
