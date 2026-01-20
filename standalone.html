@@ -207,7 +207,8 @@
                         staffList.forEach(staff => {
                             const opt = document.createElement('option');
                             opt.value = staff.staffId; 
-                            opt.text = staff.staffId; 
+                            // Display ONLY staff ID (names intentionally omitted)
+                            opt.text = String(staff.staffId || '').trim();
                             select.appendChild(opt);
                         });
 
@@ -339,6 +340,55 @@
             });
         }
 
+        
+
+        // === Blueprint JSON Export (compatible universal schedule shape) ===
+        function buildBlueprintJSON() {
+            // Normalize into { locations: { [loc]: { [time]: [ids...] } } }
+            const roster = {};
+            currentLocations.forEach(loc => {
+                roster[loc.name] = {};
+                TIMES.forEach(t => {
+                    const arr = [];
+                    for (let i = 0; i < loc.slots; i++) {
+                        const key = loc.name + '_' + t + '_' + i;
+                        arr.push(tableData[key] || "");
+                    }
+                    roster[loc.name][t] = arr;
+                });
+            });
+
+            return {
+                schema: "universal_schedule_blueprint_v1",
+                appId,
+                createdAt: new Date().toISOString(),
+                times: [...TIMES],
+                locations: currentLocations.map(l => ({ name: l.name, slots: l.slots })),
+                rowOrder: currentLocations.map(l => l.name),
+                roster, // main structured form
+                gridData: { ...tableData } // original flat keys for lossless import
+            };
+        }
+
+        function downloadJSON(obj, filename) {
+            const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 250);
+        }
+
+        window.exportJSON = function() {
+            const data = buildBlueprintJSON();
+            const filename = 'blueprint_' + new Date().toISOString().slice(0,10) + '.json';
+            downloadJSON(data, filename);
+            updateSaveStatus("JSON exported", "success");
+        };
+
         window.saveTable = saveTable;
         initAuth();
         lucide.createIcons();
@@ -362,6 +412,11 @@
         </div>
         <div class="flex items-center gap-4">
              <span id="save-status" class="text-xs font-bold text-slate-400"></span>
+            
+            <button id="export-btn" onclick="exportJSON()" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Export JSON
+            </button>
             <button id="save-btn" onclick="saveTable()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
                 <i data-lucide="save" class="w-4 h-4"></i>
                 Save Table
