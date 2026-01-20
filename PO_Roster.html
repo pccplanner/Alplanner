@@ -83,6 +83,7 @@
                     lockedCellsData = data.lockedCells || {};
                     rosterSystem.durations = data.locationDurations || {}; 
                     rosterSystem.breakDuration = data.breakDuration || 60; 
+                    rosterSystem.setBlueprintData(data.blueprint || null); 
                     rosterSystem.applyPadlocksVisuals();
                     if(rosterSystem.generatedRoster) rosterSystem.validateAllCells(); 
                 }
@@ -122,6 +123,11 @@
                  if (!currentUser) return;
                  const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_TEAMS, 'roster_settings');
                  await setDoc(docRef, settingsData, { merge: true });
+            },
+            saveBlueprint: async (blueprintObj) => {
+                 if (!currentUser) return;
+                 const docRef = doc(db, "artifacts", appId, "public", "data", COLLECTION_TEAMS, "roster_settings");
+                 await setDoc(docRef, { blueprint: blueprintObj }, { merge: true });
             },
             batchUpdateStaff: async (updates) => {
                 if (!currentUser || updates.length === 0) return;
@@ -340,6 +346,12 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
                 <span id="saveIndicator" class="saved-indicator flex items-center gap-1"><i data-lucide="cloud-check" class="w-3 h-3"></i> Saved</span>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+                <button id="importBlueprintBtn" class="bg-slate-700 hover:bg-slate-800 text-white p-1.5 rounded shadow-sm transition-all" title="Import Blueprint JSON"><i data-lucide="upload" class="w-3.5 h-3.5"></i></button>
+                <label class="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 select-none" title="Use Blueprint during GENERATE">
+                    <input id="useBlueprintChk" type="checkbox" class="accent-indigo-600" checked>
+                    <span>Blueprint</span>
+                    <span id="blueprintBadge" class="ml-1 hidden rounded px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-extrabold">ON</span>
+                </label>
                 <button id="fillGapsBtn" onclick="rosterSystem.fillRosterGaps()" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded shadow-sm transition-all" title="Fill Empty Slots"><i data-lucide="paint-bucket" class="w-3.5 h-3.5"></i></button>
                 <button id="shuffleRosterBtn" onclick="rosterSystem.runRosterGeneration(true)" class="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded shadow-sm transition-all" title="Shuffle Roster"><i data-lucide="shuffle" class="w-3.5 h-3.5"></i></button>
                 <button id="generateRosterBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 md:px-4 rounded shadow-sm flex items-center gap-2 transition-transform active:scale-95 whitespace-nowrap"><i data-lucide="zap" class="w-3.5 h-3.5"></i> <span class="hidden md:inline">GENERATE</span><span class="md:hidden">GO</span></button>
@@ -363,6 +375,8 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
         </div>
     </div>
 </div>
+
+<input id="blueprintFileInput" type="file" accept="application/json" class="hidden" />
 
 <div id="toast-container" class="fixed top-4 right-1/2 translate-x-1/2 z-[1000] flex flex-col gap-2 pointer-events-none w-max max-w-[90vw]"></div>
 
@@ -426,6 +440,7 @@ const rosterSystem = {
     
     generatedRoster: null, staffDataCache: [], currentFilter: 'all', isFullscreen: false,
     durations: {}, breakDuration: 60, currentDateStr: "", rosterUnsubscribe: null,
+    blueprintData: null, blueprintEnabled: true,
 
     init() { 
         lucide.createIcons();
@@ -435,6 +450,9 @@ const rosterSystem = {
 
     setupUI() {
         document.getElementById("generateRosterBtn").addEventListener("click", () => this.runRosterGeneration());
+        document.getElementById("importBlueprintBtn").addEventListener("click", () => this.openBlueprintImport());
+        document.getElementById("useBlueprintChk").addEventListener("change", (e) => { this.blueprintEnabled = !!e.target.checked; this.updateBlueprintBadge(); });
+        document.getElementById("blueprintFileInput").addEventListener("change", (e) => this.handleBlueprintFile(e));
         document.getElementById("copyTSVBtn").addEventListener("click", () => this.copyTSV());
         // Robust PDF download handler (works even if UI re-renders on mobile)
         document.addEventListener("click", (ev) => {
@@ -457,6 +475,221 @@ const rosterSystem = {
                 this.currentFilter = e.target.dataset.filter; this.renderStaffCards(this.staffDataCache);
             });
         });
+    },
+
+    // --- BLUEPRINT (Universal Schedule Blueprint v1) ---
+    setBlueprintData(bp) {
+        this.blueprintData = bp || null;
+        this.updateBlueprintBadge();
+    },
+
+    updateBlueprintBadge() {
+        const badge = document.getElementById('blueprintBadge');
+        if (!badge) return;
+        const has = !!(this.blueprintData && this.blueprintData.schema === 'universal_schedule_blueprint_v1');
+        if (this.blueprintEnabled && has) {
+            badge.classList.remove('hidden');
+            badge.textContent = 'ON';
+        } else {
+            badge.classList.add('hidden');
+        }
+    },
+
+    openBlueprintImport() {
+        const input = document.getElementById('blueprintFileInput');
+        if (!input) return;
+        input.value = '';
+        input.click();
+    },
+
+    async handleBlueprintFile(e) {
+        try {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            const obj = JSON.parse(text);
+            this.validateBlueprint(obj);
+            await window.firebaseOperations.saveBlueprint(obj);
+            this.setBlueprintData(obj);
+            this.showToast('Blueprint imported', 'success');
+        } catch (err) {
+            console.error(err);
+            this.showToast('Invalid blueprint JSON', 'error');
+        }
+    },
+
+    validateBlueprint(obj) {
+        if (!obj || obj.schema !== 'universal_schedule_blueprint_v1') throw new Error('Wrong schema');
+        if (!Array.isArray(obj.times) || obj.times.length === 0) throw new Error('Missing times');
+        if (!obj.roster || typeof obj.roster !== 'object') throw new Error('Missing roster');
+    },
+
+
+    buildBlueprintAssignments(presentStaff = null, staffMap = null, dateStr = null) {
+        if (!this.blueprintEnabled) return {};
+        const bp = this.blueprintData;
+        if (!bp || bp.schema !== 'universal_schedule_blueprint_v1') return {};
+
+        const normalizeLoc = (name) => {
+            const n = String(name || '').trim();
+            if (n.toLowerCase() === 'kiosk') return 'KIOSK';
+            return n;
+        };
+        const isEmptyToken = (v) => {
+            const s = String(v || '').trim();
+            if (!s) return true;
+            return s === '-' || s === '--' || s === '—' || s === '––';
+        };
+
+        // 1) Extract raw pattern tokens from blueprint (roster preferred; gridData fallback)
+        const raw = {};
+        for (const [loc, byTime] of Object.entries(bp.roster || {})) {
+            const locName = normalizeLoc(loc);
+            if (!locName) continue;
+            raw[locName] = raw[locName] || {};
+            for (const [time, arr] of Object.entries(byTime || {})) {
+                if (!time) continue;
+                if (Array.isArray(arr)) raw[locName][time] = arr.map(v => String(v || '').trim());
+            }
+        }
+        if (Object.keys(raw).length === 0 && bp.gridData && typeof bp.gridData === 'object') {
+            for (const [key, val] of Object.entries(bp.gridData)) {
+                if (isEmptyToken(val)) continue;
+                const parts = String(key).split('__');
+                if (parts.length < 3) continue;
+                const [loc, time, slotIdxStr] = parts;
+                const locName = normalizeLoc(loc);
+                const slotIdx = parseInt(slotIdxStr, 10);
+                if (!locName || !Number.isFinite(slotIdx)) continue;
+                raw[locName] = raw[locName] || {};
+                raw[locName][time] = raw[locName][time] || [];
+                raw[locName][time][slotIdx] = String(val).trim();
+            }
+        }
+
+        // If no staff context provided, return raw tokens (legacy behavior)
+        if (!Array.isArray(presentStaff) || !presentStaff.length || !staffMap) return raw;
+
+        // 2) Build deterministic rotation mapping: PatternKey -> Actual Staff ID
+        const activeIds = presentStaff
+            .map(s => String(s.staffId || '').trim())
+            .filter(Boolean)
+            .sort((a, b) => {
+                const na = Number(a), nb = Number(b);
+                if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+                return a.localeCompare(b);
+            });
+        const n = activeIds.length;
+        if (!n) return {};
+
+        // Date-based rotation offset
+        let seed = 0;
+        if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) {
+            const [y, m, d] = String(dateStr).split('-').map(x => parseInt(x, 10));
+            seed = (y * 10000) + (m * 100) + d;
+        } else {
+            seed = Math.floor(Date.now() / 86400000);
+        }
+        const rot = Math.abs(seed) % n;
+        const rotate = (arr) => arr.slice(rot).concat(arr.slice(0, rot));
+
+        const hhmdIds = activeIds.filter(id => this.isHHMDQualified(staffMap[id]));
+        const nonHhmdIds = activeIds.filter(id => !this.isHHMDQualified(staffMap[id]));
+
+        const collectTokens = (locNames) => {
+            const set = new Set();
+            for (const loc of locNames) {
+                const byTime = raw[loc];
+                if (!byTime) continue;
+                for (const arr of Object.values(byTime)) {
+                    if (!Array.isArray(arr)) continue;
+                    for (const tok of arr) {
+                        if (!isEmptyToken(tok)) set.add(String(tok).trim());
+                    }
+                }
+            }
+            return [...set];
+        };
+
+        // Priority pattern preservation (user preference): HHMD / Guard House / KIOSK first
+        const hhmdTokens = collectTokens(['HHMD']);
+        const guardTokens = collectTokens(['Guard House']);
+        const kioskTokens = collectTokens(['KIOSK']);
+        const priorityTokens = [...new Set([...hhmdTokens, ...guardTokens, ...kioskTokens])];
+
+        const allTokens = collectTokens(Object.keys(raw));
+        const otherTokens = allTokens.filter(t => !priorityTokens.includes(t));
+
+        const mapping = {};
+        const used = new Set();
+
+        // Helper to assign tokens to candidates.
+        const assignTokens = (tokens, candidates, unique) => {
+            if (!tokens.length || !candidates.length) return;
+            let pool = rotate([...candidates]);
+            let idx = 0;
+            for (const tok of tokens) {
+                if (mapping[tok]) continue;
+                // find next candidate
+                let tries = 0;
+                while (tries < pool.length) {
+                    const cand = pool[idx % pool.length];
+                    idx += 1;
+                    tries += 1;
+                    if (unique && used.has(cand)) continue;
+                    mapping[tok] = cand;
+                    used.add(cand);
+                    break;
+                }
+            }
+        };
+
+        // 2.1 HHMD tokens must map to HHMD-qualified staff only
+        assignTokens(hhmdTokens, hhmdIds, true);
+
+        // 2.2 Remaining priority tokens map to remaining staff (prefer non-HHMD first, then any)
+        const remainingNon = nonHhmdIds.filter(id => !used.has(id));
+        const remainingAll = activeIds.filter(id => !used.has(id));
+        assignTokens([...new Set([...guardTokens, ...kioskTokens])], remainingNon.length ? remainingNon : remainingAll, true);
+
+        // 2.3 Other tokens map to the remaining staff; allow reuse if needed (relax others)
+        const leftovers = activeIds.filter(id => !used.has(id));
+        assignTokens(otherTokens, leftovers.length ? leftovers : activeIds, false);
+
+        // 3) Replace tokens with mapped IDs
+        const out = {};
+        for (const [loc, byTime] of Object.entries(raw)) {
+            out[loc] = out[loc] || {};
+            for (const [time, arr] of Object.entries(byTime || {})) {
+                if (!Array.isArray(arr)) continue;
+                out[loc][time] = arr.map(tok => {
+                    if (isEmptyToken(tok)) return '';
+                    const key = String(tok).trim();
+                    return mapping[key] ? String(mapping[key]).trim() : '';
+                });
+            }
+        }
+        return out;
+    },
+
+
+    // Applies blueprint IDs only into EMPTY slots; does not override locks/manual entries.
+    applyBlueprintToRoster(roster, blueprintAssign) {
+        if (!this.blueprintEnabled) return;
+        const bp = this.blueprintData;
+        if (!bp || bp.schema !== 'universal_schedule_blueprint_v1') return;
+        if (!blueprintAssign || typeof blueprintAssign !== 'object') return;
+        for (const loc of this.OUTPUT_ORDER) {
+            for (const time of this.ROSTER_TIMES) {
+                const needed = (this.LOCATIONS.find(l => l.name === loc) || {}).needed || 1;
+                for (let i = 0; i < needed; i++) {
+                    if (roster?.[loc]?.[time]?.[i]) continue;
+                    const cand = blueprintAssign?.[loc]?.[time]?.[i];
+                    if (!cand) continue;
+                    roster[loc][time][i] = String(cand).trim();
+                }
+            }
+        }
     },
 
     initializeDate() { 
@@ -990,9 +1223,10 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
         
         this.currentPoolCount = presentStaff.length;
 const roster = JSON.parse(JSON.stringify(this.generatedRoster)); 
-        
+
         const assignmentsByStaff = Object.fromEntries(presentStaff.map(s => [s.staffId, []]));
         const staffMap = Object.fromEntries(presentStaff.map(s => [s.staffId, s]));
+        const blueprintAssign = this.buildBlueprintAssignments(presentStaff, staffMap, this.currentDateStr);
         const verticalPatrolTracker = new Set();
         
         this.OUTPUT_ORDER.forEach(locName => {
@@ -1071,6 +1305,7 @@ for (const sId of pickList) {
         const assignmentsByStaff = Object.fromEntries(presentStaff.map(s => [s.staffId, []]));
         const staffMap = Object.fromEntries(presentStaff.map(s => [s.staffId, s]));
         const shortfalls = [];
+        const blueprintAssign = this.buildBlueprintAssignments(presentStaff, staffMap, this.currentDateStr);
         const isWeekend = ['Saturday', 'Sunday'].includes(document.getElementById('rosterDay').value);
         const verticalPatrolTracker = new Set();
         
@@ -1115,6 +1350,11 @@ for (const sId of pickList) {
                 
                 for (let i = 0; i < needed; i++) {
                     let preAssignedId = null;
+                    // Blueprint pre-fill (if provided)
+                    if (this.blueprintEnabled && blueprintAssign[locName] && blueprintAssign[locName][time]) {
+                        const bpArr = blueprintAssign[locName][time];
+                        if (Array.isArray(bpArr) && bpArr[i]) preAssignedId = String(bpArr[i]).trim();
+                    }
                     if (specificAssignments[time] && specificAssignments[time][locName] && specificAssignments[time][locName].length > 0) { preAssignedId = specificAssignments[time][locName].shift(); }
                     
                     // --- VP BUFFER LOGIC: Check previous VP and assign to Pass Counter Slot 1 ---
@@ -1958,5 +2198,4 @@ function applyRosterVisibilityPref(){
 </script>
 </body>
 </html>
-
 
