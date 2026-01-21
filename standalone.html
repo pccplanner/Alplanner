@@ -342,15 +342,21 @@
 
         
 
-        // === Blueprint JSON Export (compatible universal schedule shape) ===
+        // === Blueprint JSON Export (Roster_22_01_4E compatible + backward compatible) ===
+        // New roster system uses:
+        // - times matching rosterSystem.ROSTER_TIMES
+        // - locations matching rosterSystem.LOCATIONS names
+        // - slot count is effectively `needed` (Pass Counter = 2, others = 1)
+        // This export keeps BOTH `needed` and legacy `slots` so older importers still work.
         function buildBlueprintJSON() {
-            // Normalize into { locations: { [loc]: { [time]: [ids...] } } }
             const roster = {};
             currentLocations.forEach(loc => {
+                const needed = Number(loc.needed ?? loc.slots ?? 1) || 1;
+
                 roster[loc.name] = {};
                 TIMES.forEach(t => {
                     const arr = [];
-                    for (let i = 0; i < loc.slots; i++) {
+                    for (let i = 0; i < needed; i++) {
                         const key = loc.name + '_' + t + '_' + i;
                         arr.push(tableData[key] || "");
                     }
@@ -358,19 +364,38 @@
                 });
             });
 
+            // Provide a strict row order (what you see in the table)
+            const rowOrder = currentLocations.map(l => l.name);
+
             return {
-                schema: "universal_schedule_blueprint_v1",
+                // Tags (the roster app shows schema/version for info)
+                schema: "pcc_roster_blueprint_v2",
+                version: "universal_schedule_blueprint_v1",
+
                 appId,
                 createdAt: new Date().toISOString(),
+
+                // Must match rosterSystem.ROSTER_TIMES exactly
                 times: [...TIMES],
-                locations: currentLocations.map(l => ({ name: l.name, slots: l.slots })),
-                rowOrder: currentLocations.map(l => l.name),
-                roster, // main structured form
-                gridData: { ...tableData } // original flat keys for lossless import
+
+                // Roster_22_01_4E uses LOCATIONS with `needed`; keep both fields
+                locations: currentLocations.map(l => ({
+                    name: l.name,
+                    needed: Number(l.needed ?? l.slots ?? 1) || 1,
+                    slots: Number(l.slots ?? l.needed ?? 1) || 1
+                })),
+
+                rowOrder,
+
+                // Primary structured form used by the roster generator
+                roster,
+
+                // Lossless flat keys for round-trip / debugging
+                gridData: { ...tableData }
             };
         }
 
-        function downloadJSON(obj, filename) {
+function downloadJSON(obj, filename) {
             const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
