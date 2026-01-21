@@ -24,7 +24,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, doc, setDoc, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, writeBatch, serverTimestamp, getDocs, orderBy, limit } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getFirestore, collection, doc, setDoc, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = {
           apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -192,53 +192,8 @@
                 if (!currentUser) return;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'blueprints', 'active');
                 await setDoc(docRef, { blueprint: null, updatedAt: new Date().toISOString() }, { merge: true });
-            },
-
-            // ===== Saved Blueprints library (cloud + local) =====
-            // Collection: artifacts/{appId}/public/data/blueprints_saved/{docId}
-            saveBlueprintNamed: async (name, blueprintObj, updatedAtIso) => {
-                if (!currentUser) return null;
-                const safeName = (name || 'Blueprint').toString().trim();
-                const id = safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g,'').slice(0, 60) || ('bp-' + Date.now());
-                const payload = {
-                    name: safeName,
-                    blueprint: blueprintObj || null,
-                    schema: (blueprintObj && (blueprintObj.schema || blueprintObj.version)) || null,
-                    updatedAt: updatedAtIso || new Date().toISOString()
-                };
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'blueprints_saved', id);
-                await setDoc(docRef, payload, { merge: true });
-                return id;
-            },
-            listBlueprints: async () => {
-                try {
-                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'blueprints_saved');
-                    const q = query(colRef, orderBy('updatedAt', 'desc'), limit(50));
-                    const snap = await getDocs(q);
-                    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                } catch (e) {
-                    return [];
-                }
-            },
-            loadBlueprintNamed: async (id) => {
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'blueprints_saved', id);
-                    const snap = await getDoc(docRef);
-                    if (!snap.exists()) return null;
-                    return { id: snap.id, ...snap.data() };
-                } catch (e) {
-                    return null;
-                }
-            },
-            deleteBlueprintNamed: async (id) => {
-                if (!currentUser) return;
-                try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'blueprints_saved', id);
-                    await deleteDoc(docRef);
-                } catch (e) {}
             }
         };
-
 
 
         initAuth();
@@ -1224,6 +1179,125 @@ for (const sId of pickList) {
             return false;
         };
 
+
+// =========================
+// Blueprint Template Rotation (Hard Enforcement for REQUIRED slots only)
+// Blueprint acts as "place order" template: we preserve the pattern, but remap template IDs to a new set of staff IDs.
+// IMPORTANT: Locations/times left blank in blueprint remain blank (e.g., Tango Papa only at 07:00).
+// =========================
+const bp = (this.blueprintEnabled && this.blueprintData && this.blueprintData.roster) ? this.blueprintData : null;
+
+// Which slots are allowed/required by blueprint (blank cells should stay blank).
+const bpAllowed = {};   // bpAllowed[loc][time] = boolean (true means generator may fill; false means must stay blank)
+const bpPrefill = {};   // bpPrefill[loc][time] = array of ids (already remapped)
+const bpRequired = {};  // bpRequired[loc][time] = boolean (true means must not be left blank)
+
+if (bp) {
+    // Seeded RNG so Shuffle/Generate produce stable-but-different remaps
+    const seedBase = (this._forcedSeed != null ? this._forcedSeed : Date.now());
+    const mulberry32 = (a) => () => {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const rng = mulberry32(Number(seedBase) >>> 0);
+    const shuffle = (arr) => {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    };
+
+    // 1) Collect unique template IDs from blueprint (non-empty)
+    const templateIds = [];
+    const seen = new Set();
+    Object.keys(bp.roster || {}).forEach(locName => {
+        Object.keys((bp.roster[locName] || {})).forEach(time => {
+            const arr = bp.roster[locName][time] || [];
+            arr.forEach(v => {
+                const s = (v || "").toString().trim();
+                if (s && !seen.has(s)) { seen.add(s); templateIds.push(s); }
+            });
+        });
+    });
+
+    // 2) Choose new staff IDs to map onto the template IDs.
+    // Prefer "presentStaff" pool (attendance Yes). If pool smaller than template, we fall back to allowing reuse.
+    const poolIds = presentStaff.map(s => s.staffId);
+    const picked = shuffle(poolIds);
+    const mapping = {};
+    templateIds.forEach((tid, idx) => {
+        mapping[tid] = picked[idx % picked.length]; // reuse only if necessary
+    });
+
+    // 3) Build allowed/required maps and prefill values (respect locked values)
+    const bpTimes = Array.isArray(bp.times) && bp.times.length ? bp.times : this.ROSTER_TIMES;
+
+    this.LOCATIONS.forEach(loc => {
+        const locName = loc.name;
+        bpAllowed[locName] = {};
+        bpPrefill[locName] = {};
+        bpRequired[locName] = {};
+
+        bpTimes.forEach(time => {
+            // Default: allowed = true (normal generation)
+            bpAllowed[locName][time] = true;
+            bpRequired[locName][time] = false;
+
+            const tplArr = (bp.roster && bp.roster[locName] && bp.roster[locName][time]) ? bp.roster[locName][time] : null;
+
+            if (tplArr) {
+                // If blueprint explicitly provides an array for this loc/time:
+                // - If ALL slots are blank => must remain blank (not allowed to fill)
+                // - If ANY slot has a value => those slots are required/prefilled
+                const normalized = new Array(loc.needed).fill('');
+                for (let i = 0; i < Math.min(loc.needed, tplArr.length); i++) {
+                    normalized[i] = (tplArr[i] || "").toString().trim();
+                }
+                const anyFilled = normalized.some(v => !!v);
+                const allBlank = normalized.every(v => !v);
+
+                if (allBlank) {
+                    bpAllowed[locName][time] = false;   // keep empty
+                    bpRequired[locName][time] = false;  // not required
+                    bpPrefill[locName][time] = new Array(loc.needed).fill('');
+                } else {
+                    bpAllowed[locName][time] = true;
+                    bpRequired[locName][time] = true;   // blueprint says pattern expects a duty here
+                    bpPrefill[locName][time] = normalized.map(v => v ? (mapping[v] || v) : '');
+                }
+            } else {
+                // If blueprint has no entry for this loc/time, leave as normal generation.
+                bpPrefill[locName][time] = null;
+            }
+        });
+    });
+
+    // 4) Apply prefill into the roster now (respect locks)
+    this.LOCATIONS.forEach(loc => {
+        const locName = loc.name;
+        this.ROSTER_TIMES.forEach(time => {
+            const pre = bpPrefill?.[locName]?.[time];
+            if (!pre) return;
+            for (let i = 0; i < loc.needed; i++) {
+                const key = `${locName}_${time}_${i}`;
+                if (lockedValues[key]) {
+                    roster[locName][time][i] = lockedValues[key];
+                    continue;
+                }
+                if (pre[i]) {
+                    roster[locName][time][i] = pre[i];
+                    // record assignment
+                    if (assignmentsByStaff[pre[i]]) assignmentsByStaff[pre[i]].push(time);
+                    if (locName === "Vertical Patrol") verticalPatrolTracker.add(pre[i]);
+                }
+            }
+        });
+    });
+}
         this.ROSTER_TIMES.forEach(time => {
             this.OUTPUT_ORDER.forEach(locName => {
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
@@ -1231,9 +1305,21 @@ for (const sId of pickList) {
                 // RULE: When POOL <= 6, Lobby must remain empty
                 if (locName === "Lobby" && presentStaff.length <= 6) { return; }
 
+
+// Blueprint "place order" enforcement:
+// - If blueprint explicitly marks this loc/time as not allowed, keep it empty and skip.
+if (bp && bpAllowed[locName] && bpAllowed[locName][time] === false) {
+    return; // keep blank as per blueprint (e.g., Tango Papa except 07:00)
+}
                 const needed = this.LOCATIONS.find(l => l.name === locName).needed;
                 
                 for (let i = 0; i < needed; i++) {
+
+// If blueprint or lock already set this slot, do not overwrite.
+if (roster[locName] && roster[locName][time] && roster[locName][time][i]) {
+    continue;
+}
+
                     let preAssignedId = null;
                     if (specificAssignments[time] && specificAssignments[time][locName] && specificAssignments[time][locName].length > 0) { preAssignedId = specificAssignments[time][locName].shift(); }
                     
@@ -1394,6 +1480,26 @@ else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
             }
 });
 
+
+// Final Blueprint hard-enforcement (REQUIRED slots only): do not allow blanks where blueprint expects duty.
+if (bp) {
+    this.LOCATIONS.forEach(loc => {
+        const locName = loc.name;
+        this.ROSTER_TIMES.forEach(time => {
+            if (bpRequired[locName] && bpRequired[locName][time]) {
+                for (let i = 0; i < loc.needed; i++) {
+                    const key = `${locName}_${time}_${i}`;
+                    if (lockedValues[key]) continue;
+                    if (!roster[locName][time][i]) {
+                        // Fallback: pick any present staff (even if reused) to avoid blank required slot
+                        const fallback = presentStaff[(Math.floor((Math.random()) * presentStaff.length))].staffId;
+                        roster[locName][time][i] = fallback;
+                    }
+                }
+            }
+        });
+    });
+}
 this.generatedRoster = roster; this.displayRoster(roster); document.getElementById('rosterActionsContainer').classList.remove('hidden');
         this.enforceHHMDOnly(roster, { source: 'preSave', silent: true });
         window.firebaseOperations.saveRoster(this.currentDateStr, roster); this.triggerSaveIndicator();
@@ -2322,211 +2428,6 @@ displayRoster(roster) {
         this.showToast("Blueprint cleared", "success");
         this.refreshBlueprintManager();
     },
-// ---- Blueprint Library (Saved Blueprints UI) ----
-_bpLocalIndexKey: "bp_saved_index_v1",
-_bpLocalMapKey: "bp_saved_map_v1",
-
-_loadLocalBlueprintIndex() {
-    try { return JSON.parse(localStorage.getItem(this._bpLocalIndexKey) || "[]"); } catch(e){ return []; }
-},
-_saveLocalBlueprintIndex(list) {
-    localStorage.setItem(this._bpLocalIndexKey, JSON.stringify(list || []));
-},
-_loadLocalBlueprintMap() {
-    try { return JSON.parse(localStorage.getItem(this._bpLocalMapKey) || "{}"); } catch(e){ return {}; }
-},
-_saveLocalBlueprintMap(map) {
-    localStorage.setItem(this._bpLocalMapKey, JSON.stringify(map || {}));
-},
-_upsertLocalSavedBlueprint(id, name, blueprintObj, updatedAt) {
-    const idx = this._loadLocalBlueprintIndex();
-    const map = this._loadLocalBlueprintMap();
-    const entry = { id, name: name || id, updatedAt: updatedAt || new Date().toISOString() };
-    const pos = idx.findIndex(x => x.id === id);
-    if (pos >= 0) idx[pos] = entry; else idx.unshift(entry);
-    // keep latest first
-    idx.sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-    map[id] = { ...entry, blueprint: blueprintObj || null };
-    this._saveLocalBlueprintIndex(idx.slice(0, 50));
-    this._saveLocalBlueprintMap(map);
-},
-_deleteLocalSavedBlueprint(id) {
-    const idx = this._loadLocalBlueprintIndex().filter(x => x.id !== id);
-    const map = this._loadLocalBlueprintMap();
-    delete map[id];
-    this._saveLocalBlueprintIndex(idx);
-    this._saveLocalBlueprintMap(map);
-},
-_getLocalSavedBlueprint(id) {
-    const map = this._loadLocalBlueprintMap();
-    return map[id] || null;
-},
-
-// Called by footer <input type=file> listener
-async handleBlueprintFileImport(file) {
-    if (!file) return;
-    try {
-        const text = await file.text();
-        const obj = JSON.parse(text);
-        if (!obj || typeof obj !== "object") throw new Error("Invalid JSON");
-
-        const baseName = (file.name || "Blueprint").replace(/\.[^.]+$/,"");
-        await this._applyImportedBlueprint(obj, baseName);
-    } catch (err) {
-        console.error(err);
-        this.showToast("Invalid Blueprint JSON", "error");
-    }
-},
-
-// Backward compat: existing handler expects event
-async handleBlueprintFile(e) {
-    const file = e?.target?.files && e.target.files[0];
-    if (!file) return;
-    await this.handleBlueprintFileImport(file);
-    if (e?.target) e.target.value = "";
-},
-
-async _applyImportedBlueprint(obj, nameHint) {
-    // Save as current blueprint
-    this.blueprintData = obj;
-    this.blueprintUpdatedAt = new Date().toISOString();
-    localStorage.setItem("bp_json", JSON.stringify(obj));
-    localStorage.setItem("bp_updatedAt", this.blueprintUpdatedAt);
-
-    // Save to cloud "active"
-    if (window.firebaseOperations?.saveBlueprint) {
-        try { await window.firebaseOperations.saveBlueprint(obj, this.blueprintUpdatedAt); } catch(e) {}
-    }
-
-    // Save into library (cloud + local)
-    let savedId = null;
-    if (window.firebaseOperations?.saveBlueprintNamed) {
-        try { savedId = await window.firebaseOperations.saveBlueprintNamed(nameHint, obj, this.blueprintUpdatedAt); } catch(e) {}
-    }
-    // Always keep a local copy so user can see "Saved" even if offline
-    const localId = savedId || (nameHint || ("bp-" + Date.now())).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,60) || ("bp-" + Date.now());
-    this._upsertLocalSavedBlueprint(localId, nameHint, obj, this.blueprintUpdatedAt);
-
-    this.showToast(`Blueprint imported${nameHint ? `: ${nameHint}` : ""}`, "success");
-    this.updateActiveBlueprintStatusUI();
-    this.refreshBlueprintList();
-},
-
-updateActiveBlueprintStatusUI() {
-    const el = document.getElementById("activeBlueprintStatus");
-    if (!el) return;
-    el.textContent = this.blueprintEnabled ? "ON" : "OFF";
-    el.className = this.blueprintEnabled ? "font-semibold text-emerald-600" : "font-semibold text-slate-600";
-},
-
-// UI button uses this name
-toggleBlueprintEnabled() {
-    this.toggleBlueprint();
-    this.updateActiveBlueprintStatusUI();
-},
-
-// UI button uses this name
-exportCurrentBlueprintJSON() { this.exportBlueprintJson(); },
-
-// Render list of saved blueprints; shows confirmation after Import and on Refresh button click.
-async refreshBlueprintList() {
-    const listEl = document.getElementById("blueprintList");
-    if (!listEl) return;
-
-    listEl.innerHTML = `<div class="text-xs text-slate-500">Loading...</div>`;
-
-    // 1) Cloud list if available
-    let items = [];
-    if (window.firebaseOperations?.listBlueprints) {
-        try { items = await window.firebaseOperations.listBlueprints(); } catch(e) { items = []; }
-    }
-
-    // 2) Fallback / supplement from local index (useful if cloud empty or offline)
-    const localIdx = this._loadLocalBlueprintIndex();
-    const cloudIds = new Set((items || []).map(x => x.id));
-    const localOnly = localIdx.filter(x => !cloudIds.has(x.id));
-    const merged = [...(items || []), ...localOnly];
-
-    // Persist cloud metadata locally (so refresh shows something even if next time offline)
-    if (items && items.length) {
-        items.forEach(it => this._upsertLocalSavedBlueprint(it.id, it.name || it.id, null, it.updatedAt || new Date().toISOString()));
-    }
-
-    if (!merged.length) {
-        listEl.innerHTML = `<div class="text-xs text-slate-500">No saved blueprints yet. Import a JSON to save one.</div>`;
-        return;
-    }
-
-    const fmt = (iso) => {
-        try { return new Date(iso).toLocaleString(); } catch(e){ return iso || ""; }
-    };
-
-    listEl.innerHTML = merged.map((it) => {
-        const name = (it.name || it.id || "Blueprint").toString();
-        const when = it.updatedAt ? fmt(it.updatedAt) : "";
-        return `
-          <div class="p-2 rounded-lg border border-slate-200 bg-slate-50 flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <div class="font-semibold text-slate-800 truncate">${name}</div>
-              <div class="text-[11px] text-slate-500">${when}</div>
-            </div>
-            <div class="flex items-center gap-1 shrink-0">
-              <button class="px-2 py-1 rounded bg-white border border-slate-200 text-xs hover:bg-slate-100"
-                onclick="rosterSystem.loadBlueprintFromLibrary('${it.id}')">Load</button>
-              <button class="px-2 py-1 rounded bg-white border border-slate-200 text-xs hover:bg-slate-100"
-                onclick="rosterSystem.setActiveBlueprintFromLibrary('${it.id}')">Set Active</button>
-              <button class="px-2 py-1 rounded bg-rose-50 border border-rose-200 text-xs text-rose-700 hover:bg-rose-100"
-                onclick="rosterSystem.deleteBlueprintFromLibrary('${it.id}')">Delete</button>
-            </div>
-          </div>
-        `;
-    }).join("");
-
-    if (window.lucide) window.lucide.createIcons();
-},
-
-async loadBlueprintFromLibrary(id) {
-    if (!id) return;
-    // Try cloud first (gets full blueprint object)
-    let bp = null;
-    if (window.firebaseOperations?.loadBlueprintNamed) {
-        bp = await window.firebaseOperations.loadBlueprintNamed(id);
-    }
-    if (!bp) {
-        bp = this._getLocalSavedBlueprint(id);
-    }
-    if (!bp || !bp.blueprint) {
-        this.showToast("Blueprint not found", "error");
-        return;
-    }
-    this.blueprintData = bp.blueprint;
-    this.blueprintUpdatedAt = bp.updatedAt || new Date().toISOString();
-    localStorage.setItem("bp_json", JSON.stringify(this.blueprintData));
-    localStorage.setItem("bp_updatedAt", this.blueprintUpdatedAt);
-    this.showToast("Blueprint loaded", "success");
-},
-
-async setActiveBlueprintFromLibrary(id) {
-    await this.loadBlueprintFromLibrary(id);
-    if (this.blueprintData && window.firebaseOperations?.saveBlueprint) {
-        try { await window.firebaseOperations.saveBlueprint(this.blueprintData, this.blueprintUpdatedAt || new Date().toISOString()); } catch(e) {}
-    }
-    this.showToast("Active blueprint updated", "success");
-    this.refreshBlueprintList();
-},
-
-async deleteBlueprintFromLibrary(id) {
-    if (!id) return;
-    if (!confirm("Delete this saved blueprint?")) return;
-    this._deleteLocalSavedBlueprint(id);
-    if (window.firebaseOperations?.deleteBlueprintNamed) {
-        try { await window.firebaseOperations.deleteBlueprintNamed(id); } catch(e) {}
-    }
-    this.showToast("Blueprint deleted", "success");
-    this.refreshBlueprintList();
-},
-
-
 
 
     openInsights() {
@@ -2572,6 +2473,135 @@ async deleteBlueprintFromLibrary(id) {
         const modal = document.getElementById('insightsModal');
         if (modal) modal.classList.add('hidden');
     },
+
+    // ===== Blueprint Manager (UI helpers) =====
+    toggleBlueprintEnabled() {
+        // Back-compat: UI button calls this.
+        this.toggleBlueprint();
+        this.updateActiveBlueprintStatusUI();
+    },
+
+    updateActiveBlueprintStatusUI() {
+        const el = document.getElementById("activeBlueprintStatus");
+        if (el) {
+            el.textContent = this.blueprintEnabled ? "ON" : "OFF";
+            el.classList.toggle("text-emerald-600", !!this.blueprintEnabled);
+            el.classList.toggle("text-slate-800", !this.blueprintEnabled);
+        }
+    },
+
+    // Saved Blueprints are stored locally as a small library so "Refresh" always works
+    async refreshBlueprintList() {
+        const listEl = document.getElementById("blueprintList");
+        if (!listEl) return;
+
+        // Load local library
+        let lib = [];
+        try { lib = JSON.parse(localStorage.getItem("bp_library") || "[]") || []; } catch (e) { lib = []; }
+
+        // Render
+        if (!lib.length) {
+            listEl.innerHTML = '<div class="text-xs text-slate-500">No saved blueprints yet. Import one, then it will appear here.</div>';
+            return;
+        }
+
+        // newest first
+        lib.sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
+
+        listEl.innerHTML = lib.map((it)=>`
+          <div class="p-2 rounded border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">${(it.name||"Blueprint")}</div>
+              <div class="text-[11px] text-slate-500 truncate">${(it.createdAt||"")}</div>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button class="px-2 py-1 rounded border text-xs bg-white hover:bg-slate-100"
+                onclick="rosterSystem.loadBlueprintFromLibrary('${it.id}')">Load</button>
+              <button class="px-2 py-1 rounded border text-xs bg-white hover:bg-slate-100"
+                onclick="rosterSystem.setActiveBlueprintFromLibrary('${it.id}')">Set Active</button>
+              <button class="px-2 py-1 rounded border text-xs bg-white hover:bg-slate-100 text-red-600 border-red-200"
+                onclick="rosterSystem.deleteBlueprintFromLibrary('${it.id}')">Delete</button>
+            </div>
+          </div>
+        `).join("");
+    },
+
+    exportCurrentBlueprintJSON() {
+        // UI button calls this; keep stable
+        this.exportBlueprintJson();
+    },
+
+    async handleBlueprintFileImport(file) {
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const obj = JSON.parse(text);
+            if (!obj || typeof obj !== "object") throw new Error("Invalid JSON");
+
+            // Save as active blueprint (local + optional cloud)
+            this.blueprintData = obj;
+            const nowIso = new Date().toISOString();
+            this.blueprintUpdatedAt = nowIso;
+            localStorage.setItem("bp_json", JSON.stringify(obj));
+            localStorage.setItem("bp_updatedAt", nowIso);
+
+            if (window.firebaseOperations && window.firebaseOperations.saveBlueprint) {
+                try { await window.firebaseOperations.saveBlueprint(obj, nowIso); } catch (e) {}
+            }
+
+            // Also save into local library for selection
+            let lib = [];
+            try { lib = JSON.parse(localStorage.getItem("bp_library") || "[]") || []; } catch (e) { lib = []; }
+            const id = "bp_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now();
+            const name = obj.name || obj.version || obj.schema || ("Blueprint " + new Date().toLocaleString());
+            lib.unshift({ id, name, createdAt: nowIso, blueprint: obj });
+            // keep small
+            lib = lib.slice(0, 50);
+            localStorage.setItem("bp_library", JSON.stringify(lib));
+
+            this.showToast("Blueprint imported and saved.", "success");
+            this.updateActiveBlueprintStatusUI();
+            await this.refreshBlueprintList();
+        } catch (e) {
+            console.error(e);
+            this.showToast("Import failed: invalid JSON file.", "error");
+        }
+    },
+
+    async loadBlueprintFromLibrary(id) {
+        if (!id) return;
+        let lib = [];
+        try { lib = JSON.parse(localStorage.getItem("bp_library") || "[]") || []; } catch (e) { lib = []; }
+        const it = lib.find(x => x.id === id);
+        if (!it || !it.blueprint) return this.showToast("Blueprint not found.", "warning");
+        this.blueprintData = it.blueprint;
+        this.blueprintUpdatedAt = it.createdAt || new Date().toISOString();
+        localStorage.setItem("bp_json", JSON.stringify(this.blueprintData));
+        localStorage.setItem("bp_updatedAt", this.blueprintUpdatedAt);
+        this.showToast("Blueprint loaded.", "success");
+        this.updateActiveBlueprintStatusUI();
+    },
+
+    async setActiveBlueprintFromLibrary(id) {
+        // Same as Load, but also pushes to cloud active blueprint if available
+        await this.loadBlueprintFromLibrary(id);
+        if (window.firebaseOperations && window.firebaseOperations.saveBlueprint) {
+            try { await window.firebaseOperations.saveBlueprint(this.blueprintData, new Date().toISOString()); } catch (e) {}
+        }
+        this.showToast("Active blueprint updated.", "success");
+    },
+
+    async deleteBlueprintFromLibrary(id) {
+        if (!id) return;
+        let lib = [];
+        try { lib = JSON.parse(localStorage.getItem("bp_library") || "[]") || []; } catch (e) { lib = []; }
+        const next = lib.filter(x => x.id !== id);
+        localStorage.setItem("bp_library", JSON.stringify(next));
+        await this.refreshBlueprintList();
+        this.showToast("Saved blueprint deleted.", "success");
+    },
+
+
 
 };
 document.addEventListener('DOMContentLoaded', () => { rosterSystem.init(); if (document.getElementById('shuffleModeSel')) { rosterSystem.shuffleMode = document.getElementById('shuffleModeSel').value || 'random'; document.getElementById('shuffleModeSel').addEventListener('change',(e)=>{ rosterSystem.shuffleMode = e.target.value; }); } if (window.__resolveRosterReady) window.__resolveRosterReady(); applyRosterVisibilityPref(); });
