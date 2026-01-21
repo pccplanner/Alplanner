@@ -2191,15 +2191,24 @@ displayRoster(roster) {
         this.showToast(`Blueprint ${this.blueprintEnabled ? "ON" : "OFF"}`, "info");
     },
 
+
+
+    // Back-compat alias for older UI handlers
+    toggleBlueprintEnabled() { return this.toggleBlueprint(); },
     updateBlueprintToggleUI() {
+        // Older UI element (if present)
         const el = document.getElementById("blueprintToggleState");
         if (el) {
             el.textContent = this.blueprintEnabled ? "ON" : "OFF";
             el.className = this.blueprintEnabled ? "font-semibold text-emerald-600" : "font-semibold text-slate-600";
         }
-    },
-
-    openBlueprintManager() {
+        // Current Blueprint Manager UI element
+        const el2 = document.getElementById("activeBlueprintStatus");
+        if (el2) {
+            el2.textContent = this.blueprintEnabled ? "ON" : "OFF";
+            el2.className = this.blueprintEnabled ? "font-semibold text-emerald-600" : "font-semibold text-slate-600";
+        }
+    },    openBlueprintManager() {
         const drawer = document.getElementById("blueprintDrawer");
         const back = document.getElementById("blueprintDrawerBackdrop");
         if (back) back.classList.remove("hidden");
@@ -2349,6 +2358,10 @@ displayRoster(roster) {
     },
 
 };
+
+// Expose rosterSystem globally for inline handlers and other scripts
+window.rosterSystem = rosterSystem;
+if (window.__resolveRosterReady) window.__resolveRosterReady(rosterSystem);
 document.addEventListener('DOMContentLoaded', () => { rosterSystem.init(); if (document.getElementById('shuffleModeSel')) { rosterSystem.shuffleMode = document.getElementById('shuffleModeSel').value || 'random'; document.getElementById('shuffleModeSel').addEventListener('change',(e)=>{ rosterSystem.shuffleMode = e.target.value; }); } if (window.__resolveRosterReady) window.__resolveRosterReady(); applyRosterVisibilityPref(); });
 
 function setRosterHidden(hidden){
@@ -2429,7 +2442,7 @@ function applyRosterVisibilityPref(){
       <div class="flex items-center justify-between">
         <div class="text-sm"><span class="text-slate-500">Status:</span> <span id="activeBlueprintStatus" class="font-semibold">OFF</span></div>
         <button class="px-3 py-2 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700"
-          onclick="rosterSystem.toggleBlueprintEnabled()">
+          onclick="rosterSystem.toggleBlueprint()">
           Toggle ON/OFF
         </button>
       </div>
