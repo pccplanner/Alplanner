@@ -703,6 +703,19 @@ grid.querySelectorAll('.vp-quick').forEach(sel => {
         this.currentPoolCount = presentStaff.length;
 datalist.innerHTML = presentStaff.map(s => `<option value="${s.staffId}"></option>`).join('');
     },
+    getActiveStaffOptionsHtml(selectedId='') {
+        const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
+        const sid = String(selectedId ?? '').trim();
+        const opts = ['<option value="">--</option>'];
+        presentStaff.forEach(s => {
+            const v = String(s.staffId ?? '').trim();
+            if (!v) return;
+            const sel = (v === sid) ? ' selected' : '';
+            opts.push(`<option value="${v}"${sel}>${v}</option>`);
+        });
+        return opts.join('');
+    },
+
 // ---- Break time utilities (used by cards + edit modal + break table) ----
 timeToMinutesHHMM(t) {
     if (!t || typeof t !== 'string' || !t.includes(':')) return NaN;
@@ -2038,7 +2051,7 @@ displayRoster(roster) {
                         const icon = isPredefined ? `<i data-lucide="pin" class="predefined-icon"></i>` : "";
                         
                         content += `<div class="relative w-full ${cellClass}" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
-                            <input type="text" list="staff-id-list" value="${assignedStaffId}" data-loc="${locName}" data-time="${time}" data-index="${i}" class="roster-input transition-colors font-medium text-slate-700" placeholder="--">
+                            <select value="${assignedStaffId}" data-loc="${locName}" data-time="${time}" data-index="${i}" class="roster-input transition-colors font-medium text-slate-700 bg-transparent outline-none w-full" >${this.getActiveStaffOptionsHtml(assignedStaffId)}</select>
                             ${icon}
                             ${extraInfo}
                         </div>`;
