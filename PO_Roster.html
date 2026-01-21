@@ -141,9 +141,11 @@
                 await batch.commit();
             },
             saveRoster: async (dateStr, rosterData) => {
-                if (!currentUser || !dateStr) return;
+                if (!currentUser || dateStr == null || dateStr === '') return;
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_ROSTERS, dateStr);
+                    // Firestore doc IDs must be strings (SDK will throw if a number/Date is passed)
+                    const safeDateId = String(dateStr).trim();
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_ROSTERS, safeDateId);
                     await setDoc(docRef, { roster: rosterData, updatedAt: serverTimestamp() }, { merge: true });
                 } catch (e) {
                     console.error("Save Error:", e);
@@ -151,8 +153,9 @@
                 }
             },
             subscribeToRoster: (dateStr, callback) => {
-                if (!currentUser || !dateStr) return null;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_ROSTERS, dateStr);
+                if (!currentUser || dateStr == null || dateStr === '') return null;
+                const safeDateId = String(dateStr).trim();
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_ROSTERS, safeDateId);
                 return onSnapshot(docRef, (doc) => {
                     if (doc.exists()) {
                         callback(doc.data().roster);
