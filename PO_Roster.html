@@ -38,6 +38,11 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        // Expose for inline handlers / embedded contexts (iOS iframe/webview)
+        window.fireauth = auth;
+        window.firedb = db;
+        window.firebaseApp = app;
+
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
         
@@ -470,7 +475,7 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 <div id="pdfModal" class="modal hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm items-center justify-center p-4">
     <div class="bg-white rounded w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl">
         <div class="flex justify-between items-center p-3 border-b bg-slate-50 rounded-t"><h3 class="text-sm font-bold text-slate-700">PDF Preview</h3><div class="flex gap-2"><a id="pdfDownloadLink" href="#" download="roster.pdf" class="bg-slate-800 text-white px-3 py-1 rounded text-xs font-bold hover:bg-black">Download</a><button onclick="rosterSystem.closePdfModal()" class="text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button></div></div>
-        <iframe id="pdfPreview" class="flex-1 w-full bg-slate-200"></iframe>
+        <object id="pdfPreview" class="flex-1 w-full bg-slate-200" type="application/pdf"></object>
     </div>
 </div>
 
@@ -1283,7 +1288,19 @@ if (bp) {
                 } else {
                     bpAllowed[locName][time] = true;
                     bpRequired[locName][time] = true;   // blueprint says pattern expects a duty here
-                    bpPrefill[locName][time] = normalized.map(v => v ? (mapping[v] || v) : '');
+                    bpPrefill[locName][time] = normalized.map((v, idx) => {
+        if (!v) return '';
+        const mapped = mapping[v];
+        if (mapped) return mapped;
+
+        // Hard rule: NEVER keep raw PatternKey as an assignment.
+        // If mapping is missing (e.g., pool smaller / empty), fallback to an ACTIVE ID from today's pool.
+        if (!poolIds || poolIds.length === 0) return '';
+        const seed = String(locName) + '|' + String(time) + '|' + String(v) + '|' + String(idx);
+        let h = 0;
+        for (let i = 0; i < seed.length; i++) { h = ((h << 5) - h) + seed.charCodeAt(i); h |= 0; }
+        return poolIds[Math.abs(h) % poolIds.length];
+      });
                 }
             } else {
                 // If blueprint has no entry for this loc/time, leave as normal generation.
@@ -2164,10 +2181,33 @@ displayRoster(roster) {
                     columnStyles: { 0: { cellWidth: 18, fontStyle: 'bold' }, 1: { cellWidth: 55 }, 2: { cellWidth: 30, fontStyle: 'bold' } }
                 });
             }
-            const blobUrl = doc.output('bloburl'); document.getElementById('pdfDownloadLink').href = blobUrl; document.getElementById('pdfPreview').src = blobUrl; document.getElementById('pdfModal').classList.remove('hidden'); document.getElementById('pdfModal').classList.add('flex');
+            const blob = doc.output('blob');
+            const blobUrl = URL.createObjectURL(blob);
+            // track & clean up previous object URL
+            if (this._pdfObjectUrl) { try { URL.revokeObjectURL(this._pdfObjectUrl); } catch(e){} }
+            this._pdfObjectUrl = blobUrl;
+            document.getElementById('pdfDownloadLink').href = blobUrl;
+            const previewEl = document.getElementById('pdfPreview');
+            // <object> uses .data, <iframe> would use .src
+            if ('data' in previewEl) previewEl.data = blobUrl; else previewEl.src = blobUrl; document.getElementById('pdfModal').classList.remove('hidden'); document.getElementById('pdfModal').classList.add('flex');
         } catch (e) { console.error(e); this.showToast('Error creating PDF', 'error'); }
     },
-    closePdfModal() { const preview = document.getElementById('pdfPreview'); preview.src = 'about:blank'; document.getElementById('pdfModal').classList.add('hidden'); document.getElementById('pdfModal').classList.remove('flex'); },
+    closePdfModal() {
+        const preview = document.getElementById('pdfPreview');
+        // Clear preview safely (avoid about:blank iOS origin errors)
+        if (preview) {
+            if ('data' in preview) preview.data = '';
+            else preview.src = '';
+        }
+        if (this._pdfObjectUrl) {
+            try { URL.revokeObjectURL(this._pdfObjectUrl); } catch (e) {}
+            this._pdfObjectUrl = null;
+        }
+        const link = document.getElementById('pdfDownloadLink');
+        if (link) link.href = '#';
+        document.getElementById('pdfModal').classList.add('hidden');
+        document.getElementById('pdfModal').classList.remove('flex');
+    },
     smartShuffleOrGenerate(isShuffle = false) {
         const sel = document.getElementById('shuffleModeSel');
         if (sel) this.shuffleMode = sel.value || 'random';
