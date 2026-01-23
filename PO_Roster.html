@@ -21,6 +21,36 @@
     </script>
 
     <!-- Firebase SDKs -->
+    <script>
+      // iOS/WebView: ensure these identifiers exist even inside embedded frames
+      var fireauth = null;
+      var firedb = null;
+      var firebaseApp = null;
+    </script>
+<script>
+  // Suppress known iOS WebView/Files internal iframe console errors that are not caused by this app.
+  window.addEventListener('error', function(ev){
+    try{
+      var msg = String(ev && ev.message || '');
+      if (msg.includes('Invalid URI scheme in origin: about') || msg.includes("Can't find variable: fireauth") || msg === 'Script error.') {
+        ev.preventDefault();
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }, true);
+  window.addEventListener('unhandledrejection', function(ev){
+    try{
+      var msg = String(ev && (ev.reason && ev.reason.message || ev.reason) || '');
+      if (msg.includes('Invalid URI scheme in origin: about') || msg.includes("Can't find variable: fireauth")) {
+        ev.preventDefault();
+        return true;
+      }
+    }catch(e){}
+    return false;
+  });
+</script>
+
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
@@ -314,6 +344,12 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 #breakTimelineRoot .bt-handle-r { right: -6px; cursor: ew-resize; }
 
 </style>
+
+<style>
+  /* iOS/Safari: allow scrolling inside modal while body is locked */
+  #insightsModal .insights-card { max-height: 85vh; }
+  #insightsBody { -webkit-overflow-scrolling: touch; }
+</style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
 
@@ -475,7 +511,7 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 <div id="pdfModal" class="modal hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm items-center justify-center p-4">
     <div class="bg-white rounded w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl">
         <div class="flex justify-between items-center p-3 border-b bg-slate-50 rounded-t"><h3 class="text-sm font-bold text-slate-700">PDF Preview</h3><div class="flex gap-2"><a id="pdfDownloadLink" href="#" download="roster.pdf" class="bg-slate-800 text-white px-3 py-1 rounded text-xs font-bold hover:bg-black">Download</a><button onclick="rosterSystem.closePdfModal()" class="text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button></div></div>
-        <object id="pdfPreview" class="flex-1 w-full bg-slate-200" type="application/pdf"></object>
+        <div id="pdfPreview" class="flex-1 w-full bg-slate-200 flex items-center justify-center text-slate-600 text-sm px-4 text-center">PDF preview is disabled on iOS to avoid iframe/WebView errors. Please tap <b>Download</b> to open the PDF.</div>
     </div>
 </div>
 
@@ -2188,18 +2224,15 @@ displayRoster(roster) {
             this._pdfObjectUrl = blobUrl;
             document.getElementById('pdfDownloadLink').href = blobUrl;
             const previewEl = document.getElementById('pdfPreview');
-            // <object> uses .data, <iframe> would use .src
-            if ('data' in previewEl) previewEl.data = blobUrl; else previewEl.src = blobUrl; document.getElementById('pdfModal').classList.remove('hidden'); document.getElementById('pdfModal').classList.add('flex');
+            // iOS/WebView safety: do not embed PDF previews (can trigger iframe/about origin errors).
+            // Keep only the Download link.
+document.getElementById('pdfModal').classList.remove('hidden'); document.getElementById('pdfModal').classList.add('flex');
         } catch (e) { console.error(e); this.showToast('Error creating PDF', 'error'); }
     },
     closePdfModal() {
         const preview = document.getElementById('pdfPreview');
-        // Clear preview safely (avoid about:blank iOS origin errors)
-        if (preview) {
-            if ('data' in preview) preview.data = '';
-            else preview.src = '';
-        }
-        if (this._pdfObjectUrl) {
+        // iOS/WebView safety: no embedded PDF preview to clear.
+if (this._pdfObjectUrl) {
             try { URL.revokeObjectURL(this._pdfObjectUrl); } catch (e) {}
             this._pdfObjectUrl = null;
         }
@@ -2242,7 +2275,7 @@ displayRoster(roster) {
             try {
                 this.runRosterGeneration(true);
                 const roster = this.generatedRoster ? JSON.parse(JSON.stringify(this.generatedRoster)) : null;
-                const score = roster ? this.computeRosterScore(roster) : -Infinity;
+                const score = roster ? (this.computeRosterScore(roster) + this.computeExposureBalanceScore(roster)) : -Infinity;
                 if (score > best.score) best = { score, roster, seed };
             } catch (e) {}
         }
@@ -2314,6 +2347,150 @@ displayRoster(roster) {
             }
         }
         return score;
+
+    },
+    // ===== Exposure Balance (Insights-driven) =====
+    _loadExposureBalanceConfig() {
+        try {
+            const raw = localStorage.getItem('exposureBalance_v1');
+            if (!raw) return { enabled: false, weight: 3, locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 }, targets: {} };
+            const cfg = JSON.parse(raw);
+            if (!cfg || typeof cfg !== 'object') throw new Error('bad cfg');
+            cfg.enabled = !!cfg.enabled;
+            cfg.weight = Number(cfg.weight ?? 3);
+            if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 3;
+            cfg.locWeights = cfg.locWeights && typeof cfg.locWeights === 'object' ? cfg.locWeights : { "HHMD": 1, "Guard House": 1, "KIOSK": 1 };
+            cfg.targets = cfg.targets && typeof cfg.targets === 'object' ? cfg.targets : {};
+            return cfg;
+        } catch (e) {
+            return { enabled: false, weight: 3, locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 }, targets: {} };
+        }
+    },
+    _saveExposureBalanceConfig(cfg) {
+        try { localStorage.setItem('exposureBalance_v1', JSON.stringify(cfg)); } catch (e) {}
+    },
+    getActiveStaffIdsForDay() {
+        // Attendance-driven "active for today" pool
+        try {
+            const present = (this.staffDataCache || []).filter(s => String(s.attendance || '').toLowerCase() === 'yes');
+            return present.map(s => String(s.staffId || '').trim()).filter(Boolean);
+        } catch (e) {
+            return [];
+        }
+    },
+    computeExposureBalanceScore(roster) {
+        // Returns a score adjustment (positive is better). Disabled => 0.
+        const cfg = this._loadExposureBalanceConfig();
+        if (!cfg.enabled) return 0;
+
+        const locs = ["HHMD", "Guard House", "KIOSK"];
+        const times = this.ROSTER_TIMES || [];
+        const activeIds = this.getActiveStaffIdsForDay();
+        if (!roster || !times.length || !activeIds.length) return 0;
+
+        // Build exposure counts per location for active IDs only
+        const exposureByLoc = {};
+        for (const loc of locs) {
+            exposureByLoc[loc] = {};
+            const locObj = roster[loc] || {};
+            for (const t of times) {
+                const cell = locObj[t];
+                const ids = Array.isArray(cell) ? cell : [cell];
+                for (const idRaw of ids) {
+                    const id = String(idRaw || '').trim();
+                    if (!id || id === '--') continue;
+                    if (!activeIds.includes(id)) continue; // strict: never optimize using non-active IDs
+                    exposureByLoc[loc][id] = (exposureByLoc[loc][id] || 0) + 1;
+                }
+            }
+        }
+
+        const weight = Number(cfg.weight ?? 0);
+        if (!Number.isFinite(weight) || weight <= 0) return 0;
+
+        let adj = 0;
+
+        for (const loc of locs) {
+            const lw = Number((cfg.locWeights || {})[loc] ?? 1);
+            const locWeight = (Number.isFinite(lw) && lw > 0) ? lw : 1;
+            const counts = exposureByLoc[loc] || {};
+            const targets = ((cfg.targets || {})[loc] && typeof cfg.targets[loc] === 'object') ? cfg.targets[loc] : null;
+
+            if (targets && Object.keys(targets).length) {
+                // Target-based: minimize squared error to targets (only for active IDs).
+                let err = 0;
+                for (const id of activeIds) {
+                    const tgt = Number(targets[id]);
+                    if (!Number.isFinite(tgt)) continue; // ignore blank targets
+                    const c = Number(counts[id] || 0);
+                    const d = c - tgt;
+                    err += d * d;
+                }
+                // Negative penalty
+                adj -= err * weight * locWeight;
+            } else {
+                // Equalize exposures among active IDs: minimize variance
+                const arr = activeIds.map(id => Number(counts[id] || 0));
+                const mean = arr.reduce((a,b)=>a+b,0) / Math.max(1, arr.length);
+                let varSum = 0;
+                for (const v of arr) {
+                    const d = v - mean;
+                    varSum += d * d;
+                }
+                const variance = varSum / Math.max(1, arr.length);
+                adj -= variance * weight * locWeight;
+            }
+        }
+        return adj;
+    },
+    setExposureBalanceEnabled(enabled) {
+        const cfg = this._loadExposureBalanceConfig();
+        cfg.enabled = !!enabled;
+        this._saveExposureBalanceConfig(cfg);
+    },
+    setExposureBalanceWeight(weight) {
+        const cfg = this._loadExposureBalanceConfig();
+        cfg.weight = Number(weight);
+        if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 0;
+        this._saveExposureBalanceConfig(cfg);
+    },
+    saveExposureTargetsFromInsights() {
+        const cfg = this._loadExposureBalanceConfig();
+        const root = document.getElementById('insightsBody');
+        if (!root) return;
+
+        const enabledEl = root.querySelector('#expBalEnabled');
+        const weightEl = root.querySelector('#expBalWeight');
+        cfg.enabled = !!(enabledEl && enabledEl.checked);
+        cfg.weight = Number(weightEl ? weightEl.value : cfg.weight);
+        if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 0;
+
+        cfg.targets = cfg.targets && typeof cfg.targets === 'object' ? cfg.targets : {};
+        const rows = root.querySelectorAll('input[data-exp-loc][data-exp-id]');
+        for (const inp of rows) {
+            const loc = inp.getAttribute('data-exp-loc');
+            const id = inp.getAttribute('data-exp-id');
+            const val = inp.value;
+            if (!loc || !id) continue;
+            cfg.targets[loc] = cfg.targets[loc] && typeof cfg.targets[loc] === 'object' ? cfg.targets[loc] : {};
+            if (val === '' || val == null) {
+                delete cfg.targets[loc][id];
+            } else {
+                const n = Number(val);
+                if (Number.isFinite(n)) cfg.targets[loc][id] = n;
+            }
+        }
+        this._saveExposureBalanceConfig(cfg);
+        this.showToast('Exposure balance settings saved', 'success');
+        // Refresh view to show effect immediately
+        this.openInsights();
+    },
+    clearExposureTargets() {
+        const cfg = this._loadExposureBalanceConfig();
+        cfg.targets = {};
+        this._saveExposureBalanceConfig(cfg);
+        this.showToast('Exposure targets cleared (back to equalize)', 'success');
+        this.openInsights();
     },
 
     applyGeneratedRoster(roster) {
@@ -2494,12 +2671,43 @@ displayRoster(roster) {
         if (!roster) {
             body.innerHTML = '<div class="text-sm text-slate-500">No roster generated yet.</div>';
         } else {
-            const score = this.computeRosterScore(roster);
+            const baseScore = this.computeRosterScore(roster);
+            const balAdj = this.computeExposureBalanceScore(roster);
+            const score = baseScore + balAdj;
             const lines = [];
             lines.push(`<div class="text-sm font-semibold">Roster Score: <span class="font-mono">${score.toFixed(1)}</span></div>`);
+            lines.push(`<div class="text-xs text-slate-500 mt-1">Base: <span class="font-mono">${baseScore.toFixed(1)}</span> &nbsp;|&nbsp; Exposure balance: <span class="font-mono">${balAdj.toFixed(1)}</span></div>`);
             if (this._lastBalancedScore != null) {
                 lines.push(`<div class="text-xs text-slate-500 mt-1">Balanced pick: <span class="font-mono">${Number(this._lastBalancedScore).toFixed(1)}</span></div>`);
             }
+            // Exposure balance controls (optional)
+            const cfg = this._loadExposureBalanceConfig();
+            const activeIds = this.getActiveStaffIdsForDay();
+            const ctrl = [];
+            ctrl.push(`<div class="mt-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs font-semibold text-slate-700">Exposure balancing</div>
+                  <label class="text-xs flex items-center gap-2">
+                    <input id="expBalEnabled" type="checkbox" ${cfg.enabled ? 'checked' : ''} />
+                    <span>Enable</span>
+                  </label>
+                </div>
+                <div class="mt-2 flex items-center gap-2 text-xs">
+                  <span class="text-slate-600">Weight</span>
+                  <input id="expBalWeight" type="number" min="0" step="0.5" value="${Number(cfg.weight ?? 0)}"
+                         class="w-20 px-2 py-1 rounded border border-slate-200 bg-white" />
+                  <button class="ml-auto px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800"
+                          onclick="rosterSystem.saveExposureTargetsFromInsights()">Save</button>
+                  <button class="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50"
+                          onclick="rosterSystem.clearExposureTargets()">Clear targets</button>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-500">
+                  This influences <b>Balanced</b> shuffle selection only (it chooses the best roster among multiple seeds).
+                  Only <b>active</b> IDs for the selected day are considered.
+                </div>
+              </div>`);
+            lines.push(ctrl.join(''));
+
             const exposure = {};
             for (const loc of this.OUTPUT_ORDER) {
                 exposure[loc] = {};
@@ -2512,7 +2720,50 @@ displayRoster(roster) {
                     }
                 }
             }
-            const showLoc = (loc) => {
+            
+            // Target editor (optional): set desired exposure counts per ID for critical locations
+            const criticalLocs = ["HHMD","Guard House","KIOSK"];
+            const makeTargetTable = (loc) => {
+                const current = exposure[loc] || {};
+                const ids = activeIds.slice().sort((a,b)=>String(a).localeCompare(String(b)));
+                const rows = ids.map(id => {
+                    const cur = Number(current[id] || 0);
+                    const tgt = (((cfg.targets||{})[loc]||{})[id] ?? '');
+                    return `<tr class="border-t border-slate-100">
+                        <td class="py-1 pr-2 font-mono text-xs">${id}</td>
+                        <td class="py-1 pr-2 text-xs text-slate-600">${cur}</td>
+                        <td class="py-1">
+                          <input class="w-16 px-2 py-1 rounded border border-slate-200 bg-white text-xs font-mono"
+                                 placeholder="auto"
+                                 value="${tgt}"
+                                 data-exp-loc="${loc}" data-exp-id="${id}" />
+                        </td>
+                    </tr>`;
+                }).join('');
+                return `<div class="mt-3">
+                    <div class="text-xs font-semibold text-slate-700">${loc} targets</div>
+                    <div class="mt-1 overflow-auto max-h-48 rounded border border-slate-200 bg-white">
+                      <table class="w-full text-left">
+                        <thead class="sticky top-0 bg-white border-b border-slate-200">
+                          <tr>
+                            <th class="py-1 px-2 text-[11px] text-slate-500 font-semibold">ID</th>
+                            <th class="py-1 px-2 text-[11px] text-slate-500 font-semibold">Current</th>
+                            <th class="py-1 px-2 text-[11px] text-slate-500 font-semibold">Target</th>
+                          </tr>
+                        </thead>
+                        <tbody class="px-2">${rows}</tbody>
+                      </table>
+                    </div>
+                  </div>`;
+            };
+            if (activeIds && activeIds.length) {
+                lines.push(`<div class="mt-3 p-3 rounded-lg border border-slate-200 bg-white">
+                    <div class="text-xs font-semibold text-slate-700">Exposure targets (optional)</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Leave targets blank to use auto-equalize.</div>
+                    ${criticalLocs.map(makeTargetTable).join('')}
+                </div>`);
+            }
+const showLoc = (loc) => {
                 const pairs = Object.entries(exposure[loc]||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);
                 const items = pairs.map(([id,c])=>`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-xs font-mono">${id}<span class="text-slate-500">×${c}</span></span>`).join(' ');
                 return `<div class="mt-3"><div class="text-xs font-semibold text-slate-700">${loc} exposure</div><div class="mt-1 flex flex-wrap gap-1">${items || '<span class="text-xs text-slate-400">None</span>'}</div></div>`;
@@ -2751,7 +3002,7 @@ function applyRosterVisibilityPref(){
 
 <!-- Insights Modal -->
 <div id="insightsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-  <div class="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden">
+  <div class="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col insights-card">
     <div class="p-4 border-b border-slate-200 flex items-center justify-between">
       <div class="font-semibold flex items-center gap-2">
         <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Insights
@@ -2760,7 +3011,7 @@ function applyRosterVisibilityPref(){
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
-    <div class="p-4 text-sm text-slate-700 space-y-2" id="insightsBody">
+    <div class="p-4 text-sm text-slate-700 space-y-2 flex-1 overflow-y-auto overscroll-contain" id="insightsBody">
       <div class="text-slate-500">No insights yet.</div>
     </div>
   </div>
