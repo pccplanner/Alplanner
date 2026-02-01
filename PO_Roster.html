@@ -343,6 +343,46 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 #breakTimelineRoot .bt-handle-l { left: -6px; cursor: ew-resize; }
 #breakTimelineRoot .bt-handle-r { right: -6px; cursor: ew-resize; }
 
+
+        /* --- Command Center: mobile vertical stack + scroll (ACTIVE tab friendly) --- */
+        @media (max-width: 640px) {
+            /* Keep list scroll vertical (no horizontal swipe) */
+            .scroll-container { overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+
+            /* Stack cards top-to-bottom and show 1 card per row */
+            #staffGrid {
+                display: grid !important;
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
+                overflow: visible !important; /* wrapper handles scrolling */
+                padding-bottom: 8px;
+            }
+
+            /* Make card wide enough for ID + location + time + VP control */
+            .staff-card { width: 100% !important; }
+
+            /* Prevent important details from being clipped */
+            .staff-card .truncate { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+            .staff-card .cc-location-badge, .staff-card .cc-loc-badge {
+                max-width: 100% !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+                white-space: nowrap;
+            }
+        }
+
+    
+/* === Command Center footer always visible in FILTER mode (mobile) === */
+#ccFooter{ position: sticky; bottom: 0; z-index: 30; }
+@media (max-width: 768px){
+  /* Keep Command Center as a self-contained panel with internal scrolling */
+  #leftPanel{ max-height: 58vh; overflow: hidden; }
+  /* Ensure the staff list scrolls and never hides the footer */
+  #leftPanel .scroll-container{ padding-bottom: 72px; }
+  /* Avoid badge truncation */
+  .staff-card .truncate{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
 </style>
 
 <style>
@@ -395,13 +435,14 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
             <button onclick="rosterSystem.openAddModal()" class="w-8 h-8 rounded bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 shadow-sm"><i data-lucide="plus" class="w-4 h-4"></i></button>
         </div>
         <div class="flex-1 overflow-y-auto p-2 scroll-container">
-            <div id="staffGrid" class="grid grid-cols-2 gap-2">
-                <div class="col-span-2 text-center py-8 text-xs text-slate-400">Loading...</div>
+            <div id="staffGrid" class="grid grid-cols-1 gap-2 cc-staffgrid">
+                <div class="col-span-1 text-center py-8 text-xs text-slate-400">Loading...</div>
             </div>
         </div>
-        <div class="p-2 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs shrink-0">
+        <div id="ccFooter" class="p-2 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs shrink-0">
             <div class="flex gap-2">
                 <button onclick="rosterSystem.shuffleBreaks()" class="text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1 px-2 py-1 rounded hover:bg-purple-50"><i data-lucide="shuffle" class="w-3 h-3"></i> Shuffle</button>
+                <button onclick="rosterSystem.shuffleFirstHourDeploy()" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 px-2 py-1 rounded hover:bg-indigo-50" title="Shuffle 20:00 start locations (excludes Vertical Patrol)"><i data-lucide="sparkles" class="w-3 h-3"></i> 1st Hr</button>
                 <button onclick="rosterSystem.openBlueprintManager()" class="px-2 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1">
                     <i data-lucide="file-json" class="w-3 h-3"></i> Blueprints
                 </button>
@@ -534,7 +575,14 @@ const rosterSystem = {
         lucide.createIcons();
         this.bindModalBreakAutoCalc(); 
         this.setupUI();
-        this.initBlueprint(); 
+        this.initBlueprint();
+
+        // Keep Command Center "current location" badges in sync as time advances
+        if (this._ccLocTimer) { try { clearInterval(this._ccLocTimer); } catch(e){} }
+        this._ccLocTimer = setInterval(() => {
+            if (!this.staffDataCache || !this.staffDataCache.length) return;
+            this.renderStaffCards(this.staffDataCache);
+        }, 60 * 1000);
     },
 
     setupUI() {
@@ -562,6 +610,42 @@ const rosterSystem = {
             });
         });
     },
+
+    // --- Command Center: current deployment label (for quick verification) ---
+    // Picks the roster time-slot that matches the current clock time (20:00 -> 07:00 shift).
+    getCurrentShiftSlotTime() {
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const shiftStart = 20 * 60; // 20:00
+        let rel = nowMin - shiftStart;
+        if (rel < 0) rel += 24 * 60; // after midnight
+        const idx = Math.max(0, Math.min(this.ROSTER_TIMES.length - 1, Math.floor(rel / 60)));
+        return this.ROSTER_TIMES[idx];
+    },
+    // Return the location name for a given staffId at a given roster time (if roster exists)
+    getStaffLocationAtTime(roster, staffId, time) {
+        if (!roster || !staffId || !time) return "";
+        for (const locName of (this.OUTPUT_ORDER || [])) {
+            const slots = roster?.[locName]?.[time];
+            if (Array.isArray(slots) && slots.includes(staffId)) return locName;
+        }
+        for (const [locName, timesObj] of Object.entries(roster || {})) {
+            const slots = timesObj?.[time];
+            if (Array.isArray(slots) && slots.includes(staffId)) return locName;
+        }
+        return "";
+    },
+    // The label we show on each ACTIVE staff card
+    getDisplayLocationForStaff(staff) {
+        // Show FIRST HOUR (20:00) deployment on cards (not "current slot"),
+        // so clearing First Hour instantly clears the badge.
+        if (!staff || staff.attendance !== 'Yes') return "";
+        const time = "20:00";
+        const fromRoster = this.getStaffLocationAtTime(this.generatedRoster, staff.staffId, time);
+        if (fromRoster) return fromRoster;
+        return staff.startLoc || "";
+    },
+
 
     initializeDate() { 
         const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); const dateStr = `${year}-${month}-${day}`;
@@ -643,6 +727,13 @@ const rosterSystem = {
             const initials = staff.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
             const colorIndex = (staff.staffId.charCodeAt(staff.staffId.length - 1) || 0) % 8;
 
+            const locLabel = this.getDisplayLocationForStaff(staff);
+            const locBadge = locLabel ? `<div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 max-w-[110px]" title="First hour (20:00) deployment">
+                <i data-lucide="map-pin" class="w-3 h-3 text-slate-400"></i>
+                <span class="truncate">${locLabel}</span>
+            </div>` : "";
+
+
             let indicators = "";
             if (staff.startLoc) indicators += `<div class="w-2 h-2 bg-indigo-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
             if (staff.vpSlot) indicators += `<div class="w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-white"></div>`;
@@ -674,6 +765,7 @@ const rosterSystem = {
   <div class="flex items-center justify-between text-xs w-full">
     <span class="font-mono font-bold text-slate-600 bg-slate-100 px-1 rounded">${staff.staffId}</span>
     <div class="flex items-center gap-1.5">
+      ${locBadge}
       <div class="flex items-center gap-1 text-slate-500 font-semibold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
         <i data-lucide="clock" class="w-3 h-3 text-slate-400"></i>
         <span>${staff.breakStart}-${staff.breakEnd}</span>
@@ -1053,11 +1145,103 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
         this.handleStartLocChange({target: {value: staff.startLoc || ""}});
     },
     closeModal() { document.getElementById('staffModal').classList.add('hidden'); document.getElementById('staffModal').classList.remove('flex'); },
+    
     async saveStaffFromModal() {
-        const id = document.getElementById('modalFirebaseId').value; const data = { staffId: document.getElementById('modalStaffId').value, name: document.getElementById('modalName').value || "Unknown", breakStart: document.getElementById('modalBreakStart').value, breakEnd: document.getElementById('modalBreakEnd').value, hhmd: document.getElementById('modalHHMD').checked ? 'Yes' : 'No', startLoc: document.getElementById('modalStartLoc').value, vpSlot: document.getElementById('modalVPSlot').value, attendance: 'Yes' };
+        const id = document.getElementById('modalFirebaseId').value;
+
+        const staffIdVal = document.getElementById('modalStaffId').value;
+        const startLocVal = document.getElementById('modalStartLoc').value || "";
+        const vpSlotVal = document.getElementById('modalVPSlot').value || "";
+
+        const data = {
+            staffId: staffIdVal,
+            name: document.getElementById('modalName').value || "Unknown",
+            breakStart: document.getElementById('modalBreakStart').value,
+            breakEnd: document.getElementById('modalBreakEnd').value,
+            hhmd: document.getElementById('modalHHMD').checked ? 'Yes' : 'No',
+            startLoc: startLocVal,
+            vpSlot: vpSlotVal,
+            attendance: 'Yes'
+        };
+
         if (!data.breakEnd) data.breakEnd = this.computeBreakEndFromStart(data.breakStart);
-        if (id) { delete data.attendance; await window.firebaseOperations.updateStaff(id, data); this.showToast("Saved", "success"); } else { await window.firebaseOperations.addStaff(data); } this.closeModal();
+
+        // Helper: sync roster (20:00) on screen so clears/changes are immediately visible.
+        const syncStartLocToRoster20 = (staffId, newLoc) => {
+            if (!this.generatedRoster) return;
+            const time = "20:00";
+
+            const getNeeded = (locName) => {
+                const cfg = (this.LOCATIONS || []).find(l => l.name === locName);
+                return Number(cfg?.needed || 0);
+            };
+
+            // Ensure 20:00 arrays exist with correct length, then remove staffId from all
+            for (const locName of (this.OUTPUT_ORDER || [])) {
+                if (!this.generatedRoster[locName]) this.generatedRoster[locName] = {};
+                if (!Array.isArray(this.generatedRoster[locName][time])) {
+                    this.generatedRoster[locName][time] = new Array(getNeeded(locName)).fill('');
+                }
+                this.generatedRoster[locName][time] = this.generatedRoster[locName][time].map(v => (String(v) === String(staffId) ? '' : v));
+            }
+
+            // Add back if a new location is selected
+            if (newLoc) {
+                if (!this.generatedRoster[newLoc]) this.generatedRoster[newLoc] = {};
+                if (!Array.isArray(this.generatedRoster[newLoc][time])) {
+                    this.generatedRoster[newLoc][time] = new Array(getNeeded(newLoc)).fill('');
+                }
+                const arr = this.generatedRoster[newLoc][time];
+                let idx = arr.findIndex(x => !x);
+                if (idx === -1) idx = arr.length;
+                arr[idx] = staffId;
+            }
+
+            this.displayRoster(this.generatedRoster);
+            if (typeof this.validateAllCells === "function") this.validateAllCells();
+        };
+
+        try {
+            if (id) {
+                delete data.attendance;
+
+                // Capture old values for UI sync
+                const staff = (this.staffDataCache || []).find(s => s.firebaseId === id);
+                const oldStart = staff?.startLoc || "";
+                const oldVp = staff?.vpSlot || "";
+
+                await window.firebaseOperations.updateStaff(id, data);
+
+                // Update local cache immediately
+                if (staff) {
+                    staff.staffId = data.staffId;
+                    staff.name = data.name;
+                    staff.breakStart = data.breakStart;
+                    staff.breakEnd = data.breakEnd;
+                    staff.hhmd = data.hhmd;
+                    staff.startLoc = data.startLoc;
+                    staff.vpSlot = data.vpSlot;
+                }
+
+                // If startLoc changed OR cleared, sync roster 20:00 immediately
+                if (oldStart !== data.startLoc) {
+                    syncStartLocToRoster20(data.staffId, data.startLoc);
+                }
+
+                this.renderStaffCards(this.staffDataCache);
+                this.showToast("Saved", "success");
+            } else {
+                await window.firebaseOperations.addStaff(data);
+                this.showToast("Added", "success");
+            }
+        } catch (e) {
+            console.error("saveStaffFromModal error:", e);
+            this.showToast("Save failed", "error");
+        }
+
+        this.closeModal();
     },
+
     deleteCurrentStaff() { const id = document.getElementById('modalFirebaseId').value; if(confirm("Remove?")) { window.firebaseOperations.deleteStaff(id); this.closeModal(); } },
     
     openSettings() {
@@ -1094,10 +1278,206 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
         let times = present.map(s => ({ s: s.breakStart, e: s.breakEnd })); for (let i = times.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [times[i], times[j]] = [times[j], times[i]]; }
         present.forEach((staff, idx) => { window.firebaseOperations.updateStaff(staff.firebaseId, { breakStart: times[idx].s, breakEnd: times[idx].e }); }); this.showToast("Breaks shuffled", "success");
     },
-    clearAssignments() {
-        if(!confirm("Clear manual assignments? (HHMD preserved)")) return;
-        this.staffDataCache.forEach(staff => { const updates = {}; let changed = false; if (staff.startLoc && staff.startLoc !== 'HHMD') { updates.startLoc = ""; changed = true; } if (staff.vpSlot) { updates.vpSlot = ""; changed = true; } if (changed) window.firebaseOperations.updateStaff(staff.firebaseId, updates); });
-        this.showToast("Cleared (HHMD kept)", "success");
+
+    // Shuffle first-hour (20:00) START location assignments, excluding Vertical Patrol.
+    // This updates staff.startLoc in Firestore and immediately refreshes Command Center cards.
+        // Shuffle 20:00 (1st hour) deployment in Command Center.
+    // - Omits Vertical Patrol from the shuffle pool
+    // - Keeps your existing constraints (HHMD qualification, Lobby rule when pool<=6, skip Report Room on weekend)
+    // - Updates both Firestore (staff.startLoc) AND the currently displayed generated roster (20:00 column) so user sees the effect immediately.
+        async shuffleFirstHourDeploy() {
+        const time = "20:00";
+        const present = (this.staffDataCache || []).filter(s => s.attendance === 'Yes');
+        if (present.length === 0) return this.showToast("No active staff", "warning");
+
+        const dayVal = document.getElementById('rosterDay')?.value || "";
+        const isWeekend = ['Saturday', 'Sunday'].includes(dayVal);
+
+        // Build slot targets from LOCATION config (needed counts), omitting Vertical Patrol.
+        const slots = [];
+        for (const locName of (this.OUTPUT_ORDER || [])) {
+            if (locName === 'Vertical Patrol') continue;
+
+            // If CRITICAL_DUTIES exists, only include locations that operate at 20:00
+            if (this.CRITICAL_DUTIES?.[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) continue;
+
+            if (locName === "Report Room" && isWeekend) continue;
+            // RULE: When POOL <= 6, Lobby must remain empty
+            if (locName === "Lobby" && present.length <= 6) continue;
+
+            const locCfg = (this.LOCATIONS || []).find(l => l.name === locName);
+            if (!locCfg) continue;
+
+            const needed = Number(locCfg.needed || 0);
+            for (let i = 0; i < needed; i++) slots.push(locName);
+        }
+
+        // If VP is omitted, we can end up with fewer slots than staff.
+        // Fill remaining staff into a sensible fallback (non-VP) so EVERY active staff gets a start location.
+        const pickFallbackLoc = () => {
+            const candidates = ["Tango Papa", "Pass Counter", "KIOSK", "Guard House", "HHMD", "Lobby", "Report Room"];
+            for (const name of candidates) {
+                if (name === "Lobby" && present.length <= 6) continue;
+                if (name === "Report Room" && isWeekend) continue;
+                if (!(this.OUTPUT_ORDER || []).includes(name)) continue;
+                if (!(this.LOCATIONS || []).some(l => l.name === name)) continue;
+                if (this.CRITICAL_DUTIES?.[name] && !this.CRITICAL_DUTIES[name].includes(time)) continue;
+                return name;
+            }
+            return (this.OUTPUT_ORDER || []).find(x => x !== "Vertical Patrol") || "";
+        };
+
+        const fallbackLoc = pickFallbackLoc();
+        while (slots.length < present.length && fallbackLoc) slots.push(fallbackLoc);
+
+        if (slots.length === 0) return this.showToast("No start-hour slots to shuffle", "warning");
+
+        const shuffleInPlace = (arr) => {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        };
+
+        // Randomize staff order + slot order
+        const staffOrder = shuffleInPlace(present.slice());
+        const slotOrder = shuffleInPlace(slots.slice());
+
+        const assignments = new Map(); // fbId -> locationName
+        const used = new Set();
+
+        let cursor = 0;
+        for (const loc of slotOrder) {
+            let chosen = null;
+
+            for (let step = 0; step < staffOrder.length; step++) {
+                const cand = staffOrder[(cursor + step) % staffOrder.length];
+                if (!cand?.firebaseId) continue;
+                if (used.has(cand.firebaseId)) continue;
+
+                // HHMD requires qualification
+                if (loc === "HHMD" && cand.hhmd !== "Yes") continue;
+
+                chosen = cand;
+                cursor = (cursor + step + 1) % staffOrder.length;
+                break;
+            }
+
+            if (!chosen) continue;
+            used.add(chosen.firebaseId);
+            assignments.set(chosen.firebaseId, loc);
+        }
+
+        // If any staff still unassigned (edge case), drop them into fallback too
+        for (const s of present) {
+            if (!s?.firebaseId) continue;
+            if (!assignments.has(s.firebaseId)) assignments.set(s.firebaseId, fallbackLoc || "");
+        }
+
+        // Persist to Firestore + update cache
+        const tasks = [];
+        for (const [fbId, loc] of assignments.entries()) {
+            const staff = (this.staffDataCache || []).find(x => x.firebaseId === fbId);
+            if (staff) staff.startLoc = loc;
+
+            if (window.firebaseOperations?.updateStaff) {
+                tasks.push(window.firebaseOperations.updateStaff(fbId, { startLoc: loc }));
+            }
+        }
+
+        try {
+            await Promise.all(tasks);
+        } catch (e) {
+            console.error("shuffleFirstHourDeploy update errors:", e);
+            this.showToast("Some start-hour updates failed", "warning");
+        }
+
+        // Reflect immediately in the generated roster (20:00 column) if a roster is already on screen
+        if (this.generatedRoster) {
+            const getNeeded = (locName) => {
+                const cfg = (this.LOCATIONS || []).find(l => l.name === locName);
+                return Number(cfg?.needed || 0);
+            };
+
+            // 1) Clear current 20:00 placements (keep correct array length so displayRoster overwrites properly)
+            for (const locName of (this.OUTPUT_ORDER || [])) {
+                if (!this.generatedRoster[locName]) this.generatedRoster[locName] = {};
+                const needed = getNeeded(locName);
+                this.generatedRoster[locName][time] = new Array(needed).fill('');
+            }
+
+            // 2) Apply new placements: push into next empty slot
+            const placeInLoc = (locName, staffId) => {
+                if (!locName || !staffId) return;
+                if (locName === "Vertical Patrol") return; // explicitly omit
+                if (!this.generatedRoster[locName]) this.generatedRoster[locName] = {};
+                if (!Array.isArray(this.generatedRoster[locName][time])) {
+                    this.generatedRoster[locName][time] = new Array(getNeeded(locName)).fill('');
+                }
+                const arr = this.generatedRoster[locName][time];
+                let idx = arr.findIndex(x => !x);
+                if (idx === -1) idx = arr.length; // overflow (should be rare)
+                arr[idx] = staffId;
+            };
+
+            for (const [fbId, locName] of assignments.entries()) {
+                const staff = (this.staffDataCache || []).find(x => x.firebaseId === fbId);
+                const staffId = staff?.staffId;
+                if (!staffId) continue;
+                placeInLoc(locName, staffId);
+            }
+
+            this.displayRoster(this.generatedRoster);
+            if (typeof this.validateAllCells === "function") this.validateAllCells();
+        }
+
+        this.renderStaffCards(this.staffDataCache);
+        this.showToast("1st hour shuffled (Vertical Patrol omitted)", "success");
+        this.syncOpenEditModalBreakFields();
+    },
+
+        clearAssignments() {
+        if(!confirm("Clear FIRST HOUR (20:00) + VP selections? (HHMD qualification is NOT changed)")) return;
+
+        const present = (this.staffDataCache || []).filter(s => s.attendance === 'Yes');
+        const updatesTasks = [];
+
+        // Clear selections in cache + Firestore
+        (this.staffDataCache || []).forEach(staff => {
+            if (!staff?.firebaseId) return;
+
+            const updates = {};
+            let changed = false;
+
+            if (staff.startLoc) { updates.startLoc = ""; staff.startLoc = ""; changed = true; }
+            if (staff.vpSlot) { updates.vpSlot = ""; staff.vpSlot = ""; changed = true; }
+
+            if (changed && window.firebaseOperations?.updateStaff) {
+                updatesTasks.push(window.firebaseOperations.updateStaff(staff.firebaseId, updates));
+            }
+        });
+
+        Promise.allSettled(updatesTasks).then(() => {
+            // Also clear on-screen 20:00 placements immediately so user sees it.
+            if (this.generatedRoster) {
+                const time = "20:00";
+                const getNeeded = (locName) => {
+                    const cfg = (this.LOCATIONS || []).find(l => l.name === locName);
+                    return Number(cfg?.needed || 0);
+                };
+                for (const locName of (this.OUTPUT_ORDER || [])) {
+                    if (!this.generatedRoster[locName]) this.generatedRoster[locName] = {};
+                    this.generatedRoster[locName][time] = new Array(getNeeded(locName)).fill('');
+                }
+                this.displayRoster(this.generatedRoster);
+                if (typeof this.validateAllCells === "function") this.validateAllCells();
+            }
+
+            this.renderStaffCards(this.staffDataCache);
+            this.syncOpenEditModalBreakFields();
+            this.showToast("Cleared first-hour + VP selections", "success");
+        });
     },
 
     // --- FILL GAPS ---
