@@ -389,6 +389,55 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
   /* iOS/Safari: allow scrolling inside modal while body is locked */
   #insightsModal .insights-card { max-height: 85vh; }
   #insightsBody { -webkit-overflow-scrolling: touch; }
+
+  /* Insights ⓘ popover */
+  #insightsInfoBtn{ flex: 0 0 auto; }
+  #insightsInfoPopover.insights-popover{
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(420px, 78vw);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, .18);
+    padding: 10px 12px;
+    z-index: 60;
+  }
+  #insightsInfoPopover::before{
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: 18px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-left: 1px solid #e2e8f0;
+    border-top: 1px solid #e2e8f0;
+    transform: rotate(45deg);
+  }
+  .insights-popover-title{
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+  .insights-popover-body{
+    font-size: 11.5px;
+    color: #334155;
+    line-height: 1.35;
+  }
+  .insights-popover-body ul{
+    padding-left: 18px;
+    margin: 0;
+  }
+  .insights-popover-body li{ margin: 4px 0; }
+  .insights-popover-tip{
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #e2e8f0;
+    color: #475569;
+  }
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
@@ -2506,10 +2555,20 @@ displayRoster(roster) {
 
     handleCellChange(event) { 
         const { loc, time, index } = event.target.dataset; 
-        this.generatedRoster[loc][time][parseInt(index, 10)] = event.target.value; 
-        this.validateAllCells(); 
-        this.enforceHHMDOnly(this.generatedRoster, { source: 'preSave', silent: true });
-        this.enforceGuardHouseMax2(this.generatedRoster, { source: 'preSave', silent: true });
+        const idx = parseInt(index, 10);
+        const newVal = event.target.value;
+
+        this.generatedRoster[loc][time][idx] = newVal;
+
+        // Keep validation visuals (duplicates + break conflicts)
+        this.validateAllCells();
+
+        // Enforce HHMD qualification (hard rule) immediately
+        this.enforceHHMDOnly(this.generatedRoster, { source: 'manualEdit', silent: true });
+
+        // Guard House cap/back-to-back: warn & highlight, but DO NOT auto-clear on manual edits.
+        this.warnGuardHouseManualEdit(loc, time, newVal);
+
         window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
         this.triggerSaveIndicator();
     },
@@ -2546,6 +2605,52 @@ displayRoster(roster) {
         });
         for (const time in timeSlotUsage) { for (const staffId in timeSlotUsage[time]) { if (timeSlotUsage[time][staffId].length > 1) { timeSlotUsage[time][staffId].forEach(cell => cell.classList.add('conflict-cell')); } } }
     },
+
+
+warnGuardHouseManualEdit(loc, time, staffId) {
+    try {
+        if (loc !== 'Guard House') return;
+        const sId = String(staffId || '').trim();
+        if (!sId) return;
+
+        const poolCount = (typeof this.currentPoolCount === 'number'
+            ? this.currentPoolCount
+            : (this.staffDataCache ? this.staffDataCache.filter(s => s.attendance === 'Yes').length : 0));
+        const CAP = (poolCount <= 6 ? 3 : 2);
+
+        const count = this.countAssignmentsInLocation(sId, 'Guard House', this.generatedRoster);
+
+        // Back-to-back check (previous and next hour)
+        const i = this.ROSTER_TIMES.indexOf(time);
+        const prevT = (i > 0 ? this.ROSTER_TIMES[i - 1] : null);
+        const nextT = (i >= 0 && i < this.ROSTER_TIMES.length - 1 ? this.ROSTER_TIMES[i + 1] : null);
+        const prevId = (prevT ? (this.generatedRoster['Guard House']?.[prevT]?.[0] || '') : '');
+        const nextId = (nextT ? (this.generatedRoster['Guard House']?.[nextT]?.[0] || '') : '');
+
+        const td = document.querySelector(`td[data-location="Guard House"][data-time="${time}"]`);
+        if (td) td.classList.remove('conflict-cell');
+
+        let warned = false;
+
+        if (count > CAP) {
+            warned = true;
+            if (td) td.classList.add('conflict-cell');
+            this.showToast(`Guard House cap is ${CAP}. ${sId} now has ${count}. (Manual override allowed)`, 'warning');
+        }
+
+        if ((prevId && prevId === sId) || (nextId && nextId === sId)) {
+            warned = true;
+            if (td) td.classList.add('conflict-cell');
+            this.showToast(`Guard House back-to-back for ${sId} (Manual override allowed)`, 'warning');
+        }
+
+        // If not warned, leave visuals to validateAllCells()
+        return warned;
+    } catch (e) {
+        console.warn('[warnGuardHouseManualEdit] failed', e);
+    }
+},
+
     showToast(message, type = "info") {
         const container = document.getElementById("toast-container"); const colors = { success: "bg-emerald-600 text-white", error: "bg-red-600 text-white", warning: "bg-amber-400 text-black", info: "bg-blue-600 text-white" };
         const toast = document.createElement("div"); toast.className = `${colors[type]} px-4 py-2 rounded shadow-xl flex items-center gap-2 transform -translate-y-4 opacity-0 transition-all duration-200 text-xs font-bold pointer-events-auto`; toast.innerHTML = `<span>${message}</span>`;
@@ -2731,21 +2836,70 @@ if (this._pdfObjectUrl) {
     },
     // ===== Exposure Balance (Insights-driven) =====
     _loadExposureBalanceConfig() {
-        try {
-            const raw = localStorage.getItem('exposureBalance_v1');
-            if (!raw) return { enabled: false, weight: 3, locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 }, targets: {} };
-            const cfg = JSON.parse(raw);
-            if (!cfg || typeof cfg !== 'object') throw new Error('bad cfg');
-            cfg.enabled = !!cfg.enabled;
-            cfg.weight = Number(cfg.weight ?? 3);
-            if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 3;
-            cfg.locWeights = cfg.locWeights && typeof cfg.locWeights === 'object' ? cfg.locWeights : { "HHMD": 1, "Guard House": 1, "KIOSK": 1 };
-            cfg.targets = cfg.targets && typeof cfg.targets === 'object' ? cfg.targets : {};
-            return cfg;
-        } catch (e) {
-            return { enabled: false, weight: 3, locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 }, targets: {} };
-        }
-    },
+    try {
+        const raw = localStorage.getItem('exposureBalance_v2') || localStorage.getItem('exposureBalance_v1');
+        const defaults = {
+            enabled: false,
+            weight: 3,
+            locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 },
+            targets: {},
+            // Expectations / workload balancing (Insights + scoring)
+            criticalMaxDiff: 1,          // allowed +/- diff vs average exposures for critical locations
+            workloadTolerancePct: 0.15,  // allowed +/-15% of weighted workload vs average
+            // Weighted workload per location (VP omitted by default)
+            workloadWeights: {
+                "HHMD": 3,
+                "Guard House": 2,
+                "KIOSK": 1.5,
+                "Pass Counter": 1,
+                "Lobby": 0.8,
+                "Report Room": 0.8,
+                "Vertical Patrol": 0,
+                "Tango Papa": 1
+            }
+        };
+        if (!raw) return { ...defaults };
+
+        const cfg = JSON.parse(raw);
+        if (!cfg || typeof cfg !== 'object') throw new Error('bad cfg');
+
+        cfg.enabled = !!cfg.enabled;
+        cfg.weight = Number(cfg.weight ?? defaults.weight);
+        if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = defaults.weight;
+
+        cfg.locWeights = (cfg.locWeights && typeof cfg.locWeights === 'object') ? cfg.locWeights : { ...defaults.locWeights };
+        cfg.targets = (cfg.targets && typeof cfg.targets === 'object') ? cfg.targets : {};
+
+        cfg.criticalMaxDiff = Number(cfg.criticalMaxDiff ?? defaults.criticalMaxDiff);
+        if (!Number.isFinite(cfg.criticalMaxDiff) || cfg.criticalMaxDiff < 0) cfg.criticalMaxDiff = defaults.criticalMaxDiff;
+
+        cfg.workloadTolerancePct = Number(cfg.workloadTolerancePct ?? defaults.workloadTolerancePct);
+        if (!Number.isFinite(cfg.workloadTolerancePct) || cfg.workloadTolerancePct < 0) cfg.workloadTolerancePct = defaults.workloadTolerancePct;
+
+        cfg.workloadWeights = (cfg.workloadWeights && typeof cfg.workloadWeights === 'object') ? cfg.workloadWeights : { ...defaults.workloadWeights };
+
+        return { ...defaults, ...cfg, locWeights: cfg.locWeights, targets: cfg.targets, workloadWeights: cfg.workloadWeights };
+    } catch (e) {
+        return {
+            enabled: false,
+            weight: 3,
+            locWeights: { "HHMD": 1, "Guard House": 1, "KIOSK": 1 },
+            targets: {},
+            criticalMaxDiff: 1,
+            workloadTolerancePct: 0.15,
+            workloadWeights: {
+                "HHMD": 3,
+                "Guard House": 2,
+                "KIOSK": 1.5,
+                "Pass Counter": 1,
+                "Lobby": 0.8,
+                "Report Room": 0.8,
+                "Vertical Patrol": 0,
+                "Tango Papa": 1
+            }
+        };
+    }
+},
     _saveExposureBalanceConfig(cfg) {
         try { localStorage.setItem('exposureBalance_v1', JSON.stringify(cfg)); } catch (e) {}
     },
@@ -2759,69 +2913,548 @@ if (this._pdfObjectUrl) {
         }
     },
     computeExposureBalanceScore(roster) {
-        // Returns a score adjustment (positive is better). Disabled => 0.
-        const cfg = this._loadExposureBalanceConfig();
-        if (!cfg.enabled) return 0;
+    // Returns a score adjustment (positive is better). Disabled => 0.
+    const cfg = this._loadExposureBalanceConfig();
+    if (!cfg.enabled) return 0;
 
-        const locs = ["HHMD", "Guard House", "KIOSK"];
-        const times = this.ROSTER_TIMES || [];
-        const activeIds = this.getActiveStaffIdsForDay();
-        if (!roster || !times.length || !activeIds.length) return 0;
+    const locs = ["HHMD", "Guard House", "KIOSK"];
+    const times = this.ROSTER_TIMES || [];
+    const activeIds = this.getActiveStaffIdsForDay();
+    if (!roster || !times.length || !activeIds.length) return 0;
 
-        // Build exposure counts per location for active IDs only
-        const exposureByLoc = {};
-        for (const loc of locs) {
-            exposureByLoc[loc] = {};
-            const locObj = roster[loc] || {};
-            for (const t of times) {
-                const cell = locObj[t];
-                const ids = Array.isArray(cell) ? cell : [cell];
-                for (const idRaw of ids) {
-                    const id = String(idRaw || '').trim();
-                    if (!id || id === '--') continue;
-                    if (!activeIds.includes(id)) continue; // strict: never optimize using non-active IDs
-                    exposureByLoc[loc][id] = (exposureByLoc[loc][id] || 0) + 1;
-                }
+    const maxDiff = Number(cfg.criticalMaxDiff ?? 1);
+    const tolPct = Number(cfg.workloadTolerancePct ?? 0.15);
+
+    // Build exposure counts per location for active IDs only
+    const exposureByLoc = {};
+    for (const loc of locs) {
+        exposureByLoc[loc] = {};
+        const locObj = roster[loc] || {};
+        for (const t of times) {
+            const cell = locObj[t];
+            const ids = Array.isArray(cell) ? cell : [cell];
+            for (const id of ids) {
+                if (!id || id === "--") continue;
+                const sid = String(id);
+                if (!activeIds.includes(sid)) continue;
+                exposureByLoc[loc][sid] = (exposureByLoc[loc][sid] || 0) + 1;
             }
         }
+        // ensure all active appear
+        for (const id of activeIds) {
+            const sid = String(id);
+            if (!(sid in exposureByLoc[loc])) exposureByLoc[loc][sid] = 0;
+        }
+    }
 
-        const weight = Number(cfg.weight ?? 0);
-        if (!Number.isFinite(weight) || weight <= 0) return 0;
+    const weight = Number(cfg.weight ?? 3);
+    const locWeights = cfg.locWeights || {};
+    const targets = cfg.targets || {};
 
-        let adj = 0;
+    let adj = 0;
 
-        for (const loc of locs) {
-            const lw = Number((cfg.locWeights || {})[loc] ?? 1);
-            const locWeight = (Number.isFinite(lw) && lw > 0) ? lw : 1;
-            const counts = exposureByLoc[loc] || {};
-            const targets = ((cfg.targets || {})[loc] && typeof cfg.targets[loc] === 'object') ? cfg.targets[loc] : null;
+    // 1) Variance + target matching per critical location
+    for (const loc of locs) {
+        const counts = exposureByLoc[loc] || {};
+        const locWeight = Number(locWeights[loc] ?? 1) || 1;
 
-            if (targets && Object.keys(targets).length) {
-                // Target-based: minimize squared error to targets (only for active IDs).
-                let err = 0;
-                for (const id of activeIds) {
-                    const tgt = Number(targets[id]);
-                    if (!Number.isFinite(tgt)) continue; // ignore blank targets
-                    const c = Number(counts[id] || 0);
-                    const d = c - tgt;
-                    err += d * d;
-                }
-                // Negative penalty
+        if (targets[loc] && typeof targets[loc] === 'object' && Object.keys(targets[loc]).length) {
+            // Penalize absolute error against targets
+            for (const id of activeIds) {
+                const sid = String(id);
+                const tgt = Number(targets[loc][sid]);
+                if (!Number.isFinite(tgt)) continue;
+                const cur = Number(counts[sid] || 0);
+                const err = Math.abs(cur - tgt);
                 adj -= err * weight * locWeight;
-            } else {
-                // Equalize exposures among active IDs: minimize variance
-                const arr = activeIds.map(id => Number(counts[id] || 0));
-                const mean = arr.reduce((a,b)=>a+b,0) / Math.max(1, arr.length);
-                let varSum = 0;
-                for (const v of arr) {
-                    const d = v - mean;
-                    varSum += d * d;
-                }
-                const variance = varSum / Math.max(1, arr.length);
-                adj -= variance * weight * locWeight;
+            }
+        } else {
+            // Equalize exposures among active IDs: minimize variance
+            const arr = activeIds.map(id => Number(counts[String(id)] || 0));
+            const mean = arr.reduce((a,b)=>a+b,0) / Math.max(1, arr.length);
+            let varSum = 0;
+            for (const v of arr) {
+                const d = v - mean;
+                varSum += d * d;
+            }
+            const variance = varSum / Math.max(1, arr.length);
+            adj -= variance * weight * locWeight;
+
+            // Additional: penalize outliers outside expected band around mean
+            const target = Math.round(mean);
+            const low = Math.max(0, target - maxDiff);
+            const high = target + maxDiff;
+            for (const v of arr) {
+                if (v < low) adj -= (low - v) * weight * locWeight * 1.5;
+                if (v > high) adj -= (v - high) * weight * locWeight * 1.5;
             }
         }
-        return adj;
+    }
+
+    // 2) Weighted workload fairness (VP omitted by default via weight 0)
+    const w = cfg.workloadWeights || {};
+    const wl = {};
+    for (const id of activeIds) wl[String(id)] = 0;
+
+    for (const loc of (this.OUTPUT_ORDER || [])) {
+        const lw = Number(w[loc] ?? 1);
+        if (!Number.isFinite(lw)) continue;
+        const locObj = roster[loc] || {};
+        for (const t of times) {
+            const cell = locObj[t];
+            const ids = Array.isArray(cell) ? cell : [cell];
+            for (const id of ids) {
+                if (!id || id === "--") continue;
+                const sid = String(id);
+                if (!activeIds.includes(sid)) continue;
+                wl[sid] += lw;
+            }
+        }
+    }
+
+    const arrW = activeIds.map(id => wl[String(id)] || 0);
+    const meanW = arrW.reduce((a,b)=>a+b,0) / Math.max(1, arrW.length);
+    const lowW = meanW * (1 - tolPct);
+    const highW = meanW * (1 + tolPct);
+
+    for (const v of arrW) {
+        if (v < lowW) adj -= (lowW - v) * weight * 0.5;
+        if (v > highW) adj -= (v - highW) * weight * 0.5;
+    }
+
+    return adj;
+},
+
+buildWorkloadBalanceReport(roster) {
+    const cfg = this._loadExposureBalanceConfig();
+    const activeIds = this.getActiveStaffIdsForDay();
+    const times = this.ROSTER_TIMES || [];
+    if (!roster || !activeIds.length || !times.length) {
+        return { html: '<div class="mt-3 p-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-500">No roster / no active staff to evaluate workload balance.</div>' };
+    }
+
+    const staff = (this.staffDataCache || []);
+    const hhmdQualifiedActiveIds = staff
+        .filter(s => String(s.attendance || '').toLowerCase() === 'yes' && String(s.hhmd || '').toLowerCase() === 'yes')
+        .map(s => String(s.staffId || '').trim())
+        .filter(Boolean);
+
+    const isActive = (sid) => activeIds.includes(String(sid));
+    const isHHMDQualifiedActive = (sid) => hhmdQualifiedActiveIds.includes(String(sid));
+
+    // Exposure counts per location (active IDs only). HHMD counts ONLY qualified active.
+    const exposure = {};
+    const invalidHHMD = []; // {id,time}
+    for (const loc of (this.OUTPUT_ORDER || [])) {
+        exposure[loc] = {};
+        const locObj = roster[loc] || {};
+        for (const t of times) {
+            const cell = locObj[t];
+            const ids = Array.isArray(cell) ? cell : [cell];
+            for (const id of ids) {
+                if (!id || id === '--') continue;
+                const sid = String(id);
+                if (!isActive(sid)) continue;
+
+                if (loc === 'HHMD' && !isHHMDQualifiedActive(sid)) {
+                    invalidHHMD.push({ id: sid, time: t });
+                    continue;
+                }
+
+                exposure[loc][sid] = (exposure[loc][sid] || 0) + 1;
+            }
+        }
+    }
+
+    const criticalLocs = ['HHMD', 'Guard House', 'KIOSK'];
+    const maxDiff = Number(cfg.criticalMaxDiff ?? 1);
+    const tolPct = Number(cfg.workloadTolerancePct ?? 0.15);
+
+    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : String(n));
+
+    const pill = (text, tone="slate") => {
+        const cls = tone === "good" ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : tone === "bad" ? "bg-rose-50 text-rose-700 border-rose-200"
+                  : "bg-slate-50 text-slate-700 border-slate-200";
+        return `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full border ${cls} text-[11px] font-semibold">${text}</span>`;
+    };
+
+
+    // Helper: total filled slots for a location (active IDs only, including non-qualified on HHMD to measure requirement)
+    const totalFilledSlots = (loc) => {
+        let total = 0;
+        const locObj = roster[loc] || {};
+        for (const t of times) {
+            const cell = locObj[t];
+            const ids = Array.isArray(cell) ? cell : [cell];
+            for (const id of ids) {
+                if (!id || id === '--') continue;
+                const sid = String(id);
+                if (!isActive(sid)) continue;
+                total += 1;
+            }
+        }
+        return total;
+    };
+
+    // Compute critical expectations (qualification-aware for HHMD)
+    const crit = criticalLocs.map(loc => {
+        const counts = exposure[loc] || {};
+        let poolIds = activeIds;
+        let poolLabel = `${activeIds.length} active`;
+        let totalSlots = 0;
+        let note = '';
+        let invalid = '';
+
+        if (loc === 'HHMD') {
+            poolIds = hhmdQualifiedActiveIds;
+            poolLabel = `${hhmdQualifiedActiveIds.length} qualified active`;
+            totalSlots = totalFilledSlots('HHMD');
+
+            if (poolIds.length === 0) {
+                note = `SHORTFALL: 0 qualified active for ${totalSlots} HHMD slots`;
+            } else if (poolIds.length === 1) {
+                note = `CAPACITY: 1 qualified active for ${totalSlots} HHMD slots (concentration unavoidable)`;
+            } else if (poolIds.length === 2) {
+                note = `CAPACITY: 2 qualified active for ${totalSlots} HHMD slots (heavy load)`;
+            }
+
+            if (invalidHHMD.length) {
+                invalid = `INVALID: ${invalidHHMD.length} HHMD assignment(s) to non-qualified staff`;
+            }
+        } else {
+            // total exposures among active ids for this location
+            totalSlots = poolIds.reduce((s, id) => s + (Number(counts[String(id)]) || 0), 0);
+        }
+
+        const total = poolIds.reduce((s, id) => s + (Number(counts[String(id)]) || 0), 0);
+        const avg = total / Math.max(1, poolIds.length);
+
+        // Expected band
+        let target = Math.round(avg);
+        let low = Math.max(0, target - maxDiff);
+        let high = target + maxDiff;
+
+        // For HHMD, if there are enough slots to give everyone at least 1, enforce low>=1 (only when pool >=2)
+        if (loc === 'HHMD' && poolIds.length >= 2 && totalSlots >= poolIds.length) {
+            low = Math.max(low, 1);
+        }
+
+        const over = [];
+        const under = [];
+
+        // If HHMD pool is 0 or 1, balancing is not applicable
+        if (!(loc === 'HHMD' && poolIds.length <= 1)) {
+            for (const id of poolIds) {
+                const v = Number(counts[String(id)] || 0);
+                if (v > high) over.push({ id, v });
+                if (v < low) under.push({ id, v });
+            }
+        }
+
+        // Status pill
+        let statusPill = '';
+        if (loc === 'HHMD' && poolIds.length === 0) {
+            statusPill = pill('SHORTFALL', 'bad');
+        } else if (loc === 'HHMD' && poolIds.length === 1) {
+            statusPill = pill('CAPACITY 1', 'bad');
+        } else {
+            const ok = (over.length === 0 && under.length === 0 && !(loc === 'HHMD' && invalidHHMD.length));
+            statusPill = ok ? pill('OK', 'good') : pill(`${over.length + under.length + (loc === 'HHMD' ? (invalidHHMD.length ? 1 : 0) : 0)} outliers`, 'bad');
+        }
+
+        // Display strings
+        const bandText = (loc === 'HHMD' && poolIds.length <= 1) ? 'N/A' : `${low}–${high}`;
+        const avgText = (loc === 'HHMD' && poolIds.length === 0) ? '—' : fmt(avg);
+
+        return {
+            loc, total, avg, target, low, high, counts,
+            over, under,
+            poolIds, poolLabel, totalSlots,
+            note, invalid, invalidHHMD,
+            bandText, avgText,
+            statusPill
+        };
+    });
+
+    // Weighted workload (uses weights; VP weight is 0 by default). HHMD workload counts only qualified HHMD exposures (invalid HHMD assignments are flagged separately).
+    const w = Object.assign({}, this.DEFAULT_LOCATION_WEIGHTS || {});
+    const workload = {};
+    for (const id of activeIds) workload[String(id)] = 0;
+
+    for (const loc of Object.keys(exposure)) {
+        const lw = Number(w[loc] ?? 1);
+        if (!Number.isFinite(lw)) continue;
+        const counts = exposure[loc] || {};
+        for (const id of activeIds) {
+            const sid = String(id);
+            workload[sid] += (Number(counts[sid] || 0) * lw);
+        }
+    }
+
+    const wlArr = activeIds.map(id => workload[String(id)] || 0);
+    const wlAvg = wlArr.reduce((a, b) => a + b, 0) / Math.max(1, wlArr.length);
+    const wlLow = wlAvg * (1 - tolPct);
+    const wlHigh = wlAvg * (1 + tolPct);
+
+    const wlOver = [];
+    const wlUnder = [];
+    for (const id of activeIds) {
+        const v = Number(workload[String(id)] || 0);
+        if (v > wlHigh) wlOver.push({ id, v });
+        if (v < wlLow) wlUnder.push({ id, v });
+    }
+
+    const rows = crit.map(c => {
+        const locLabel = (c.loc === 'HHMD')
+            ? `<div class="text-xs font-semibold text-slate-700">HHMD</div><div class="text-[10px] text-slate-400">${c.poolLabel}</div>`
+            : `<div class="text-xs font-semibold text-slate-700">${c.loc}</div>`;
+
+        const avgCell = (c.loc === 'HHMD')
+            ? `<div class="text-xs text-slate-600">${c.avgText}</div><div class="text-[10px] text-slate-400">${c.totalSlots} slots</div>`
+            : `<div class="text-xs text-slate-600">${fmt(c.avg)}</div>`;
+
+        const bandCell = `<div class="text-xs text-slate-600">${c.bandText}</div>`;
+
+        return `<tr class="border-b border-slate-100">
+          <td class="py-2 px-2">${locLabel}</td>
+          <td class="py-2 px-2">${avgCell}</td>
+          <td class="py-2 px-2">${bandCell}</td>
+          <td class="py-2 px-2 text-xs">${c.statusPill}</td>
+        </tr>`;
+    }).join('');
+
+    const listOutliers = (arr, label, tone = 'bad') => {
+        if (!arr.length) return '';
+        const chips = arr.map(x => pill(`${x.id} ×${(x.v != null ? x.v : 0)}`, tone)).join(' ');
+        return `<div class="mt-2">
+          <div class="text-[11px] font-semibold text-slate-600">${label}</div>
+          <div class="mt-1 flex flex-wrap gap-2">${chips}</div>
+        </div>`;
+    };
+
+    const listInvalidHHMD = () => {
+        if (!invalidHHMD.length) return '';
+        const chips = invalidHHMD.slice(0, 12).map(x => pill(`${x.id} @${x.time}`, 'bad')).join(' ');
+        const more = invalidHHMD.length > 12 ? `<div class="mt-1 text-[11px] text-slate-500">+${invalidHHMD.length - 12} more…</div>` : '';
+        return `<div class="mt-2">
+          <div class="text-[11px] font-semibold text-slate-600">HHMD: non-qualified assignment(s)</div>
+          <div class="mt-1 flex flex-wrap gap-2">${chips}</div>
+          ${more}
+        </div>`;
+    };
+
+    const critOutliersHtml = crit.map(c => {
+        let out = '';
+        if (c.note) {
+            out += `<div class="mt-2 text-[11px] ${c.loc === 'HHMD' && c.poolIds.length === 0 ? 'text-rose-600' : 'text-amber-600'} font-semibold">${c.note}</div>`;
+        }
+        if (c.invalid) {
+            out += `<div class="mt-1 text-[11px] text-rose-600 font-semibold">${c.invalid}</div>`;
+        }
+        const over = c.over.length ? listOutliers(c.over, `${c.loc}: too high`) : '';
+        const under = c.under.length ? listOutliers(c.under, `${c.loc}: too low`) : '';
+        out += over + under;
+        if (c.loc === 'HHMD') out += listInvalidHHMD();
+        return out;
+    }).join('');
+
+    const wlSummary = `<div class="mt-3 p-3 rounded-lg border border-slate-200 bg-white">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs font-semibold text-slate-700">Weighted workload</div>
+        <div class="text-[11px] text-slate-500">avg ${fmt(wlAvg)} • range ${fmt(wlLow)}–${fmt(wlHigh)}</div>
+      </div>
+      ${listOutliers(wlOver, 'Workload: too high')}
+      ${listOutliers(wlUnder, 'Workload: too low')}
+      <div class="mt-2 text-[11px] text-slate-500">
+        Workload uses weights (VP weight is 0 by default). Adjust tolerance in settings below.
+      </div>
+    </div>`;
+
+    const suggestionsUI = `<div class="mt-3 p-3 rounded-lg border border-slate-200 bg-white">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs font-semibold text-slate-700">Suggestions</div>
+        <button class="px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                onclick="rosterSystem.generateSwapSuggestions()">Suggest swaps</button>
+      </div>
+      <div class="mt-2 text-[11px] text-slate-500">
+        Suggestions propose simple swaps at the same time slot to reduce outliers. They affect the current roster only.
+      </div>
+      <div id="swapSuggestions" class="mt-2"></div>
+    </div>`;
+
+    // Store for swap generator
+    this._lastWorkloadBalanceReport = { exposure, workload, crit, wlAvg, wlLow, wlHigh, activeIds, times, hhmdQualifiedActiveIds, invalidHHMD };
+
+    const html = `
+      <div class="mt-3 p-3 rounded-lg border border-slate-200 bg-white">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-xs font-semibold text-slate-700">Workload balance (expectations)</div>
+          <div class="text-[11px] text-slate-500">${activeIds.length} active • ${times.length} time slots</div>
+        </div>
+        <div class="mt-2 overflow-auto rounded border border-slate-100">
+          <table class="w-full">
+            <thead class="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th class="py-2 px-2 text-[11px] text-slate-500 font-semibold text-left">Location</th>
+                <th class="py-2 px-2 text-[11px] text-slate-500 font-semibold text-left">Avg exposure</th>
+                <th class="py-2 px-2 text-[11px] text-slate-500 font-semibold text-left">Expected band</th>
+                <th class="py-2 px-2 text-[11px] text-slate-500 font-semibold text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${critOutliersHtml || `<div class="mt-2">${pill('All critical locations balanced','good')}</div>`}
+      </div>
+      ${wlSummary}
+      ${suggestionsUI}
+          `;
+
+    return { html, exposure, workload, crit, wlAvg, wlLow, wlHigh };
+}
+
+,
+
+    generateSwapSuggestions() {
+        try {
+            const roster = this.generatedRoster;
+            const container = document.getElementById('swapSuggestions');
+            if (!container) return;
+
+            // Recompute & cache latest
+            const rep = this.buildWorkloadBalanceReport(roster);
+            const cache = this._lastWorkloadBalanceReport || {};
+            const crit = (cache.crit || rep.crit || []);
+            const times = (cache.times || this.ROSTER_TIMES || []);
+            const activeIds = (cache.activeIds || this.getActiveStaffIdsForDay());
+            const hhmdQualifiedActiveIds = (cache.hhmdQualifiedActiveIds || []);
+
+            const suggestions = [];
+            const maxSuggestions = 6;
+
+            const findPosAtTime = (sid, t, excludeLocs=[]) => {
+                for (const loc of (this.OUTPUT_ORDER || [])) {
+                    if (excludeLocs.includes(loc)) continue;
+                    const cell = ((roster[loc] || {})[t]);
+                    if (!cell) continue;
+                    const ids = Array.isArray(cell) ? cell.map(String) : [String(cell)];
+                    const idx = ids.indexOf(String(sid));
+                    if (idx !== -1) return { loc, idx, isArray: Array.isArray(cell) };
+                }
+                return null;
+            };
+
+            const cellHasId = (loc, t, sid) => {
+                const cell = ((roster[loc] || {})[t]);
+                if (!cell) return false;
+                if (Array.isArray(cell)) return cell.map(String).includes(String(sid));
+                return String(cell) === String(sid);
+            };
+
+            const proposeSameTimeSwap = (primaryLoc, overId, underId) => {
+                for (const t of times) {
+                    if (!cellHasId(primaryLoc, t, overId)) continue;
+                    const underPos = findPosAtTime(underId, t, [primaryLoc]);
+                    if (!underPos) continue;
+
+                    // For HHMD, ensure underId is qualified
+                    if (primaryLoc === 'HHMD' && !hhmdQualifiedActiveIds.includes(String(underId))) continue;
+
+                    suggestions.push({
+                        primaryLoc,
+                        time: t,
+                        overId: String(overId),
+                        underId: String(underId),
+                        otherLoc: underPos.loc
+                    });
+                    return true;
+                }
+                return false;
+            };
+
+            // Focus on HHMD first (qualification-aware)
+            const hhmd = crit.find(x => x.loc === 'HHMD');
+            if (hhmd && Array.isArray(hhmd.over) && Array.isArray(hhmd.under) && hhmdQualifiedActiveIds.length >= 2) {
+                const overs = hhmd.over.slice().sort((a,b)=>b.v-a.v);
+                const unders = hhmd.under.slice().sort((a,b)=>a.v-b.v);
+                for (const o of overs) {
+                    for (const u of unders) {
+                        if (suggestions.length >= maxSuggestions) break;
+                        proposeSameTimeSwap('HHMD', o.id, u.id);
+                    }
+                }
+            }
+
+            // Other critical locations (simple balancing, no special qualification)
+            for (const locName of ['Guard House','KIOSK']) {
+                if (suggestions.length >= maxSuggestions) break;
+                const c = crit.find(x => x.loc === locName);
+                if (!c) continue;
+                const overs = (c.over || []).slice().sort((a,b)=>b.v-a.v);
+                const unders = (c.under || []).slice().sort((a,b)=>a.v-b.v);
+
+                for (const o of overs) {
+                    for (const u of unders) {
+                        if (suggestions.length >= maxSuggestions) break;
+                        // underId must be active
+                        if (!activeIds.includes(String(u.id))) continue;
+                        proposeSameTimeSwap(locName, o.id, u.id);
+                    }
+                }
+            }
+
+            this._swapSuggestions = suggestions;
+
+            if (!suggestions.length) {
+                container.innerHTML = `<div class="text-xs text-slate-500">No safe same-time swap suggestions found (or HHMD has a qualified shortfall).</div>`;
+                return;
+            }
+
+            container.innerHTML = suggestions.map((s, i) => `
+              <div class="mt-2 p-2 rounded border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                <div class="text-xs text-slate-700">
+                  Swap <span class="font-mono font-semibold">${s.overId}</span> (${s.primaryLoc} @ ${s.time})
+                  with <span class="font-mono font-semibold">${s.underId}</span> (${s.otherLoc} @ ${s.time})
+                </div>
+                <button class="px-3 py-1 rounded bg-slate-900 text-white hover:bg-slate-800 text-xs"
+                        onclick="rosterSystem.applySwapSuggestion(${i})">Apply</button>
+              </div>
+            `).join('');
+        } catch (e) {
+            const container = document.getElementById('swapSuggestions');
+            if (container) container.innerHTML = `<div class="text-xs text-rose-600">Unable to generate suggestions.</div>`;
+        }
+    },
+
+    applySwapSuggestion(index) {
+        try {
+            const s = (this._swapSuggestions || [])[index];
+            if (!s) return;
+
+            const roster = this.generatedRoster;
+            const t = s.time;
+
+            const swapInCell = (loc, time, fromId, toId) => {
+                if (!roster[loc]) roster[loc] = {};
+                const cell = roster[loc][time];
+                if (Array.isArray(cell)) {
+                    const idx = cell.map(String).indexOf(String(fromId));
+                    if (idx !== -1) cell[idx] = String(toId);
+                } else if (cell != null && String(cell) === String(fromId)) {
+                    roster[loc][time] = String(toId);
+                }
+            };
+
+            swapInCell(s.primaryLoc, t, s.overId, s.underId);
+            swapInCell(s.otherLoc, t, s.underId, s.overId);
+
+            // Refresh UI: roster table + command center + insights
+            try { this.applyGeneratedRoster(this.generatedRoster); } catch (e) {}
+            try { this.renderStaffCards(); } catch (e) {}
+            try { this.updateStats(); } catch (e) {}
+            try { this.openInsights(); } catch (e) {}
+        } catch (e) {}
     },
     setExposureBalanceEnabled(enabled) {
         const cfg = this._loadExposureBalanceConfig();
@@ -2835,36 +3468,59 @@ if (this._pdfObjectUrl) {
         this._saveExposureBalanceConfig(cfg);
     },
     saveExposureTargetsFromInsights() {
-        const cfg = this._loadExposureBalanceConfig();
-        const root = document.getElementById('insightsBody');
-        if (!root) return;
+    const cfg = this._loadExposureBalanceConfig();
+    const root = document.getElementById('insightsBody');
+    if (!root) return;
 
-        const enabledEl = root.querySelector('#expBalEnabled');
-        const weightEl = root.querySelector('#expBalWeight');
-        cfg.enabled = !!(enabledEl && enabledEl.checked);
-        cfg.weight = Number(weightEl ? weightEl.value : cfg.weight);
-        if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 0;
+    const enabledEl = root.querySelector('#expBalEnabled');
+    const weightEl = root.querySelector('#expBalWeight');
+    const tolEl = root.querySelector('#expBalTolPct');
+    const maxDiffEl = root.querySelector('#expBalMaxDiff');
 
-        cfg.targets = cfg.targets && typeof cfg.targets === 'object' ? cfg.targets : {};
-        const rows = root.querySelectorAll('input[data-exp-loc][data-exp-id]');
-        for (const inp of rows) {
-            const loc = inp.getAttribute('data-exp-loc');
-            const id = inp.getAttribute('data-exp-id');
-            const val = inp.value;
-            if (!loc || !id) continue;
-            cfg.targets[loc] = cfg.targets[loc] && typeof cfg.targets[loc] === 'object' ? cfg.targets[loc] : {};
-            if (val === '' || val == null) {
-                delete cfg.targets[loc][id];
-            } else {
-                const n = Number(val);
-                if (Number.isFinite(n)) cfg.targets[loc][id] = n;
-            }
+    cfg.enabled = !!(enabledEl && enabledEl.checked);
+    cfg.weight = Number(weightEl ? weightEl.value : cfg.weight);
+    if (!Number.isFinite(cfg.weight) || cfg.weight < 0) cfg.weight = 0;
+
+    cfg.workloadTolerancePct = Number(tolEl ? tolEl.value : cfg.workloadTolerancePct);
+    if (!Number.isFinite(cfg.workloadTolerancePct) || cfg.workloadTolerancePct < 0) cfg.workloadTolerancePct = 0.15;
+
+    cfg.criticalMaxDiff = Number(maxDiffEl ? maxDiffEl.value : cfg.criticalMaxDiff);
+    if (!Number.isFinite(cfg.criticalMaxDiff) || cfg.criticalMaxDiff < 0) cfg.criticalMaxDiff = 1;
+
+    cfg.targets = cfg.targets && typeof cfg.targets === 'object' ? cfg.targets : {};
+
+    // Collect per-location target inputs
+    const inputs = root.querySelectorAll('input[data-exp-loc][data-exp-id]');
+    inputs.forEach(inp => {
+        const loc = inp.getAttribute('data-exp-loc');
+        const id = inp.getAttribute('data-exp-id');
+        if (!loc || !id) return;
+        const v = Number(inp.value);
+        if (!cfg.targets[loc]) cfg.targets[loc] = {};
+        if (!Number.isFinite(v) || v < 0) {
+            delete cfg.targets[loc][id];
+        } else {
+            cfg.targets[loc][id] = Math.round(v);
         }
-        this._saveExposureBalanceConfig(cfg);
-        this.showToast('Exposure balance settings saved', 'success');
-        // Refresh view to show effect immediately
-        this.openInsights();
-    },
+    });
+
+    // Location weights (for scoring)
+    cfg.locWeights = cfg.locWeights && typeof cfg.locWeights === 'object' ? cfg.locWeights : {};
+    const locWeightInputs = root.querySelectorAll('input[data-exp-loc-weight]');
+    locWeightInputs.forEach(inp => {
+        const loc = inp.getAttribute('data-exp-loc-weight');
+        if (!loc) return;
+        const v = Number(inp.value);
+        if (!Number.isFinite(v) || v <= 0) return;
+        cfg.locWeights[loc] = v;
+    });
+
+    try { localStorage.setItem('exposureBalance_v2', JSON.stringify(cfg)); } catch (e) {}
+    this.toast("Insights settings saved", "success");
+
+    // Re-render insights to reflect new expectations
+    this.openInsights();
+},
     clearExposureTargets() {
         const cfg = this._loadExposureBalanceConfig();
         cfg.targets = {};
@@ -3076,6 +3732,12 @@ if (this._pdfObjectUrl) {
                   <span class="text-slate-600">Weight</span>
                   <input id="expBalWeight" type="number" min="0" step="0.5" value="${Number(cfg.weight ?? 0)}"
                          class="w-20 px-2 py-1 rounded border border-slate-200 bg-white" />
+                  <span class="ml-3 text-slate-600">Max diff</span>
+                  <input id="expBalMaxDiff" type="number" min="0" step="1" value="${Number(cfg.criticalMaxDiff ?? 1)}"
+                         class="w-16 px-2 py-1 rounded border border-slate-200 bg-white" />
+                  <span class="ml-3 text-slate-600">WL tol</span>
+                  <input id="expBalTolPct" type="number" min="0" step="0.05" value="${Number(cfg.workloadTolerancePct ?? 0.15)}"
+                         class="w-20 px-2 py-1 rounded border border-slate-200 bg-white" />
                   <button class="ml-auto px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800"
                           onclick="rosterSystem.saveExposureTargetsFromInsights()">Save</button>
                   <button class="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50"
@@ -3087,6 +3749,13 @@ if (this._pdfObjectUrl) {
                 </div>
               </div>`);
             lines.push(ctrl.join(''));
+
+            // Workload balance expectations & outliers
+            try {
+                const rep = this.buildWorkloadBalanceReport(roster);
+                if (rep && rep.html) lines.push(rep.html);
+            } catch (e) {}
+
 
             const exposure = {};
             for (const loc of this.OUTPUT_ORDER) {
@@ -3384,8 +4053,23 @@ function applyRosterVisibilityPref(){
 <div id="insightsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
   <div class="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col insights-card">
     <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-      <div class="font-semibold flex items-center gap-2">
+      <div class="font-semibold flex items-center gap-2 relative">
         <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Insights
+        <button id="insightsInfoBtn" class="ml-1 w-6 h-6 rounded-full border border-slate-300 text-slate-600 text-sm leading-none flex items-center justify-center hover:bg-slate-50 active:bg-slate-100" aria-label="About Insights" type="button">ⓘ</button>
+        <div id="insightsInfoPopover" class="insights-popover hidden" role="dialog" aria-label="Insights help">
+          <div class="insights-popover-title">How to use Insights</div>
+          <div class="insights-popover-body">
+            <ul>
+              <li><b>Workload balance</b> shows exposure per location (HHMD / Guard House / KIOSK). “Expected band” is the target range per staff.</li>
+              <li><b>HHMD qualified</b>: If only 1–2 qualified staff are active, Insights marks a <i>shortfall</i> and widens expectations automatically.</li>
+              <li><b>Outliers</b> = staff over/under the band. Scroll to see “too high / too low” chips by ID.</li>
+              <li><b>Suggest swaps</b> proposes simple same-time-slot swaps to reduce outliers (does not change VP by default).</li>
+              <li><b>Exposure targets</b> (optional): leave “auto” to let the system equalize; set numbers to force a bias.</li>
+              <li><b>VP weight</b> is 0 by default, so VP is ignored in workload scoring unless you change weights.</li>
+            </ul>
+            <div class="insights-popover-tip">Tip: Use this after manual edits to quickly spot who is overloaded/underused.</div>
+          </div>
+        </div>
       </div>
       <button class="px-2 py-1 rounded hover:bg-slate-100" onclick="rosterSystem.closeInsights()" aria-label="Close">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -3408,6 +4092,47 @@ function applyRosterVisibilityPref(){
         rosterSystem.handleBlueprintFileImport(file);
         e.target.value = '';
       });
+    }
+
+    // Insights ⓘ help popover
+    const infoBtn = document.getElementById('insightsInfoBtn');
+    const pop = document.getElementById('insightsInfoPopover');
+
+    function closePop(){
+      if(!pop) return;
+      pop.classList.add('hidden');
+      if(infoBtn) infoBtn.setAttribute('aria-expanded','false');
+    }
+    function togglePop(){
+      if(!pop) return;
+      const willOpen = pop.classList.contains('hidden');
+      if(willOpen){
+        pop.classList.remove('hidden');
+        if(infoBtn) infoBtn.setAttribute('aria-expanded','true');
+      }else{
+        closePop();
+      }
+    }
+
+    if(infoBtn && pop){
+      infoBtn.setAttribute('aria-expanded','false');
+      infoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePop();
+      });
+      pop.addEventListener('click', (e) => e.stopPropagation());
+      document.addEventListener('click', closePop);
+      document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closePop(); });
+
+      // Also close when the Insights modal closes
+      const origClose = rosterSystem && rosterSystem.closeInsights;
+      if(typeof origClose === 'function'){
+        rosterSystem.closeInsights = function(){
+          closePop();
+          return origClose.apply(this, arguments);
+        };
+      }
     }
   })();
 </script>
