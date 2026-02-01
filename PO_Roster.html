@@ -384,11 +384,18 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 }
 
 
-/* Manual override badge */
-.override-badge{position:absolute;top:4px;right:6px;font-size:10px;line-height:1;padding:2px 6px;border-radius:999px;background:rgba(245,158,11,0.18);color:#b45309;border:1px solid rgba(245,158,11,0.35);font-weight:700;}
+  /* Insights help popover: ensure it sits above card content (tailwind is not standard) */
+  #insightsHelpPopover{ z-index: 9999; }
+  #insightsHelpBtn{ pointer-events: auto; touch-action: manipulation; }
 
+</style>
 
-/* Insights ⓘ popover */
+<style>
+  /* iOS/Safari: allow scrolling inside modal while body is locked */
+  #insightsModal .insights-card { max-height: 85vh; }
+  #insightsBody { -webkit-overflow-scrolling: touch; }
+
+  /* Insights ⓘ popover */
   #insightsInfoBtn{ flex: 0 0 auto; }
   #insightsInfoPopover.insights-popover{
     position: absolute;
@@ -436,13 +443,6 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
     border-top: 1px dashed #e2e8f0;
     color: #475569;
   }
-
-</style>
-
-<style>
-  /* iOS/Safari: allow scrolling inside modal while body is locked */
-  #insightsModal .insights-card { max-height: 85vh; }
-  #insightsBody { -webkit-overflow-scrolling: touch; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
@@ -2028,30 +2028,6 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
 
     // HARD RULE: Within the 12-hour shift, a staff can be assigned to Guard House at most twice.
     // If violated in existing data (manual edits / older rosters), we clear the extra assignments.
-    // --- Manual Overrides (per-cell) ---
-    isCellOverridden(rosterRef, locName, time, idx = 0) {
-        try {
-            return !!(rosterRef && rosterRef._manualOverrides && rosterRef._manualOverrides[locName] && rosterRef._manualOverrides[locName][time] && rosterRef._manualOverrides[locName][time][idx]);
-        } catch (e) { return false; }
-    },
-    setCellOverride(rosterRef, locName, time, idx = 0, enabled = true) {
-        try {
-            if (!rosterRef) return;
-            if (!rosterRef._manualOverrides) rosterRef._manualOverrides = {};
-            if (!rosterRef._manualOverrides[locName]) rosterRef._manualOverrides[locName] = {};
-            if (!rosterRef._manualOverrides[locName][time]) rosterRef._manualOverrides[locName][time] = {};
-            if (enabled) {
-                rosterRef._manualOverrides[locName][time][idx] = true;
-            } else {
-                if (rosterRef._manualOverrides[locName] && rosterRef._manualOverrides[locName][time]) {
-                    delete rosterRef._manualOverrides[locName][time][idx];
-                    if (Object.keys(rosterRef._manualOverrides[locName][time]).length === 0) delete rosterRef._manualOverrides[locName][time];
-                    if (Object.keys(rosterRef._manualOverrides[locName]).length === 0) delete rosterRef._manualOverrides[locName];
-                }
-            }
-        } catch (e) {}
-    },
-
     enforceGuardHouseMax2(rosterRef, opts = {}) {
         try {
             if (!rosterRef || !rosterRef['Guard House']) return { fixed: 0, removed: [] };
@@ -2074,13 +2050,6 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
                 const sId = arr[0];
                 if (!sId) { prevStaff = null; continue; }
 
-                const _isOverride = this.isCellOverridden(rosterRef, 'Guard House', t, 0);
-                if (_isOverride) {
-                    // Keep user-chosen value even if it breaks cap/back-to-back. We still count it so later slots can be adjusted.
-                    counts[sId] = (counts[sId] || 0) + 1;
-                    prevStaff = sId;
-                    continue;
-                }
                 // Rule 1: no back-to-back Guard House for the same staff
                 if (prevStaff && prevStaff === sId) {
                     rosterRef['Guard House'][t][0] = '';
@@ -2554,8 +2523,6 @@ displayRoster(roster) {
                 if (isApplicable) {
                     for (let i = 0; i < locConfig.needed; i++) {
                         const assignedStaffId = roster[locName]?.[time]?.[i] || '';
-                        const isOverrideCell = this.isCellOverridden(roster, locName, time, i);
-                        const overrideBadge = (locName === 'Guard House' && isOverrideCell) ? `<span class="override-badge">⚠️ override</span>` : '';
                         let isPredefined = false;
                         const staff = this.staffDataCache.find(s => s.staffId === assignedStaffId);
                         
@@ -2570,7 +2537,7 @@ displayRoster(roster) {
                         const cellClass = isPredefined ? "predefined-cell" : "";
                         const icon = isPredefined ? `<i data-lucide="pin" class="predefined-icon"></i>` : "";
                         
-                        content += `<div class="relative w-full ${cellClass}" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">${overrideBadge}
+                        content += `<div class="relative w-full ${cellClass}" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
                             <select value="${assignedStaffId}" data-loc="${locName}" data-time="${time}" data-index="${i}" class="roster-input transition-colors font-medium text-slate-700 bg-transparent outline-none w-full" >${this.getActiveStaffOptionsHtml(assignedStaffId)}</select>
                             ${icon}
                             ${extraInfo}
@@ -2594,12 +2561,7 @@ displayRoster(roster) {
     handleCellChange(event) { 
         const { loc, time, index } = event.target.dataset; 
         this.generatedRoster[loc][time][parseInt(index, 10)] = event.target.value; 
-        
-        if (loc === 'Guard House') {
-            const v = (event.target.value || '').trim();
-            this.setCellOverride(this.generatedRoster, 'Guard House', time, parseInt(index, 10), !!v);
-        }
-this.validateAllCells(); 
+        this.validateAllCells(); 
         this.enforceHHMDOnly(this.generatedRoster, { source: 'preSave', silent: true });
         this.enforceGuardHouseMax2(this.generatedRoster, { source: 'preSave', silent: true });
         window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
@@ -4040,15 +4002,10 @@ function applyRosterVisibilityPref(){
 <div id="insightsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
   <div class="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col insights-card">
     <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-      <div class="font-semibold flex items-center gap-2">
+      <div class="font-semibold flex items-center gap-2 relative">
         <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Insights
         <button id="insightsInfoBtn" class="ml-1 w-6 h-6 rounded-full border border-slate-300 text-slate-600 text-sm leading-none flex items-center justify-center hover:bg-slate-50 active:bg-slate-100" aria-label="About Insights" type="button">ⓘ</button>
-      </div>
-      <button class="px-2 py-1 rounded hover:bg-slate-100" onclick="rosterSystem.closeInsights()" aria-label="Close">
-        <i data-lucide="x" class="w-5 h-5"></i>
-      </button>
-    </div>
-    <div id="insightsInfoPopover" class="insights-popover hidden" role="dialog" aria-label="Insights help">
+        <div id="insightsInfoPopover" class="insights-popover hidden" role="dialog" aria-label="Insights help">
           <div class="insights-popover-title">How to use Insights</div>
           <div class="insights-popover-body">
             <ul>
@@ -4062,7 +4019,12 @@ function applyRosterVisibilityPref(){
             <div class="insights-popover-tip">Tip: Use this after manual edits to quickly spot who is overloaded/underused.</div>
           </div>
         </div>
-<div class="p-4 text-sm text-slate-700 space-y-2 flex-1 overflow-y-auto overscroll-contain" id="insightsBody">
+      </div>
+      <button class="px-2 py-1 rounded hover:bg-slate-100" onclick="rosterSystem.closeInsights()" aria-label="Close">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div class="p-4 text-sm text-slate-700 space-y-2 flex-1 overflow-y-auto overscroll-contain" id="insightsBody">
       <div class="text-slate-500">No insights yet.</div>
     </div>
   </div>
@@ -4070,20 +4032,6 @@ function applyRosterVisibilityPref(){
 
 <script>
   // Wire blueprint file import to rosterSystem (works even if drawer opens later)
-  (function(){
-    const inp = document.getElementById('blueprintFileInput');
-    if(inp){
-      inp.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if(!file) return;
-        rosterSystem.handleBlueprintFileImport(file);
-        e.target.value = '';
-      });
-    }
-  })();
-
-
-    // Insights ⓘ popover
   (function(){
     const inp = document.getElementById('blueprintFileInput');
     if(inp){
@@ -4135,8 +4083,7 @@ function applyRosterVisibilityPref(){
         };
       }
     }
-  })()
-
+  })();
 </script>
 
 </body>
