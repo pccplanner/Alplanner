@@ -386,6 +386,57 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 
 /* Manual override badge */
 .override-badge{position:absolute;top:4px;right:6px;font-size:10px;line-height:1;padding:2px 6px;border-radius:999px;background:rgba(245,158,11,0.18);color:#b45309;border:1px solid rgba(245,158,11,0.35);font-weight:700;}
+
+
+/* Insights ⓘ popover */
+  #insightsInfoBtn{ flex: 0 0 auto; }
+  #insightsInfoPopover.insights-popover{
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(420px, 78vw);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, .18);
+    padding: 10px 12px;
+    z-index: 60;
+  }
+  #insightsInfoPopover::before{
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: 18px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-left: 1px solid #e2e8f0;
+    border-top: 1px solid #e2e8f0;
+    transform: rotate(45deg);
+  }
+  .insights-popover-title{
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+  .insights-popover-body{
+    font-size: 11.5px;
+    color: #334155;
+    line-height: 1.35;
+  }
+  .insights-popover-body ul{
+    padding-left: 18px;
+    margin: 0;
+  }
+  .insights-popover-body li{ margin: 4px 0; }
+  .insights-popover-tip{
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #e2e8f0;
+    color: #475569;
+  }
+
 </style>
 
 <style>
@@ -3991,12 +4042,27 @@ function applyRosterVisibilityPref(){
     <div class="p-4 border-b border-slate-200 flex items-center justify-between">
       <div class="font-semibold flex items-center gap-2">
         <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Insights
+        <button id="insightsInfoBtn" class="ml-1 w-6 h-6 rounded-full border border-slate-300 text-slate-600 text-sm leading-none flex items-center justify-center hover:bg-slate-50 active:bg-slate-100" aria-label="About Insights" type="button">ⓘ</button>
       </div>
       <button class="px-2 py-1 rounded hover:bg-slate-100" onclick="rosterSystem.closeInsights()" aria-label="Close">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
-    <div class="p-4 text-sm text-slate-700 space-y-2 flex-1 overflow-y-auto overscroll-contain" id="insightsBody">
+    <div id="insightsInfoPopover" class="insights-popover hidden" role="dialog" aria-label="Insights help">
+          <div class="insights-popover-title">How to use Insights</div>
+          <div class="insights-popover-body">
+            <ul>
+              <li><b>Workload balance</b> shows exposure per location (HHMD / Guard House / KIOSK). “Expected band” is the target range per staff.</li>
+              <li><b>HHMD qualified</b>: If only 1–2 qualified staff are active, Insights marks a <i>shortfall</i> and widens expectations automatically.</li>
+              <li><b>Outliers</b> = staff over/under the band. Scroll to see “too high / too low” chips by ID.</li>
+              <li><b>Suggest swaps</b> proposes simple same-time-slot swaps to reduce outliers (does not change VP by default).</li>
+              <li><b>Exposure targets</b> (optional): leave “auto” to let the system equalize; set numbers to force a bias.</li>
+              <li><b>VP weight</b> is 0 by default, so VP is ignored in workload scoring unless you change weights.</li>
+            </ul>
+            <div class="insights-popover-tip">Tip: Use this after manual edits to quickly spot who is overloaded/underused.</div>
+          </div>
+        </div>
+<div class="p-4 text-sm text-slate-700 space-y-2 flex-1 overflow-y-auto overscroll-contain" id="insightsBody">
       <div class="text-slate-500">No insights yet.</div>
     </div>
   </div>
@@ -4015,6 +4081,62 @@ function applyRosterVisibilityPref(){
       });
     }
   })();
+
+
+    // Insights ⓘ popover
+  (function(){
+    const inp = document.getElementById('blueprintFileInput');
+    if(inp){
+      inp.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if(!file) return;
+        rosterSystem.handleBlueprintFileImport(file);
+        e.target.value = '';
+      });
+    }
+
+    // Insights ⓘ help popover
+    const infoBtn = document.getElementById('insightsInfoBtn');
+    const pop = document.getElementById('insightsInfoPopover');
+
+    function closePop(){
+      if(!pop) return;
+      pop.classList.add('hidden');
+      if(infoBtn) infoBtn.setAttribute('aria-expanded','false');
+    }
+    function togglePop(){
+      if(!pop) return;
+      const willOpen = pop.classList.contains('hidden');
+      if(willOpen){
+        pop.classList.remove('hidden');
+        if(infoBtn) infoBtn.setAttribute('aria-expanded','true');
+      }else{
+        closePop();
+      }
+    }
+
+    if(infoBtn && pop){
+      infoBtn.setAttribute('aria-expanded','false');
+      infoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePop();
+      });
+      pop.addEventListener('click', (e) => e.stopPropagation());
+      document.addEventListener('click', closePop);
+      document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closePop(); });
+
+      // Also close when the Insights modal closes
+      const origClose = rosterSystem && rosterSystem.closeInsights;
+      if(typeof origClose === 'function'){
+        rosterSystem.closeInsights = function(){
+          closePop();
+          return origClose.apply(this, arguments);
+        };
+      }
+    }
+  })()
+
 </script>
 
 </body>
