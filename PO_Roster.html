@@ -2249,13 +2249,103 @@ this.generatedRoster = roster; this.displayRoster(roster); document.getElementBy
     },
 
     enableRosterDragScroll() {
-        const el = document.getElementById('rosterContainer'); if (!el) return; if (el.__dragScrollBound) return; el.__dragScrollBound = true;
-        let isDown = false; let startX; let startScrollLeft;
-        el.addEventListener('mousedown', (e) => { if(['INPUT','SELECT'].includes(e.target.tagName)) return; isDown = true; startX = e.pageX - el.offsetLeft; startScrollLeft = el.scrollLeft; });
-        el.addEventListener('mouseleave', () => { isDown = false; });
-        el.addEventListener('mouseup', () => { isDown = false; });
-        el.addEventListener('mousemove', (e) => { if (!isDown) return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const walk = (x - startX) * 2; el.scrollLeft = startScrollLeft - walk; });
-    },
+  const el = document.getElementById('rosterContainer');
+  if (!el) return;
+
+  // Prevent double-binding when UI re-inits
+  if (el.dataset.dragScrollInit === '1') return;
+  el.dataset.dragScrollInit = '1';
+
+  // Mouse drag (desktop)
+  let isDown = false;
+  let startX = 0, startY = 0, scrollLeft = 0, scrollTop = 0;
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isDown = true;
+    el.classList.add('dragging');
+    startX = e.pageX - el.offsetLeft;
+    startY = e.pageY - el.offsetTop;
+    scrollLeft = el.scrollLeft;
+    scrollTop = el.scrollTop;
+  });
+
+  el.addEventListener('mouseleave', () => {
+    if (!isDown) return;
+    isDown = false;
+    el.classList.remove('dragging');
+  });
+
+  el.addEventListener('mouseup', () => {
+    if (!isDown) return;
+    isDown = false;
+    el.classList.remove('dragging');
+  });
+
+  el.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const y = e.pageY - el.offsetTop;
+    const walkX = (x - startX);
+    const walkY = (y - startY);
+    el.scrollLeft = scrollLeft - walkX;
+    el.scrollTop = scrollTop - walkY;
+  });
+
+  // Touch drag (mobile) — enables horizontal swipe in portrait (vertical) mode too
+  let tActive = false;
+  let tStartX = 0, tStartY = 0, tScrollLeft = 0, tScrollTop = 0;
+  let lockedAxis = null;
+
+  const isInteractiveTarget = (target) => {
+    const tag = (target && target.tagName) ? target.tagName.toUpperCase() : '';
+    if (['SELECT','OPTION','INPUT','TEXTAREA','BUTTON','A','LABEL'].includes(tag)) return true;
+    return !!(target && target.closest && target.closest('select, input, textarea, button, a, .no-drag-scroll'));
+  };
+
+  el.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    if (isInteractiveTarget(e.target)) return;
+    const t = e.touches[0];
+    tActive = true;
+    lockedAxis = null;
+    tStartX = t.clientX;
+    tStartY = t.clientY;
+    tScrollLeft = el.scrollLeft;
+    tScrollTop = el.scrollTop;
+  }, { passive: true });
+
+  el.addEventListener('touchmove', (e) => {
+    if (!tActive || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - tStartX;
+    const dy = t.clientY - tStartY;
+
+    if (!lockedAxis) {
+      // Don't lock until user moves a little
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      lockedAxis = (Math.abs(dx) > Math.abs(dy)) ? 'x' : 'y';
+    }
+
+    if (lockedAxis === 'x') {
+      // Horizontal swipe: prevent page scroll bounce and move the roster
+      e.preventDefault();
+      el.scrollLeft = tScrollLeft - dx;
+    } else {
+      // Vertical intent: let browser handle vertical scrolling naturally
+      // (no preventDefault)
+      el.scrollTop = tScrollTop - dy;
+    }
+  }, { passive: false });
+
+  const endTouch = () => {
+    tActive = false;
+    lockedAxis = null;
+  };
+  el.addEventListener('touchend', endTouch);
+  el.addEventListener('touchcancel', endTouch);
+},
 
     isSlotApplicable(locName, time) {
         const isWeekend = ['Saturday', 'Sunday'].includes(document.getElementById('rosterDay').value);
