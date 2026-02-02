@@ -531,6 +531,9 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
             </div>
             <div class="flex items-center gap-2 shrink-0">
                 <button id="fillGapsBtn" onclick="rosterSystem.fillRosterGaps()" class="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded shadow-sm transition-all" title="Fill Empty Slots"><i data-lucide="paint-bucket" class="w-3.5 h-3.5"></i></button>
+                <button id="manualAssignBtn" onclick="rosterSystem.toggleManualMode()" class="bg-slate-800 hover:bg-slate-900 text-white p-1.5 rounded-lg shadow text-xs font-bold flex items-center gap-1">
+                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i><span>Manual</span>
+                </button>
                 <button id="shuffleRosterBtn" onclick="rosterSystem.smartShuffleOrGenerate(true)" class="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded shadow-sm transition-all" title="Shuffle Roster"><i data-lucide="shuffle" class="w-3.5 h-3.5"></i></button>
                 <select id="shuffleModeSel" class="ml-2 border border-slate-200 rounded px-2 py-1 text-xs bg-white"
                         title="Shuffle mode">
@@ -610,6 +613,62 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
     </div>
 </div>
 
+
+    <!-- Manual Assign Modal -->
+    <div id="manualAssignModal" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-200">
+                <div class="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    <span>Manual Assign</span>
+                </div>
+                <button onclick="rosterSystem.closeManualAssign()" class="text-slate-500 hover:text-slate-800 p-1 rounded">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-3 text-xs">
+                <div>
+                    <label class="font-bold text-slate-700">Staff ID</label>
+                    <input id="manualAssignStaffId" list="staff-id-list" placeholder="e.g. 8730" class="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-slate-700">Location</label>
+                        <select id="manualAssignLocation" class="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 bg-white"></select>
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-700">Time</label>
+                        <select id="manualAssignTime" class="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 bg-white"></select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-slate-700">Slot</label>
+                        <select id="manualAssignSlot" class="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 bg-white"></select>
+                        <div class="text-[10px] text-slate-500 mt-1">Auto = first empty slot</div>
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-700">Mode</label>
+                        <select id="manualAssignMode" class="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 bg-white">
+                            <option value="move">Move (remove from other location)</option>
+                            <option value="duplicate">Duplicate (keep existing)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button onclick="rosterSystem.closeManualAssign()" class="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-bold">Cancel</button>
+                    <button onclick="rosterSystem.applyManualAssign()" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-extrabold flex items-center gap-2">
+                        <i data-lucide="check" class="w-4 h-4"></i><span>Apply</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <datalist id="staff-id-list"></datalist>
 
 <script>
@@ -621,7 +680,9 @@ const rosterSystem = {
     VP_CYCLES: { "VP-2030": { time: "20:00", label: "20:30" }, "VP-2300": { time: "23:00", label: "23:00" }, "VP-0130": { time: "01:00", label: "01:30" }, "VP-0400": { time: "04:00", label: "04:00" }, "VP-0630": { time: "06:00", label: "06:30" } },
     STANDING_LOCATIONS: ["Lobby", "KIOSK"], // Smart Fatigue Logic
     
-    generatedRoster: null, staffDataCache: [], currentFilter: 'all', isFullscreen: false,
+    generatedRoster: null,
+    manualMode: false,
+ staffDataCache: [], currentFilter: 'all', isFullscreen: false,
     shuffleMode: 'random', _forcedSeed: null, _lastSeed: null, _suppressSave: false, _lastBalancedScore: null,
     durations: {}, breakDuration: 60, currentDateStr: "", rosterUnsubscribe: null,
 
@@ -1009,7 +1070,209 @@ toggleAttendance(id, currentStatus) { window.firebaseOperations.updateStaff(id, 
     openAddModal() {
         document.getElementById('modalTitle').innerText = "Add Staff"; document.getElementById('modalFirebaseId').value = ""; document.getElementById('modalStaffId').value = `S${Math.floor(Math.random()*9000)+1000}`; document.getElementById('modalName').value = ""; document.getElementById('modalBreakStart').value = "22:00"; document.getElementById('modalBreakEnd').value = this.computeBreakEndFromStart("22:00"); this.renderOptions(null); document.getElementById('modalStartLoc').value = ""; document.getElementById('modalVPSlot').value = ""; document.getElementById('modalHHMD').checked = false; document.getElementById('modalDeleteBtn').classList.add('hidden'); document.getElementById('staffModal').classList.remove('hidden'); document.getElementById('staffModal').classList.add('flex');
     },
-    // === Break Timeline: Drag to adjust break start/end ===
+    
+    // --- MANUAL ASSIGN (Active ID into any location/time) ---
+    
+    // --- Manual Mode: allow admins to edit cell dropdowns with conflict warnings ---
+    toggleManualMode() {
+        this.manualMode = !this.manualMode;
+        this.applyManualModeUI();
+        this.toast(this.manualMode ? "Manual Mode ON — edit cells via dropdown" : "Manual Mode OFF");
+    },
+
+    applyManualModeUI() {
+        const btn = document.getElementById("manualAssignBtn");
+        if (btn) {
+            btn.classList.toggle("ring-2", this.manualMode);
+            btn.classList.toggle("ring-amber-300", this.manualMode);
+            btn.classList.toggle("bg-amber-600", this.manualMode);
+            btn.classList.toggle("hover:bg-amber-700", this.manualMode);
+            btn.classList.toggle("bg-slate-800", !this.manualMode);
+            btn.classList.toggle("hover:bg-slate-900", !this.manualMode);
+            btn.title = this.manualMode ? "Manual Mode is ON (cell editing enabled)" : "Manual Mode is OFF (cell editing locked)";
+        }
+
+        // Lock/unlock roster dropdown edits based on manual mode
+        document.querySelectorAll(".roster-input").forEach(sel => {
+            sel.disabled = !this.manualMode;
+            sel.classList.toggle("cursor-not-allowed", !this.manualMode);
+            sel.classList.toggle("opacity-70", !this.manualMode);
+        });
+    },
+
+    // Returns list of assignments for a staffId at a specific time, excluding one cell
+    findAssignmentsAtTime(staffId, time, roster, opts = {}) {
+        const out = [];
+        const exLoc = opts.exclude?.loc;
+        const exIdx = (opts.exclude?.index ?? -1);
+
+        if (!roster || !staffId || !time) return out;
+
+        Object.keys(roster).forEach(locName => {
+            const slots = roster[locName]?.[time];
+            if (!Array.isArray(slots)) return;
+            slots.forEach((v, i) => {
+                if (!v) return;
+                if (String(v) !== String(staffId)) return;
+                if (String(locName) === String(exLoc) && i === exIdx) return;
+                out.push({ loc: locName, index: i });
+            });
+        });
+
+        return out;
+    },
+openManualAssign() {
+        if (!this.generatedRoster) return this.showToast("Generate / load roster first", "warning");
+        const modal = document.getElementById("manualAssignModal");
+        if (!modal) return;
+
+        // Populate selects
+        const locSel = document.getElementById("manualAssignLocation");
+        const timeSel = document.getElementById("manualAssignTime");
+        const slotSel = document.getElementById("manualAssignSlot");
+
+        const locs = (this.OUTPUT_ORDER || []).slice();
+        const times = (this.ROSTER_TIMES || []).slice();
+
+        locSel.innerHTML = locs.map(l => `<option value="${l}">${l}</option>`).join("");
+        timeSel.innerHTML = times.map(t => `<option value="${t}">${t}</option>`).join("");
+
+        const refresh = () => this.refreshManualAssignSlots();
+        locSel.onchange = refresh;
+        timeSel.onchange = refresh;
+
+        this.refreshManualAssignSlots();
+
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        try { lucide.createIcons(); } catch (_) {}
+    },
+
+    closeManualAssign() {
+        const modal = document.getElementById("manualAssignModal");
+        if (!modal) return;
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+    },
+
+    getRosterSlotCapacity(locName, time) {
+        const cfg = (this.LOCATIONS || []).find(l => l.name === locName);
+        const needed = Number(cfg?.needed || 0);
+        const arr = this.generatedRoster?.[locName]?.[time];
+        if (Array.isArray(arr) && arr.length) return arr.length;
+        return Math.max(needed, 1);
+    },
+
+    refreshManualAssignSlots() {
+        const loc = document.getElementById("manualAssignLocation")?.value;
+        const time = document.getElementById("manualAssignTime")?.value;
+        const slotSel = document.getElementById("manualAssignSlot");
+        if (!slotSel || !loc || !time) return;
+
+        const cap = this.getRosterSlotCapacity(loc, time);
+        const opts = [`<option value="auto">Auto</option>`];
+        for (let i = 0; i < cap; i++) opts.push(`<option value="${i}">Slot ${i + 1}</option>`);
+        slotSel.innerHTML = opts.join("");
+    },
+
+    removeStaffFromTime(roster, time, staffId) {
+        if (!roster || !time || !staffId) return;
+        (this.OUTPUT_ORDER || []).forEach(loc => {
+            const arr = roster?.[loc]?.[time];
+            if (!Array.isArray(arr)) return;
+            for (let i = 0; i < arr.length; i++) {
+                if (String(arr[i]) === String(staffId)) arr[i] = "";
+            }
+        });
+    },
+
+    applyManualAssign() {
+        if (!this.generatedRoster) return this.showToast("No roster to edit", "error");
+
+        const staffId = String(document.getElementById("manualAssignStaffId")?.value || "").trim();
+        const loc = String(document.getElementById("manualAssignLocation")?.value || "").trim();
+        const time = String(document.getElementById("manualAssignTime")?.value || "").trim();
+        const slotChoice = String(document.getElementById("manualAssignSlot")?.value || "auto").trim();
+        const mode = String(document.getElementById("manualAssignMode")?.value || "move").trim();
+
+        if (!staffId || !loc || !time) return this.showToast("Please fill Staff ID, Location, and Time", "warning");
+
+        const staff = (this.staffDataCache || []).find(s => String(s.staffId) === String(staffId));
+        if (!staff) return this.showToast("Staff ID not found", "error");
+        if (String(staff.attendance || "").toLowerCase() !== "yes") return this.showToast(`Warning: ${staffId} is not marked present`, "warning");
+
+        // Ensure arrays exist
+        if (!this.generatedRoster[loc]) this.generatedRoster[loc] = {};
+        const cap = this.getRosterSlotCapacity(loc, time);
+        if (!Array.isArray(this.generatedRoster[loc][time])) this.generatedRoster[loc][time] = new Array(cap).fill("");
+        if (this.generatedRoster[loc][time].length < cap) this.generatedRoster[loc][time].length = cap;
+
+        // Check: on break?
+        const breakHit = (typeof this.isOnBreak === "function") ? this.isOnBreak(staff, time) : false;
+
+        // Check: already on duty somewhere at same time?
+        const currentLoc = (typeof this.findStaffLocation === "function") ? this.findStaffLocation(this.generatedRoster, time, staffId) : null;
+
+        if (breakHit) {
+            const ok = confirm(`WARNING: ${staffId} is on BREAK around ${time}. Continue assignment?`);
+            if (!ok) return;
+        }
+
+        if (currentLoc && currentLoc !== loc) {
+            const msg = (mode === "duplicate")
+                ? `WARNING: ${staffId} is already on duty at ${currentLoc} at ${time}. Duplicate anyway?`
+                : `WARNING: ${staffId} is already on duty at ${currentLoc} at ${time}. Move to ${loc}?`;
+            const ok = confirm(msg);
+            if (!ok) return;
+        }
+
+        // If moving, remove from any other location/time slot first
+        if (mode !== "duplicate") this.removeStaffFromTime(this.generatedRoster, time, staffId);
+
+        // Pick slot
+        const arr = this.generatedRoster[loc][time];
+        let targetIdx = -1;
+        if (slotChoice === "auto") {
+            targetIdx = arr.findIndex(x => !String(x || "").trim());
+            if (targetIdx === -1) targetIdx = arr.length; // overflow
+        } else {
+            targetIdx = parseInt(slotChoice, 10);
+            if (!Number.isFinite(targetIdx) || targetIdx < 0) targetIdx = 0;
+        }
+
+        // Expand if overflow
+        if (targetIdx >= arr.length) {
+            const pad = targetIdx - arr.length + 1;
+            for (let i = 0; i < pad; i++) arr.push("");
+        }
+
+        // Replace check
+        const existing = String(arr[targetIdx] || "").trim();
+        if (existing && existing !== staffId) {
+            const ok = confirm(`Slot occupied by ${existing}. Replace with ${staffId}?`);
+            if (!ok) return;
+        }
+
+        arr[targetIdx] = staffId;
+
+        // Re-render + validate + enforce + persist
+        this.displayRoster(this.generatedRoster);
+        this.validateAllCells();
+        this.enforceHHMDOnly(this.generatedRoster, { source: "preSave", silent: true });
+        this.enforceGuardHouseMax2(this.generatedRoster, { source: "preSave", silent: true });
+
+        try {
+            window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
+            this.triggerSaveIndicator();
+        } catch (e) {
+            console.error("Manual assign save error:", e);
+        }
+
+        this.showToast(`Assigned ${staffId} → ${loc} @ ${time}`, breakHit ? "warning" : "success");
+        this.closeManualAssign();
+    },
+
+// === Break Timeline: Drag to adjust break start/end ===
     initBreakTimelineDrag() {
     if (this._btDragInit) return;
     this._btDragInit = true;
@@ -2650,7 +2913,40 @@ displayRoster(roster) {
 
     handleCellChange(event) { 
         const { loc, time, index } = event.target.dataset; 
-        this.generatedRoster[loc][time][parseInt(index, 10)] = event.target.value; 
+        const newValue = event.target.value;
+        const prevValue = (event.target.dataset.prevValue ?? "").toString();
+
+        // In Manual Mode, warn (but allow override) if staff is busy or on break.
+        if (this.manualMode && newValue) {
+            const warnings = [];
+
+            // Busy check: same time assigned elsewhere (excluding the current edited slot)
+            const conflicts = this.findAssignmentsAtTime(newValue, time, this.generatedRoster, { exclude: { loc, index: parseInt(index, 10) } });
+            if (conflicts.length) {
+                const where = conflicts.map(c => `${c.loc} (slot ${c.index + 1})`).join(", ");
+                warnings.push(`ID ${newValue} is BUSY at ${time}: ${where}`);
+            }
+
+            // Break check
+            const staffObj = (this.staffDataCache || []).find(s => String(s.staffId) === String(newValue) || String(s.id) === String(newValue));
+            if (staffObj && this.isOnBreak(staffObj, time)) {
+                warnings.push(`ID ${newValue} is on BREAK during ${time} (${staffObj.breakStart}–${staffObj.breakEnd}).`);
+            }
+
+            if (warnings.length) {
+                const msg = warnings.join("\n") + "\n\nProceed with this assignment anyway?";
+                const proceed = window.confirm(msg);
+                if (!proceed) {
+                    // Revert UI + data, do NOT persist the new assignment
+                    event.target.value = prevValue;
+                    this.generatedRoster[loc][time][parseInt(index, 10)] = prevValue;
+                    this.validateAllCells();
+                    return;
+                }
+            }
+        }
+
+        this.generatedRoster[loc][time][parseInt(index, 10)] = newValue; 
         this.validateAllCells(); 
         this.enforceHHMDOnly(this.generatedRoster, { source: 'preSave', silent: true });
         this.enforceGuardHouseMax2(this.generatedRoster, { source: 'preSave', silent: true });
