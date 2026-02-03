@@ -719,7 +719,8 @@ SHORTFALL_THRESHOLD: 6,
             }
             // Mid-priority: keep Lobby and Vertical Patrol at 1 only when we have >=6
             else if (name === "Lobby") {
-                needed = (count >= 6) ? 1 : 0;
+                // Shortfall: Lobby is not required (keep all slots blank)
+                needed = 0;
             }
             else if (name === "Vertical Patrol") {
                 needed = (count >= 6) ? 1 : 0;
@@ -755,6 +756,14 @@ SHORTFALL_THRESHOLD: 6,
         this.showToast(this.shortfallMode
             ? `Shortfall Mode ON (active staff: ${activeCount}). Non-critical needs reduced.`
             : "Shortfall Mode OFF. Default needs restored.", this.shortfallMode ? "warning" : "info");
+
+        // Enforce: during shortfall, Lobby is completely dropped (clear any existing assignments)
+        if (this.shortfallMode && this.generatedRoster && this.generatedRoster["Lobby"]) {
+            this.ROSTER_TIMES.forEach(t => { this.generatedRoster["Lobby"][t] = []; });
+            if (window.firebaseOperations && typeof window.firebaseOperations.saveRoster === "function") {
+                window.firebaseOperations.saveRoster(this.currentDateStr, this.generatedRoster);
+            }
+        }
 
         // If a roster already exists, re-render so headers reflect current needs
         if (this.generatedRoster) {
@@ -1710,7 +1719,7 @@ openManualAssign() {
 
             if (locName === "Report Room" && isWeekend) continue;
             // RULE: When POOL <= 6, Lobby must remain empty
-            if (locName === "Lobby" && present.length <= 6) continue;
+            if (locName === "Lobby" && (this.shortfallMode || present.length <= 6)) continue;
 
             const locCfg = (this.LOCATIONS || []).find(l => l.name === locName);
             if (!locCfg) continue;
@@ -1724,7 +1733,7 @@ openManualAssign() {
         const pickFallbackLoc = () => {
             const candidates = ["Tango Papa", "Pass Counter", "KIOSK", "Guard House", "HHMD", "Lobby", "Report Room"];
             for (const name of candidates) {
-                if (name === "Lobby" && present.length <= 6) continue;
+                if (name === "Lobby" && (this.shortfallMode || present.length <= 6)) continue;
                 if (name === "Report Room" && isWeekend) continue;
                 if (!(this.OUTPUT_ORDER || []).includes(name)) continue;
                 if (!(this.LOCATIONS || []).some(l => l.name === name)) continue;
@@ -1919,7 +1928,7 @@ const roster = JSON.parse(JSON.stringify(this.generatedRoster));
                 const isWeekend = ['Saturday', 'Sunday'].includes(document.getElementById('rosterDay').value);
                 if (locName === "Report Room" && isWeekend) return;
                 // RULE: When POOL <= 6, Lobby must remain empty
-                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+                if (locName === "Lobby" && (this.shortfallMode || presentStaff.length <= 6)) { return; }
 
                 
                 const locConfig = this.LOCATIONS.find(l => l.name === locName);
@@ -2159,7 +2168,7 @@ if (bp) {
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 if (locName === "Report Room" && isWeekend) return;
                 // RULE: When POOL <= 6, Lobby must remain empty
-                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+                if (locName === "Lobby" && (this.shortfallMode || presentStaff.length <= 6)) { return; }
 
 
 // Blueprint "place order" enforcement:
@@ -2251,7 +2260,7 @@ else { if (!fallbackCandidateId) fallbackCandidateId = sId; }
                 if (this.CRITICAL_DUTIES[locName] && !this.CRITICAL_DUTIES[locName].includes(time)) return;
                 if (locName === "Report Room" && isWeekend) return;
                 // RULE: When POOL <= 6, Lobby must remain empty
-                if (locName === "Lobby" && presentStaff.length <= 6) { return; }
+                if (locName === "Lobby" && (this.shortfallMode || presentStaff.length <= 6)) { return; }
 
                 const needed = this.LOCATIONS.find(l => l.name === locName).needed;
                 for (let i = 0; i < needed; i++) { if (!fillRandomly(time, locName, i)) { if(!shortfalls.includes(`Shortfall: ${locName} @ ${time}`)) shortfalls.push(`Shortfall: ${locName} @ ${time}`); } }
