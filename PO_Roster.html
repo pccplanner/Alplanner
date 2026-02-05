@@ -26,10 +26,6 @@
       var fireauth = null;
       var firedb = null;
       var firebaseApp = null;
-      /* FIREAUTH_ALIAS */
-      // Ensure global identifiers exist even if running in module scope
-      try { window.fireauth = window.fireauth || fireauth; } catch(e) {}
-      try { window.firedb = window.firedb || firedb; } catch(e) {}
     </script>
 <script>
   // Suppress known iOS WebView/Files internal iframe console errors that are not caused by this app.
@@ -69,25 +65,13 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
 
-        
-        // FIREBASE_ORIGIN_GUARD: Firebase Auth fails in embedded previews (origin 'about:blank') or file:// contexts.
-        const __safeProtocol = (location && (location.protocol === 'http:' || location.protocol === 'https:'));
-        const __safeOrigin = (typeof location !== 'undefined' && typeof location.origin === 'string' && !location.origin.startsWith('about'));
-        if (!__safeProtocol || !__safeOrigin) {
-          console.warn('Firebase disabled due to unsupported origin/protocol:', location && location.href);
-          window.FIREBASE_DISABLED = true;
-        }
-
-        if (!window.FIREBASE_DISABLED) {
-          const app = initializeApp(firebaseConfig);
+        const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         // Expose for inline handlers / embedded contexts (iOS iframe/webview)
         window.fireauth = auth;
         window.firedb = db;
         window.firebaseApp = app;
-
-        }
 
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
@@ -462,18 +446,6 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
-<script>/* FRAME_BUSTER */
-(function(){
-  try{
-    if (window.top !== window.self) {
-      window.top.location = window.location.href;
-      return;
-    }
-  }catch(e){
-    // If we cannot access window.top (cross-origin), just continue.
-  }
-})();
-</script>
 
 <nav class="h-12 bg-white border-b border-slate-200 flex items-center shrink-0 z-20 shadow-sm">
     <div class="w-full px-4 flex items-center justify-between">
