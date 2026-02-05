@@ -26,6 +26,10 @@
       var fireauth = null;
       var firedb = null;
       var firebaseApp = null;
+      /* FIREAUTH_ALIAS */
+      // Ensure global identifiers exist even if running in module scope
+      try { window.fireauth = window.fireauth || fireauth; } catch(e) {}
+      try { window.firedb = window.firedb || firedb; } catch(e) {}
     </script>
 <script>
   // Suppress known iOS WebView/Files internal iframe console errors that are not caused by this app.
@@ -65,15 +69,35 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        
+        let app = null;
+        let auth = null;
+        let db = null;
+        // FIREBASE_ORIGIN_GUARD: Firebase Auth fails in embedded previews (origin 'about:blank') or file:// contexts.
+        const __safeProtocol = (location && (location.protocol === 'http:' || location.protocol === 'https:'));
+        const __safeOrigin = (typeof location !== 'undefined' && typeof location.origin === 'string' && !location.origin.startsWith('about'));
+        if (!__safeProtocol || !__safeOrigin) {
+          console.warn('Firebase disabled due to unsupported origin/protocol:', location && location.href);
+          window.FIREBASE_DISABLED = true;
+        }
+
+        if (!window.FIREBASE_DISABLED) {
+          app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
         // Expose for inline handlers / embedded contexts (iOS iframe/webview)
         window.fireauth = auth;
         window.firedb = db;
         window.firebaseApp = app;
 
-        
+        } else {
+          // Embedded preview / unsupported origin: run in OFFLINE mode (no Firebase) and avoid runtime errors.
+          try {
+            const statusEl = document.getElementById('db-status');
+            if (statusEl) statusEl.innerHTML = '<span class="flex items-center gap-1 text-amber-600 font-bold text-[10px]"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> OFFLINE</span>';
+          } catch(e) {}
+        }
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
         
         const COLLECTION_STAFF = 'employees'; 
@@ -85,6 +109,10 @@
         let lockedCellsData = {};
         
         const initAuth = async () => {
+            if (window.FIREBASE_DISABLED || !auth) {
+                // Offline / embedded preview: do not attempt Firebase Auth.
+                return;
+            }
             try {
                 const statusEl = document.getElementById('db-status');
                 if(statusEl) statusEl.innerText = 'Connecting...';
@@ -95,6 +123,7 @@
             }
         };
 
+        if (!window.FIREBASE_DISABLED && auth) {
         onAuthStateChanged(auth, async (user) => {
             await window.__rosterReady;
             if (user) {
@@ -105,6 +134,7 @@
                 rosterSystem.initializeDate(); 
             }
         });
+        }
 
         function subscribeToData() {
             if (!currentUser) return;
@@ -132,7 +162,40 @@
             });
         }
 
-        window.firebaseOperations = {
+        if (window.FIREBASE_DISABLED || !db) {
+            const LS_KEY = (suffix) => `roster_offline_${appId}_${suffix}`;
+            const loadJSON = (k, fallback) => {
+                try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch(e) { return fallback; }
+            };
+            const saveJSON = (k, obj) => {
+                try { localStorage.setItem(k, JSON.stringify(obj)); } catch(e) {}
+            };
+
+            window.firebaseOperations = {
+                addStaff: async () => alert('Offline mode: Firebase is disabled in this embedded preview. Open in Safari/Chrome to use online features.'),
+                updateStaff: async () => {},
+                deleteStaff: async () => {},
+                toggleLock: async () => {},
+                saveSettings: async () => {},
+                batchUpdateStaff: async () => {},
+                saveRoster: async (dateStr, rosterData) => {
+                    const safeDateId = String(dateStr || '').trim();
+                    if (!safeDateId) return;
+                    saveJSON(LS_KEY(`roster_${safeDateId}`), { roster: rosterData, updatedAt: new Date().toISOString() });
+                },
+                subscribeToRoster: (dateStr, callback) => {
+                    const safeDateId = String(dateStr || '').trim();
+                    const payload = loadJSON(LS_KEY(`roster_${safeDateId}`), null);
+                    callback(payload ? payload.roster : null);
+                    return () => {};
+                },
+                getLocks: () => ({}),
+                saveBlueprint: async () => {},
+                loadBlueprint: async () => null,
+                clearBlueprint: async () => {}
+            };
+        } else {
+            window.firebaseOperations = {
             addStaff: async (staffData) => {
                 if (!currentUser) return alert("Not connected!");
                 try {
@@ -232,9 +295,16 @@
                 await setDoc(docRef, { blueprint: null, updatedAt: new Date().toISOString() }, { merge: true });
             }
         };
+        }
 
-
-        initAuth();
+        if (!window.FIREBASE_DISABLED && auth) {
+            initAuth();
+        } else {
+            // Offline bootstrap: still let UI load and date initialize.
+            window.__rosterReady.then(() => {
+                try { rosterSystem.initializeDate(); } catch(e) {}
+            });
+        }
     </script>
 
     <style>
@@ -446,6 +516,18 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-50 flex flex-col h-screen overflow-hidden">
+<script>/* FRAME_BUSTER */
+(function(){
+  try{
+    if (window.top !== window.self) {
+      window.top.location = window.location.href;
+      return;
+    }
+  }catch(e){
+    // If we cannot access window.top (cross-origin), just continue.
+  }
+})();
+</script>
 
 <nav class="h-12 bg-white border-b border-slate-200 flex items-center shrink-0 z-20 shadow-sm">
     <div class="w-full px-4 flex items-center justify-between">
