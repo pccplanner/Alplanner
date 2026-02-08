@@ -12,20 +12,19 @@
     <!-- Dynamic Styles for Labels will be injected here -->
     <style id="dynamic-label-styles"></style>
 
-    <!-- Bootstrap & Error Handling -->
+    <!-- 1. CRITICAL: Global Identifiers for iOS/WebView Compatibility -->
     <script>
       window.plannerSystem = window.plannerSystem || {};
       
-      // 1. Define globals immediately to prevent iOS ReferenceErrors
+      // Ensure these exist globally before modules load
       var fireauth = null;
       var firedb = null;
       var firebaseApp = null;
 
-      // 2. iOS/WebView Compatibility: Suppress internal network errors
+      // 2. Error Suppression: Ignore internal iOS/Firebase noise
       window.addEventListener('error', function(ev){
         try{
           var msg = String(ev && ev.message || '');
-          // Common iOS/Firebase noise that can be ignored
           if (msg.includes('Invalid URI scheme') || 
               msg.includes("Can't find variable: fireauth") || 
               msg === 'Script error.' || 
@@ -43,8 +42,7 @@
       window.addEventListener('unhandledrejection', function(ev){
         try{
             var msg = String(ev && (ev.reason && ev.reason.message || ev.reason) || '');
-            if (msg.includes('permission-denied') || msg.includes('unavailable')) {
-                // We handle these via UI indicators, suppress console spam
+            if (msg.includes('permission-denied') || msg.includes('unavailable') || msg.includes('Invalid URI')) {
                 ev.preventDefault();
             }
         }catch(e){}
@@ -99,7 +97,6 @@
                     callback(list);
                 }, (err) => {
                     console.warn("Staff sync paused:", err.code);
-                    // Don't alert on permission-denied, just wait for reconnect
                 });
             },
 
@@ -178,7 +175,7 @@
             }
         };
 
-        // --- Robust Auth Flow ---
+        // --- 4. Robust Auth Flow (Wait for User) ---
         if (auth) {
             onAuthStateChanged(auth, (user) => {
                 const statusEl = document.getElementById('connectionStatus');
@@ -814,5 +811,4 @@
     </script>
 </body>
 </html>
-
 
