@@ -757,6 +757,548 @@ body.roster-hidden #mainSplit { flex-direction: column !important; }
 <datalist id="staff-id-list"></datalist>
 
 <script>
+
+
+// =========================
+// Optimized roster engine (CSP + scoring)
+// Integrated from Roster_Optimized.html
+// =========================
+class OptimizedRosterGenerator {
+            constructor(config) {
+                this.locations = config.locations || [];
+                this.times = config.times || [];
+                this.presentStaff = config.presentStaff || [];
+                this.breakDuration = config.breakDuration || 60;
+                this.criticalDuties = config.criticalDuties || {};
+                this.isWeekend = config.isWeekend || false;
+                this.locks = config.locks || {};
+                this.lockedValues = config.lockedValues || {};
+                this.specificAssignments = config.specificAssignments || {};
+                
+                // Optimized data structures
+                this.staffMap = new Map(this.presentStaff.map(s => [s.staffId, s]));
+                this.assignments = new Map(); // staffId -> Set of times assigned
+                this.roster = {};
+                this.verticalPatrolTracker = new Set();
+                this.locationAssignments = new Map(); // locName -> Map(time -> Set(staffIds))
+                
+                // Priority order for locations (critical first)
+                this.locationPriority = ["HHMD", "Guard House", "KIOSK", "Pass Counter", "Lobby", "Report Room", "Vertical Patrol", "Tango Papa"];
+                
+                // Initialize structures
+                this._initializeStructures();
+            }
+            
+            _initializeStructures() {
+                // Initialize roster structure
+                for (const loc of this.locations) {
+                    this.roster[loc.name] = {};
+                    this.locationAssignments.set(loc.name, new Map());
+                    for (const time of this.times) {
+                        this.roster[loc.name][time] = new Array(loc.needed).fill('');
+                        this.locationAssignments.get(loc.name).set(time, new Set());
+                    }
+                }
+                
+                // Initialize staff assignments tracking
+                for (const staff of this.presentStaff) {
+                    this.assignments.set(staff.staffId, new Set());
+                }
+            }
+            
+            /**
+             * Main generation method with optimized algorithm
+             */
+            generate() {
+                const startTime = performance.now();
+                console.log('🚀 Starting optimized roster generation...');
+                
+                // Phase 1: Apply locked cells and specific assignments
+                this._applyLockedCells();
+                this._applySpecificAssignments();
+                
+                // Phase 2: Fill critical locations first using priority queue
+                const criticalSuccess = this._fillCriticalLocations();
+                
+                // Phase 3: Fill remaining locations with smart allocation
+                const fillSuccess = this._fillRemainingLocations();
+                
+                // Phase 4: Optimize workload distribution
+                this._optimizeWorkload();
+                
+                // Phase 5: Final validation and gap filling
+                const gapsFilled = this._fillAnyRemainingGaps();
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                console.log(`✅ Generation complete in ${duration}ms`);
+                console.log(`📊 Critical fills: ${criticalSuccess}, Regular fills: ${fillSuccess}, Gaps filled: ${gapsFilled}`);
+                
+                return {
+                    roster: this.roster,
+                    stats: {
+                        duration,
+                        criticalSuccess,
+                        fillSuccess,
+                        gapsFilled
+                    }
+                };
+            }
+            
+            _applyLockedCells() {
+                let applied = 0;
+                for (const [key, staffId] of Object.entries(this.lockedValues)) {
+                    const [locName, time] = key.split('-');
+                    if (!this.roster[locName] || !this.roster[locName][time]) continue;
+                    
+                    const slots = this.roster[locName][time];
+                    const emptyIdx = slots.findIndex(s => !s);
+                    if (emptyIdx !== -1) {
+                        slots[emptyIdx] = staffId;
+                        this._trackAssignment(staffId, time, locName);
+                        applied++;
+                    }
+                }
+                console.log(`🔒 Applied ${applied} locked cells`);
+            }
+            
+            _applySpecificAssignments() {
+                let applied = 0;
+                for (const [time, locations] of Object.entries(this.specificAssignments)) {
+                    for (const [locName, staffIds] of Object.entries(locations)) {
+                        if (!this.roster[locName] || !this.roster[locName][time]) continue;
+                        
+                        for (const staffId of staffIds) {
+                            if (this._canAssignStrict(staffId, time, locName)) {
+                                const slots = this.roster[locName][time];
+                                const emptyIdx = slots.findIndex(s => !s);
+                                if (emptyIdx !== -1) {
+                                    slots[emptyIdx] = staffId;
+                                    this._trackAssignment(staffId, time, locName);
+                                    applied++;
+                                }
+                            }
+                        }
+                    }
+                }
+                console.log(`📍 Applied ${applied} specific assignments`);
+            }
+            
+            /**
+             * Fill critical locations (HHMD, Guard House, KIOSK) with priority
+             */
+            _fillCriticalLocations() {
+                const criticalLocs = ["HHMD", "Guard House", "KIOSK"];
+                let filled = 0;
+                
+                for (const time of this.times) {
+                    for (const locName of criticalLocs) {
+                        const locConfig = this.locations.find(l => l.name === locName);
+                        if (!locConfig) continue;
+                        
+                        const slots = this.roster[locName][time];
+                        for (let i = 0; i < slots.length; i++) {
+                            if (slots[i]) continue; // Already filled
+                            
+                            // Find best candidate using scoring system
+                            const candidate = this._findBestCandidate(time, locName, i);
+                            if (candidate) {
+                                slots[i] = candidate.staffId;
+                                this._trackAssignment(candidate.staffId, time, locName);
+                                filled++;
+                            }
+                        }
+                    }
+                }
+                
+                return filled;
+            }
+            
+            /**
+             * Fill remaining locations with smart allocation
+             */
+            _fillRemainingLocations() {
+                let filled = 0;
+                const nonCritical = this.locationPriority.filter(l => !["HHMD", "Guard House", "KIOSK"].includes(l));
+                
+                for (const time of this.times) {
+                    for (const locName of nonCritical) {
+                        // Skip if critical duty time doesn't match
+                        if (this.criticalDuties[locName] && !this.criticalDuties[locName].includes(time)) continue;
+                        
+                        // Skip Report Room on weekends
+                        if (locName === "Report Room" && this.isWeekend) continue;
+                        
+                        // Skip Lobby when pool is small or in shortfall mode
+                        if (locName === "Lobby" && this.presentStaff.length <= 6) continue;
+                        
+                        const locConfig = this.locations.find(l => l.name === locName);
+                        if (!locConfig) continue;
+                        
+                        const slots = this.roster[locName][time];
+                        for (let i = 0; i < slots.length; i++) {
+                            if (slots[i]) continue;
+                            
+                            const candidate = this._findBestCandidate(time, locName, i);
+                            if (candidate) {
+                                slots[i] = candidate.staffId;
+                                this._trackAssignment(candidate.staffId, time, locName);
+                                filled++;
+                            }
+                        }
+                    }
+                }
+                
+                return filled;
+            }
+            
+            /**
+             * Find best candidate for a slot using weighted scoring
+             * Scores candidates based on:
+             * - Availability (not on break, not assigned)
+             * - Qualifications (HHMD for HHMD location)
+             * - Workload balance (prefer less busy staff)
+             * - Location diversity (prefer different location from previous hour)
+             * - Consecutive hours (avoid too many at same location)
+             */
+            _findBestCandidate(time, locName, slotIndex) {
+                const candidates = [];
+                
+                for (const staff of this.presentStaff) {
+                    if (!this._canAssignStrict(staff.staffId, time, locName)) continue;
+                    
+                    const score = this._scoreCandidate(staff, time, locName);
+                    candidates.push({ staff, score, staffId: staff.staffId });
+                }
+                
+                if (candidates.length === 0) return null;
+                
+                // Sort by score (higher is better) and return top candidate
+                candidates.sort((a, b) => b.score - a.score);
+                return candidates[0];
+            }
+            
+            /**
+             * Score a candidate for assignment (higher is better)
+             */
+            _scoreCandidate(staff, time, locName) {
+                let score = 100;
+                
+                // Prefer staff with fewer assignments (workload balance)
+                const assignmentCount = this.assignments.get(staff.staffId)?.size || 0;
+                const avgAssignments = Array.from(this.assignments.values())
+                    .reduce((sum, set) => sum + set.size, 0) / this.presentStaff.length;
+                score += (avgAssignments - assignmentCount) * 10;
+                
+                // Prefer different location from previous hour (location diversity)
+                const prevTimeIdx = this.times.indexOf(time) - 1;
+                if (prevTimeIdx >= 0) {
+                    const prevTime = this.times[prevTimeIdx];
+                    const prevLoc = this._findStaffLocation(prevTime, staff.staffId);
+                    if (prevLoc && prevLoc !== locName) {
+                        score += 20;
+                    } else if (prevLoc === locName) {
+                        score -= 15; // Penalty for same location
+                    }
+                }
+                
+                // Penalty for consecutive hours at same location
+                const consecutive = this._countConsecutiveHours(staff.staffId, time, locName);
+                score -= consecutive * 25;
+                
+                // Bonus for HHMD qualified staff at HHMD location
+                if (locName === "HHMD" && staff.hhmd === "Yes") {
+                    score += 30;
+                }
+                
+                // Small random factor to break ties
+                score += Math.random() * 5;
+                
+                return score;
+            }
+            
+            /**
+             * Strict constraint checking for assignment
+             */
+            _canAssignStrict(staffId, time, locName) {
+                const staff = this.staffMap.get(staffId);
+                if (!staff) return false;
+                
+                // Already assigned at this time
+                if (this.assignments.get(staffId)?.has(time)) return false;
+                
+                // On break check
+                if (this._isOnBreak(staff, time)) return false;
+                
+                // HHMD qualification check
+                if (locName === "HHMD" && staff.hhmd !== "Yes") return false;
+                
+                // Pass Counter duplicate check
+                if (locName === "Pass Counter") {
+                    const pcSlots = this.roster["Pass Counter"]?.[time] || [];
+                    if (pcSlots.includes(staffId)) return false;
+                }
+                
+                // Guard House cap check
+                const poolCount = this.presentStaff.length;
+                const guardCap = poolCount <= 6 ? 3 : 2;
+                if (locName === "Guard House") {
+                    const ghCount = this._countLocationAssignments(staffId, "Guard House");
+                    if (ghCount >= guardCap) return false;
+                    
+                    // No back-to-back Guard House
+                    const prevIdx = this.times.indexOf(time) - 1;
+                    if (prevIdx >= 0) {
+                        const prevTime = this.times[prevIdx];
+                        const prevLoc = this._findStaffLocation(prevTime, staffId);
+                        if (prevLoc === "Guard House") return false;
+                    }
+                }
+                
+                // Guard House <-> KIOSK switch prevention
+                const prevIdx = this.times.indexOf(time) - 1;
+                if (prevIdx >= 0) {
+                    const prevTime = this.times[prevIdx];
+                    const prevLoc = this._findStaffLocation(prevTime, staffId);
+                    if ((prevLoc === "Guard House" && locName === "KIOSK") ||
+                        (prevLoc === "KIOSK" && locName === "Guard House")) {
+                        return false;
+                    }
+                }
+                
+                // Vertical Patrol / Tango Papa duplicate check
+                if ((locName === "Vertical Patrol" || locName === "Tango Papa") && 
+                    this.verticalPatrolTracker.has(staffId)) {
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            /**
+             * Optimize workload distribution by swapping assignments
+             */
+            _optimizeWorkload() {
+                // Calculate current workload distribution
+                const workloads = new Map();
+                for (const [staffId, times] of this.assignments.entries()) {
+                    workloads.set(staffId, times.size);
+                }
+                
+                const avg = Array.from(workloads.values()).reduce((a, b) => a + b, 0) / workloads.size;
+                const overloaded = Array.from(workloads.entries()).filter(([_, count]) => count > avg + 1);
+                const underloaded = Array.from(workloads.entries()).filter(([_, count]) => count < avg - 1);
+                
+                // Attempt swaps between overloaded and underloaded staff
+                let swaps = 0;
+                for (const [heavyId, heavyCount] of overloaded) {
+                    for (const [lightId, lightCount] of underloaded) {
+                        if (this._trySwap(heavyId, lightId)) {
+                            swaps++;
+                            break;
+                        }
+                    }
+                }
+                
+                if (swaps > 0) {
+                    console.log(`⚖️ Optimized workload with ${swaps} swaps`);
+                }
+            }
+            
+            /**
+             * Try to swap assignments between two staff members
+             */
+            _trySwap(staffId1, staffId2) {
+                const times1 = this.assignments.get(staffId1);
+                const times2 = this.assignments.get(staffId2);
+                
+                if (!times1 || !times2) return false;
+                
+                // Find a time where staff1 is assigned but staff2 is not
+                for (const time of times1) {
+                    if (times2.has(time)) continue;
+                    
+                    const loc1 = this._findStaffLocation(time, staffId1);
+                    if (!loc1) continue;
+                    
+                    // Check if staff2 can take this assignment
+                    if (this._canSwap(staffId1, staffId2, time, loc1)) {
+                        // Perform swap
+                        this._removeAssignment(staffId1, time, loc1);
+                        this._addAssignment(staffId2, time, loc1);
+                        return true;
+                    }
+                }
+                
+                return false;
+            }
+            
+            /**
+             * Check if a swap is valid
+             */
+            _canSwap(fromStaffId, toStaffId, time, locName) {
+                // Temporarily remove the from assignment
+                const tempAssignments = new Set(this.assignments.get(toStaffId));
+                return this._canAssignStrict(toStaffId, time, locName);
+            }
+            
+            /**
+             * Fill any remaining gaps with backtracking if necessary
+             */
+            _fillAnyRemainingGaps() {
+                let filled = 0;
+                
+                for (const time of this.times) {
+                    for (const locName of this.locationPriority) {
+                        const locConfig = this.locations.find(l => l.name === locName);
+                        if (!locConfig) continue;
+                        
+                        const slots = this.roster[locName][time];
+                        for (let i = 0; i < slots.length; i++) {
+                            if (slots[i]) continue;
+                            
+                            // Try with relaxed constraints
+                            const candidate = this._findCandidateRelaxed(time, locName);
+                            if (candidate) {
+                                slots[i] = candidate.staffId;
+                                this._trackAssignment(candidate.staffId, time, locName);
+                                filled++;
+                            }
+                        }
+                    }
+                }
+                
+                return filled;
+            }
+            
+            /**
+             * Find candidate with some constraint relaxation (for gap filling)
+             */
+            _findCandidateRelaxed(time, locName) {
+                // Allow consecutive hours but still enforce hard constraints
+                for (const staff of this.presentStaff) {
+                    if (this.assignments.get(staff.staffId)?.has(time)) continue;
+                    if (this._isOnBreak(staff, time)) continue;
+                    if (locName === "HHMD" && staff.hhmd !== "Yes") continue;
+                    
+                    // Check other hard constraints
+                    const prevIdx = this.times.indexOf(time) - 1;
+                    if (prevIdx >= 0 && locName === "Guard House") {
+                        const prevTime = this.times[prevIdx];
+                        const prevLoc = this._findStaffLocation(prevTime, staff.staffId);
+                        if (prevLoc === "Guard House") continue;
+                    }
+                    
+                    return { staff, staffId: staff.staffId };
+                }
+                
+                return null;
+            }
+            
+            // ========== Helper Methods ==========
+            
+            _trackAssignment(staffId, time, locName) {
+                if (!this.assignments.has(staffId)) {
+                    this.assignments.set(staffId, new Set());
+                }
+                this.assignments.get(staffId).add(time);
+                
+                if (locName === "Vertical Patrol" || locName === "Tango Papa") {
+                    this.verticalPatrolTracker.add(staffId);
+                }
+                
+                if (!this.locationAssignments.has(locName)) {
+                    this.locationAssignments.set(locName, new Map());
+                }
+                if (!this.locationAssignments.get(locName).has(time)) {
+                    this.locationAssignments.get(locName).set(time, new Set());
+                }
+                this.locationAssignments.get(locName).get(time).add(staffId);
+            }
+            
+            _removeAssignment(staffId, time, locName) {
+                this.assignments.get(staffId)?.delete(time);
+                this.locationAssignments.get(locName)?.get(time)?.delete(staffId);
+                
+                // Update roster
+                const slots = this.roster[locName]?.[time];
+                if (slots) {
+                    const idx = slots.indexOf(staffId);
+                    if (idx !== -1) slots[idx] = '';
+                }
+            }
+            
+            _addAssignment(staffId, time, locName) {
+                this._trackAssignment(staffId, time, locName);
+                
+                // Update roster
+                const slots = this.roster[locName]?.[time];
+                if (slots) {
+                    const emptyIdx = slots.findIndex(s => !s);
+                    if (emptyIdx !== -1) slots[emptyIdx] = staffId;
+                }
+            }
+            
+            _findStaffLocation(time, staffId) {
+                for (const locName of this.locationPriority) {
+                    const slots = this.roster[locName]?.[time];
+                    if (slots && slots.includes(staffId)) return locName;
+                }
+                return null;
+            }
+            
+            _countLocationAssignments(staffId, locName) {
+                let count = 0;
+                for (const time of this.times) {
+                    const slots = this.roster[locName]?.[time];
+                    if (slots && slots.includes(staffId)) count++;
+                }
+                return count;
+            }
+            
+            _countConsecutiveHours(staffId, currentTime, locName) {
+                let count = 0;
+                let idx = this.times.indexOf(currentTime) - 1;
+                
+                while (idx >= 0) {
+                    const prevTime = this.times[idx];
+                    const prevLoc = this._findStaffLocation(prevTime, staffId);
+                    if (prevLoc === locName) {
+                        count++;
+                        idx--;
+                    } else {
+                        break;
+                    }
+                }
+                
+                return count;
+            }
+            
+            _isOnBreak(staff, timeSlot, slotMins = 60) {
+                if (!staff || !staff.breakStart || !staff.breakEnd) return false;
+                
+                const toShiftMins = (t) => {
+                    if (!t || typeof t !== 'string' || !t.includes(':')) return NaN;
+                    let [h, m] = t.split(':').map(Number);
+                    if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+                    if (h < 12) h += 24;
+                    return (h * 60) + m;
+                };
+                
+                let bStart = toShiftMins(staff.breakStart);
+                let bEnd = toShiftMins(staff.breakEnd);
+                let sStart = toShiftMins(timeSlot);
+                
+                if (!Number.isFinite(bStart) || !Number.isFinite(bEnd) || !Number.isFinite(sStart)) return false;
+                
+                if (bEnd <= bStart) bEnd += 24 * 60;
+                const sEnd = sStart + (parseInt(slotMins, 10) || 60);
+                
+                return (sStart < bEnd) && (sEnd > bStart);
+            }
+        }
+
 const rosterSystem = {
     ROSTER_TIMES: ["20:00", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"],
     LOCATIONS: [ { name: "Pass Counter", needed: 2 }, { name: "KIOSK", needed: 1 }, { name: "Lobby", needed: 1 }, { name: "HHMD", needed: 1 }, { name: "Guard House", needed: 1 }, { name: "Report Room", needed: 1 }, { name: "Vertical Patrol", needed: 1 }, { name: "Tango Papa", needed: 1 } ],
@@ -2071,7 +2613,90 @@ for (const sId of pickList) {
             Math.random = __origRandom;
         }
     },
+    
+    // Optimized generation wrapper:
+    // - Uses the new OptimizedRosterGenerator when Blueprint is OFF (fast path)
+    // - Falls back to legacy generator when Blueprint is ON (keeps full blueprint semantics)
     runRosterGeneration(isShuffle = false) {
+        const bpActive = !!(this.blueprintEnabled && this.blueprintData && this.blueprintData.roster);
+        if (bpActive) {
+            // Blueprint mode uses legacy algorithm to preserve exact blueprint rules.
+            return this._runRosterGenerationLegacy(isShuffle);
+        }
+
+        if (this.generatedRoster && !isShuffle) { if(!confirm("Overwrite existing roster for this date?")) return; }
+
+        const presentStaff = (this.staffDataCache || []).filter(s => s.attendance === 'Yes');
+        if (presentStaff.length === 0) return this.showToast("No active staff!", 'error');
+
+        // Ensure Shortfall policy is applied before we compute needed-per-location
+        try {
+            const activeCount = presentStaff.length;
+            this.applyShortfallMode(activeCount);
+        } catch(e) {}
+
+        const isWeekend = ['Saturday', 'Sunday'].includes(document.getElementById('rosterDay').value);
+        const locks = (window.firebaseOperations && window.firebaseOperations.getLocks) ? window.firebaseOperations.getLocks() : {};
+        const lockedValues = this.preserveLockedValues();
+
+        // Build specific assignments (First hour startLoc + VP fixed cycles)
+        const specificAssignments = {};
+        presentStaff.forEach(staff => {
+            if (staff.startLoc) {
+                if (!specificAssignments["20:00"]) specificAssignments["20:00"] = {};
+                if (!specificAssignments["20:00"][staff.startLoc]) specificAssignments["20:00"][staff.startLoc] = [];
+                specificAssignments["20:00"][staff.startLoc].push(staff.staffId);
+            }
+            if (staff.vpSlot && this.VP_CYCLES[staff.vpSlot]) {
+                const time = this.VP_CYCLES[staff.vpSlot].time;
+                if (!specificAssignments[time]) specificAssignments[time] = {};
+                if (!specificAssignments[time]["Vertical Patrol"]) specificAssignments[time]["Vertical Patrol"] = [];
+                specificAssignments[time]["Vertical Patrol"].push(staff.staffId);
+            }
+        });
+
+        // Generate roster (fast engine)
+        let roster = null;
+        try {
+            const engine = new OptimizedRosterGenerator({
+                locations: this.LOCATIONS,
+                times: this.ROSTER_TIMES,
+                presentStaff,
+                breakDuration: this.breakDuration,
+                criticalDuties: this.CRITICAL_DUTIES,
+                isWeekend,
+                locks,
+                lockedValues,
+                specificAssignments
+            });
+            roster = engine.generate();
+        } catch (e) {
+            console.error("Optimized generation failed, falling back to legacy:", e);
+            return this._runRosterGenerationLegacy(isShuffle);
+        }
+
+        // Enforce Shortfall rule: Lobby must be blank when shortfall mode ON
+        if (this.shortfallMode && roster && roster["Lobby"]) {
+            this.ROSTER_TIMES.forEach(t => { roster["Lobby"][t] = []; });
+        }
+
+        this.generatedRoster = roster;
+        this.displayRoster(roster);
+        document.getElementById('rosterActionsContainer').classList.remove('hidden');
+
+        // Keep HHMD clean (qualified-only)
+        try { this.enforceHHMDOnly(roster, { source: 'preSave', silent: true }); } catch(e) {}
+
+        // Save
+        if (window.firebaseOperations && typeof window.firebaseOperations.saveRoster === "function") {
+            window.firebaseOperations.saveRoster(this.currentDateStr, roster);
+            this.triggerSaveIndicator();
+        }
+
+        this.showToast("Roster Generated (Optimized)", "success");
+    },
+
+    _runRosterGenerationLegacy(isShuffle = false) {
         if (this.generatedRoster && !isShuffle) { if(!confirm("Overwrite existing roster for this date?")) return; }
 
         const presentStaff = this.staffDataCache.filter(s => s.attendance === 'Yes');
