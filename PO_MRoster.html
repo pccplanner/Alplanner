@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monthly Roster Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Bootstrap globals -->
+    <script>
+      window.plannerSystem = window.plannerSystem || {};
+      
+      // iOS/WebView Compatibility: Suppress internal file:// errors
+      window.addEventListener('error', function(ev){
+        try{
+          var msg = String(ev && ev.message || '');
+          if (msg.includes('Invalid URI scheme') || msg.includes("Can't find variable: fireauth") || msg === 'Script error.') {
+            ev.preventDefault();
+            return true;
+          }
+        }catch(e){}
+        return false;
+      }, true);
+    </script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, query, writeBatch } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+          authDomain: "roster-4a997.firebaseapp.com",
+          projectId: "roster-4a997",
+          storageBucket: "roster-4a997.firebasestorage.app",
+          messagingSenderId: "901381868881",
+          appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+
+        // Initialize blindly (removed strict protocol check for local file usage)
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase initialized");
+        } catch (e) {
+            console.error("Firebase init failed:", e);
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
+        const COLLECTION_STAFF = 'employees';
+        const COLLECTION_SCHEDULE = 'monthly_schedule';
+
+        // --- Data Logic ---
+        window.firebaseOps = {
+            // Subscribe to staff list
+            subscribeToStaff: (callback) => {
+                if (!db) return () => {};
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF));
+                return onSnapshot(q, (snap) => {
+                    const list = snap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
+                    // Sort by Staff ID
+                    list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+                    callback(list);
+                });
+            },
+
+            // Subscribe to schedule
+            subscribeToSchedule: (year, month, callback) => {
+                if (!db) return () => {};
+                const docId = `schedule_${year}_${month}`;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
+                return onSnapshot(docRef, (snap) => {
+                    if (snap.exists()) {
+                        callback(snap.data().data || {});
+                    } else {
+                        callback({});
+                    }
+                });
+            },
+
+            // Save cell
+            saveCell: async (year, month, staffId, dayKey, code) => {
+                if (!db) return;
+                const docId = `schedule_${year}_${month}`;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
+                
+                // Firestore nested update
+                const updatePath = `data.${staffId}.${dayKey}`;
+                try {
+                    await updateDoc(docRef, { [updatePath]: code });
+                } catch (e) {
+                    await setDoc(docRef, { 
+                        data: { [staffId]: { [dayKey]: code } },
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                }
+            },
+
+            // Sync 'Active' status to Command Center
+            updateStaffStatus: async (firebaseId, isActive) => {
+                if (!db || !firebaseId) return;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, firebaseId);
+                await updateDoc(docRef, { attendance: isActive ? 'Yes' : 'No' });
+            },
+
+            // Batch update for "Sync Today"
+            batchUpdateStatus: async (updates) => {
+                if (!db || !updates.length) return;
+                const batch = writeBatch(db);
+                updates.forEach(u => {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, u.firebaseId);
+                    batch.update(docRef, { attendance: u.isActive ? 'Yes' : 'No' });
+                });
+                await batch.commit();
+            }
+        };
+
+        // --- Init Auth ---
+        if (auth) {
+            signInAnonymously(auth).then(() => {
+                plannerSystem.init();
+            }).catch(e => {
+                console.error("Auth failed:", e);
+                // Try init anyway in case already auth'd
+                plannerSystem.init();
+            });
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Table Styles matching the screenshot */
+        .spreadsheet-container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background: white;
+            border-top: 1px solid #94a3b8;
+        }
+        
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: max-content;
+        }
+
+        th, td {
+            border-right: 1px solid #94a3b8;
+            border-bottom: 1px solid #94a3b8;
+            height: 28px;
+            padding: 0;
+            text-align: center;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        /* Sticky Headers */
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #f1f5f9;
+            z-index: 20;
+            font-weight: 700;
+            color: #334155;
+            border-bottom: 2px solid #64748b;
+        }
+        
+        /* Sticky First Columns (Excel style) */
+        .sticky-col-sn {
+            position: sticky;
+            left: 0;
+            z-index: 30;
+            width: 30px; min-width: 30px;
+            background: #e2e8f0;
+        }
+        .sticky-col-id {
+            position: sticky;
+            left: 30px;
+            z-index: 30;
+            width: 50px; min-width: 50px;
+            background: #ffffff;
+            font-weight: 700;
+        }
+        .sticky-col-name {
+            position: sticky;
+            left: 80px;
+            z-index: 30;
+            width: 200px; min-width: 200px;
+            background: #ffffff;
+            text-align: left;
+            padding-left: 6px;
+        }
+        
+        /* Header Colors from Image */
+        .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; } /* Light Blue */
+        
+        /* Z-index fix for corner */
+        thead th.sticky-col-sn, thead th.sticky-col-id, thead th.sticky-col-name {
+            z-index: 40;
+            background-color: #a5b4fc; /* Match screenshot header blue */
+            color: #1e3a8a;
+        }
+
+        /* Cells */
+        .cell-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            text-align: center;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cell-input:hover { box-shadow: inset 0 0 0 2px #6366f1; z-index: 10; position: relative;}
+
+        /* Duty Colors (Exact Match to Screenshot) */
+        .duty-2A { background-color: #86efac; color: #000; } /* Bright Green */
+        .duty-2SD, .duty-2OD, .duty-25D, .duty-EPH, .duty-OSD { background-color: #fcd34d; color: #000; } /* Yellow/Orange */
+        .duty-OFF { background-color: #fef08a; color: #000; } /* Pale Yellow */
+        .duty-AL { background-color: #7dd3fc; color: #000; } /* Sky Blue */
+        .duty-HL { background-color: #cbd5e1; color: #000; } /* Gray */
+        .duty-MC { background-color: #fca5a5; color: #000; } /* Reddish */
+        .duty-CNB { background-color: #e879f9; color: #000; } /* Pink/Magenta */
+        .duty-P-AL { background-color: #67e8f9; color: #000; } /* Cyan */
+
+        .row-support { background-color: #e2e8f0; }
+
+        /* Popover Menu */
+        #codePopover {
+            position: fixed;
+            background: white;
+            border: 1px solid #475569;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            padding: 4px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+        }
+        #codePopover.visible { opacity: 1; pointer-events: auto; }
+        
+        .code-btn {
+            padding: 6px 4px;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 2px;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .code-btn:hover { filter: brightness(0.95); transform: scale(1.05); }
+
+        .saved-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #0f172a;
+            color: #4ade80;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 2000;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .saved-toast.visible { opacity: 1; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="h-12 bg-white border-b border-slate-300 flex items-center justify-between px-3 shrink-0 z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 bg-blue-700 rounded flex items-center justify-center text-white">
+                <i data-lucide="table-2" class="w-4 h-4"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold text-slate-800 leading-tight">Master Roster Planner</h1>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Date Nav -->
+            <div class="flex items-center bg-slate-100 rounded border border-slate-300">
+                <button onclick="plannerSystem.changeMonth(-1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-left" class="w-3 h-3"></i></button>
+                <div class="px-2 font-bold text-xs text-slate-700 min-w-[100px] text-center" id="currentMonthLabel">Loading...</div>
+                <button onclick="plannerSystem.changeMonth(1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-right" class="w-3 h-3"></i></button>
+            </div>
+
+            <button onclick="plannerSystem.forceSyncToday()" class="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] uppercase font-bold px-3 py-1.5 rounded shadow-sm transition">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                Sync Today
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="spreadsheet-container" id="gridContainer">
+        <!-- Table injected by JS -->
+        <div class="flex items-center justify-center h-full text-slate-400 gap-2">
+            <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+            <span class="text-xs font-medium">Connecting to Database...</span>
+        </div>
+    </div>
+
+    <!-- Code Selection Popover -->
+    <div id="codePopover">
+        <!-- Injected by JS -->
+    </div>
+
+    <!-- Toast -->
+    <div id="savedToast" class="saved-toast">
+        <div class="flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>Saved</span>
+        </div>
+    </div>
+
+    <script>
+        // Configuration matching screenshot colors
+        const DUTY_CODES = {
+            "2A":  { class: "duty-2A", active: true },
+            "2SD": { class: "duty-2SD", active: true },
+            "2OD": { class: "duty-2OD", active: true },
+            "25D": { class: "duty-25D", active: true },
+            "EPH": { class: "duty-EPH", active: true },
+            "OSD": { class: "duty-OSD", active: true },
+            "OFF": { class: "duty-OFF", active: false },
+            "OOD": { class: "duty-OFF", active: false },
+            "AL":  { class: "duty-AL", active: false },
+            "P-AL":{ class: "duty-P-AL", active: false },
+            "HL":  { class: "duty-HL", active: false },
+            "MC":  { class: "duty-MC", active: false },
+            "CNB": { class: "duty-CNB", active: true }
+        };
+
+        const plannerSystem = {
+            currentDate: new Date(),
+            staffList: [],
+            scheduleData: {},
+            activeCell: null,
+            
+            init() {
+                this.updateMonthLabel();
+                this.setupListeners();
+                this.setupPopover();
+                
+                // Load Staff
+                window.firebaseOps.subscribeToStaff((staff) => {
+                    this.staffList = staff;
+                    this.renderTable();
+                });
+                
+                // Load Schedule for current month
+                this.loadSchedule();
+            },
+
+            setupListeners() {
+                // Close popover on outside click
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#codePopover') && !e.target.classList.contains('cell-input')) {
+                        document.getElementById('codePopover').classList.remove('visible');
+                    }
+                });
+            },
+
+            setupPopover() {
+                const pop = document.getElementById('codePopover');
+                let html = Object.keys(DUTY_CODES).map(code => 
+                    `<div class="code-btn ${DUTY_CODES[code].class}" onclick="plannerSystem.selectCode('${code}')">${code}</div>`
+                ).join('');
+                html += `<div class="code-btn bg-white border border-red-200 text-red-500" onclick="plannerSystem.selectCode('')">CLR</div>`;
+                pop.innerHTML = html;
+            },
+
+            loadSchedule() {
+                const y = this.currentDate.getFullYear();
+                const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+                
+                if (this.unsubSchedule) this.unsubSchedule();
+                
+                this.unsubSchedule = window.firebaseOps.subscribeToSchedule(y, m, (data) => {
+                    this.scheduleData = data;
+                    this.renderTable();
+                });
+            },
+
+            changeMonth(delta) {
+                this.currentDate.setMonth(this.currentDate.getMonth() + delta);
+                this.updateMonthLabel();
+                this.loadSchedule();
+            },
+
+            updateMonthLabel() {
+                const fmt = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+                document.getElementById('currentMonthLabel').textContent = fmt.format(this.currentDate);
+            },
+
+            getDaysInMonth() {
+                const y = this.currentDate.getFullYear();
+                const m = this.currentDate.getMonth();
+                const days = new Date(y, m + 1, 0).getDate();
+                const result = [];
+                for (let i = 1; i <= days; i++) {
+                    const d = new Date(y, m, i);
+                    result.push({
+                        date: i,
+                        dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d),
+                        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+                        isToday: this.isToday(d),
+                        fullDateKey: String(i).padStart(2, '0') // 01, 02...
+                    });
+                }
+                return result;
+            },
+
+            isToday(dateObj) {
+                const today = new Date();
+                return dateObj.getDate() === today.getDate() &&
+                       dateObj.getMonth() === today.getMonth() &&
+                       dateObj.getFullYear() === today.getFullYear();
+            },
+
+            renderTable() {
+                const container = document.getElementById('gridContainer');
+                if (!this.staffList.length) return;
+
+                const days = this.getDaysInMonth();
+                
+                // --- TABLE HEADER ---
+                let html = `<table><thead><tr>
+                    <th class="sticky-col-sn header-blue">S/N</th>
+                    <th class="sticky-col-id header-blue">Staff ID</th>
+                    <th class="sticky-col-name header-blue">Name</th>`;
+                
+                days.forEach(d => {
+                    const todayStyle = d.isToday ? 'bg-blue-100 text-blue-800' : 'bg-green-300 text-black'; // Green header like image
+                    html += `<th class="${todayStyle} border-b-2 border-slate-400" style="width: 30px; min-width: 30px;">
+                        <div class="flex flex-col items-center justify-center leading-none py-1">
+                            <span class="text-[8px] opacity-80 mb-0.5">${d.dayName}</span>
+                            <span class="text-[10px]">${d.date}</span>
+                        </div>
+                    </th>`;
+                });
+                html += `</tr></thead><tbody>`;
+
+                // --- TABLE BODY ---
+                this.staffList.forEach((staff, index) => {
+                    const sid = staff.staffId || '?';
+                    const name = staff.name || 'Unknown';
+                    const firebaseId = staff.firebaseId;
+                    const schedules = this.scheduleData[staff.staffId] || {};
+
+                    html += `<tr>
+                        <td class="sticky-col-sn bg-slate-100 font-mono text-slate-500 text-[9px]">${index + 1}</td>
+                        <td class="sticky-col-id bg-white font-bold text-slate-700">${sid}</td>
+                        <td class="sticky-col-name bg-white font-bold text-slate-800 text-left px-1 truncate">${name}</td>`;
+                    
+                    days.forEach(d => {
+                        const code = schedules[d.fullDateKey] || '';
+                        const styleClass = DUTY_CODES[code] ? DUTY_CODES[code].class : '';
+                        const bgClass = d.isWeekend ? 'bg-slate-50' : '';
+                        
+                        html += `<td class="${bgClass} ${styleClass}" data-date="${d.fullDateKey}" data-staffid="${staff.staffId}" data-fbid="${firebaseId}">
+                            <div class="cell-input" onclick="plannerSystem.openPicker(this, '${d.fullDateKey}', '${staff.staffId}', '${firebaseId}')">
+                                ${code}
+                            </div>
+                        </td>`;
+                    });
+
+                    html += `</tr>`;
+                });
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+                lucide.createIcons();
+            },
+
+            openPicker(el, dayKey, staffId, fbId) {
+                this.activeCell = { el, dayKey, staffId, fbId };
+                const rect = el.getBoundingClientRect();
+                const pop = document.getElementById('codePopover');
+                
+                // Smart positioning
+                let top = rect.bottom + 2;
+                let left = rect.left - 50;
+                
+                if (left < 10) left = 10;
+                if (left + 220 > window.innerWidth) left = window.innerWidth - 230;
+                if (top + 100 > window.innerHeight) top = rect.top - 110;
+
+                pop.style.top = `${top}px`;
+                pop.style.left = `${left}px`;
+                pop.classList.add('visible');
+            },
+
+            selectCode(code) {
+                if (!this.activeCell) return;
+                const { dayKey, staffId, fbId } = this.activeCell;
+                const y = this.currentDate.getFullYear();
+                const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+
+                // 1. Optimistic Update
+                const cellDiv = this.activeCell.el;
+                cellDiv.textContent = code;
+                const td = cellDiv.parentElement;
+                
+                // Clear old classes
+                Object.values(DUTY_CODES).forEach(c => td.classList.remove(c.class));
+                if (DUTY_CODES[code]) td.classList.add(DUTY_CODES[code].class);
+
+                document.getElementById('codePopover').classList.remove('visible');
+
+                // 2. Save
+                window.firebaseOps.saveCell(y, m, staffId, dayKey, code);
+
+                // 3. Sync Logic (If Today)
+                const today = new Date();
+                const isEditToday = (y === today.getFullYear() && (this.currentDate.getMonth()) === today.getMonth() && parseInt(dayKey) === today.getDate());
+
+                if (isEditToday) {
+                    const isActive = DUTY_CODES[code] ? DUTY_CODES[code].active : false;
+                    window.firebaseOps.updateStaffStatus(fbId, isActive);
+                    this.showToast(`Saved & Synced: ${isActive ? 'Active' : 'Inactive'}`);
+                } else {
+                    this.showToast('Plan Saved');
+                }
+            },
+
+            showToast(msg) {
+                const t = document.getElementById('savedToast');
+                t.querySelector('span').textContent = msg;
+                t.classList.add('visible');
+                setTimeout(() => t.classList.remove('visible'), 2000);
+            },
+
+            async forceSyncToday() {
+                if (!confirm("Overwrite 'Active' status for ALL staff in Command Center based on today's column?")) return;
+
+                const today = new Date();
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+
+                if (this.currentDate.getMonth() !== today.getMonth() || this.currentDate.getFullYear() !== today.getFullYear()) {
+                   alert("Please switch to the current month view first.");
+                   return;
+                }
+
+                const updates = [];
+                let activeCount = 0;
+
+                this.staffList.forEach(staff => {
+                    const staffSchedule = this.scheduleData[staff.staffId] || {};
+                    const code = staffSchedule[d] || '';
+                    const isActive = DUTY_CODES[code] ? DUTY_CODES[code].active : false; // Default inactive if blank
+                    
+                    if (isActive) activeCount++;
+                    
+                    updates.push({
+                        firebaseId: staff.firebaseId,
+                        isActive: isActive
+                    });
+                });
+
+                await window.firebaseOps.batchUpdateStatus(updates);
+                alert(`Sync Complete!\n\n${activeCount} Staff set to Active\n${updates.length - activeCount} Staff set to Inactive`);
+            }
+        };
+    </script>
+</body>
+</html>
+
