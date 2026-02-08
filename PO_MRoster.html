@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monthly Roster Planner</title>
+    <title>Master Roster Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
@@ -13,11 +13,11 @@
     <script>
       window.plannerSystem = window.plannerSystem || {};
       
-      // iOS/WebView Compatibility: Suppress internal file:// errors
+      // iOS/WebView Compatibility: Suppress internal network errors that don't affect functionality
       window.addEventListener('error', function(ev){
         try{
           var msg = String(ev && ev.message || '');
-          if (msg.includes('Invalid URI scheme') || msg.includes("Can't find variable: fireauth") || msg === 'Script error.') {
+          if (msg.includes('Invalid URI scheme') || msg.includes("Can't find variable: fireauth") || msg === 'Script error.' || msg.includes('WebChannelConnection')) {
             ev.preventDefault();
             return true;
           }
@@ -29,7 +29,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, query, writeBatch } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = {
@@ -41,15 +41,14 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
 
-        // Initialize blindly (removed strict protocol check for local file usage)
+        // Safe initialization
         let app, auth, db;
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            console.log("Firebase initialized");
         } catch (e) {
-            console.error("Firebase init failed:", e);
+            console.error("Firebase init error:", e);
         }
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
@@ -60,19 +59,21 @@
         window.firebaseOps = {
             // Subscribe to staff list
             subscribeToStaff: (callback) => {
-                if (!db) return () => {};
+                if (!db || !auth.currentUser) return () => {};
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF));
                 return onSnapshot(q, (snap) => {
                     const list = snap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
                     // Sort by Staff ID
                     list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
                     callback(list);
+                }, (err) => {
+                    console.warn("Staff sync paused:", err.code);
                 });
             },
 
             // Subscribe to schedule
             subscribeToSchedule: (year, month, callback) => {
-                if (!db) return () => {};
+                if (!db || !auth.currentUser) return () => {};
                 const docId = `schedule_${year}_${month}`;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
                 return onSnapshot(docRef, (snap) => {
@@ -81,12 +82,14 @@
                     } else {
                         callback({});
                     }
+                }, (err) => {
+                    console.warn("Schedule sync paused:", err.code);
                 });
             },
 
             // Save cell
             saveCell: async (year, month, staffId, dayKey, code) => {
-                if (!db) return;
+                if (!db || !auth.currentUser) return;
                 const docId = `schedule_${year}_${month}`;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
                 
@@ -104,14 +107,14 @@
 
             // Sync 'Active' status to Command Center
             updateStaffStatus: async (firebaseId, isActive) => {
-                if (!db || !firebaseId) return;
+                if (!db || !firebaseId || !auth.currentUser) return;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, firebaseId);
                 await updateDoc(docRef, { attendance: isActive ? 'Yes' : 'No' });
             },
 
             // Batch update for "Sync Today"
             batchUpdateStatus: async (updates) => {
-                if (!db || !updates.length) return;
+                if (!db || !updates.length || !auth.currentUser) return;
                 const batch = writeBatch(db);
                 updates.forEach(u => {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, u.firebaseId);
@@ -121,14 +124,24 @@
             }
         };
 
-        // --- Init Auth ---
+        // --- Robust Auth Flow ---
         if (auth) {
-            signInAnonymously(auth).then(() => {
-                plannerSystem.init();
-            }).catch(e => {
-                console.error("Auth failed:", e);
-                // Try init anyway in case already auth'd
-                plannerSystem.init();
+            // Listener handles initial load AND re-connection
+            onAuthStateChanged(auth, (user) => {
+                const statusEl = document.getElementById('connectionStatus');
+                if (user) {
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span class="text-emerald-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online</span>';
+                    }
+                    // Only init if not already running
+                    if (!plannerSystem.initialized) {
+                        plannerSystem.initialized = true;
+                        plannerSystem.init();
+                    }
+                } else {
+                    if (statusEl) statusEl.innerText = "Connecting...";
+                    signInAnonymously(auth).catch(e => console.error("Auth failed:", e));
+                }
             });
         }
     </script>
@@ -198,7 +211,7 @@
             padding-left: 6px;
         }
         
-        /* Header Colors from Image */
+        /* Header Colors */
         .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; } /* Light Blue */
         
         /* Z-index fix for corner */
@@ -234,8 +247,6 @@
         .duty-MC { background-color: #fca5a5; color: #000; } /* Reddish */
         .duty-CNB { background-color: #e879f9; color: #000; } /* Pink/Magenta */
         .duty-P-AL { background-color: #67e8f9; color: #000; } /* Cyan */
-
-        .row-support { background-color: #e2e8f0; }
 
         /* Popover Menu */
         #codePopover {
@@ -296,6 +307,7 @@
             </div>
             <div>
                 <h1 class="text-sm font-bold text-slate-800 leading-tight">Master Roster Planner</h1>
+                <div id="connectionStatus" class="text-[10px] text-slate-400 font-medium">Initializing...</div>
             </div>
         </div>
 
@@ -319,7 +331,7 @@
         <!-- Table injected by JS -->
         <div class="flex items-center justify-center h-full text-slate-400 gap-2">
             <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
-            <span class="text-xs font-medium">Connecting to Database...</span>
+            <span class="text-xs font-medium">Waiting for Connection...</span>
         </div>
     </div>
 
@@ -359,8 +371,10 @@
             staffList: [],
             scheduleData: {},
             activeCell: null,
+            initialized: false,
             
             init() {
+                console.log("Planner System Initializing...");
                 this.updateMonthLabel();
                 this.setupListeners();
                 this.setupPopover();
@@ -376,7 +390,6 @@
             },
 
             setupListeners() {
-                // Close popover on outside click
                 document.addEventListener('click', (e) => {
                     if (!e.target.closest('#codePopover') && !e.target.classList.contains('cell-input')) {
                         document.getElementById('codePopover').classList.remove('visible');
@@ -443,7 +456,12 @@
 
             renderTable() {
                 const container = document.getElementById('gridContainer');
-                if (!this.staffList.length) return;
+                if (!this.staffList.length) {
+                    if (this.initialized) {
+                         container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 gap-2"><span class="text-xs">No Staff Found.</span></div>`;
+                    }
+                    return;
+                }
 
                 const days = this.getDaysInMonth();
                 
@@ -590,4 +608,5 @@
     </script>
 </body>
 </html>
+
 
