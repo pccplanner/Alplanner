@@ -12,21 +12,43 @@
     <!-- Dynamic Styles for Labels will be injected here -->
     <style id="dynamic-label-styles"></style>
 
-    <!-- Bootstrap globals -->
+    <!-- Bootstrap & Error Handling -->
     <script>
       window.plannerSystem = window.plannerSystem || {};
       
-      // iOS/WebView Compatibility
+      // 1. Define globals immediately to prevent iOS ReferenceErrors
+      var fireauth = null;
+      var firedb = null;
+      var firebaseApp = null;
+
+      // 2. iOS/WebView Compatibility: Suppress internal network errors
       window.addEventListener('error', function(ev){
         try{
           var msg = String(ev && ev.message || '');
-          if (msg.includes('Invalid URI scheme') || msg.includes("Can't find variable: fireauth") || msg === 'Script error.' || msg.includes('WebChannelConnection')) {
+          // Common iOS/Firebase noise that can be ignored
+          if (msg.includes('Invalid URI scheme') || 
+              msg.includes("Can't find variable: fireauth") || 
+              msg === 'Script error.' || 
+              msg.includes('WebChannelConnection') ||
+              msg.includes('RPC') ||
+              msg.includes('snapshot listener')) {
             ev.preventDefault();
             return true;
           }
         }catch(e){}
         return false;
       }, true);
+
+      // Handle promise rejections (often network related)
+      window.addEventListener('unhandledrejection', function(ev){
+        try{
+            var msg = String(ev && (ev.reason && ev.reason.message || ev.reason) || '');
+            if (msg.includes('permission-denied') || msg.includes('unavailable')) {
+                // We handle these via UI indicators, suppress console spam
+                ev.preventDefault();
+            }
+        }catch(e){}
+      });
     </script>
 
     <!-- Firebase SDKs -->
@@ -44,11 +66,18 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
 
+        // Safe initialization
         let app, auth, db;
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+            
+            // 3. Expose to window for global error handlers
+            window.fireauth = auth;
+            window.firedb = db;
+            window.firebaseApp = app;
+            
         } catch (e) {
             console.error("Firebase init error:", e);
         }
@@ -68,6 +97,9 @@
                     const list = snap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
                     list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
                     callback(list);
+                }, (err) => {
+                    console.warn("Staff sync paused:", err.code);
+                    // Don't alert on permission-denied, just wait for reconnect
                 });
             },
 
@@ -78,7 +110,7 @@
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
                 return onSnapshot(docRef, (snap) => {
                     callback(snap.exists() ? (snap.data().data || {}) : {});
-                });
+                }, (err) => console.warn("Schedule sync paused"));
             },
 
             // Subscribe to Labels (Duty Codes)
@@ -91,7 +123,7 @@
                     } else {
                         callback(null); // Signal to use defaults
                     }
-                });
+                }, (err) => console.warn("Labels sync paused"));
             },
 
             // Save Label Settings
@@ -146,19 +178,24 @@
             }
         };
 
-        // --- Auth Flow ---
+        // --- Robust Auth Flow ---
         if (auth) {
             onAuthStateChanged(auth, (user) => {
                 const statusEl = document.getElementById('connectionStatus');
                 if (user) {
                     if (statusEl) statusEl.innerHTML = '<span class="text-emerald-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online</span>';
+                    
+                    // Only start system once we are SURE we have a user
                     if (!plannerSystem.initialized) {
                         plannerSystem.initialized = true;
                         plannerSystem.init();
                     }
                 } else {
-                    if (statusEl) statusEl.innerText = "Connecting...";
-                    signInAnonymously(auth).catch(e => console.error("Auth failed:", e));
+                    if (statusEl) statusEl.innerText = "Reconnecting...";
+                    signInAnonymously(auth).catch(e => {
+                        console.error("Auth failed:", e);
+                        if (statusEl) statusEl.innerText = "Offline";
+                    });
                 }
             });
         }
@@ -777,4 +814,5 @@
     </script>
 </body>
 </html>
+
 
