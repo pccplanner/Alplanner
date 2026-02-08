@@ -13,7 +13,7 @@
     <script>
       window.plannerSystem = window.plannerSystem || {};
       
-      // iOS/WebView Compatibility: Suppress internal network errors that don't affect functionality
+      // iOS/WebView Compatibility: Suppress internal network errors
       window.addEventListener('error', function(ev){
         try{
           var msg = String(ev && ev.message || '');
@@ -30,7 +30,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, query, writeBatch } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getFirestore, collection, doc, setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, query, writeBatch } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = {
           apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -93,7 +93,6 @@
                 const docId = `schedule_${year}_${month}`;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
                 
-                // Firestore nested update
                 const updatePath = `data.${staffId}.${dayKey}`;
                 try {
                     await updateDoc(docRef, { [updatePath]: code });
@@ -105,14 +104,30 @@
                 }
             },
 
-            // Sync 'Active' status to Command Center
+            // --- STAFF MANAGEMENT ---
+            addStaff: async (data) => {
+                if (!db || !auth.currentUser) throw new Error("Not connected");
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF), data);
+            },
+
+            updateStaffDetails: async (firebaseId, data) => {
+                if (!db || !firebaseId || !auth.currentUser) throw new Error("Not connected");
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, firebaseId);
+                await updateDoc(docRef, data);
+            },
+
+            deleteStaff: async (firebaseId) => {
+                if (!db || !firebaseId || !auth.currentUser) throw new Error("Not connected");
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, firebaseId);
+                await deleteDoc(docRef);
+            },
+
             updateStaffStatus: async (firebaseId, isActive) => {
                 if (!db || !firebaseId || !auth.currentUser) return;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF, firebaseId);
                 await updateDoc(docRef, { attendance: isActive ? 'Yes' : 'No' });
             },
 
-            // Batch update for "Sync Today"
             batchUpdateStatus: async (updates) => {
                 if (!db || !updates.length || !auth.currentUser) return;
                 const batch = writeBatch(db);
@@ -124,16 +139,14 @@
             }
         };
 
-        // --- Robust Auth Flow ---
+        // --- Auth Flow ---
         if (auth) {
-            // Listener handles initial load AND re-connection
             onAuthStateChanged(auth, (user) => {
                 const statusEl = document.getElementById('connectionStatus');
                 if (user) {
                     if (statusEl) {
                         statusEl.innerHTML = '<span class="text-emerald-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online</span>';
                     }
-                    // Only init if not already running
                     if (!plannerSystem.initialized) {
                         plannerSystem.initialized = true;
                         plannerSystem.init();
@@ -149,7 +162,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Table Styles matching the screenshot */
+        /* Table Styles */
         .spreadsheet-container {
             flex: 1;
             overflow: auto;
@@ -185,115 +198,64 @@
             border-bottom: 2px solid #64748b;
         }
         
-        /* Sticky First Columns (Excel style) */
+        /* Sticky First Columns */
         .sticky-col-sn {
-            position: sticky;
-            left: 0;
-            z-index: 30;
-            width: 30px; min-width: 30px;
-            background: #e2e8f0;
+            position: sticky; left: 0; z-index: 30; width: 30px; min-width: 30px; background: #e2e8f0;
         }
         .sticky-col-id {
-            position: sticky;
-            left: 30px;
-            z-index: 30;
-            width: 50px; min-width: 50px;
-            background: #ffffff;
-            font-weight: 700;
+            position: sticky; left: 30px; z-index: 30; width: 50px; min-width: 50px; background: #ffffff; font-weight: 700;
         }
         .sticky-col-name {
-            position: sticky;
-            left: 80px;
-            z-index: 30;
-            width: 200px; min-width: 200px;
-            background: #ffffff;
-            text-align: left;
-            padding-left: 6px;
+            position: sticky; left: 80px; z-index: 30; width: 160px; min-width: 160px; background: #ffffff; text-align: left; padding-left: 6px;
         }
         
-        /* Header Colors */
-        .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; } /* Light Blue */
+        .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; }
         
-        /* Z-index fix for corner */
         thead th.sticky-col-sn, thead th.sticky-col-id, thead th.sticky-col-name {
-            z-index: 40;
-            background-color: #a5b4fc; /* Match screenshot header blue */
-            color: #1e3a8a;
+            z-index: 40; background-color: #a5b4fc; color: #1e3a8a;
         }
 
         /* Cells */
         .cell-input {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: transparent;
-            text-align: center;
-            font-weight: 700;
-            cursor: pointer;
-            outline: none;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-weight: 700; cursor: pointer; outline: none; font-size: 10px; display: flex; align-items: center; justify-content: center;
         }
         .cell-input:hover { box-shadow: inset 0 0 0 2px #6366f1; z-index: 10; position: relative;}
 
-        /* Duty Colors (Exact Match to Screenshot) */
-        .duty-2A { background-color: #86efac; color: #000; } /* Bright Green */
-        .duty-2SD, .duty-2OD, .duty-25D, .duty-EPH, .duty-OSD { background-color: #fcd34d; color: #000; } /* Yellow/Orange */
-        .duty-OFF { background-color: #fef08a; color: #000; } /* Pale Yellow */
-        .duty-AL { background-color: #7dd3fc; color: #000; } /* Sky Blue */
-        .duty-HL { background-color: #cbd5e1; color: #000; } /* Gray */
-        .duty-MC { background-color: #fca5a5; color: #000; } /* Reddish */
-        .duty-CNB { background-color: #e879f9; color: #000; } /* Pink/Magenta */
-        .duty-P-AL { background-color: #67e8f9; color: #000; } /* Cyan */
+        /* Duty Colors */
+        .duty-2A { background-color: #86efac; color: #000; }
+        .duty-2SD, .duty-2OD, .duty-25D, .duty-EPH, .duty-OSD { background-color: #fcd34d; color: #000; }
+        .duty-OFF { background-color: #fef08a; color: #000; }
+        .duty-OOD { background-color: #fef08a; color: #000; }
+        .duty-AL { background-color: #7dd3fc; color: #000; }
+        .duty-HL { background-color: #cbd5e1; color: #000; }
+        .duty-MC { background-color: #fca5a5; color: #000; }
+        .duty-CNB { background-color: #e879f9; color: #000; }
+        .duty-P-AL { background-color: #67e8f9; color: #000; }
 
         /* Popover Menu */
         #codePopover {
-            position: fixed;
-            background: white;
-            border: 1px solid #475569;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
-            border-radius: 4px;
-            padding: 4px;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 4px;
-            z-index: 1000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.1s;
+            position: fixed; background: white; border: 1px solid #475569; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border-radius: 4px; padding: 4px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.1s;
         }
         #codePopover.visible { opacity: 1; pointer-events: auto; }
         
         .code-btn {
-            padding: 6px 4px;
-            font-size: 10px;
-            font-weight: 700;
-            border-radius: 2px;
-            text-align: center;
-            cursor: pointer;
-            border: 1px solid rgba(0,0,0,0.1);
+            padding: 6px 4px; font-size: 10px; font-weight: 700; border-radius: 2px; text-align: center; cursor: pointer; border: 1px solid rgba(0,0,0,0.1);
         }
         .code-btn:hover { filter: brightness(0.95); transform: scale(1.05); }
 
         .saved-toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #0f172a;
-            color: #4ade80;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            z-index: 2000;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            position: fixed; bottom: 20px; right: 20px; background: #0f172a; color: #4ade80; padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2000; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         .saved-toast.visible { opacity: 1; }
+
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.2s; backdrop-filter: blur(2px);
+        }
+        .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: white; width: 95%; max-width: 500px; max-height: 90vh; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden;
+        }
 
     </style>
 </head>
@@ -311,11 +273,17 @@
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
-            <!-- Date Nav -->
+        <div class="flex items-center gap-2">
+            <button onclick="plannerSystem.openStaffManager()" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] uppercase font-bold px-3 py-1.5 rounded shadow-sm transition">
+                <i data-lucide="users" class="w-3 h-3"></i>
+                Manage Staff
+            </button>
+            
+            <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
             <div class="flex items-center bg-slate-100 rounded border border-slate-300">
                 <button onclick="plannerSystem.changeMonth(-1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-left" class="w-3 h-3"></i></button>
-                <div class="px-2 font-bold text-xs text-slate-700 min-w-[100px] text-center" id="currentMonthLabel">Loading...</div>
+                <div class="px-2 font-bold text-xs text-slate-700 min-w-[90px] text-center" id="currentMonthLabel">Loading...</div>
                 <button onclick="plannerSystem.changeMonth(1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-right" class="w-3 h-3"></i></button>
             </div>
 
@@ -328,7 +296,6 @@
 
     <!-- Main Grid -->
     <div class="spreadsheet-container" id="gridContainer">
-        <!-- Table injected by JS -->
         <div class="flex items-center justify-center h-full text-slate-400 gap-2">
             <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
             <span class="text-xs font-medium">Waiting for Connection...</span>
@@ -336,9 +303,7 @@
     </div>
 
     <!-- Code Selection Popover -->
-    <div id="codePopover">
-        <!-- Injected by JS -->
-    </div>
+    <div id="codePopover"></div>
 
     <!-- Toast -->
     <div id="savedToast" class="saved-toast">
@@ -348,8 +313,54 @@
         </div>
     </div>
 
+    <!-- Staff Management Modal -->
+    <div id="staffModal" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i> Manage Staff
+                </h3>
+                <button onclick="plannerSystem.closeStaffManager()" class="text-slate-400 hover:text-slate-700">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- Add/Edit Form -->
+            <div class="p-4 bg-white border-b border-slate-100 space-y-3">
+                <div class="flex gap-2">
+                    <input type="hidden" id="editFirebaseId">
+                    <input type="text" id="staffIdInput" placeholder="ID (e.g. 4511)" class="w-1/3 px-3 py-2 border border-slate-300 rounded text-xs font-mono focus:border-indigo-500 outline-none">
+                    <input type="text" id="staffNameInput" placeholder="Full Name" class="flex-1 px-3 py-2 border border-slate-300 rounded text-xs focus:border-indigo-500 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <button id="saveStaffBtn" onclick="plannerSystem.saveStaff()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-2 rounded text-xs font-bold transition">
+                        Add Staff
+                    </button>
+                    <button id="cancelEditBtn" onclick="plannerSystem.resetStaffForm()" class="hidden w-20 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2 rounded text-xs font-bold transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- List -->
+            <div class="flex-1 overflow-y-auto bg-slate-50 p-2">
+                <table class="w-full text-left border-collapse">
+                    <thead class="text-[10px] uppercase text-slate-500 font-bold bg-slate-100">
+                        <tr>
+                            <th class="p-2 border-b">ID</th>
+                            <th class="p-2 border-b">Name</th>
+                            <th class="p-2 border-b text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffListTableBody" class="text-xs bg-white">
+                        <!-- Rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Configuration matching screenshot colors
         const DUTY_CODES = {
             "2A":  { class: "duty-2A", active: true },
             "2SD": { class: "duty-2SD", active: true },
@@ -358,7 +369,7 @@
             "EPH": { class: "duty-EPH", active: true },
             "OSD": { class: "duty-OSD", active: true },
             "OFF": { class: "duty-OFF", active: false },
-            "OOD": { class: "duty-OFF", active: false },
+            "OOD": { class: "duty-OOD", active: false },
             "AL":  { class: "duty-AL", active: false },
             "P-AL":{ class: "duty-P-AL", active: false },
             "HL":  { class: "duty-HL", active: false },
@@ -383,6 +394,7 @@
                 window.firebaseOps.subscribeToStaff((staff) => {
                     this.staffList = staff;
                     this.renderTable();
+                    this.renderStaffListInModal(); // Keep modal list synced
                 });
                 
                 // Load Schedule for current month
@@ -409,9 +421,7 @@
             loadSchedule() {
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
-                
                 if (this.unsubSchedule) this.unsubSchedule();
-                
                 this.unsubSchedule = window.firebaseOps.subscribeToSchedule(y, m, (data) => {
                     this.scheduleData = data;
                     this.renderTable();
@@ -441,7 +451,7 @@
                         dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d),
                         isWeekend: d.getDay() === 0 || d.getDay() === 6,
                         isToday: this.isToday(d),
-                        fullDateKey: String(i).padStart(2, '0') // 01, 02...
+                        fullDateKey: String(i).padStart(2, '0')
                     });
                 }
                 return result;
@@ -458,7 +468,7 @@
                 const container = document.getElementById('gridContainer');
                 if (!this.staffList.length) {
                     if (this.initialized) {
-                         container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 gap-2"><span class="text-xs">No Staff Found.</span></div>`;
+                         container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 gap-2"><span class="text-xs">No Staff Found. Add some via Manage Staff.</span></div>`;
                     }
                     return;
                 }
@@ -472,7 +482,7 @@
                     <th class="sticky-col-name header-blue">Name</th>`;
                 
                 days.forEach(d => {
-                    const todayStyle = d.isToday ? 'bg-blue-100 text-blue-800' : 'bg-green-300 text-black'; // Green header like image
+                    const todayStyle = d.isToday ? 'bg-blue-100 text-blue-800' : 'bg-green-300 text-black';
                     html += `<th class="${todayStyle} border-b-2 border-slate-400" style="width: 30px; min-width: 30px;">
                         <div class="flex flex-col items-center justify-center leading-none py-1">
                             <span class="text-[8px] opacity-80 mb-0.5">${d.dayName}</span>
@@ -519,7 +529,6 @@
                 const rect = el.getBoundingClientRect();
                 const pop = document.getElementById('codePopover');
                 
-                // Smart positioning
                 let top = rect.bottom + 2;
                 let left = rect.left - 50;
                 
@@ -538,24 +547,20 @@
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
 
-                // 1. Optimistic Update
+                // Optimistic Update
                 const cellDiv = this.activeCell.el;
                 cellDiv.textContent = code;
                 const td = cellDiv.parentElement;
-                
-                // Clear old classes
                 Object.values(DUTY_CODES).forEach(c => td.classList.remove(c.class));
                 if (DUTY_CODES[code]) td.classList.add(DUTY_CODES[code].class);
-
                 document.getElementById('codePopover').classList.remove('visible');
 
-                // 2. Save
+                // Save
                 window.firebaseOps.saveCell(y, m, staffId, dayKey, code);
 
-                // 3. Sync Logic (If Today)
+                // Sync if Today
                 const today = new Date();
                 const isEditToday = (y === today.getFullYear() && (this.currentDate.getMonth()) === today.getMonth() && parseInt(dayKey) === today.getDate());
-
                 if (isEditToday) {
                     const isActive = DUTY_CODES[code] ? DUTY_CODES[code].active : false;
                     window.firebaseOps.updateStaffStatus(fbId, isActive);
@@ -573,8 +578,7 @@
             },
 
             async forceSyncToday() {
-                if (!confirm("Overwrite 'Active' status for ALL staff in Command Center based on today's column?")) return;
-
+                if (!confirm("Overwrite 'Active' status for ALL staff based on today's plan?")) return;
                 const today = new Date();
                 const y = today.getFullYear();
                 const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -587,26 +591,116 @@
 
                 const updates = [];
                 let activeCount = 0;
-
                 this.staffList.forEach(staff => {
                     const staffSchedule = this.scheduleData[staff.staffId] || {};
                     const code = staffSchedule[d] || '';
-                    const isActive = DUTY_CODES[code] ? DUTY_CODES[code].active : false; // Default inactive if blank
-                    
+                    const isActive = DUTY_CODES[code] ? DUTY_CODES[code].active : false; 
                     if (isActive) activeCount++;
-                    
-                    updates.push({
-                        firebaseId: staff.firebaseId,
-                        isActive: isActive
-                    });
+                    updates.push({ firebaseId: staff.firebaseId, isActive: isActive });
                 });
-
                 await window.firebaseOps.batchUpdateStatus(updates);
                 alert(`Sync Complete!\n\n${activeCount} Staff set to Active\n${updates.length - activeCount} Staff set to Inactive`);
+            },
+
+            // --- STAFF MANAGEMENT FUNCTIONS ---
+            openStaffManager() {
+                document.getElementById('staffModal').classList.add('visible');
+                this.renderStaffListInModal();
+            },
+
+            closeStaffManager() {
+                document.getElementById('staffModal').classList.remove('visible');
+                this.resetStaffForm();
+            },
+
+            renderStaffListInModal() {
+                const tbody = document.getElementById('staffListTableBody');
+                tbody.innerHTML = this.staffList.map(s => `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 group">
+                        <td class="p-2 font-mono text-slate-600">${s.staffId}</td>
+                        <td class="p-2 font-semibold text-slate-800">${s.name}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="plannerSystem.editStaff('${s.firebaseId}')" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded mr-1" title="Edit">
+                                <i data-lucide="pencil" class="w-3 h-3"></i>
+                            </button>
+                            <button onclick="plannerSystem.deleteStaff('${s.firebaseId}')" class="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                lucide.createIcons();
+            },
+
+            editStaff(firebaseId) {
+                const staff = this.staffList.find(s => s.firebaseId === firebaseId);
+                if (!staff) return;
+                
+                document.getElementById('editFirebaseId').value = firebaseId;
+                document.getElementById('staffIdInput').value = staff.staffId;
+                document.getElementById('staffNameInput').value = staff.name;
+                
+                document.getElementById('saveStaffBtn').textContent = "Update Staff";
+                document.getElementById('saveStaffBtn').classList.replace('bg-slate-800', 'bg-indigo-600');
+                document.getElementById('saveStaffBtn').classList.replace('hover:bg-slate-900', 'hover:bg-indigo-700');
+                document.getElementById('cancelEditBtn').classList.remove('hidden');
+                
+                document.getElementById('staffNameInput').focus();
+            },
+
+            async saveStaff() {
+                const idInput = document.getElementById('staffIdInput');
+                const nameInput = document.getElementById('staffNameInput');
+                const fbId = document.getElementById('editFirebaseId').value;
+                
+                const staffId = idInput.value.trim();
+                const name = nameInput.value.trim();
+
+                if (!staffId || !name) {
+                    alert("Please enter both ID and Name");
+                    return;
+                }
+
+                try {
+                    if (fbId) {
+                        // Update
+                        await window.firebaseOps.updateStaffDetails(fbId, { staffId, name });
+                        this.showToast("Staff updated");
+                    } else {
+                        // Add New
+                        await window.firebaseOps.addStaff({ staffId, name, attendance: 'No' });
+                        this.showToast("Staff added");
+                    }
+                    this.resetStaffForm();
+                } catch (e) {
+                    alert("Error saving: " + e.message);
+                }
+            },
+
+            async deleteStaff(firebaseId) {
+                if (confirm("Are you sure you want to remove this staff member? This will remove them from the planning grid.")) {
+                    try {
+                        await window.firebaseOps.deleteStaff(firebaseId);
+                        this.showToast("Staff deleted");
+                    } catch (e) {
+                        alert("Error deleting: " + e.message);
+                    }
+                }
+            },
+
+            resetStaffForm() {
+                document.getElementById('editFirebaseId').value = "";
+                document.getElementById('staffIdInput').value = "";
+                document.getElementById('staffNameInput').value = "";
+                
+                const btn = document.getElementById('saveStaffBtn');
+                btn.textContent = "Add Staff";
+                btn.classList.replace('bg-indigo-600', 'bg-slate-800');
+                btn.classList.replace('hover:bg-indigo-700', 'hover:bg-slate-900');
+                document.getElementById('cancelEditBtn').classList.add('hidden');
             }
         };
     </script>
 </body>
 </html>
-
 
