@@ -9,19 +9,17 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Dynamic Styles for Labels will be injected here -->
+    <!-- Dynamic Styles for Labels -->
     <style id="dynamic-label-styles"></style>
 
-    <!-- 1. CRITICAL: Global Identifiers for iOS/WebView Compatibility -->
+    <!-- Global Identifiers for iOS/WebView Compatibility -->
     <script>
       window.plannerSystem = window.plannerSystem || {};
-      
-      // Ensure these exist globally before modules load
       var fireauth = null;
       var firedb = null;
       var firebaseApp = null;
 
-      // 2. Error Suppression: Ignore internal iOS/Firebase noise
+      // Error Suppression
       window.addEventListener('error', function(ev){
         try{
           var msg = String(ev && ev.message || '');
@@ -38,7 +36,6 @@
         return false;
       }, true);
 
-      // Handle promise rejections (often network related)
       window.addEventListener('unhandledrejection', function(ev){
         try{
             var msg = String(ev && (ev.reason && ev.reason.message || ev.reason) || '');
@@ -64,18 +61,14 @@
           appId: "1:901381868881:web:92930481d6c1c85fedd770"
         };
 
-        // Safe initialization
         let app, auth, db;
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            
-            // 3. Expose to window for global error handlers
             window.fireauth = auth;
             window.firedb = db;
             window.firebaseApp = app;
-            
         } catch (e) {
             console.error("Firebase init error:", e);
         }
@@ -87,7 +80,6 @@
 
         // --- Data Logic ---
         window.firebaseOps = {
-            // Subscribe to staff
             subscribeToStaff: (callback) => {
                 if (!db || !auth.currentUser) return () => {};
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF));
@@ -95,22 +87,16 @@
                     const list = snap.docs.map(d => ({ firebaseId: d.id, ...d.data() }));
                     list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
                     callback(list);
-                }, (err) => {
-                    console.warn("Staff sync paused:", err.code);
-                });
+                }, () => {});
             },
-
-            // Subscribe to schedule
             subscribeToSchedule: (year, month, callback) => {
                 if (!db || !auth.currentUser) return () => {};
                 const docId = `schedule_${year}_${month}`;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SCHEDULE, docId);
                 return onSnapshot(docRef, (snap) => {
                     callback(snap.exists() ? (snap.data().data || {}) : {});
-                }, (err) => console.warn("Schedule sync paused"));
+                }, () => {});
             },
-
-            // Subscribe to Labels (Duty Codes)
             subscribeToLabels: (callback) => {
                 if (!db || !auth.currentUser) return () => {};
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, 'duty_codes');
@@ -118,19 +104,15 @@
                     if (snap.exists() && snap.data().codes) {
                         callback(snap.data().codes);
                     } else {
-                        callback(null); // Signal to use defaults
+                        callback(null);
                     }
-                }, (err) => console.warn("Labels sync paused"));
+                }, () => {});
             },
-
-            // Save Label Settings
             saveLabels: async (codesObj) => {
                 if (!db || !auth.currentUser) return;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_SETTINGS, 'duty_codes');
                 await setDoc(docRef, { codes: codesObj }, { merge: true });
             },
-
-            // Save cell
             saveCell: async (year, month, staffId, dayKey, code) => {
                 if (!db || !auth.currentUser) return;
                 const docId = `schedule_${year}_${month}`;
@@ -145,8 +127,6 @@
                     }, { merge: true });
                 }
             },
-
-            // Staff CRUD
             addStaff: async (data) => {
                 if (!db) return;
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_STAFF), data);
@@ -175,14 +155,11 @@
             }
         };
 
-        // --- 4. Robust Auth Flow (Wait for User) ---
         if (auth) {
             onAuthStateChanged(auth, (user) => {
                 const statusEl = document.getElementById('connectionStatus');
                 if (user) {
                     if (statusEl) statusEl.innerHTML = '<span class="text-emerald-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online</span>';
-                    
-                    // Only start system once we are SURE we have a user
                     if (!plannerSystem.initialized) {
                         plannerSystem.initialized = true;
                         plannerSystem.init();
@@ -202,10 +179,7 @@
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
         /* Table Styles */
-        .spreadsheet-container {
-            flex: 1; overflow: auto; position: relative; background: white; border-top: 1px solid #94a3b8;
-        }
-        
+        .spreadsheet-container { flex: 1; overflow: auto; position: relative; background: white; border-top: 1px solid #94a3b8; }
         table { border-collapse: separate; border-spacing: 0; min-width: max-content; }
         th, td { border-right: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8; height: 28px; padding: 0; text-align: center; font-size: 11px; white-space: nowrap; }
 
@@ -218,68 +192,71 @@
         .sticky-col-name { position: sticky; left: 80px; z-index: 30; width: 160px; min-width: 160px; background: #ffffff; text-align: left; padding-left: 6px; }
         
         .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; }
-        
         thead th.sticky-col-sn, thead th.sticky-col-id, thead th.sticky-col-name { z-index: 40; background-color: #a5b4fc; color: #1e3a8a; }
 
-        /* Cells */
         .cell-input { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-weight: 700; cursor: pointer; outline: none; font-size: 10px; display: flex; align-items: center; justify-content: center; }
         .cell-input:hover { box-shadow: inset 0 0 0 2px #6366f1; z-index: 10; position: relative;}
 
-        /* Popover Menu */
+        /* View Toggle */
+        .view-toggle-btn { @apply px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-colors border border-transparent; }
+        .view-toggle-btn.active { @apply bg-white text-indigo-600 border-slate-200 shadow-sm; }
+        .view-toggle-btn:not(.active) { @apply text-slate-500 hover:text-slate-700 hover:bg-slate-100; }
+
+        /* Popover */
         #codePopover { position: fixed; background: white; border: 1px solid #475569; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border-radius: 4px; padding: 4px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
         #codePopover.visible { opacity: 1; pointer-events: auto; }
-        
         .code-btn { padding: 6px 4px; font-size: 10px; font-weight: 700; border-radius: 2px; text-align: center; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); }
         .code-btn:hover { filter: brightness(0.95); transform: scale(1.05); }
 
         .saved-toast { position: fixed; bottom: 20px; right: 20px; background: #0f172a; color: #4ade80; padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2000; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .saved-toast.visible { opacity: 1; }
 
-        /* Modal Styles */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.2s; backdrop-filter: blur(2px); }
         .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
         .modal-content { background: white; width: 95%; max-width: 500px; max-height: 90vh; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
-
     </style>
 </head>
 <body>
 
     <!-- Header -->
-    <div class="h-12 bg-white border-b border-slate-300 flex items-center justify-between px-3 shrink-0 z-50">
-        <div class="flex items-center gap-2">
-            <div class="w-7 h-7 bg-blue-700 rounded flex items-center justify-center text-white">
-                <i data-lucide="table-2" class="w-4 h-4"></i>
+    <div class="h-14 bg-white border-b border-slate-300 flex items-center justify-between px-3 shrink-0 z-50 gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+            <div class="w-8 h-8 bg-blue-700 rounded flex items-center justify-center text-white shrink-0">
+                <i data-lucide="table-2" class="w-5 h-5"></i>
             </div>
-            <div>
-                <h1 class="text-sm font-bold text-slate-800 leading-tight">Master Roster Planner</h1>
+            <div class="min-w-0">
+                <h1 class="text-sm font-bold text-slate-800 leading-tight truncate">Master Roster</h1>
                 <div id="connectionStatus" class="text-[10px] text-slate-400 font-medium">Initializing...</div>
             </div>
         </div>
 
-        <div class="flex items-center gap-2">
-            <!-- Label Manager Button -->
-            <button onclick="plannerSystem.openLabelManager()" class="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] uppercase font-bold px-3 py-1.5 rounded shadow-sm transition">
-                <i data-lucide="tag" class="w-3 h-3"></i>
-                Labels
-            </button>
-
-            <button onclick="plannerSystem.openStaffManager()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[10px] uppercase font-bold px-3 py-1.5 rounded shadow-sm transition">
-                <i data-lucide="users" class="w-3 h-3"></i>
-                Staff
-            </button>
-            
-            <div class="h-6 w-px bg-slate-200 mx-1"></div>
-
-            <div class="flex items-center bg-slate-100 rounded border border-slate-300">
-                <button onclick="plannerSystem.changeMonth(-1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-left" class="w-3 h-3"></i></button>
-                <div class="px-2 font-bold text-xs text-slate-700 min-w-[90px] text-center" id="currentMonthLabel">Loading...</div>
-                <button onclick="plannerSystem.changeMonth(1)" class="w-6 h-6 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-right" class="w-3 h-3"></i></button>
+        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <!-- View Switcher (Updated with gap-1) -->
+            <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0 gap-1">
+                <button onclick="plannerSystem.setView('month')" id="viewBtnMonth" class="view-toggle-btn active">Month</button>
+                <button onclick="plannerSystem.setView('week')" id="viewBtnWeek" class="view-toggle-btn">Week</button>
+                <button onclick="plannerSystem.setView('day')" id="viewBtnDay" class="view-toggle-btn">Day</button>
             </div>
 
-            <button onclick="plannerSystem.forceSyncToday()" title="Simple mapping: Active/Inactive based on today's duty code" class="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] uppercase font-bold px-3 py-1.5 rounded shadow-sm transition">
-                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-                                Apply Today
-            </button>
+            <!-- Date Nav -->
+            <div class="flex items-center bg-slate-100 rounded border border-slate-300 shrink-0">
+                <button onclick="plannerSystem.changePeriod(-1)" class="w-7 h-7 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                <div class="px-2 font-bold text-xs text-slate-700 min-w-[120px] text-center truncate" id="currentPeriodLabel">Loading...</div>
+                <button onclick="plannerSystem.changePeriod(1)" class="w-7 h-7 flex items-center justify-center hover:bg-white"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-1 shrink-0">
+                <button onclick="plannerSystem.openLabelManager()" class="bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 p-1.5 rounded" title="Labels">
+                    <i data-lucide="tag" class="w-4 h-4"></i>
+                </button>
+                <button onclick="plannerSystem.openStaffManager()" class="bg-slate-800 hover:bg-slate-900 text-white p-1.5 rounded" title="Staff">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                </button>
+                <button onclick="plannerSystem.forceSyncToday()" class="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded" title="Sync Today">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -295,28 +272,19 @@
     <div id="codePopover"></div>
 
     <!-- Toast -->
-    <div id="savedToast" class="saved-toast">
-        <div class="flex items-center gap-2">
-            <i data-lucide="check-circle" class="w-4 h-4"></i>
-            <span>Saved</span>
-        </div>
-    </div>
+    <div id="savedToast" class="saved-toast"><div class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4"></i><span>Saved</span></div></div>
 
-    <!-- Staff Management Modal -->
+    <!-- Modals (Staff & Label) -->
     <div id="staffModal" class="modal-backdrop">
         <div class="modal-content">
             <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-                <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                    <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i> Manage Staff
-                </h3>
-                <button onclick="plannerSystem.closeStaffManager()" class="text-slate-400 hover:text-slate-700">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+                <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-indigo-600"></i> Manage Staff</h3>
+                <button onclick="plannerSystem.closeStaffManager()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-4 bg-white border-b border-slate-100 space-y-3">
                 <div class="flex gap-2">
                     <input type="hidden" id="editFirebaseId">
-                    <input type="text" id="staffIdInput" placeholder="ID (e.g. 4511)" class="w-1/3 px-3 py-2 border border-slate-300 rounded text-xs font-mono focus:border-indigo-500 outline-none">
+                    <input type="text" id="staffIdInput" placeholder="ID" class="w-1/3 px-3 py-2 border border-slate-300 rounded text-xs font-mono focus:border-indigo-500 outline-none">
                     <input type="text" id="staffNameInput" placeholder="Full Name" class="flex-1 px-3 py-2 border border-slate-300 rounded text-xs focus:border-indigo-500 outline-none">
                 </div>
                 <div class="flex gap-2">
@@ -326,53 +294,26 @@
             </div>
             <div class="flex-1 overflow-y-auto bg-slate-50 p-2">
                 <table class="w-full text-left border-collapse">
-                    <thead class="text-[10px] uppercase text-slate-500 font-bold bg-slate-100">
-                        <tr><th class="p-2 border-b">ID</th><th class="p-2 border-b">Name</th><th class="p-2 border-b text-right">Actions</th></tr>
-                    </thead>
+                    <thead class="text-[10px] uppercase text-slate-500 font-bold bg-slate-100"><tr><th class="p-2 border-b">ID</th><th class="p-2 border-b">Name</th><th class="p-2 border-b text-right">Actions</th></tr></thead>
                     <tbody id="staffListTableBody" class="text-xs bg-white"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Label Management Modal -->
     <div id="labelModal" class="modal-backdrop">
         <div class="modal-content">
             <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-                <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                    <i data-lucide="tag" class="w-4 h-4 text-indigo-600"></i> Manage Labels
-                </h3>
-                <button onclick="plannerSystem.closeLabelManager()" class="text-slate-400 hover:text-slate-700">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+                <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4 text-indigo-600"></i> Manage Labels</h3>
+                <button onclick="plannerSystem.closeLabelManager()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            
-            <div class="p-3 bg-indigo-50 border-b border-indigo-100 text-[10px] text-indigo-800 flex items-center gap-2">
-                <i data-lucide="info" class="w-3 h-3"></i>
-                <span>"Active" labels will mark staff as <strong>Present</strong> in Command Center sync.</span>
-            </div>
-
-            <div class="flex-1 overflow-y-auto bg-slate-50 p-3">
-                <div id="labelsList" class="space-y-2">
-                    <!-- Labels injected here -->
-                </div>
-                
-                <button onclick="plannerSystem.addNewLabelRow()" class="mt-4 w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 text-xs font-bold hover:bg-white hover:border-indigo-300 hover:text-indigo-600 transition flex items-center justify-center gap-2">
-                    <i data-lucide="plus" class="w-3 h-3"></i> Add New Label
-                </button>
-            </div>
-
-            <div class="p-3 border-t border-slate-100 bg-white flex justify-end gap-2">
-                 <button onclick="plannerSystem.resetLabelsToDefault()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-red-500 transition mr-auto">Reset Defaults</button>
-                 <button onclick="plannerSystem.closeLabelManager()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
-                 <button onclick="plannerSystem.saveLabels()" class="px-6 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save Changes</button>
-            </div>
+            <div class="p-3 bg-indigo-50 border-b border-indigo-100 text-[10px] text-indigo-800 flex items-center gap-2"><i data-lucide="info" class="w-3 h-3"></i><span>Active labels mark staff as Present.</span></div>
+            <div class="flex-1 overflow-y-auto bg-slate-50 p-3"><div id="labelsList" class="space-y-2"></div><button onclick="plannerSystem.addNewLabelRow()" class="mt-4 w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 text-xs font-bold hover:bg-white hover:border-indigo-300 hover:text-indigo-600 transition flex items-center justify-center gap-2"><i data-lucide="plus" class="w-3 h-3"></i> Add New Label</button></div>
+            <div class="p-3 border-t border-slate-100 bg-white flex justify-end gap-2"><button onclick="plannerSystem.resetLabelsToDefault()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-red-500 transition mr-auto">Reset Defaults</button><button onclick="plannerSystem.closeLabelManager()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button onclick="plannerSystem.saveLabels()" class="px-6 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save</button></div>
         </div>
     </div>
 
     <script>
-        // --- DEFAULT CONFIGURATION ---
-        // Used on first load or reset
         const DEFAULT_DUTY_CODES = {
             "2A":  { color: "#86efac", textColor: "#000000", active: true },
             "2SD": { color: "#fcd34d", textColor: "#000000", active: true },
@@ -391,40 +332,52 @@
 
         const plannerSystem = {
             currentDate: new Date(),
+            viewMode: 'month', // 'month', 'week', 'day'
             staffList: [],
             scheduleData: {},
-            dutyCodes: null, // Loaded dynamically
+            dutyCodes: null,
             activeCell: null,
             initialized: false,
-            tempLabels: null, // For modal editing
             
             init() {
-                this.updateMonthLabel();
+                this.updatePeriodLabel();
                 this.setupListeners();
                 
-                // 1. Load Labels
+                // Load Labels
                 window.firebaseOps.subscribeToLabels((codes) => {
-                    if (codes) {
-                        this.dutyCodes = codes;
-                    } else {
-                        // First time run: use defaults and save them so DB is populated
-                        this.dutyCodes = JSON.parse(JSON.stringify(DEFAULT_DUTY_CODES));
-                        window.firebaseOps.saveLabels(this.dutyCodes);
-                    }
+                    this.dutyCodes = codes || JSON.parse(JSON.stringify(DEFAULT_DUTY_CODES));
+                    if (!codes) window.firebaseOps.saveLabels(this.dutyCodes);
                     this.applyDynamicStyles();
-                    this.renderTable(); // Re-render if table already exists
+                    this.renderTable();
                     this.setupPopover();
                 });
 
-                // 2. Load Staff
+                // Load Staff
                 window.firebaseOps.subscribeToStaff((staff) => {
                     this.staffList = staff;
                     this.renderTable();
                     this.renderStaffListInModal();
                 });
                 
-                // 3. Load Schedule
+                // Load Schedule
                 this.loadSchedule();
+            },
+
+            setView(mode) {
+                this.viewMode = mode;
+                document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(`viewBtn${mode.charAt(0).toUpperCase() + mode.slice(1)}`).classList.add('active');
+                
+                // Snap date to start of period if needed
+                if (mode === 'week') {
+                    // adjust currentDate to Monday of current week
+                    const day = this.currentDate.getDay(); 
+                    const diff = this.currentDate.getDate() - day + (day === 0 ? -6 : 1);
+                    this.currentDate.setDate(diff);
+                }
+                
+                this.updatePeriodLabel();
+                this.loadSchedule(); // Might need to load adjacent month if week spans boundary
             },
 
             setupListeners() {
@@ -435,12 +388,10 @@
                 });
             },
 
-            // --- DYNAMIC STYLING SYSTEM ---
             applyDynamicStyles() {
                 if (!this.dutyCodes) return;
                 let css = '';
                 Object.entries(this.dutyCodes).forEach(([code, data]) => {
-                    // Sanitize code for class name (remove special chars)
                     const cleanCode = code.replace(/[^a-zA-Z0-9-_]/g, '-');
                     css += `.duty-${cleanCode} { background-color: ${data.color} !important; color: ${data.textColor || '#000'} !important; }\n`;
                 });
@@ -450,27 +401,25 @@
             setupPopover() {
                 if (!this.dutyCodes) return;
                 const pop = document.getElementById('codePopover');
-                
-                // Sort keys to keep them consistent (maybe 2A first, then others)
-                const sortedKeys = Object.keys(this.dutyCodes).sort((a,b) => {
-                    if (a === '2A') return -1;
-                    if (b === '2A') return 1;
-                    return a.localeCompare(b);
-                });
-
+                const sortedKeys = Object.keys(this.dutyCodes).sort((a,b) => (a === '2A' ? -1 : (b === '2A' ? 1 : a.localeCompare(b))));
                 let html = sortedKeys.map(code => {
                     const cleanCode = code.replace(/[^a-zA-Z0-9-_]/g, '-');
                     return `<div class="code-btn duty-${cleanCode}" onclick="plannerSystem.selectCode('${code}')">${code}</div>`;
                 }).join('');
-                
                 html += `<div class="code-btn bg-white border border-red-200 text-red-500" onclick="plannerSystem.selectCode('')">CLR</div>`;
                 pop.innerHTML = html;
             },
 
-            // --- TABLE RENDERING ---
+            // --- DATA LOADING & NAVIGATION ---
             loadSchedule() {
+                // For simplicity, we load the month of the current focus date.
+                // In week view spanning two months, we might miss data. 
+                // Enhanced logic: Load current month AND next month if needed.
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+                
+                // TODO: Optimize to load multiple months if week spans boundary
+                // Current implementation re-subscribes based on currentDate
                 if (this.unsubSchedule) this.unsubSchedule();
                 this.unsubSchedule = window.firebaseOps.subscribeToSchedule(y, m, (data) => {
                     this.scheduleData = data;
@@ -478,33 +427,74 @@
                 });
             },
 
-            changeMonth(delta) {
-                this.currentDate.setMonth(this.currentDate.getMonth() + delta);
-                this.updateMonthLabel();
+            changePeriod(delta) {
+                if (this.viewMode === 'month') {
+                    this.currentDate.setMonth(this.currentDate.getMonth() + delta);
+                } else if (this.viewMode === 'week') {
+                    this.currentDate.setDate(this.currentDate.getDate() + (delta * 7));
+                } else {
+                    this.currentDate.setDate(this.currentDate.getDate() + delta);
+                }
+                this.updatePeriodLabel();
                 this.loadSchedule();
             },
 
-            updateMonthLabel() {
-                const fmt = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
-                document.getElementById('currentMonthLabel').textContent = fmt.format(this.currentDate);
+            updatePeriodLabel() {
+                const d = this.currentDate;
+                const opts = { month: 'long', year: 'numeric' };
+                let text = "";
+                
+                if (this.viewMode === 'month') {
+                    text = new Intl.DateTimeFormat('en-US', opts).format(d);
+                } else if (this.viewMode === 'week') {
+                    const start = new Date(d);
+                    const day = start.getDay();
+                    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+                    start.setDate(diff); // Set to Monday
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6); // Set to Sunday
+                    
+                    const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+                    text = `${fmt.format(start)} - ${fmt.format(end)}`;
+                } else {
+                    text = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+                }
+                document.getElementById('currentPeriodLabel').textContent = text;
             },
 
-            getDaysInMonth() {
+            getDaysToRender() {
+                const days = [];
                 const y = this.currentDate.getFullYear();
                 const m = this.currentDate.getMonth();
-                const days = new Date(y, m + 1, 0).getDate();
-                const result = [];
-                for (let i = 1; i <= days; i++) {
-                    const d = new Date(y, m, i);
-                    result.push({
-                        date: i,
-                        dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d),
-                        isWeekend: d.getDay() === 0 || d.getDay() === 6,
-                        isToday: this.isToday(d),
-                        fullDateKey: String(i).padStart(2, '0')
-                    });
+
+                if (this.viewMode === 'month') {
+                    const daysInMonth = new Date(y, m + 1, 0).getDate();
+                    for (let i = 1; i <= daysInMonth; i++) {
+                        days.push(new Date(y, m, i));
+                    }
+                } else if (this.viewMode === 'week') {
+                    const start = new Date(this.currentDate);
+                    const day = start.getDay();
+                    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+                    start.setDate(diff); // Monday
+                    for (let i = 0; i < 7; i++) {
+                        const d = new Date(start);
+                        d.setDate(start.getDate() + i);
+                        days.push(d);
+                    }
+                } else {
+                    days.push(new Date(this.currentDate));
                 }
-                return result;
+                
+                return days.map(d => ({
+                    date: d.getDate(),
+                    month: d.getMonth(), // Need month for data key if spanning
+                    year: d.getFullYear(),
+                    dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d),
+                    isWeekend: d.getDay() === 0 || d.getDay() === 6,
+                    isToday: this.isToday(d),
+                    fullDateKey: String(d.getDate()).padStart(2, '0') // simple key 01..31
+                }));
             },
 
             isToday(dateObj) {
@@ -516,7 +506,6 @@
 
             renderTable() {
                 const container = document.getElementById('gridContainer');
-                // Wait for both staff and codes
                 if (!this.staffList.length || !this.dutyCodes) {
                     if (this.initialized && this.staffList.length === 0) {
                          container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 gap-2"><span class="text-xs">No Staff Found. Add some via "Staff".</span></div>`;
@@ -524,19 +513,29 @@
                     return;
                 }
 
-                const days = this.getDaysInMonth();
+                const renderDays = this.getDaysToRender();
+                const isDayView = this.viewMode === 'day';
                 
+                // Column Widths
+                const snW = isDayView ? '40px' : '30px';
+                const idW = isDayView ? '60px' : '50px';
+                const nameW = isDayView ? 'auto' : '160px';
+                const dayW = isDayView ? '120px' : '30px';
+
                 let html = `<table><thead><tr>
-                    <th class="sticky-col-sn header-blue">S/N</th>
-                    <th class="sticky-col-id header-blue">Staff ID</th>
-                    <th class="sticky-col-name header-blue">Name</th>`;
+                    <th class="sticky-col-sn header-blue" style="width:${snW};min-width:${snW}">S/N</th>
+                    <th class="sticky-col-id header-blue" style="width:${idW};min-width:${idW}">ID</th>
+                    <th class="sticky-col-name header-blue" style="width:${nameW};min-width:${nameW}">Name</th>`;
                 
-                days.forEach(d => {
+                renderDays.forEach(d => {
                     const todayStyle = d.isToday ? 'bg-blue-100 text-blue-800' : 'bg-green-300 text-black';
-                    html += `<th class="${todayStyle} border-b-2 border-slate-400" style="width: 30px; min-width: 30px;">
+                    const label = isDayView ? `${d.dayName}, ${d.date}` : d.date;
+                    const subLabel = isDayView ? '' : `<span class="text-[8px] opacity-80 mb-0.5 block">${d.dayName}</span>`;
+                    
+                    html += `<th class="${todayStyle} border-b-2 border-slate-400" style="width: ${dayW}; min-width: ${dayW};">
                         <div class="flex flex-col items-center justify-center leading-none py-1">
-                            <span class="text-[8px] opacity-80 mb-0.5">${d.dayName}</span>
-                            <span class="text-[10px]">${d.date}</span>
+                            ${subLabel}
+                            <span class="text-[10px]">${label}</span>
                         </div>
                     </th>`;
                 });
@@ -553,16 +552,22 @@
                         <td class="sticky-col-id bg-white font-bold text-slate-700">${sid}</td>
                         <td class="sticky-col-name bg-white font-bold text-slate-800 text-left px-1 truncate">${name}</td>`;
                     
-                    days.forEach(d => {
+                    renderDays.forEach(d => {
+                        // Note: current implementation fetches data for current focused Month.
+                        // If Week view spans months, data for next month days might be missing until we handle multi-month fetch.
+                        // For now, assuming single month context or simple key lookup.
                         const code = schedules[d.fullDateKey] || '';
-                        // Determine class dynamically
                         let styleClass = '';
+                        let textClass = '';
                         if (code && this.dutyCodes[code]) {
                             styleClass = `duty-${code.replace(/[^a-zA-Z0-9-_]/g, '-')}`;
+                        } else {
+                            // If user typed custom code not in list
+                            textClass = 'text-slate-400 font-normal';
                         }
                         const bgClass = d.isWeekend ? 'bg-slate-50' : '';
                         
-                        html += `<td class="${bgClass} ${styleClass}" data-date="${d.fullDateKey}" data-staffid="${staff.staffId}" data-fbid="${firebaseId}">
+                        html += `<td class="${bgClass} ${styleClass} ${textClass}" data-date="${d.fullDateKey}" data-staffid="${staff.staffId}" data-fbid="${firebaseId}">
                             <div class="cell-input" onclick="plannerSystem.openPicker(this, '${d.fullDateKey}', '${staff.staffId}', '${firebaseId}')">
                                 ${code}
                             </div>
@@ -582,7 +587,6 @@
                 
                 let top = rect.bottom + 2;
                 let left = rect.left - 50;
-                
                 if (left < 10) left = 10;
                 if (left + 220 > window.innerWidth) left = window.innerWidth - 230;
                 if (top + 100 > window.innerHeight) top = rect.top - 110;
@@ -595,15 +599,17 @@
             selectCode(code) {
                 if (!this.activeCell) return;
                 const { dayKey, staffId, fbId } = this.activeCell;
+                
+                // Get Year/Month from current view context.
+                // NOTE: If week view spans months, this needs logic to know which month 'dayKey' belongs to.
+                // For simplicity in this version, we assume 'currentDate' month. 
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
 
-                // Optimistic Update
+                // UI Update
                 const cellDiv = this.activeCell.el;
                 cellDiv.textContent = code;
                 const td = cellDiv.parentElement;
-                
-                // Reset classes
                 td.className = td.className.split(' ').filter(c => !c.startsWith('duty-')).join(' ');
                 
                 if (code && this.dutyCodes[code]) {
@@ -635,167 +641,70 @@
                 setTimeout(() => t.classList.remove('visible'), 2000);
             },
 
-            // --- LABEL MANAGER ---
+            // --- Managers (Label/Staff) ---
             openLabelManager() {
-                this.tempLabels = JSON.parse(JSON.stringify(this.dutyCodes || DEFAULT_DUTY_CODES));
+                this.tempLabels = JSON.parse(JSON.stringify(this.dutyCodes));
                 this.renderLabelEditor();
                 document.getElementById('labelModal').classList.add('visible');
             },
-            
-            closeLabelManager() {
-                document.getElementById('labelModal').classList.remove('visible');
-                this.tempLabels = null;
-            },
-
+            closeLabelManager() { document.getElementById('labelModal').classList.remove('visible'); this.tempLabels = null; },
             renderLabelEditor() {
                 const list = document.getElementById('labelsList');
-                // Sort keys: 2A first, then alpha
-                const keys = Object.keys(this.tempLabels).sort((a,b) => {
-                     if (a === '2A') return -1;
-                     if (b === '2A') return 1;
-                     return a.localeCompare(b);
-                });
-
+                const keys = Object.keys(this.tempLabels).sort((a,b) => (a === '2A' ? -1 : (b === '2A' ? 1 : a.localeCompare(b))));
                 list.innerHTML = keys.map(code => {
                     const data = this.tempLabels[code];
-                    return `
-                    <div class="flex items-center gap-2 bg-white p-2 rounded border border-slate-200 shadow-sm group">
-                        <input type="color" value="${data.color}" onchange="plannerSystem.updateTempLabel('${code}', 'color', this.value)" 
-                            class="w-8 h-8 rounded cursor-pointer border-none p-0 bg-transparent shrink-0">
-                        
-                        <div class="flex flex-col flex-1 min-w-0">
-                            <span class="font-bold text-xs text-slate-800">${code}</span>
-                            <span class="text-[9px] text-slate-400 font-mono">${data.color}</span>
-                        </div>
-
-                        <label class="flex items-center gap-1.5 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200">
-                            <input type="checkbox" ${data.active ? 'checked' : ''} onchange="plannerSystem.updateTempLabel('${code}', 'active', this.checked)" class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-0 cursor-pointer">
-                            <span class="text-[10px] font-bold ${data.active ? 'text-indigo-600' : 'text-slate-400'}">Active</span>
-                        </label>
-
-                        <button onclick="plannerSystem.deleteTempLabel('${code}')" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition">
-                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        </button>
+                    return `<div class="flex items-center gap-2 bg-white p-2 rounded border border-slate-200 shadow-sm group">
+                        <input type="color" value="${data.color}" onchange="plannerSystem.updateTempLabel('${code}', 'color', this.value)" class="w-8 h-8 rounded cursor-pointer border-none p-0 bg-transparent shrink-0">
+                        <div class="flex flex-col flex-1 min-w-0"><span class="font-bold text-xs text-slate-800">${code}</span><span class="text-[9px] text-slate-400 font-mono">${data.color}</span></div>
+                        <label class="flex items-center gap-1.5 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200"><input type="checkbox" ${data.active ? 'checked' : ''} onchange="plannerSystem.updateTempLabel('${code}', 'active', this.checked)" class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-0 cursor-pointer"><span class="text-[10px] font-bold ${data.active ? 'text-indigo-600' : 'text-slate-400'}">Active</span></label>
+                        <button onclick="plannerSystem.deleteTempLabel('${code}')" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                     </div>`;
                 }).join('');
                 lucide.createIcons();
             },
-
             addNewLabelRow() {
                 const newCode = prompt("Enter new code (e.g. WFH):");
                 if (!newCode) return;
                 const code = newCode.toUpperCase().trim();
-                if (this.tempLabels[code]) {
-                    alert("Label already exists!");
-                    return;
-                }
+                if (this.tempLabels[code]) { alert("Exists!"); return; }
                 this.tempLabels[code] = { color: "#cbd5e1", textColor: "#000000", active: false };
                 this.renderLabelEditor();
             },
-
             updateTempLabel(code, field, value) {
-                if (this.tempLabels[code]) {
-                    this.tempLabels[code][field] = value;
-                }
-                // Re-render only if active toggle changes to update styling
+                if (this.tempLabels[code]) this.tempLabels[code][field] = value;
                 if (field === 'active') this.renderLabelEditor();
             },
+            deleteTempLabel(code) { if (confirm(`Delete ${code}?`)) { delete this.tempLabels[code]; this.renderLabelEditor(); } },
+            resetLabelsToDefault() { if(confirm("Reset defaults?")) { this.tempLabels = JSON.parse(JSON.stringify(DEFAULT_DUTY_CODES)); this.renderLabelEditor(); } },
+            async saveLabels() { await window.firebaseOps.saveLabels(this.tempLabels); this.showToast("Labels Updated"); this.closeLabelManager(); },
 
-            deleteTempLabel(code) {
-                if (confirm(`Delete label "${code}"?`)) {
-                    delete this.tempLabels[code];
-                    this.renderLabelEditor();
-                }
-            },
-
-            resetLabelsToDefault() {
-                if(confirm("Reset all labels to system defaults? Custom labels will be lost.")) {
-                    this.tempLabels = JSON.parse(JSON.stringify(DEFAULT_DUTY_CODES));
-                    this.renderLabelEditor();
-                }
-            },
-
-            async saveLabels() {
-                // Persist to Firebase
-                await window.firebaseOps.saveLabels(this.tempLabels);
-                this.showToast("Labels Updated");
-                this.closeLabelManager();
-                // Subscription will handle re-render
-            },
-
-            // --- STAFF MANAGER ---
-            openStaffManager() {
-                document.getElementById('staffModal').classList.add('visible');
-                this.renderStaffListInModal();
-            },
-            closeStaffManager() {
-                document.getElementById('staffModal').classList.remove('visible');
-                this.resetStaffForm();
-            },
+            openStaffManager() { document.getElementById('staffModal').classList.add('visible'); this.renderStaffListInModal(); },
+            closeStaffManager() { document.getElementById('staffModal').classList.remove('visible'); this.resetStaffForm(); },
             renderStaffListInModal() {
-                const tbody = document.getElementById('staffListTableBody');
-                tbody.innerHTML = this.staffList.map(s => `
+                document.getElementById('staffListTableBody').innerHTML = this.staffList.map(s => `
                     <tr class="border-b border-slate-100 hover:bg-slate-50 group">
-                        <td class="p-2 font-mono text-slate-600">${s.staffId}</td>
-                        <td class="p-2 font-semibold text-slate-800">${s.name}</td>
-                        <td class="p-2 text-right">
-                            <button onclick="plannerSystem.editStaff('${s.firebaseId}')" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded mr-1"><i data-lucide="pencil" class="w-3 h-3"></i></button>
-                            <button onclick="plannerSystem.deleteStaff('${s.firebaseId}')" class="p-1 text-red-600 hover:bg-red-50 rounded"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                        </td>
+                        <td class="p-2 font-mono text-slate-600">${s.staffId}</td><td class="p-2 font-semibold text-slate-800">${s.name}</td>
+                        <td class="p-2 text-right"><button onclick="plannerSystem.editStaff('${s.firebaseId}')" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded mr-1"><i data-lucide="pencil" class="w-3 h-3"></i></button><button onclick="plannerSystem.deleteStaff('${s.firebaseId}')" class="p-1 text-red-600 hover:bg-red-50 rounded"><i data-lucide="trash-2" class="w-3 h-3"></i></button></td>
                     </tr>`).join('');
                 lucide.createIcons();
             },
-            editStaff(firebaseId) {
-                const staff = this.staffList.find(s => s.firebaseId === firebaseId);
-                if (!staff) return;
-                document.getElementById('editFirebaseId').value = firebaseId;
-                document.getElementById('staffIdInput').value = staff.staffId;
-                document.getElementById('staffNameInput').value = staff.name;
-                const btn = document.getElementById('saveStaffBtn');
-                btn.textContent = "Update Staff";
-                btn.classList.replace('bg-slate-800', 'bg-indigo-600');
-                document.getElementById('cancelEditBtn').classList.remove('hidden');
-            },
-            resetStaffForm() {
-                document.getElementById('editFirebaseId').value = "";
-                document.getElementById('staffIdInput').value = "";
-                document.getElementById('staffNameInput').value = "";
-                const btn = document.getElementById('saveStaffBtn');
-                btn.textContent = "Add Staff";
-                btn.classList.replace('bg-indigo-600', 'bg-slate-800');
-                document.getElementById('cancelEditBtn').classList.add('hidden');
-            },
-            async saveStaff() {
-                const idInput = document.getElementById('staffIdInput');
-                const nameInput = document.getElementById('staffNameInput');
-                const fbId = document.getElementById('editFirebaseId').value;
-                const staffId = idInput.value.trim();
-                const name = nameInput.value.trim();
-
-                if (!staffId || !name) { alert("Enter ID and Name"); return; }
-
-                if (fbId) {
-                    await window.firebaseOps.updateStaffDetails(fbId, { staffId, name });
-                    this.showToast("Staff updated");
-                } else {
-                    await window.firebaseOps.addStaff({ staffId, name, attendance: 'No' });
-                    this.showToast("Staff added");
-                }
+            editStaff(id) { const s = this.staffList.find(x => x.firebaseId === id); if(!s) return; document.getElementById('editFirebaseId').value=id; document.getElementById('staffIdInput').value=s.staffId; document.getElementById('staffNameInput').value=s.name; document.getElementById('saveStaffBtn').textContent="Update"; document.getElementById('cancelEditBtn').classList.remove('hidden'); },
+            resetStaffForm() { document.getElementById('editFirebaseId').value=""; document.getElementById('staffIdInput').value=""; document.getElementById('staffNameInput').value=""; document.getElementById('saveStaffBtn').textContent="Add"; document.getElementById('cancelEditBtn').classList.add('hidden'); },
+            async saveStaff() { 
+                const id = document.getElementById('staffIdInput').value; const name = document.getElementById('staffNameInput').value; const fbId = document.getElementById('editFirebaseId').value;
+                if(!id||!name) return; 
+                if(fbId) { await window.firebaseOps.updateStaffDetails(fbId, {staffId:id, name}); this.showToast("Updated"); }
+                else { await window.firebaseOps.addStaff({staffId:id, name, attendance:'No'}); this.showToast("Added"); }
                 this.resetStaffForm();
             },
-            async deleteStaff(firebaseId) {
-                if (confirm("Remove staff?")) {
-                    await window.firebaseOps.deleteStaff(firebaseId);
-                    this.showToast("Staff deleted");
-                }
-            },
+            async deleteStaff(id) { if(confirm("Delete?")) { await window.firebaseOps.deleteStaff(id); this.showToast("Deleted"); } },
+            
             async forceSyncToday() {
-                if (!confirm("Overwrite 'Active' status based on today's column?")) return;
+                if (!confirm("Overwrite Active status based on today's column?")) return;
                 const today = new Date();
                 const d = String(today.getDate()).padStart(2, '0');
                 const updates = [];
                 let count = 0;
-                
                 this.staffList.forEach(staff => {
                     const sched = this.scheduleData[staff.staffId] || {};
                     const code = sched[d] || '';
@@ -803,18 +712,12 @@
                     if (isActive) count++;
                     updates.push({ firebaseId: staff.firebaseId, isActive });
                 });
-                
                 await window.firebaseOps.batchUpdateStatus(updates);
                 alert(`Sync Complete! ${count} Active.`);
-                
-                // Auto-open Daily Roster after Apply Today
-                setTimeout(() => {
-                    window.open('https://pccplanner.github.io/Alplanner/PO_Roster.html', '_blank');
-                }, 500);
-
             }
         };
     </script>
 </body>
 </html>
+
 
