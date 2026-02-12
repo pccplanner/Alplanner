@@ -186,13 +186,19 @@
         /* Sticky Headers */
         thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 20; font-weight: 700; color: #334155; border-bottom: 2px solid #64748b; }
         
+        /* Sticky Footer (Manpower) */
+        tfoot td { position: sticky; bottom: 0; background: #f1f5f9; z-index: 40; font-weight: 700; color: #334155; border-top: 2px solid #64748b; box-shadow: 0 -2px 4px rgba(0,0,0,0.05); }
+
         /* Sticky Columns */
         .sticky-col-sn { position: sticky; left: 0; z-index: 30; width: 30px; min-width: 30px; background: #e2e8f0; }
         .sticky-col-id { position: sticky; left: 30px; z-index: 30; width: 50px; min-width: 50px; background: #ffffff; font-weight: 700; }
         .sticky-col-name { position: sticky; left: 80px; z-index: 30; width: 160px; min-width: 160px; background: #ffffff; text-align: left; padding-left: 6px; }
         
+        /* Corner Z-Indexes for Sticky Overlaps */
+        thead th.sticky-col-sn, thead th.sticky-col-id, thead th.sticky-col-name { z-index: 50; background-color: #a5b4fc; color: #1e3a8a; }
+        tfoot td.sticky-col-sn, tfoot td.sticky-col-id, tfoot td.sticky-col-name { z-index: 50; background-color: #e2e8f0; }
+
         .header-blue { background-color: #a5b4fc !important; color: #1e3a8a; }
-        thead th.sticky-col-sn, thead th.sticky-col-id, thead th.sticky-col-name { z-index: 40; background-color: #a5b4fc; color: #1e3a8a; }
 
         .cell-input { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-weight: 700; cursor: pointer; outline: none; font-size: 10px; display: flex; align-items: center; justify-content: center; }
         .cell-input:hover { box-shadow: inset 0 0 0 2px #6366f1; z-index: 10; position: relative;}
@@ -231,7 +237,7 @@
         </div>
 
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <!-- View Switcher (Updated with gap-1) -->
+            <!-- View Switcher -->
             <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0 gap-1">
                 <button onclick="plannerSystem.setView('month')" id="viewBtnMonth" class="view-toggle-btn active">Month</button>
                 <button onclick="plannerSystem.setView('week')" id="viewBtnWeek" class="view-toggle-btn">Week</button>
@@ -307,27 +313,28 @@
                 <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4 text-indigo-600"></i> Manage Labels</h3>
                 <button onclick="plannerSystem.closeLabelManager()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            <div class="p-3 bg-indigo-50 border-b border-indigo-100 text-[10px] text-indigo-800 flex items-center gap-2"><i data-lucide="info" class="w-3 h-3"></i><span>Active labels mark staff as Present.</span></div>
+            <div class="p-3 bg-indigo-50 border-b border-indigo-100 text-[10px] text-indigo-800 flex items-center gap-2"><i data-lucide="info" class="w-3 h-3"></i><span>Only codes containing '2' are counted as Active Manpower.</span></div>
             <div class="flex-1 overflow-y-auto bg-slate-50 p-3"><div id="labelsList" class="space-y-2"></div><button onclick="plannerSystem.addNewLabelRow()" class="mt-4 w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 text-xs font-bold hover:bg-white hover:border-indigo-300 hover:text-indigo-600 transition flex items-center justify-center gap-2"><i data-lucide="plus" class="w-3 h-3"></i> Add New Label</button></div>
             <div class="p-3 border-t border-slate-100 bg-white flex justify-end gap-2"><button onclick="plannerSystem.resetLabelsToDefault()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-red-500 transition mr-auto">Reset Defaults</button><button onclick="plannerSystem.closeLabelManager()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button onclick="plannerSystem.saveLabels()" class="px-6 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-sm">Save</button></div>
         </div>
     </div>
 
     <script>
+        // UPDATED DEFAULTS: Codes without '2' are Inactive by default
         const DEFAULT_DUTY_CODES = {
             "2A":  { color: "#86efac", textColor: "#000000", active: true },
             "2SD": { color: "#fcd34d", textColor: "#000000", active: true },
             "2OD": { color: "#fcd34d", textColor: "#000000", active: true },
             "25D": { color: "#fcd34d", textColor: "#000000", active: true },
-            "EPH": { color: "#fcd34d", textColor: "#000000", active: true },
-            "OSD": { color: "#fcd34d", textColor: "#000000", active: true },
+            "EPH": { color: "#fcd34d", textColor: "#000000", active: false }, // Changed to false
+            "OSD": { color: "#fcd34d", textColor: "#000000", active: false }, // Changed to false
             "OFF": { color: "#fef08a", textColor: "#000000", active: false },
             "OOD": { color: "#fef08a", textColor: "#000000", active: false },
             "AL":  { color: "#7dd3fc", textColor: "#000000", active: false },
             "P-AL":{ color: "#67e8f9", textColor: "#000000", active: false },
             "HL":  { color: "#cbd5e1", textColor: "#000000", active: false },
             "MC":  { color: "#fca5a5", textColor: "#000000", active: false },
-            "CNB": { color: "#e879f9", textColor: "#000000", active: true }
+            "CNB": { color: "#e879f9", textColor: "#000000", active: false }  // Changed to false
         };
 
         const plannerSystem = {
@@ -368,16 +375,14 @@
                 document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
                 document.getElementById(`viewBtn${mode.charAt(0).toUpperCase() + mode.slice(1)}`).classList.add('active');
                 
-                // Snap date to start of period if needed
                 if (mode === 'week') {
-                    // adjust currentDate to Monday of current week
                     const day = this.currentDate.getDay(); 
                     const diff = this.currentDate.getDate() - day + (day === 0 ? -6 : 1);
                     this.currentDate.setDate(diff);
                 }
                 
                 this.updatePeriodLabel();
-                this.loadSchedule(); // Might need to load adjacent month if week spans boundary
+                this.loadSchedule(); 
             },
 
             setupListeners() {
@@ -412,14 +417,8 @@
 
             // --- DATA LOADING & NAVIGATION ---
             loadSchedule() {
-                // For simplicity, we load the month of the current focus date.
-                // In week view spanning two months, we might miss data. 
-                // Enhanced logic: Load current month AND next month if needed.
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
-                
-                // TODO: Optimize to load multiple months if week spans boundary
-                // Current implementation re-subscribes based on currentDate
                 if (this.unsubSchedule) this.unsubSchedule();
                 this.unsubSchedule = window.firebaseOps.subscribeToSchedule(y, m, (data) => {
                     this.scheduleData = data;
@@ -450,10 +449,9 @@
                     const start = new Date(d);
                     const day = start.getDay();
                     const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-                    start.setDate(diff); // Set to Monday
+                    start.setDate(diff);
                     const end = new Date(start);
-                    end.setDate(start.getDate() + 6); // Set to Sunday
-                    
+                    end.setDate(start.getDate() + 6);
                     const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
                     text = `${fmt.format(start)} - ${fmt.format(end)}`;
                 } else {
@@ -488,12 +486,12 @@
                 
                 return days.map(d => ({
                     date: d.getDate(),
-                    month: d.getMonth(), // Need month for data key if spanning
+                    month: d.getMonth(), 
                     year: d.getFullYear(),
                     dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(d),
                     isWeekend: d.getDay() === 0 || d.getDay() === 6,
                     isToday: this.isToday(d),
-                    fullDateKey: String(d.getDate()).padStart(2, '0') // simple key 01..31
+                    fullDateKey: String(d.getDate()).padStart(2, '0') 
                 }));
             },
 
@@ -541,6 +539,20 @@
                 });
                 html += `</tr></thead><tbody>`;
 
+                // Calculate Totals per Day (STRICT RULE: Only codes with '2' count)
+                const dailyTotals = renderDays.map(d => {
+                    let count = 0;
+                    this.staffList.forEach(staff => {
+                        const schedules = this.scheduleData[staff.staffId] || {};
+                        const code = schedules[d.fullDateKey] || '';
+                        // Strict check: Code must string contain "2"
+                        if (code && code.toString().includes('2')) {
+                            count++;
+                        }
+                    });
+                    return count;
+                });
+
                 this.staffList.forEach((staff, index) => {
                     const sid = staff.staffId || '?';
                     const name = staff.name || 'Unknown';
@@ -553,16 +565,12 @@
                         <td class="sticky-col-name bg-white font-bold text-slate-800 text-left px-1 truncate">${name}</td>`;
                     
                     renderDays.forEach(d => {
-                        // Note: current implementation fetches data for current focused Month.
-                        // If Week view spans months, data for next month days might be missing until we handle multi-month fetch.
-                        // For now, assuming single month context or simple key lookup.
                         const code = schedules[d.fullDateKey] || '';
                         let styleClass = '';
                         let textClass = '';
                         if (code && this.dutyCodes[code]) {
                             styleClass = `duty-${code.replace(/[^a-zA-Z0-9-_]/g, '-')}`;
                         } else {
-                            // If user typed custom code not in list
                             textClass = 'text-slate-400 font-normal';
                         }
                         const bgClass = d.isWeekend ? 'bg-slate-50' : '';
@@ -576,7 +584,21 @@
                     html += `</tr>`;
                 });
 
-                html += `</tbody></table>`;
+                html += `</tbody>`;
+
+                // Sticky Footer: Manpower
+                html += `<tfoot><tr>
+                    <td class="sticky-col-sn bg-slate-100 border-t-2 border-slate-300"></td>
+                    <td class="sticky-col-id bg-slate-100 border-t-2 border-slate-300"></td>
+                    <td class="sticky-col-name bg-slate-100 text-right px-2 border-t-2 border-slate-300 text-[10px] uppercase font-bold text-slate-500">Daily Manpower:</td>`;
+                
+                renderDays.forEach((d, i) => {
+                    const count = dailyTotals[i];
+                    const color = count > 0 ? 'text-indigo-700' : 'text-slate-300';
+                    html += `<td class="text-center py-1 border-r border-slate-200 bg-slate-50 border-t-2 border-slate-300 font-bold text-[10px] ${color}">${count}</td>`;
+                });
+                
+                html += `</tr></tfoot></table>`;
                 container.innerHTML = html;
             },
 
@@ -600,13 +622,9 @@
                 if (!this.activeCell) return;
                 const { dayKey, staffId, fbId } = this.activeCell;
                 
-                // Get Year/Month from current view context.
-                // NOTE: If week view spans months, this needs logic to know which month 'dayKey' belongs to.
-                // For simplicity in this version, we assume 'currentDate' month. 
                 const y = this.currentDate.getFullYear();
                 const m = String(this.currentDate.getMonth() + 1).padStart(2, '0');
 
-                // UI Update
                 const cellDiv = this.activeCell.el;
                 cellDiv.textContent = code;
                 const td = cellDiv.parentElement;
@@ -619,6 +637,9 @@
                 
                 document.getElementById('codePopover').classList.remove('visible');
 
+                // Update Manpower Count
+                this.renderTable(); 
+
                 // Save
                 window.firebaseOps.saveCell(y, m, staffId, dayKey, code);
 
@@ -626,6 +647,7 @@
                 const today = new Date();
                 const isEditToday = (y === today.getFullYear() && (this.currentDate.getMonth()) === today.getMonth() && parseInt(dayKey) === today.getDate());
                 if (isEditToday) {
+                    // Logic: Uses the settings. BUT defaults now set non-2 codes to inactive.
                     const isActive = (code && this.dutyCodes[code]) ? this.dutyCodes[code].active : false;
                     window.firebaseOps.updateStaffStatus(fbId, isActive);
                     this.showToast(`Synced: ${isActive ? 'Active' : 'Inactive'}`);
@@ -708,6 +730,7 @@
                 this.staffList.forEach(staff => {
                     const sched = this.scheduleData[staff.staffId] || {};
                     const code = sched[d] || '';
+                    // Use label settings for sync, but defaults are strict
                     const isActive = (code && this.dutyCodes[code]) ? this.dutyCodes[code].active : false;
                     if (isActive) count++;
                     updates.push({ firebaseId: staff.firebaseId, isActive });
@@ -719,5 +742,4 @@
     </script>
 </body>
 </html>
-
 
