@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> APO Roster System (v17.15)</title>
+    <title> APO Roster System (v17.15 - Sticky Fix)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -80,6 +80,7 @@
     .buffer-id-content { background-color: #FBCFE8 !important; color: #9D174D !important; font-weight: 700 !important; border: 1px solid #F472B6 !important; }
     .shuffling-highlight { background-color: #FBBF24 !important; border: 2px solid #D97706 !important; animation: pulse-shuffle 1s infinite alternate; }
     @keyframes pulse-shuffle { from { opacity: 1; } to { opacity: 0.7; } }
+    .b2b-conflict-cell { background-color: #FEE2E2 !important; border: 2px solid #EF4444 !important; color: #991B1B !important; font-weight: bold !important; }
     select, input { text-align: center !important; text-align-last: center !important; -moz-text-align-last: center !important; }
     
     /* Freeze Pane */
@@ -495,6 +496,7 @@
 
                             <div className="flex space-x-2 nav-buttons">
                                 <NavButton label="Daily Roster" isActive={view === 'roster'} onClick={() => setView('roster')} />
+                                <NavButton label="Weekly View" isActive={view === 'weekly'} onClick={() => setView('weekly')} />
                                 <NavButton label="Setup & Assignments" isActive={view === 'settings'} onClick={() => setView('settings')} />
                             </div>
                         </nav>
@@ -502,6 +504,7 @@
                     
                     <main className="container mx-auto p-2 sm:p-6 lg:px-8">
                         {view === 'roster' && <RosterView selectedDate={selectedDate} setSelectedDate={setSelectedDate} currentShift={currentShift} />}
+                        {view === 'weekly' && <WeeklyRosterView selectedDate={selectedDate} setSelectedDate={setSelectedDate} currentShift={currentShift} />}
                         {view === 'settings' && <StaffAndRosterSetupView selectedDate={selectedDate} setSelectedDate={setSelectedDate} currentShift={currentShift} />}
                     </main>
                 </div>
@@ -859,6 +862,9 @@
         const [highlightedId, setHighlightedId] = useState(null);
         const [focusView, setFocusView] = useState('all');
         const [isMatrixEditMode, setIsMatrixEditMode] = useState(false);
+        const [showB2BConflicts, setShowB2BConflicts] = useState(true);
+        const [prevDay1Roster, setPrevDay1Roster] = useState(null);
+        const [prevDay2Roster, setPrevDay2Roster] = useState(null);
 
         const config = SHIFT_CONFIG[currentShift];
         const TIME_SLOTS = config.slots;
@@ -889,6 +895,27 @@
             return () => { unsubAssignments(); unsubRoster(); };
         }, [selectedDate, currentShift]);
 
+        // Load prev & next day rosters for back-to-back conflict detection
+        useEffect(() => {
+            if (!selectedDate || !db) return;
+            const getAdjacentDate = (dateStr, offset) => {
+                const d = new Date(dateStr);
+                d.setDate(d.getDate() + offset);
+                const adj = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+                return adj.toISOString().split('T')[0];
+            };
+            const prev1Date = getAdjacentDate(selectedDate, -1);
+            const prev2Date = getAdjacentDate(selectedDate, -2);
+
+            const unsubPrev1 = onSnapshot(getDocRef(DAILY_ROSTER_COLLECTION, prev1Date, currentShift), (snap) => {
+                setPrevDay1Roster(snap.exists() ? snap.data().rosterGrid : null);
+            });
+            const unsubPrev2 = onSnapshot(getDocRef(DAILY_ROSTER_COLLECTION, prev2Date, currentShift), (snap) => {
+                setPrevDay2Roster(snap.exists() ? snap.data().rosterGrid : null);
+            });
+            return () => { unsubPrev1(); unsubPrev2(); };
+        }, [selectedDate, currentShift]);
+
         const manualStandbyRows = useMemo(() => {
             if (!rosterData || typeof rosterData !== 'object') return [];
             return Object.keys(rosterData).filter(key => key.startsWith("OE/ STANDBY-")).sort(); 
@@ -900,6 +927,36 @@
              if(idx > -1) rows.splice(idx + 1, 0, ...manualStandbyRows);
              return rows;
         }, [manualStandbyRows, SENTRY_POSITIONS]);
+
+        // Build conflict keys: "position::staffId"
+        // Compares today's shift-start slot (index 0) against the same slot on D-1 and D-2.
+        // Applied to both Foyer and Sentry positions.
+        const conflictKeys = useMemo(() => {
+            const keys = new Set();
+            if (!showB2BConflicts || !rosterData) return keys;
+            const checkPositions = [...FOYER_POSITIONS, ...SENTRY_POSITIONS];
+
+            const getFirstHourStaff = (grid, pos) => {
+                if (!grid) return new Set();
+                const row = grid[pos] || [];
+                const cell = row[0]; // index 0 = 2000 (Night) or 0800 (Day)
+                const val = cell && cell.value;
+                return val && val !== UNFILLED_SLOT && val !== '' ? new Set([val]) : new Set();
+            };
+
+            checkPositions.forEach(pos => {
+                const todayStaff = getFirstHourStaff(rosterData, pos);
+                const prev1Staff = getFirstHourStaff(prevDay1Roster, pos);
+                const prev2Staff = getFirstHourStaff(prevDay2Roster, pos);
+
+                todayStaff.forEach(staffId => {
+                    if (prev1Staff.has(staffId) || prev2Staff.has(staffId)) {
+                        keys.add(`${pos}::${staffId}`);
+                    }
+                });
+            });
+            return keys;
+        }, [rosterData, prevDay1Roster, prevDay2Roster, showB2BConflicts, FOYER_POSITIONS, SENTRY_POSITIONS]);
 
         const handleGenerateRoster = async (isReset = false) => {
             setIsGenerating(true); setError(null);
@@ -1187,7 +1244,7 @@
             </thead>
         );
 
-        const renderTableBody = (rows, slots = TIME_SLOTS, isVP = false) => (
+        const renderTableBody = (rows, slots = TIME_SLOTS, isVP = false, conflictKeySet = null) => (
             <tbody className={`bg-white divide-y divide-gray-200 ${isMatrixEditMode ? 'matrix-edit-active' : ''}`}>
                 {rows.map(pos => {
                     const isStandby = pos.startsWith("OE/ STANDBY");
@@ -1209,16 +1266,18 @@
                                 const cell = (rosterData[pos] && rosterData[pos][idx]) ? rosterData[pos][idx] : { value: "" };
                                 const isBuffer = cell.value && staffTypeMap.get(cell.value) === 'buffer';
                                 const isShuffle = isShuffling && idx === 0 && (SENTRY_POSITIONS.includes(pos));
-                                
+                                const isB2BConflict = !!(idx === 0 && conflictKeySet && cell.value && cell.value !== UNFILLED_SLOT && conflictKeySet.has(`${pos}::${cell.value}`));
+
                                 const isE2Inactive = currentShift === 'DAY' && pos === "E2" && idx >= 2;
                                 const isOEInactive = currentShift === 'DAY' && pos === "OE/ STANDBY" && idx < 2;
                                 const isInactive = isE2Inactive || isOEInactive;
 
-                                let cellClass = "w-full p-1 text-xs border-0 border-r border-gray-200 text-center ";
+                                let cellClass = "w-full p-0 text-xs border-0 border-r border-gray-200 text-center ";
                                 if (isVP) cellClass += "vp-cell-fix ";
                                 
                                 if (isShuffle) cellClass += "shuffling-highlight ";
                                 else if (isInactive) cellClass += "bg-gray-200 text-gray-400 cursor-not-allowed "; 
+                                else if (isB2BConflict) cellClass += "b2b-conflict-cell ";
                                 else if (cell.value === highlightedId && highlightedId) cellClass += "highlight-cell ";
                                 else if (isBuffer) cellClass += "buffer-id-content ";
                                 else if (cell.isPair) cellClass += "dropdown-permanent ";
@@ -1274,6 +1333,13 @@
                     <div className="flex gap-2">
                          <button onClick={() => setIsMatrixEditMode(!isMatrixEditMode)} className={`px-4 py-2 rounded font-bold text-white ${isMatrixEditMode?'bg-red-600':'bg-blue-600'}`}>{isMatrixEditMode?'Exit Matrix':'Matrix Edit'}</button>
                          <button onClick={handleSaveChanges} disabled={!isDirty} className="bg-green-600 text-white px-4 py-2 rounded font-bold disabled:opacity-50">Save Changes</button>
+                         <button
+                            onClick={() => setShowB2BConflicts(v => !v)}
+                            className={`px-4 py-2 rounded font-bold border-2 transition-all ${showB2BConflicts ? 'bg-red-50 border-red-400 text-red-700' : 'bg-gray-100 border-gray-300 text-gray-500'}`}
+                            title="Highlight staff assigned to the same location on back-to-back days"
+                         >
+                            {showB2BConflicts ? '🔴 B2B ON' : '⭕ B2B OFF'}
+                         </button>
                          <button onClick={handlePrint} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700">Print</button>
                     </div>
                 </div>
@@ -1286,6 +1352,15 @@
                     <div className="flex-grow"></div>
                     <button onClick={() => handleGenerateRoster(false)} disabled={isGenerating} className="bg-blue-500 text-white px-4 py-2 rounded font-bold hover:bg-blue-600 disabled:opacity-50">{isGenerating?'Generating...':'Generate / Update'}</button>
                 </div>
+
+                {/* B2B Conflict Legend */}
+                {showB2BConflicts && rosterData && (
+                    <div className="mb-3 flex flex-wrap items-center gap-3 px-3 py-2 bg-red-50 border border-red-200 rounded print-hidden text-xs font-semibold">
+                        <span className="text-red-700 font-bold">🔴 Back-to-Back Conflict Detection ACTIVE</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-5 h-4 rounded b2b-conflict-cell border"></span> Same staff at same location at shift-start on either of the previous 2 days</span>
+                        <span className="text-gray-500 ml-auto">Checking: {currentShift === 'NIGHT' ? '2000' : '0800'} slot vs D-1 &amp; D-2</span>
+                    </div>
+                )}
                 
                 {loading ? <div className="text-center p-8">Loading...</div> : !rosterData ? <div className="text-center p-8 text-gray-500">No Roster Generated</div> : (
                     <div className="space-y-6">
@@ -1302,7 +1377,7 @@
                             <div className="space-y-4 roster-section">
                                 <div>
                                     <h3 className="bg-gray-200 p-1 font-bold text-sm mb-1">FOYER DEPLOYMENT</h3>
-                                    <div className="overflow-x-auto shadow rounded border"><table className="min-w-full divide-y divide-gray-200">{renderTableHeader()}{renderTableBody(FOYER_POSITIONS)}</table></div>
+                                    <div className="overflow-x-auto shadow rounded border"><table className="min-w-full divide-y divide-gray-200">{renderTableHeader()}{renderTableBody(FOYER_POSITIONS, TIME_SLOTS, false, conflictKeys)}</table></div>
                                 </div>
                                 <div>
                                     <h3 className="bg-gray-200 p-1 font-bold text-sm mb-1">VERTICAL PROWLER</h3>
@@ -1319,9 +1394,228 @@
                                         <button onClick={handleShuffle} disabled={isShuffling} className="text-xs bg-orange-500 text-white px-2 py-1 rounded font-bold print-hidden">{isShuffling?'Shuffling...':'Roster Shuffle'}</button>
                                     )}
                                 </div>
-                                <div className="overflow-x-auto shadow rounded border"><table className="min-w-full divide-y divide-gray-200">{renderTableHeader()}{renderTableBody(sentryRowsToRender)}</table></div>
+                                <div className="overflow-x-auto shadow rounded border"><table className="min-w-full divide-y divide-gray-200">{renderTableHeader()}{renderTableBody(sentryRowsToRender, TIME_SLOTS, false, conflictKeys)}</table></div>
                             </div>
                         )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // --- WEEKLY ROSTER VIEW ---
+    function WeeklyRosterView({ selectedDate, setSelectedDate, currentShift }) {
+        const { staffPool } = useContext(StaffContext);
+
+        // Build the 7-day window: Mon–Sun of the week containing selectedDate
+        const getWeekDays = (dateStr) => {
+            const base = new Date(dateStr);
+            const day = base.getDay(); // 0=Sun
+            const monday = new Date(base);
+            monday.setDate(base.getDate() - ((day + 6) % 7));
+            return Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                const offset = d.getTimezoneOffset();
+                const adj = new Date(d.getTime() - offset * 60000);
+                return adj.toISOString().split('T')[0];
+            });
+        };
+
+        const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
+
+        // weekData[dateStr] = { sequenceMap, attendanceSet }
+        const [weekData, setWeekData] = useState({});
+        const [loading, setLoading] = useState(true);
+        const [searchQuery, setSearchQuery] = useState('');
+        const [highlightConflicts, setHighlightConflicts] = useState(true);
+
+        useEffect(() => {
+            if (!db) return;
+            setLoading(true);
+            const unsubs = [];
+
+            weekDays.forEach(dateStr => {
+                // Fetch assignments
+                const aRef = getDocRef(DAILY_ASSIGNMENTS_COLLECTION, dateStr, currentShift);
+                const attRef = getDocRef(DAILY_ATTENDANCE_COLLECTION, dateStr, currentShift);
+
+                const unsub1 = onSnapshot(aRef, (snap) => {
+                    setWeekData(prev => ({
+                        ...prev,
+                        [dateStr]: {
+                            ...(prev[dateStr] || {}),
+                            sequenceMap: snap.exists() ? (snap.data().sequenceMap || {}) : {}
+                        }
+                    }));
+                });
+
+                const unsub2 = onSnapshot(attRef, (snap) => {
+                    const ids = snap.exists() ? (snap.data().scheduledStaff || []) : [];
+                    setWeekData(prev => ({
+                        ...prev,
+                        [dateStr]: {
+                            ...(prev[dateStr] || {}),
+                            attendanceSet: new Set(ids)
+                        }
+                    }));
+                });
+
+                unsubs.push(unsub1, unsub2);
+            });
+
+            // Wait a moment then mark loading done
+            const t = setTimeout(() => setLoading(false), 1500);
+            return () => { unsubs.forEach(u => u()); clearTimeout(t); };
+        }, [weekDays, currentShift]);
+
+        // For a given staffId + dateStr, return their assignment key(s)
+        const getStaffAssignmentForDay = (staffId, dateStr) => {
+            const data = weekData[dateStr];
+            if (!data || !data.sequenceMap) return null;
+            if (data.attendanceSet && !data.attendanceSet.has(staffId)) return 'OFF';
+            const keys = [];
+            Object.entries(data.sequenceMap).forEach(([key, ids]) => {
+                if (Array.isArray(ids) && ids.includes(staffId)) keys.push(key);
+            });
+            if (keys.length === 0) return data.attendanceSet && data.attendanceSet.has(staffId) ? 'SCHED/UNASSIGNED' : null;
+            return keys.join(', ');
+        };
+
+        // Build unique staff list: only those who appear at least once in the week
+        const weekStaff = useMemo(() => {
+            const seen = new Set();
+            weekDays.forEach(d => {
+                const data = weekData[d];
+                if (!data) return;
+                if (data.attendanceSet) data.attendanceSet.forEach(id => seen.add(id));
+            });
+            return staffPool
+                .filter(s => seen.has(s.id))
+                .filter(s => !searchQuery || s.id.includes(searchQuery) || s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        }, [staffPool, weekData, weekDays, searchQuery]);
+
+        // Colour logic for a cell
+        const getCellStyle = (staffId, dayIdx) => {
+            const cur = getStaffAssignmentForDay(staffId, weekDays[dayIdx]);
+            if (!cur || cur === 'OFF') return { bg: 'bg-gray-100 text-gray-400', conflict: false };
+            if (cur === 'SCHED/UNASSIGNED') return { bg: 'bg-yellow-100 text-yellow-700', conflict: false };
+
+            if (!highlightConflicts) return { bg: 'bg-green-50 text-green-900', conflict: false };
+
+            const prev = dayIdx > 0 ? getStaffAssignmentForDay(staffId, weekDays[dayIdx - 1]) : null;
+            const next = dayIdx < 6 ? getStaffAssignmentForDay(staffId, weekDays[dayIdx + 1]) : null;
+
+            const isConflict =
+                (prev && prev !== 'OFF' && prev !== 'SCHED/UNASSIGNED' && prev === cur) ||
+                (next && next !== 'OFF' && next !== 'SCHED/UNASSIGNED' && next === cur);
+
+            if (isConflict) return { bg: 'bg-red-100 text-red-800 font-bold border border-red-400', conflict: true };
+            return { bg: 'bg-green-50 text-green-900', conflict: false };
+        };
+
+        const conflictCount = useMemo(() => {
+            let count = 0;
+            weekStaff.forEach(s => {
+                weekDays.forEach((_, i) => {
+                    if (getCellStyle(s.id, i).conflict) count++;
+                });
+            });
+            return Math.floor(count / 2); // each pair counted twice
+        }, [weekStaff, weekDays, weekData]);
+
+        return (
+            <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
+                {/* Header */}
+                <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">Weekly Location Overview</h2>
+                        <p className="text-sm text-gray-500">{SHIFT_CONFIG[currentShift].label} &mdash; Week of {weekDays[0]} to {weekDays[6]}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex items-center gap-2">
+                            <label className="font-bold text-sm text-gray-700">Any date in week:</label>
+                            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="border rounded p-1 text-sm" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search Staff ID / Name"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="border rounded p-1 text-sm w-44"
+                        />
+                        <label className="flex items-center gap-1 text-sm font-semibold cursor-pointer select-none">
+                            <input type="checkbox" checked={highlightConflicts} onChange={e => setHighlightConflicts(e.target.checked)} className="w-4 h-4" />
+                            Highlight Back-to-Back
+                        </label>
+                        <button onClick={() => window.print()} className="bg-purple-600 text-white px-3 py-1 rounded font-bold text-sm hover:bg-purple-700 print-hidden">Print</button>
+                    </div>
+                </div>
+
+                {/* Legend & summary */}
+                <div className="flex flex-wrap gap-3 mb-4 p-3 bg-gray-50 rounded border text-xs font-semibold">
+                    <span className="flex items-center gap-1"><span className="w-4 h-4 rounded bg-red-100 border border-red-400 inline-block"></span> Back-to-Back Conflict</span>
+                    <span className="flex items-center gap-1"><span className="w-4 h-4 rounded bg-green-50 border border-green-300 inline-block"></span> Assigned</span>
+                    <span className="flex items-center gap-1"><span className="w-4 h-4 rounded bg-yellow-100 border border-yellow-300 inline-block"></span> Scheduled / Unassigned</span>
+                    <span className="flex items-center gap-1"><span className="w-4 h-4 rounded bg-gray-100 border border-gray-300 inline-block"></span> Off / Not Scheduled</span>
+                    {highlightConflicts && (
+                        <span className={`ml-auto font-bold ${conflictCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {conflictCount > 0 ? `⚠️ ${conflictCount} back-to-back conflict(s) found` : '✅ No back-to-back conflicts'}
+                        </span>
+                    )}
+                </div>
+
+                {loading ? (
+                    <div className="text-center p-12 text-blue-600 font-bold">Loading week data...</div>
+                ) : weekStaff.length === 0 ? (
+                    <div className="text-center p-12 text-gray-500">No scheduled staff found for this week{searchQuery ? ' matching your search' : ''}.</div>
+                ) : (
+                    <div className="overflow-x-auto shadow rounded border">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="sticky-header bg-gray-100 p-2 text-left text-xs font-bold text-gray-600 uppercase w-36 border-r" style={{position:'sticky',left:0,zIndex:30}}>Staff ID</th>
+                                    <th className="sticky bg-gray-100 p-2 text-left text-xs font-bold text-gray-600 uppercase w-32 border-r" style={{position:'sticky',left:'9rem',zIndex:30,boxShadow:'2px 0 4px rgba(0,0,0,0.08)'}}>Name</th>
+                                    <th className="p-2 text-left text-xs font-bold text-gray-600 uppercase w-16 border-r">Type</th>
+                                    {weekDays.map((d, i) => (
+                                        <th key={d} className={`p-2 text-center text-xs font-bold uppercase whitespace-nowrap ${d === selectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-600'}`}>
+                                            <div>{DAY_LABELS[i]}</div>
+                                            <div className="font-normal text-gray-400">{d.slice(5)}</div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-100">
+                                {weekStaff.map(staff => (
+                                    <tr key={staff.id} className="hover:bg-gray-50">
+                                        <td className="sticky-col bg-white p-2 font-bold text-gray-900 border-r whitespace-nowrap" style={{position:'sticky',left:0,zIndex:20}}>{staff.id}</td>
+                                        <td className="bg-white p-2 text-gray-700 border-r whitespace-nowrap truncate max-w-xs" style={{position:'sticky',left:'9rem',zIndex:20,boxShadow:'2px 0 4px rgba(0,0,0,0.06)'}}>{staff.name}</td>
+                                        <td className="p-2 border-r text-center">
+                                            <span className={`text-xs font-semibold px-1 py-0.5 rounded-full ${staff.type === 'buffer' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {staff.type === 'buffer' ? 'BUF' : 'PRM'}
+                                            </span>
+                                        </td>
+                                        {weekDays.map((d, i) => {
+                                            const assignment = getStaffAssignmentForDay(staff.id, d);
+                                            const { bg, conflict } = getCellStyle(staff.id, i);
+                                            return (
+                                                <td key={d} className={`p-1 text-center text-xs rounded ${bg} ${d === selectedDate ? 'ring-1 ring-inset ring-blue-300' : ''}`}>
+                                                    {conflict && <span title="Back-to-back same location!" className="mr-0.5">⚠️</span>}
+                                                    {assignment === 'OFF' || !assignment ? (
+                                                        <span className="text-gray-400">—</span>
+                                                    ) : assignment === 'SCHED/UNASSIGNED' ? (
+                                                        <span className="text-yellow-600">SCHD</span>
+                                                    ) : (
+                                                        <span className="font-semibold">{assignment}</span>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>
