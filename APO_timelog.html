@@ -94,6 +94,7 @@
                 <p class="text-indigo-700 text-xs">Login to Prosoft E-Attendance</p>
               </div>
             </div>
+            <!-- target="_blank" ensures it opens in a new tab -->
             <a href="https://prosoft.unit4cloud.com/ASY/web/Login.aspx?ReturnUrl=%2fASY%2fweb%2feAttendance%2fReport%2fReportTemplateListingDailyAttendance_Edit.aspx%3fUserRoleType%3dS%26NodeID%3d2410" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto text-center px-4 py-2 bg-white border border-indigo-200 shadow-sm rounded-lg text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center justify-center space-x-1 shrink-0">
               <span>Open Portal</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -690,15 +691,18 @@
 
             // 1. Ignore test accounts
             if (name.includes('test')) return;
+            
+            // 2. NEW RULE: Ignore missing/empty Service IDs ("N/A")
+            if (!id || id === 'n/a' || id === 'undefined' || id === 'null') return;
 
-            // 2. Ignore duplicates (by preventing same ID twice)
+            // 3. Ignore duplicates (by preventing same ID twice)
             if (id && seenIds.has(id)) return;
             if (empId && seenIds.has(empId)) return;
 
             if (id) seenIds.add(id);
             if (empId) seenIds.add(empId);
 
-            // 3. Check if they have submitted already
+            // 4. Check if they have submitted already
             if (submittedIds.has(id) || submittedIds.has(empId) || submittedNames.has(name)) {
                 return; // Already submitted, they are not pending
             }
