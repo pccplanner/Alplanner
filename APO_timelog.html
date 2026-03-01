@@ -91,7 +91,6 @@
                 <svg class="h-5 w-5 text-slate-400 spinner" id="loading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                 <svg class="h-5 w-5 text-slate-400 hidden" id="users-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
-              <!-- Added autocomplete="off" to prevent OS keyboard overlapping -->
               <input type="text" id="userId" autocomplete="off" disabled placeholder="Loading database..." class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white uppercase disabled:opacity-50 disabled:cursor-not-allowed" required />
             </div>
             
@@ -174,10 +173,10 @@
           <table class="min-w-full divide-y divide-slate-200">
             <thead class="bg-slate-50">
               <tr>
-                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Month Worked</th>
-                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Total Hours</th>
-                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Submitted At</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Month</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Hours</th>
+                <th scope="col" class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-12"></th>
               </tr>
             </thead>
             <tbody id="logs-table-body" class="bg-white divide-y divide-slate-200">
@@ -197,6 +196,23 @@
     </div>
 
   </main>
+
+  <!-- Confirm Delete Modal -->
+  <div id="delete-modal" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-bounce-in">
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="bg-red-100 p-2 rounded-full text-red-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Delete Entry?</h3>
+      </div>
+      <p class="text-sm text-slate-600 mb-6">Are you sure you want to completely remove this time log? This action cannot be undone.</p>
+      <div class="flex justify-end space-x-3">
+        <button id="cancel-delete-btn" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
+        <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors shadow-sm">Delete</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast Notification -->
   <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2 hidden z-50">
@@ -228,6 +244,7 @@
     let employees = [];
     let logs = [];
     let matchedEmployee = null;
+    let logToDeleteId = null;
 
     // --- DOM Elements ---
     const tabSubmitBtn = document.getElementById('tab-submit-btn');
@@ -252,8 +269,13 @@
     const logsTableBody = document.getElementById('logs-table-body');
     const emptyStateRow = document.getElementById('empty-state-row');
     const totalSubmissionsEl = document.getElementById('total-submissions');
+    
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toast-msg');
+    
+    const deleteModal = document.getElementById('delete-modal');
+    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 
     // --- Initialization ---
     // Set default month to current month
@@ -330,35 +352,26 @@
         const serviceId = String(emp.id || '').toLowerCase();
         const name = String(emp.name || '').toLowerCase();
         
-        // Exact string match anywhere
-        if (empId.includes(val) || serviceId.includes(val) || name.includes(val)) {
-          return true;
-        }
+        if (empId.includes(val) || serviceId.includes(val) || name.includes(val)) return true;
         
-        // Loose number match (if they typed at least 3 digits)
         if (valNumbersOnly.length >= 3) {
-          if (empId.includes(valNumbersOnly) || serviceId.includes(valNumbersOnly)) {
-            return true;
-          }
+          if (empId.includes(valNumbersOnly) || serviceId.includes(valNumbersOnly)) return true;
         }
         
         return false;
-      }).slice(0, 8); // Max 8 results to keep UI clean
+      }).slice(0, 8);
 
       renderAutocomplete(matches);
     });
 
-    // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
       if (e.target !== userIdInput && !autocompleteList.contains(e.target)) {
         autocompleteList.classList.add('hidden');
       }
     });
 
-    // Refocus opens dropdown if there's text
     userIdInput.addEventListener('focus', () => {
       if (userIdInput.value.trim().length > 0 && !matchedEmployee) {
-        // Trigger the input event to re-show the list
         userIdInput.dispatchEvent(new Event('input'));
       }
     });
@@ -390,17 +403,15 @@
 
     function selectEmployee(emp) {
       matchedEmployee = emp;
-      userIdInput.value = emp.emp_id || emp.id; // Fill the input
-      autocompleteList.classList.add('hidden'); // Hide dropdown
+      userIdInput.value = emp.emp_id || emp.id;
+      autocompleteList.classList.add('hidden');
       
-      // Show confirmation box
       feedbackText.textContent = emp.name;
       feedbackBox.classList.remove('hidden');
       
       submitBtn.disabled = false;
     }
 
-    // Allow user to clear selection easily
     clearSelectionBtn.addEventListener('click', () => {
       matchedEmployee = null;
       userIdInput.value = '';
@@ -423,10 +434,9 @@
         timestamp: new Date().toISOString()
       };
 
-      logs.unshift(newLog); // Add to top of list
+      logs.unshift(newLog);
       updateAdminDashboard();
       
-      // Show Toast
       toastMsg.textContent = "Monthly hours submitted successfully!";
       toast.classList.remove('hidden');
       toast.classList.add('animate-bounce-in');
@@ -435,7 +445,6 @@
         toast.classList.remove('animate-bounce-in');
       }, 3000);
 
-      // Reset
       userIdInput.value = '';
       hoursInput.value = '';
       feedbackBox.classList.add('hidden');
@@ -443,52 +452,81 @@
       submitBtn.disabled = true;
     });
 
+    // --- Deletion Logic ---
+    cancelDeleteBtn.addEventListener('click', () => {
+      logToDeleteId = null;
+      deleteModal.classList.add('hidden');
+    });
+
+    confirmDeleteBtn.addEventListener('click', () => {
+      if (logToDeleteId) {
+        logs = logs.filter(log => log.id !== logToDeleteId);
+        updateAdminDashboard();
+        
+        logToDeleteId = null;
+        deleteModal.classList.add('hidden');
+        
+        toastMsg.textContent = "Entry deleted.";
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 3000);
+      }
+    });
+
     // --- Admin Dashboard Updates ---
     function formatMonthStr(monthString) {
       if (!monthString) return '';
       const [year, month] = monthString.split('-');
       const date = new Date(year, month - 1);
-      return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
     }
 
     function updateAdminDashboard() {
       totalSubmissionsEl.textContent = logs.length;
       exportCsvBtn.disabled = logs.length === 0;
 
-      if (logs.length > 0) {
+      // Clear existing rows
+      Array.from(logsTableBody.children).forEach(child => {
+        if (child.id !== 'empty-state-row') child.remove();
+      });
+
+      if (logs.length === 0) {
+        emptyStateRow.style.display = 'table-row';
+      } else {
         emptyStateRow.style.display = 'none';
         
-        // Clear existing rows (except empty state)
-        Array.from(logsTableBody.children).forEach(child => {
-          if (child.id !== 'empty-state-row') child.remove();
-        });
-
         // Add new rows
         logs.forEach(log => {
           const tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50 transition-colors";
           
-          const timeString = new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-          
           tr.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-4 py-4 whitespace-nowrap">
               <div class="flex flex-col">
-                <span class="text-sm font-bold text-slate-900">${log.staffName}</span>
+                <span class="text-sm font-bold text-slate-900 truncate max-w-[140px] sm:max-w-xs" title="${log.staffName}">${log.staffName}</span>
                 <span class="text-xs text-slate-500">ID: ${log.staffId}</span>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-4 py-4 whitespace-nowrap">
               <div class="text-sm font-medium text-slate-900">${formatMonthStr(log.month)}</div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-4 py-4 whitespace-nowrap">
               <div class="text-sm font-bold text-slate-900 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg inline-block">
                 ${log.hours} <span class="text-blue-500 font-normal text-xs">hrs</span>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden sm:table-cell">
-              ${timeString}
+            <td class="px-4 py-4 whitespace-nowrap text-right">
+              <button class="delete-btn text-slate-400 hover:text-red-600 bg-transparent hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete Entry">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              </button>
             </td>
           `;
+          
+          // Attach delete listener to the button we just created
+          tr.querySelector('.delete-btn').addEventListener('click', () => {
+            logToDeleteId = log.id;
+            deleteModal.classList.remove('hidden');
+          });
+
           logsTableBody.appendChild(tr);
         });
       }
@@ -503,7 +541,7 @@
       
       logs.forEach(log => {
         const safeName = `"${log.staffName.replace(/"/g, '""')}"`;
-        const row = `${new Date(log.timestamp).toLocaleString()},${safeName},${log.staffId},${formatMonthStr(log.month)},${log.hours}`;
+        const row = `${new Date(log.timestamp).toLocaleString()},${safeName},${log.staffId},${log.month},${log.hours}`;
         csvContent += row + "\n";
       });
       
@@ -519,6 +557,5 @@
   </script>
 </body>
 </html>
-
 
 
