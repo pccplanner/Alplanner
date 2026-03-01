@@ -78,25 +78,35 @@
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="bg-blue-600 p-6 text-white">
           <h2 class="text-2xl font-bold mb-1">Monthly Time Log</h2>
-          <p class="text-blue-100 text-sm">Key in your User ID to log your total working hours.</p>
+          <p class="text-blue-100 text-sm">Search your User ID or Name to log your working hours.</p>
         </div>
         
         <form id="time-log-form" class="p-6 space-y-5">
-          <!-- Staff ID Input & Auto-Populate -->
-          <div>
-            <label for="userId" class="block text-sm font-semibold text-slate-700 mb-1">User ID</label>
+          
+          <!-- Staff ID Input with Custom Autocomplete -->
+          <div class="relative">
+            <label for="userId" class="block text-sm font-semibold text-slate-700 mb-1">Search Staff</label>
             <div class="relative">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" id="user-icon-container">
                 <svg class="h-5 w-5 text-slate-400 spinner" id="loading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                 <svg class="h-5 w-5 text-slate-400 hidden" id="users-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
-              <input type="text" id="userId" disabled placeholder="Loading database..." class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white uppercase disabled:opacity-50 disabled:cursor-not-allowed" required />
+              <!-- Added autocomplete="off" to prevent OS keyboard overlapping -->
+              <input type="text" id="userId" autocomplete="off" disabled placeholder="Loading database..." class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white uppercase disabled:opacity-50 disabled:cursor-not-allowed" required />
             </div>
             
-            <!-- Dynamic Feedback Box -->
-            <div id="feedback-box" class="mt-2 p-3 rounded-xl flex items-center space-x-2 text-sm transition-all hidden">
-              <div id="feedback-icon"></div>
-              <span id="feedback-text" class="font-semibold"></span>
+            <!-- Custom Search Dropdown List -->
+            <div id="autocomplete-list" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto hidden">
+              <!-- Search results injected here via JS -->
+            </div>
+
+            <!-- Dynamic Feedback Box (Visible after selection) -->
+            <div id="feedback-box" class="mt-2 p-3 rounded-xl flex items-center justify-between space-x-2 text-sm transition-all hidden bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <div class="flex items-center space-x-2">
+                <svg class="h-5 w-5 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                <span id="feedback-text" class="font-semibold"></span>
+              </div>
+              <button type="button" id="clear-selection-btn" class="text-emerald-600 hover:text-emerald-900 font-bold p-1">✕</button>
             </div>
           </div>
 
@@ -226,14 +236,15 @@
     const adminSection = document.getElementById('admin-section');
     
     const userIdInput = document.getElementById('userId');
+    const autocompleteList = document.getElementById('autocomplete-list');
     const monthInput = document.getElementById('month');
     const hoursInput = document.getElementById('hours');
     const submitBtn = document.getElementById('submit-btn');
     const form = document.getElementById('time-log-form');
     
     const feedbackBox = document.getElementById('feedback-box');
-    const feedbackIcon = document.getElementById('feedback-icon');
     const feedbackText = document.getElementById('feedback-text');
+    const clearSelectionBtn = document.getElementById('clear-selection-btn');
     const loadingIcon = document.getElementById('loading-icon');
     const usersIcon = document.getElementById('users-icon');
     
@@ -251,7 +262,6 @@
 
     async function fetchStaff() {
       try {
-        // Wrap Auth in try-catch so iOS WebView errors don't stop the DB fetch
         try {
           await signInAnonymously(auth);
         } catch (authError) {
@@ -266,19 +276,18 @@
           ...doc.data()
         }));
 
+        // Sort alphabetically
+        employees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
         // Enable UI
         userIdInput.disabled = false;
-        userIdInput.placeholder = "e.g. 13904 or T13904";
+        userIdInput.placeholder = "Search ID or Name...";
         loadingIcon.classList.add('hidden');
         usersIcon.classList.remove('hidden');
 
       } catch (error) {
         console.error("Firebase Error:", error);
         userIdInput.placeholder = "Error loading database";
-        feedbackBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
-        feedbackBox.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
-        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-red-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
-        feedbackText.textContent = "Database connection failed.";
       }
     }
 
@@ -299,52 +308,105 @@
       tabSubmitBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100";
     });
 
-    // --- Smarter Auto-Populate Logic ---
+    // --- Custom Autocomplete Logic ---
     userIdInput.addEventListener('input', (e) => {
       const val = e.target.value.trim().toLowerCase();
       
+      // Reset state on typing
+      matchedEmployee = null;
+      submitBtn.disabled = true;
+      feedbackBox.classList.add('hidden');
+      
       if (!val) {
-        feedbackBox.classList.add('hidden');
-        matchedEmployee = null;
-        submitBtn.disabled = true;
+        autocompleteList.classList.add('hidden');
         return;
       }
 
-      // Extract only numbers from what the user typed (e.g., if they typed "13904")
       const valNumbersOnly = val.replace(/[^0-9]/g, '');
 
-      // Find match using smarter logic
-      matchedEmployee = employees.find(emp => {
+      // Filter employees
+      const matches = employees.filter(emp => {
         const empId = String(emp.emp_id || '').toLowerCase();
         const serviceId = String(emp.id || '').toLowerCase();
+        const name = String(emp.name || '').toLowerCase();
         
-        // 1. Exact Match (if they typed exactly "t13904")
-        if (empId === val || serviceId === val) return true;
+        // Exact string match anywhere
+        if (empId.includes(val) || serviceId.includes(val) || name.includes(val)) {
+          return true;
+        }
         
-        // 2. Loose Number Match (if they typed "13904", it matches "t13904")
-        // We ensure they typed at least 4 digits to prevent random short matches
-        if (valNumbersOnly.length >= 4) {
+        // Loose number match (if they typed at least 3 digits)
+        if (valNumbersOnly.length >= 3) {
           if (empId.includes(valNumbersOnly) || serviceId.includes(valNumbersOnly)) {
             return true;
           }
         }
         
         return false;
-      });
+      }).slice(0, 8); // Max 8 results to keep UI clean
 
-      feedbackBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-red-50', 'text-red-800', 'border-red-200');
-      
-      if (matchedEmployee) {
-        feedbackBox.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
-        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
-        feedbackText.textContent = matchedEmployee.name;
-        submitBtn.disabled = false;
-      } else {
-        feedbackBox.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
-        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-red-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
-        feedbackText.textContent = "No staff found with this ID.";
-        submitBtn.disabled = true;
+      renderAutocomplete(matches);
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (e.target !== userIdInput && !autocompleteList.contains(e.target)) {
+        autocompleteList.classList.add('hidden');
       }
+    });
+
+    // Refocus opens dropdown if there's text
+    userIdInput.addEventListener('focus', () => {
+      if (userIdInput.value.trim().length > 0 && !matchedEmployee) {
+        // Trigger the input event to re-show the list
+        userIdInput.dispatchEvent(new Event('input'));
+      }
+    });
+
+    function renderAutocomplete(matches) {
+      autocompleteList.innerHTML = '';
+      
+      if (matches.length === 0) {
+        autocompleteList.innerHTML = `<div class="p-3 text-sm text-slate-500 italic text-center">No staff found matching that ID or Name.</div>`;
+      } else {
+        matches.forEach(emp => {
+          const div = document.createElement('div');
+          div.className = 'p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors';
+          div.innerHTML = `
+            <div class="font-bold text-slate-900 text-sm">${emp.name}</div>
+            <div class="text-xs text-slate-500 mt-0.5">ID: ${emp.emp_id || 'N/A'} &bull; Svc: ${emp.id || 'N/A'}</div>
+          `;
+          
+          div.addEventListener('click', () => {
+            selectEmployee(emp);
+          });
+          
+          autocompleteList.appendChild(div);
+        });
+      }
+      
+      autocompleteList.classList.remove('hidden');
+    }
+
+    function selectEmployee(emp) {
+      matchedEmployee = emp;
+      userIdInput.value = emp.emp_id || emp.id; // Fill the input
+      autocompleteList.classList.add('hidden'); // Hide dropdown
+      
+      // Show confirmation box
+      feedbackText.textContent = emp.name;
+      feedbackBox.classList.remove('hidden');
+      
+      submitBtn.disabled = false;
+    }
+
+    // Allow user to clear selection easily
+    clearSelectionBtn.addEventListener('click', () => {
+      matchedEmployee = null;
+      userIdInput.value = '';
+      feedbackBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      userIdInput.focus();
     });
 
     // --- Form Submission ---
@@ -457,5 +519,6 @@
   </script>
 </body>
 </html>
+
 
 
