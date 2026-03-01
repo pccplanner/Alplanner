@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Time Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    
+    @keyframes bounceIn {
+      0% { transform: scale(0.9); opacity: 0; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-bounce-in { animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans selection:bg-blue-200 min-h-screen flex flex-col">
+
+  <!-- Navigation Bar -->
+  <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center space-x-2">
+          <div class="bg-blue-600 p-2 rounded-lg text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <span class="font-bold text-xl tracking-tight text-slate-800">TimeSync</span>
+        </div>
+        <div class="flex space-x-1 sm:space-x-4 items-center">
+          <button id="tab-submit-btn" class="px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 bg-blue-50 text-blue-700">
+            <svg class="hidden sm:block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Log Hours</span>
+          </button>
+          <button id="tab-admin-btn" class="px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100">
+            <svg class="hidden sm:block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span>Admin View</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+    
+    <!-- SUBMIT FORM SECTION -->
+    <div id="submit-section" class="max-w-md mx-auto animate-fade-in">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-blue-600 p-6 text-white">
+          <h2 class="text-2xl font-bold mb-1">Monthly Time Log</h2>
+          <p class="text-blue-100 text-sm">Key in your User ID to log your total working hours.</p>
+        </div>
+        
+        <form id="time-log-form" class="p-6 space-y-5">
+          <!-- Staff ID Input & Auto-Populate -->
+          <div>
+            <label for="userId" class="block text-sm font-semibold text-slate-700 mb-1">User ID</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" id="user-icon-container">
+                <svg class="h-5 w-5 text-slate-400 spinner" id="loading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                <svg class="h-5 w-5 text-slate-400 hidden" id="users-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <input type="text" id="userId" disabled placeholder="Loading database..." class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white uppercase disabled:opacity-50 disabled:cursor-not-allowed" required />
+            </div>
+            
+            <!-- Dynamic Feedback Box -->
+            <div id="feedback-box" class="mt-2 p-3 rounded-xl flex items-center space-x-2 text-sm transition-all hidden">
+              <div id="feedback-icon"></div>
+              <span id="feedback-text" class="font-semibold"></span>
+            </div>
+          </div>
+
+          <!-- Month Input -->
+          <div>
+            <label for="month" class="block text-sm font-semibold text-slate-700 mb-1">Month Worked</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              </div>
+              <input type="month" id="month" class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white" required />
+            </div>
+          </div>
+
+          <!-- Hours Input -->
+          <div>
+            <label for="hours" class="block text-sm font-semibold text-slate-700 mb-1">Total Monthly Hours</label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <input type="number" id="hours" min="0.5" max="500" step="0.5" placeholder="e.g. 160" class="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow bg-slate-50 focus:bg-white" required />
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Enter total hours (e.g., 160.5 for 160 hours and 30 mins)</p>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" id="submit-btn" disabled class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400">
+            Submit Monthly Hours
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD SECTION -->
+    <div id="admin-section" class="space-y-6 hidden animate-fade-in">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Manager Dashboard</h2>
+          <p class="text-slate-500 text-sm">Overview of all submitted monthly staff hours.</p>
+        </div>
+        
+        <button id="export-csv-btn" disabled class="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
+          <span>Export to CSV</span>
+        </button>
+      </div>
+
+      <!-- Stats Cards (Simplified to Total Submissions only) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 md:col-start-1">
+          <div class="p-3 bg-amber-100 text-amber-600 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-500">Total Submissions</p>
+            <p id="total-submissions" class="text-2xl font-bold text-slate-900">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+              <tr>
+                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Month Worked</th>
+                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Total Hours</th>
+                <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Submitted At</th>
+              </tr>
+            </thead>
+            <tbody id="logs-table-body" class="bg-white divide-y divide-slate-200">
+              <tr id="empty-state-row">
+                <td colspan="4" class="px-6 py-12 text-center text-slate-500">
+                  <div class="flex flex-col items-center justify-center">
+                    <svg class="text-slate-300 mb-3" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <p class="text-lg font-medium">No hours logged yet</p>
+                    <p class="text-sm mt-1">When staff submit their monthly hours, they will appear here.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2 hidden z-50">
+    <svg class="text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+    <span id="toast-msg" class="font-medium">Success!</span>
+  </div>
+
+  <!-- Firebase & Application Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Firebase Configuration ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+      authDomain: "roster-4a997.firebaseapp.com",
+      projectId: "roster-4a997",
+      storageBucket: "roster-4a997.firebasestorage.app",
+      messagingSenderId: "901381868881",
+      appId: "1:901381868881:web:92930481d6c1c85fedd770"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // --- State Variables ---
+    let employees = [];
+    let logs = [];
+    let matchedEmployee = null;
+
+    // --- DOM Elements ---
+    const tabSubmitBtn = document.getElementById('tab-submit-btn');
+    const tabAdminBtn = document.getElementById('tab-admin-btn');
+    const submitSection = document.getElementById('submit-section');
+    const adminSection = document.getElementById('admin-section');
+    
+    const userIdInput = document.getElementById('userId');
+    const monthInput = document.getElementById('month');
+    const hoursInput = document.getElementById('hours');
+    const submitBtn = document.getElementById('submit-btn');
+    const form = document.getElementById('time-log-form');
+    
+    const feedbackBox = document.getElementById('feedback-box');
+    const feedbackIcon = document.getElementById('feedback-icon');
+    const feedbackText = document.getElementById('feedback-text');
+    const loadingIcon = document.getElementById('loading-icon');
+    const usersIcon = document.getElementById('users-icon');
+    
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    const logsTableBody = document.getElementById('logs-table-body');
+    const emptyStateRow = document.getElementById('empty-state-row');
+    const totalSubmissionsEl = document.getElementById('total-submissions');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+
+    // --- Initialization ---
+    // Set default month to current month
+    const today = new Date();
+    monthInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+    async function fetchStaff() {
+      try {
+        await signInAnonymously(auth);
+        const employeesRef = collection(db, "employees");
+        const snapshot = await getDocs(employeesRef);
+        
+        employees = snapshot.docs.map(doc => ({
+          db_id: doc.id,
+          ...doc.data()
+        }));
+
+        // Enable UI
+        userIdInput.disabled = false;
+        userIdInput.placeholder = "e.g. T13904 or 11997";
+        loadingIcon.classList.add('hidden');
+        usersIcon.classList.remove('hidden');
+
+      } catch (error) {
+        console.error("Firebase Error:", error);
+        userIdInput.placeholder = "Error loading database";
+        feedbackBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+        feedbackBox.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
+        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-red-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
+        feedbackText.textContent = "Database connection failed.";
+      }
+    }
+
+    fetchStaff();
+
+    // --- Tab Switching ---
+    tabSubmitBtn.addEventListener('click', () => {
+      submitSection.classList.remove('hidden');
+      adminSection.classList.add('hidden');
+      tabSubmitBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 bg-blue-50 text-blue-700";
+      tabAdminBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100";
+    });
+
+    tabAdminBtn.addEventListener('click', () => {
+      submitSection.classList.add('hidden');
+      adminSection.classList.remove('hidden');
+      tabAdminBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 bg-blue-50 text-blue-700";
+      tabSubmitBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100";
+    });
+
+    // --- Auto-Populate Logic ---
+    userIdInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim().toLowerCase();
+      
+      if (!val) {
+        feedbackBox.classList.add('hidden');
+        matchedEmployee = null;
+        submitBtn.disabled = true;
+        return;
+      }
+
+      // Find match
+      matchedEmployee = employees.find(emp => 
+        (emp.emp_id && String(emp.emp_id).toLowerCase() === val) || 
+        (emp.id && String(emp.id).toLowerCase() === val) ||
+        (emp.db_id && String(emp.db_id).toLowerCase() === val)
+      );
+
+      feedbackBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-red-50', 'text-red-800', 'border-red-200');
+      
+      if (matchedEmployee) {
+        feedbackBox.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
+        feedbackText.textContent = matchedEmployee.name;
+        submitBtn.disabled = false;
+      } else {
+        feedbackBox.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
+        feedbackIcon.innerHTML = `<svg class="h-5 w-5 text-red-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
+        feedbackText.textContent = "No staff found with this ID.";
+        submitBtn.disabled = true;
+      }
+    });
+
+    // --- Form Submission ---
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!matchedEmployee || !monthInput.value || !hoursInput.value) return;
+
+      const newLog = {
+        id: crypto.randomUUID(),
+        staffId: matchedEmployee.emp_id || matchedEmployee.id || userIdInput.value,
+        staffName: matchedEmployee.name,
+        month: monthInput.value,
+        hours: parseFloat(hoursInput.value),
+        timestamp: new Date().toISOString()
+      };
+
+      logs.unshift(newLog); // Add to top of list
+      updateAdminDashboard();
+      
+      // Show Toast
+      toastMsg.textContent = "Monthly hours submitted successfully!";
+      toast.classList.remove('hidden');
+      toast.classList.add('animate-bounce-in');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('animate-bounce-in');
+      }, 3000);
+
+      // Reset
+      userIdInput.value = '';
+      hoursInput.value = '';
+      feedbackBox.classList.add('hidden');
+      matchedEmployee = null;
+      submitBtn.disabled = true;
+    });
+
+    // --- Admin Dashboard Updates ---
+    function formatMonthStr(monthString) {
+      if (!monthString) return '';
+      const [year, month] = monthString.split('-');
+      const date = new Date(year, month - 1);
+      return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+
+    function updateAdminDashboard() {
+      totalSubmissionsEl.textContent = logs.length;
+      exportCsvBtn.disabled = logs.length === 0;
+
+      if (logs.length > 0) {
+        emptyStateRow.style.display = 'none';
+        
+        // Clear existing rows (except empty state)
+        Array.from(logsTableBody.children).forEach(child => {
+          if (child.id !== 'empty-state-row') child.remove();
+        });
+
+        // Add new rows
+        logs.forEach(log => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition-colors";
+          
+          const timeString = new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+          
+          tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex flex-col">
+                <span class="text-sm font-bold text-slate-900">${log.staffName}</span>
+                <span class="text-xs text-slate-500">ID: ${log.staffId}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-medium text-slate-900">${formatMonthStr(log.month)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-bold text-slate-900 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg inline-block">
+                ${log.hours} <span class="text-blue-500 font-normal text-xs">hrs</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden sm:table-cell">
+              ${timeString}
+            </td>
+          `;
+          logsTableBody.appendChild(tr);
+        });
+      }
+    }
+
+    // --- CSV Export ---
+    exportCsvBtn.addEventListener('click', () => {
+      if (logs.length === 0) return;
+      
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Submission Time,Employee Name,User ID,Month Worked,Total Hours\n";
+      
+      logs.forEach(log => {
+        const safeName = `"${log.staffName.replace(/"/g, '""')}"`;
+        const row = `${new Date(log.timestamp).toLocaleString()},${safeName},${log.staffId},${formatMonthStr(log.month)},${log.hours}`;
+        csvContent += row + "\n";
+      });
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `monthly_timesheet_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+  </script>
+</body>
+</html>
+
