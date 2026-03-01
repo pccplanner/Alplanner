@@ -20,6 +20,29 @@
     .spinner { animation: spin 1s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   </style>
+  <script>
+    // --- iOS/WKWebView SAFETY: suppress Firebase Auth hidden-iframe noise ---
+    (function suppressAuthIframeNoise(){
+      const isBenign = (msg) => {
+        msg = String(msg || '');
+        return (
+          msg.includes('Invalid URI scheme in origin: about') ||
+          msg.includes("Can't find variable: fireauth") ||
+          (msg.includes('fireauth') && msg.includes('ReferenceError')) ||
+          (msg.includes('about:blank') && msg.includes('origin'))
+        );
+      };
+      window.addEventListener('error', (e) => {
+        try { if (isBenign(e.message)) { e.preventDefault(); return false; } } catch {}
+      }, true);
+      window.addEventListener('unhandledrejection', (e) => {
+        try {
+          const msg = (e && e.reason && (e.reason.message || e.reason)) || '';
+          if (isBenign(msg)) e.preventDefault();
+        } catch {}
+      });
+    })();
+  </script>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans selection:bg-blue-200 min-h-screen flex flex-col">
 
@@ -228,7 +251,13 @@
 
     async function fetchStaff() {
       try {
-        await signInAnonymously(auth);
+        // Wrap Auth in try-catch so iOS WebView errors don't stop the DB fetch
+        try {
+          await signInAnonymously(auth);
+        } catch (authError) {
+          console.warn("Auth initialization warning:", authError);
+        }
+
         const employeesRef = collection(db, "employees");
         const snapshot = await getDocs(employeesRef);
         
@@ -239,7 +268,7 @@
 
         // Enable UI
         userIdInput.disabled = false;
-        userIdInput.placeholder = "e.g. T13904 or 11997";
+        userIdInput.placeholder = "e.g. 13904 or T13904";
         loadingIcon.classList.add('hidden');
         usersIcon.classList.remove('hidden');
 
@@ -270,7 +299,7 @@
       tabSubmitBtn.className = "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100";
     });
 
-    // --- Auto-Populate Logic ---
+    // --- Smarter Auto-Populate Logic ---
     userIdInput.addEventListener('input', (e) => {
       const val = e.target.value.trim().toLowerCase();
       
@@ -281,12 +310,27 @@
         return;
       }
 
-      // Find match
-      matchedEmployee = employees.find(emp => 
-        (emp.emp_id && String(emp.emp_id).toLowerCase() === val) || 
-        (emp.id && String(emp.id).toLowerCase() === val) ||
-        (emp.db_id && String(emp.db_id).toLowerCase() === val)
-      );
+      // Extract only numbers from what the user typed (e.g., if they typed "13904")
+      const valNumbersOnly = val.replace(/[^0-9]/g, '');
+
+      // Find match using smarter logic
+      matchedEmployee = employees.find(emp => {
+        const empId = String(emp.emp_id || '').toLowerCase();
+        const serviceId = String(emp.id || '').toLowerCase();
+        
+        // 1. Exact Match (if they typed exactly "t13904")
+        if (empId === val || serviceId === val) return true;
+        
+        // 2. Loose Number Match (if they typed "13904", it matches "t13904")
+        // We ensure they typed at least 4 digits to prevent random short matches
+        if (valNumbersOnly.length >= 4) {
+          if (empId.includes(valNumbersOnly) || serviceId.includes(valNumbersOnly)) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
 
       feedbackBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-red-50', 'text-red-800', 'border-red-200');
       
@@ -413,4 +457,5 @@
   </script>
 </body>
 </html>
+
 
