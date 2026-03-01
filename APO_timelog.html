@@ -154,7 +154,7 @@
         </button>
       </div>
 
-      <!-- Stats Cards (Simplified to Total Submissions only) -->
+      <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 md:col-start-1">
           <div class="p-3 bg-amber-100 text-amber-600 rounded-lg">
@@ -224,7 +224,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase Configuration ---
     const firebaseConfig = {
@@ -242,7 +242,7 @@
 
     // --- State Variables ---
     let employees = [];
-    let logs = [];
+    let logs = []; // Now pulls from Firebase
     let matchedEmployee = null;
     let logToDeleteId = null;
 
@@ -290,6 +290,7 @@
           console.warn("Auth initialization warning:", authError);
         }
 
+        // 1. Fetch Staff List for Autocomplete
         const employeesRef = collection(db, "employees");
         const snapshot = await getDocs(employeesRef);
         
@@ -297,8 +298,6 @@
           db_id: doc.id,
           ...doc.data()
         }));
-
-        // Sort alphabetically
         employees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         // Enable UI
@@ -307,10 +306,31 @@
         loadingIcon.classList.add('hidden');
         usersIcon.classList.remove('hidden');
 
+        // 2. Attach Real-Time Listener for Submitted Logs
+        setupLogsListener();
+
       } catch (error) {
         console.error("Firebase Error:", error);
         userIdInput.placeholder = "Error loading database";
       }
+    }
+
+    // Listens to the `time_logs` collection securely
+    function setupLogsListener() {
+      const logsRef = collection(db, "time_logs");
+      onSnapshot(logsRef, (snapshot) => {
+        logs = snapshot.docs.map(doc => ({
+          id: doc.id, // The Firestore Document ID (needed for deleting)
+          ...doc.data()
+        }));
+        
+        // Sort newest submissions to the top
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        updateAdminDashboard();
+      }, (error) => {
+        console.error("Error fetching logs from database:", error);
+      });
     }
 
     fetchStaff();
@@ -420,13 +440,16 @@
       userIdInput.focus();
     });
 
-    // --- Form Submission ---
-    form.addEventListener('submit', (e) => {
+    // --- SAVE TO FIREBASE ---
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!matchedEmployee || !monthInput.value || !hoursInput.value) return;
 
+      // Lock button while saving
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...`;
+
       const newLog = {
-        id: crypto.randomUUID(),
         staffId: matchedEmployee.emp_id || matchedEmployee.id || userIdInput.value,
         staffName: matchedEmployee.name,
         month: monthInput.value,
@@ -434,41 +457,58 @@
         timestamp: new Date().toISOString()
       };
 
-      logs.unshift(newLog);
-      updateAdminDashboard();
-      
-      toastMsg.textContent = "Monthly hours submitted successfully!";
-      toast.classList.remove('hidden');
-      toast.classList.add('animate-bounce-in');
-      setTimeout(() => {
-        toast.classList.add('hidden');
-        toast.classList.remove('animate-bounce-in');
-      }, 3000);
+      try {
+        // Send to Firestore
+        await addDoc(collection(db, "time_logs"), newLog);
+        
+        // Success Action
+        toastMsg.textContent = "Monthly hours saved to database!";
+        toast.classList.remove('hidden');
+        toast.classList.add('animate-bounce-in');
+        setTimeout(() => {
+          toast.classList.add('hidden');
+          toast.classList.remove('animate-bounce-in');
+        }, 3000);
 
-      userIdInput.value = '';
-      hoursInput.value = '';
-      feedbackBox.classList.add('hidden');
-      matchedEmployee = null;
-      submitBtn.disabled = true;
+        // Reset the form
+        userIdInput.value = '';
+        hoursInput.value = '';
+        feedbackBox.classList.add('hidden');
+        matchedEmployee = null;
+
+      } catch (error) {
+        console.error("Error adding document: ", error);
+        alert("Failed to submit. Please check your connection.");
+      } finally {
+        submitBtn.innerHTML = "Submit Monthly Hours";
+      }
     });
 
-    // --- Deletion Logic ---
+    // --- DELETE FROM FIREBASE ---
     cancelDeleteBtn.addEventListener('click', () => {
       logToDeleteId = null;
       deleteModal.classList.add('hidden');
     });
 
-    confirmDeleteBtn.addEventListener('click', () => {
+    confirmDeleteBtn.addEventListener('click', async () => {
       if (logToDeleteId) {
-        logs = logs.filter(log => log.id !== logToDeleteId);
-        updateAdminDashboard();
-        
-        logToDeleteId = null;
-        deleteModal.classList.add('hidden');
-        
-        toastMsg.textContent = "Entry deleted.";
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
+        confirmDeleteBtn.textContent = "Deleting...";
+        try {
+          // Delete from Firestore. Our onSnapshot listener will automatically update the UI!
+          await deleteDoc(doc(db, "time_logs", logToDeleteId));
+          
+          logToDeleteId = null;
+          deleteModal.classList.add('hidden');
+          
+          toastMsg.textContent = "Entry permanently deleted.";
+          toast.classList.remove('hidden');
+          setTimeout(() => toast.classList.add('hidden'), 3000);
+        } catch(error) {
+          console.error("Error deleting document: ", error);
+          alert("Failed to delete. Please check your connection.");
+        } finally {
+          confirmDeleteBtn.textContent = "Delete";
+        }
       }
     });
 
@@ -523,7 +563,7 @@
           
           // Attach delete listener to the button we just created
           tr.querySelector('.delete-btn').addEventListener('click', () => {
-            logToDeleteId = log.id;
+            logToDeleteId = log.id; // Using the Firestore Document ID
             deleteModal.classList.remove('hidden');
           });
 
