@@ -850,11 +850,50 @@
                      
                      <div className="p-4 border rounded-lg bg-yellow-50 shadow-inner flex flex-col sm:flex-row justify-between items-center">
                         <div className="radio-group flex gap-2">
-                            <input type="radio" id="mode-auto" checked={rosterMode === ROSTER_MODES.AUTO_SEQUENCE} onChange={() => setRosterMode(ROSTER_MODES.AUTO_SEQUENCE)} className="hidden" />
-                            <label htmlFor="mode-auto" className="cursor-pointer border border-blue-300 rounded py-2 px-3 text-sm font-bold bg-white text-blue-800">Auto-Sequence</label>
-                            
-                            <input type="radio" id="mode-manual" checked={rosterMode === ROSTER_MODES.MANUAL_LOCATION_FIXED} onChange={() => setRosterMode(ROSTER_MODES.MANUAL_LOCATION_FIXED)} className="hidden" />
-                            <label htmlFor="mode-manual" className="cursor-pointer border border-blue-300 rounded py-2 px-3 text-sm font-bold bg-white text-blue-800">Manual Fixed</label>
+                            {/* Radio inputs remain hidden for accessibility; labels act as buttons */}
+                            <input
+                                type="radio"
+                                id="mode-auto"
+                                checked={rosterMode === ROSTER_MODES.AUTO_SEQUENCE}
+                                onChange={() => setRosterMode(ROSTER_MODES.AUTO_SEQUENCE)}
+                                className="hidden"
+                            />
+                            <label
+                                htmlFor="mode-auto"
+                                onClick={() => {
+                                    setRosterMode(ROSTER_MODES.AUTO_SEQUENCE);
+                                    setStatus('unsaved');
+                                }}
+                                className={`cursor-pointer border border-blue-300 rounded py-2 px-3 text-sm font-bold transition-colors ${
+                                    rosterMode === ROSTER_MODES.AUTO_SEQUENCE
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-blue-800'
+                                }`}
+                            >
+                                Auto-Sequence
+                            </label>
+
+                            <input
+                                type="radio"
+                                id="mode-manual"
+                                checked={rosterMode === ROSTER_MODES.MANUAL_LOCATION_FIXED}
+                                onChange={() => setRosterMode(ROSTER_MODES.MANUAL_LOCATION_FIXED)}
+                                className="hidden"
+                            />
+                            <label
+                                htmlFor="mode-manual"
+                                onClick={() => {
+                                    setRosterMode(ROSTER_MODES.MANUAL_LOCATION_FIXED);
+                                    setStatus('unsaved');
+                                }}
+                                className={`cursor-pointer border border-blue-300 rounded py-2 px-3 text-sm font-bold transition-colors ${
+                                    rosterMode === ROSTER_MODES.MANUAL_LOCATION_FIXED
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-blue-800'
+                                }`}
+                            >
+                                Manual Fixed
+                            </label>
                         </div>
                         <button onClick={() => setIsModalOpen(true)} className="mt-2 sm:mt-0 py-2 px-4 bg-white border border-gray-300 rounded shadow-sm text-sm font-bold text-gray-800 flex items-center gap-2 hover:bg-gray-100">
                             <span className="text-blue-600">Filter:</span> {filterName}
@@ -1035,13 +1074,147 @@
             return keys;
         }, [rosterData, prevDay1Roster, prevDay2Roster, showB2BConflicts, FOYER_POSITIONS, SENTRY_POSITIONS]);
 
+        /*
+         * Compute the set of staff IDs assigned at the first time slot (08:00 or 20:00) across
+         * all positions in the roster grid. When editing the matrix manually, any ID placed
+         * in this first slot should not appear in the dropdown for subsequent selections.
+         */
+        const firstHourAssignedIds = useMemo(() => {
+            const set = new Set();
+            if (rosterData) {
+                Object.values(rosterData).forEach(row => {
+                    if (Array.isArray(row) && row[0]) {
+                        const cell = row[0];
+                        // Consider permanent first, then fallback to value or buffer
+                        if (cell.permanent && cell.permanent !== UNFILLED_SLOT && cell.permanent !== '') {
+                            set.add(cell.permanent);
+                        } else if (cell.value && cell.value !== UNFILLED_SLOT && cell.value !== '') {
+                            set.add(cell.value);
+                        }
+                        // If a pair cell exists at first hour, buffer staff should also be excluded
+                        if (cell.isPair && cell.buffer && cell.buffer !== UNFILLED_SLOT && cell.buffer !== '') {
+                            set.add(cell.buffer);
+                        }
+                    }
+                });
+            }
+            return set;
+        }, [rosterData]);
+
         const handleGenerateRoster = async (isReset = false) => {
-            setIsGenerating(true); setError(null);
-            if (!db || !dailyAssignments) { setIsGenerating(false); return; }
+            setIsGenerating(true);
+            setError(null);
+            // Guard against missing dependencies
+            if (!db || !dailyAssignments) {
+                setIsGenerating(false);
+                return;
+            }
 
             try {
-                const { sequenceMap, locationBufferMap = {}, rosterMode = ROSTER_MODES.AUTO_SEQUENCE } = dailyAssignments;
+                /*
+                 * Pull the assignment-related objects off of dailyAssignments.  Do not
+                 * destructure sequenceMap directly into a const because we want to
+                 * create a modifiable local copy that can be adjusted based on
+                 * manual matrix edits.  locationBufferMap and rosterMode are still
+                 * destructured here for convenience.
+                 */
+                const { locationBufferMap = {}, rosterMode = ROSTER_MODES.AUTO_SEQUENCE } = dailyAssignments;
+                let sequenceMap = dailyAssignments.sequenceMap || {};
+                // When regenerating from an existing roster, preserve current rosterData if not resetting.
                 const newRosterGrid = (rosterData && !isReset) ? { ...rosterData } : {};
+
+                // Clone the original sequenceMap deeply.  Each key points to an array of IDs.  If a key
+                // holds a single string ID, wrap it in an array for consistency.  This clone
+                // prevents accidental mutation of Firestore-sourced state while still allowing
+                // local modifications.
+                const effectiveSequenceMap = {};
+                Object.keys(sequenceMap).forEach(key => {
+                    const val = sequenceMap[key];
+                    if (Array.isArray(val)) {
+                        effectiveSequenceMap[key] = [...val];
+                    } else if (val) {
+                        effectiveSequenceMap[key] = [val];
+                    } else {
+                        effectiveSequenceMap[key] = [];
+                    }
+                });
+
+                /*
+                 * Matrix Edit Override
+                 *
+                 * When the user is in Matrix Edit mode they can manually assign an ID to the
+                 * first hour of a position (08:00 or 20:00).  These manual assignments
+                 * should override the automatic sequence starting point.  To accomplish
+                 * this we inspect the rosterData for non-automated cells at index 0 and
+                 * map those IDs back into the effectiveSequenceMap.  The algorithm:
+                 *  1. Identify each manual first-hour assignment and determine the
+                 *     corresponding sequence key.
+                 *  2. Remove the assigned ID from all other sequenceMap entries to
+                 *     prevent duplicate assignments.
+                 *  3. Prepend the manual ID to the beginning of its sequence key list.
+                 */
+                if (isMatrixEditMode && rosterData) {
+                    const manualOverrides = [];
+                    const firstHourIndex = 0;
+                    for (const pos in rosterData) {
+                        const row = rosterData[pos];
+                        if (!row || row.length <= firstHourIndex) continue;
+                        const cell = row[firstHourIndex];
+                        // Only consider manually edited cells with a non-empty value
+                        if (cell && !cell.isAutomated && cell.value && cell.value !== UNFILLED_SLOT) {
+                            const manualId = cell.value;
+                            let sequenceKey = null;
+                            // Determine the assignment key based on the position and shift
+                            if (SECURITY_POSITIONS.includes(pos)) {
+                                sequenceKey = pos;
+                            } else if (FOYER_POSITIONS.includes(pos)) {
+                                if (currentShift === 'DAY') {
+                                    const seqList = FOYER_SEQUENCES_DAY[pos];
+                                    if (seqList) sequenceKey = seqList[0];
+                                } else {
+                                    // Night shift foyer positions map directly to their keys
+                                    sequenceKey = pos;
+                                }
+                            } else if (SENTRY_POSITIONS.includes(pos) && !pos.includes('PROWLER')) {
+                                if (currentShift === 'DAY') {
+                                    // Day shift first-hour assignments correspond directly to the position name
+                                    if (pos === 'E1') sequenceKey = 'E1';
+                                    else if (pos === 'GUARD HOUSE') sequenceKey = 'GUARD HOUSE';
+                                    else if (pos === 'E3') sequenceKey = 'E3';
+                                    else if (pos === 'PATROL 1') sequenceKey = 'PATROL 1';
+                                    else if (pos === 'E2') sequenceKey = 'E2';
+                                    else if (pos === 'PATROL 2') sequenceKey = 'PATROL 2';
+                                    // OE/ STANDBY has no first-hour assignment; skip
+                                } else {
+                                    // Night shift uses letter sequences; first element corresponds to the first hour
+                                    const seqList = SENTRY_SEQUENCES_NIGHT[pos];
+                                    if (seqList) sequenceKey = seqList[0];
+                                }
+                            }
+                            if (sequenceKey && sequenceKey !== '') {
+                                manualOverrides.push({ sequenceKey, manualId });
+                            }
+                        }
+                    }
+                    // Remove the manual IDs from all sequence lists to avoid duplicate scheduling
+                    manualOverrides.forEach(({ manualId }) => {
+                        Object.keys(effectiveSequenceMap).forEach(k => {
+                            if (effectiveSequenceMap[k]) {
+                                effectiveSequenceMap[k] = effectiveSequenceMap[k].filter(id => id !== manualId);
+                            }
+                        });
+                    });
+                    // Apply manual overrides by prepending the ID to its sequence list
+                    manualOverrides.forEach(({ sequenceKey, manualId }) => {
+                        if (!effectiveSequenceMap[sequenceKey]) {
+                            effectiveSequenceMap[sequenceKey] = [];
+                        }
+                        effectiveSequenceMap[sequenceKey] = [manualId, ...effectiveSequenceMap[sequenceKey]];
+                    });
+                }
+
+                // Redirect all lookups to the effectiveSequenceMap going forward
+                sequenceMap = effectiveSequenceMap;
 
                 // Select Rotation Logic based on Shift
                 const rotationLogic = currentShift === 'DAY' ? {} : SENTRY_SEQUENCES_NIGHT;
@@ -1223,6 +1396,7 @@
                     newRosterGrid[pos] = Array(TIME_SLOTS.length).fill({ value: perm!==UNFILLED_SLOT?perm:(buff||UNFILLED_SLOT), permanent: perm, buffer: buff, isPair: !!(perm!==UNFILLED_SLOT && buff), isAutomated: true });
                 });
 
+
                 const finalData = sanitizeForFirestore(newRosterGrid);
                 await setDoc(getDocRef(DAILY_ROSTER_COLLECTION, selectedDate, currentShift), { rosterGrid: finalData });
                 setIsGenerating(false); setIsDirty(false);
@@ -1365,15 +1539,23 @@
                                         <td key={idx} className="p-0">
                                             <select value={cell.value||""} onChange={(e)=>handleCellChange(pos, idx, e.target.value)} onClick={()=>setHighlightedId(cell.value)} className={cellClass}>
                                                 <option value="">--</option>
-                                                {scheduledStaff.map((s) => {
-                                                    // Determine if this staff ID is already assigned elsewhere in the roster
-                                                    const status = assignedIdSet.has(s.id) ? 'Selected' : 'Available';
-                                                    return (
-                                                        <option key={s.id} value={s.id}>
-                                                            {`${s.id} - ${s.name} (${status})`}
-                                                        </option>
-                                                    );
-                                                })}
+                                                {scheduledStaff
+                                                    .filter((s) => {
+                                                        // Do not show IDs that are already placed at the first hour in any position,
+                                                        // unless this cell currently contains that ID (to allow keeping the selection).
+                                                        if (!firstHourAssignedIds.has(s.id)) return true;
+                                                        const currentId = cell.value || cell.permanent || '';
+                                                        return s.id === currentId;
+                                                    })
+                                                    .map((s) => {
+                                                        // Determine if this staff ID is already assigned elsewhere in the roster
+                                                        const status = assignedIdSet.has(s.id) ? 'Selected' : 'Available';
+                                                        return (
+                                                            <option key={s.id} value={s.id}>
+                                                                {`${s.id} - ${s.name} (${status})`}
+                                                            </option>
+                                                        );
+                                                    })}
                                             </select>
                                         </td>
                                     );
