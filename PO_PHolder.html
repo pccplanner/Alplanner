@@ -8,8 +8,6 @@
     <style>
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        .staff-checkbox:checked + div { border-color: #2563eb; background-color: #eff6ff; }
-        .staff-checkbox:checked + div svg { opacity: 1; }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-6 font-sans">
@@ -42,10 +40,6 @@
                         Save to Database
                     </button>
                 </div>
-                <!-- Warning Text for Errors -->
-                <div id="cloud-error-hint" class="text-[10px] text-red-500 hidden font-semibold">
-                    Fix rules in Firebase Console
-                </div>
             </div>
         </div>
 
@@ -75,11 +69,11 @@
                 <!-- Add New Staff -->
                 <div class="flex gap-2 mb-6 max-w-md">
                     <input type="text" id="new-staff-id" placeholder="Enter new Staff ID/Name" class="flex-1 border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" onkeypress="if(event.key === 'Enter') window.addNewStaff()">
-                    <button onclick="window.addNewStaff()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-bold transition-colors">Add to List</button>
+                    <button onclick="window.addNewStaff()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-bold transition-colors whitespace-nowrap">Add to List</button>
                 </div>
 
                 <!-- Staff Grid -->
-                <div id="staff-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <div id="staff-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     <!-- Checkboxes injected by JS -->
                 </div>
 
@@ -158,38 +152,24 @@
         
         let isDbReady = false;
 
-        function updateCloudStatus(message, colorClass, showHint = false) {
+        function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
-            const hintEl = document.getElementById('cloud-error-hint');
-            
             statusEl.className = `text-xs font-bold flex items-center gap-1 ${colorClass}`;
             statusEl.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
                 ${message}
             `;
-
-            if (showHint) {
-                hintEl.classList.remove('hidden');
-            } else {
-                hintEl.classList.add('hidden');
-            }
         }
 
         // Catch protocol errors immediately (e.g., file:// or about:blank)
         if (window.location.protocol === 'file:' || window.location.protocol === 'about:') {
-             updateCloudStatus("Warning: Cannot connect from Local File", "text-orange-500");
-             document.getElementById('cloud-error-hint').innerText = "Must be hosted on a web server (http/https)";
-             document.getElementById('cloud-error-hint').classList.remove('hidden');
+             updateCloudStatus("Warning: Local Sandbox Mode", "text-orange-500");
         }
 
         // Firebase Auth & Real-time Sync
         signInAnonymously(auth).catch((error) => {
             console.error("Firebase Auth Error:", error);
-            if (error.code === 'auth/admin-restricted-operation') {
-                updateCloudStatus("Auth Error (Enable Anonymous Sign-in)", "text-red-500", true);
-            } else {
-                updateCloudStatus("Authentication Failed", "text-red-500");
-            }
+            updateCloudStatus("Auth Failed", "text-red-500");
         });
 
         onAuthStateChanged(auth, (user) => {
@@ -215,19 +195,13 @@
                 updateCloudStatus("Synced with Cloud", "text-green-600");
             }, (error) => {
                 console.error("Firestore Listen Error:", error);
-                if (error.code === 'permission-denied') {
-                    updateCloudStatus("Permission Denied", "text-red-500", true);
-                } else {
-                    updateCloudStatus("Connection Error", "text-red-500");
-                }
+                updateCloudStatus("Sync Error", "text-red-500");
             });
         }
 
+        // Universal Save Trigger (Now fires automatically on any mutation)
         window.saveToDatabase = async function() {
-            if (!isDbReady) {
-                alert("Database is not connected. Please check configuration.");
-                return;
-            }
+            if (!isDbReady) return;
             updateCloudStatus("Saving...", "text-blue-500");
             try {
                 const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
@@ -236,14 +210,10 @@
                     assignments: assignments,
                     lastUpdated: new Date().toISOString()
                 });
-                updateCloudStatus("Saved Successfully!", "text-green-600");
+                updateCloudStatus("Synced with Cloud", "text-green-600");
             } catch (error) {
                 console.error("Save Error:", error);
-                if (error.code === 'permission-denied') {
-                    updateCloudStatus("Permission Denied", "text-red-500", true);
-                } else {
-                    updateCloudStatus("Failed to Save", "text-red-500");
-                }
+                updateCloudStatus("Failed to Save", "text-red-500");
             }
         };
 
@@ -281,6 +251,7 @@
             const staff = masterStaffList.find(s => s.id === id);
             if (staff) staff.present = !staff.present;
             renderAttendance();
+            window.saveToDatabase(); // Auto-save
         };
 
         window.addNewStaff = function() {
@@ -290,7 +261,25 @@
                 masterStaffList.push({ id: val, present: true });
                 input.value = '';
                 renderAttendance();
+                window.saveToDatabase(); // Auto-save
             }
+        };
+
+        window.deleteStaff = function(id, event) {
+            if (event) event.stopPropagation(); // Prevents checkbox from toggling
+            masterStaffList = masterStaffList.filter(s => s.id !== id);
+            
+            // Clean up roster slot if they were assigned
+            Object.keys(assignments).forEach(pattern => {
+                if (assignments[pattern] === id) {
+                    assignments[pattern] = "VACANT";
+                }
+            });
+
+            renderAttendance();
+            renderControls();
+            renderTables();
+            window.saveToDatabase(); // Auto-save
         };
 
         window.applyAttendanceToRoster = function() {
@@ -305,6 +294,7 @@
             });
 
             window.switchTab('roster'); 
+            window.saveToDatabase(); // Auto-save
         };
 
         window.handleShuffle = function() {
@@ -317,11 +307,13 @@
             assignments = newAssignments;
             renderControls();
             renderTables();
+            window.saveToDatabase(); // Auto-save
         };
 
         window.updateAssignment = function(pattern, value) {
              assignments[pattern] = value;
              renderTables(); 
+             window.saveToDatabase(); // Auto-save
         };
 
         // --- Render Functions ---
@@ -342,14 +334,19 @@
 
             let html = '';
             masterStaffList.forEach(staff => {
+                const isPresent = staff.present;
+                // Modern UI structure containing checkbox + separate delete button
                 html += `
-                    <label class="cursor-pointer relative">
-                        <input type="checkbox" class="staff-checkbox sr-only" ${staff.present ? 'checked' : ''} onchange="window.toggleStaff('${staff.id}')">
-                        <div class="border-2 border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors flex items-center justify-between">
-                            <span class="font-bold text-gray-800 text-sm truncate pr-2" title="${staff.id}">${staff.id}</span>
-                            <svg class="w-5 h-5 text-blue-600 opacity-0 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                        </div>
-                    </label>
+                    <div class="relative flex items-stretch border-2 rounded-lg transition-colors ${isPresent ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}">
+                        <label class="cursor-pointer flex-1 flex items-center justify-between p-2 md:p-3 overflow-hidden" title="Toggle Attendance">
+                            <input type="checkbox" class="sr-only" ${isPresent ? 'checked' : ''} onchange="window.toggleStaff('${staff.id}')">
+                            <span class="font-bold text-gray-800 text-xs md:text-sm truncate pr-2">${staff.id}</span>
+                            <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ? 'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </label>
+                        <button onclick="window.deleteStaff('${staff.id}', event)" class="px-2 md:px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-transparent hover:border-red-100 rounded-r-lg flex items-center justify-center" title="Remove Staff">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
                 `;
             });
             container.innerHTML = html;
