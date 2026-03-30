@@ -66,18 +66,24 @@
             <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-md mb-6">
                 
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b pb-4">
-                    <div>
+                    <div class="flex-1">
                         <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">Daily Attendance</h2>
-                        <p class="text-sm text-gray-500 mt-1">Select available staff. The system needs exactly 8 staff members to fill the roster.</p>
+                        <p id="attendance-desc" class="text-sm text-gray-500 mt-1">Select available staff. The system needs exactly 8 staff members to fill the roster.</p>
                     </div>
                     
-                    <div class="flex items-center gap-4 w-full md:w-auto">
-                        <div id="selection-counter" class="text-sm font-bold px-4 py-2 rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                        <!-- Roster Size Selector -->
+                        <div class="flex bg-gray-200 rounded-lg p-1 w-full md:w-auto shadow-inner">
+                            <button onclick="window.setRosterSize(7)" id="btn-size-7" class="flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900">7 Staff Mode</button>
+                            <button onclick="window.setRosterSize(8)" id="btn-size-8" class="flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 bg-white shadow-sm text-blue-600">8 Staff Mode</button>
+                        </div>
+
+                        <div id="selection-counter" class="text-sm font-bold px-4 py-2 rounded-full bg-blue-100 text-blue-800 whitespace-nowrap self-center">
                             Selected: 0 / 8
                         </div>
                         <button 
                             onclick="window.applyAttendanceToRoster()"
-                            class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-md font-bold transition-colors shadow-sm whitespace-nowrap"
+                            class="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-md font-bold transition-colors shadow-sm whitespace-nowrap"
                         >
                             Populate Roster ➔
                         </button>
@@ -154,22 +160,89 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Core App Data
-        const placeholders = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
+        // Core App Data Config
+        let rosterSize = 8;
+        const placeholders8 = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
+        const placeholders7 = ['6399', '8598', '8663', '8831', '7481', '5582', '4511']; 
+
         let masterStaffList = [
             { id: '7481', present: true }, { id: '5582', present: true },
             { id: '6399', present: true }, { id: '4511', present: true },
             { id: '8795', present: true }, { id: '8831', present: true },
             { id: '8656', present: true }, { id: '8663', present: true },
+            { id: '8598', present: false },
             { id: '1001 (Relief)', present: false }, { id: '1002 (Relief)', present: false },
             { id: '1003 (Relief)', present: false }
         ];
 
         let assignments = {};
-        placeholders.forEach(p => assignments[p] = p);
+        // Initialize placeholders for both sizes to prevent any missing mappings
+        placeholders8.forEach(p => assignments[p] = p);
+        placeholders7.forEach(p => assignments[p] = p);
         
         let isDbReady = false;
         let staffToDelete = null; 
+
+        // --- Roster Size Data Sets (8 Man vs 7 Man) ---
+        
+        const timeHeaders = ["TIME(HRS)", "2000 - 2030", "2030-2100", "2100HRS", "2200HRS", "2300HRS", "2400 - 2430", "2430 - 0100", "0100-0130", "0130-0200", "0200HRS", "0300HRS", "0400HRS", "0500-0530", "0530 - 0600", "0600-0630", "0630-0700", "0700HRS"];
+
+        const table1Data_8 = [
+            ["CID/FOYER PASS COUNTER", "7481", "V", "5582", "7481", "5582", "7481", "7481", "8663", "V", "8663", "8831", "8663", "7481", "7481", "5582", "V", "7481"],
+            ["", "4511", "E", "", "6399", "4511", "", "", "8795", "E", "", "6399", "", "", "", "8663", "E", "6399"],
+            ["", "8795", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
+            ["", "", "T", "", "", "6399", "6399", "7481", "", "T", "7481", "4511", "4511", "8656", "8656", "", "T", ""],
+            ["", "", "I", "8663", "8663", "6399", "8831", "8831", "8831", "I", "5582", "5582", "8656", "8795", "8795", "8795", "I", ""],
+            ["KIOSK", "8656", "C", "8831", "5582", "8656", "8795", "8795", "6399", "C", "4511", "7481", "8795", "8663", "8663", "7481", "C", "4511"],
+            ["LOBBY C", "6399", "A", "4511", "8795", "7481", "4511", "4511", "5582", "A", "8795", "8663", "6399", "4511", "4511", "6399", "A", "5582"],
+            ["HHMD", "8831", "L", "8656", "8656/8831", "8831", "8656", "8656", "8656", "L", "8656", "8656", "8831", "8831", "8831", "8656/8831", "L", "8831"],
+            ["GUARD HOUSE", "8663", "", "6399", "4511", "8795", "5582", "5582", "4511", "", "6399", "8795", "7481", "6399", "6399", "4511", "", "8663"],
+            ["VERTICAL PATROL", "******", "7481", "******", "******", "8663", "******", "******", "******", "8831", "******", "******", "5582", "******", "******", "******", "8795", "******"]
+        ];
+
+        const table2Data_8 = [
+            ["REPORT ROOM(BME)", "5582", "5582", "8795", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+            ["CNB COUNTER", "4834/4270", "4834/4270", "4834/4270", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
+        ];
+
+        const table3Data_8 = [
+            [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "8795", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "", colSpan: 1 } ],
+            [ { val: "BREAK TIME", colSpan: 1 }, { val: "0200-0300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0300-0500", colSpan: 2 }, { val: "0000-0130", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "", colSpan: 1 } ],
+            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "4511", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "8795", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "", colSpan: 9 } ],
+            [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2330-0000", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 9 } ]
+        ];
+
+        // 7 Man Configuration Sets
+        const table1Data_7 = [
+            ["CID/FOYER PASS COUNTER", "6399", "V", "8663", "6399", "7481", "5582", "8598", "8663", "V", "8663", "5582", "6399", "4511", "8663", "7481", "V", "5582"],
+            ["", "8598", "E", "", "8831", "", "8598", "", "4511", "E", "", "8598", "", "8663", "", "6399", "E", ""],
+            ["", "", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
+            ["", "", "T", "", "", "", "", "", "", "T", "", "", "", "", "", "", "T", ""],
+            ["", "", "I", "8663", "8831", "", "5582", "5582", "", "I", "6399", "7481", "8598", "", "4511", "4511", "I", ""],
+            ["KIOSK", "8663", "C", "8831", "7481", "5582", "4511", "4511", "6399", "C", "7481", "8663", "4511", "6399", "6399", "5582", "C", "7481"],
+            ["LOBBY C", "7481", "A", "5582", "4511", "6399", "7481", "7481", "8598", "A", "4511", "6399", "5582", "8831", "8831", "8663", "A", "8831"],
+            ["HHMD", "8831", "L", "8598", "8598", "8598", "8831", "8831", "8831", "L", "8831", "8831", "8831", "8598", "8598", "8598", "L", "8598"],
+            ["GUARD HOUSE", "4511", "", "7481", "5582", "4511", "6399", "6399", "7481", "", "8598", "4511", "8663", "5582", "5582", "8831", "", "8663"],
+            ["VERTICAL PATROL", "******", "6399", "******", "******", "8663", "******", "******", "******", "5582", "******", "******", "7481", "******", "******", "******", "4511", "******"]
+        ];
+
+        const table2Data_7 = [
+            ["REPORT ROOM(BME)", "5582", "5582", "4511", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+            ["CNB COUNTER", "4834/4928", "4834/4928", "4834/4928", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
+        ];
+
+        const table3Data_7 = [
+            [ { val: "MANPOWER: 7", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8598", colSpan: 2 }, { val: "", colSpan: 3 } ],
+            [ { val: "BREAK TIME", colSpan: 1 }, { val: "0030-0130", colSpan: 2 }, { val: "0300-0400", colSpan: 2 }, { val: "0200-0300", colSpan: 2 }, { val: "0530-0630", colSpan: 2 }, { val: "2200-2300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0400-0500", colSpan: 2 }, { val: "", colSpan: 3 } ],
+            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "4511", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "8598", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "", colSpan: 10 } ],
+            [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0330-0400", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 10 } ]
+        ];
+
+
+        // Helper to get active placeholders
+        function getPlaceholders() {
+            return rosterSize === 8 ? placeholders8 : placeholders7;
+        }
 
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
@@ -204,7 +277,9 @@
                     const data = docSnap.data();
                     if (data.masterStaffList) masterStaffList = data.masterStaffList;
                     if (data.assignments) assignments = data.assignments;
+                    if (data.rosterSize) rosterSize = data.rosterSize;
                     
+                    updateRosterSizeUI();
                     renderAttendance();
                     renderControls();
                     renderTables();
@@ -224,6 +299,7 @@
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
+                    rosterSize: rosterSize,
                     lastUpdated: new Date().toISOString()
                 });
                 updateCloudStatus("Synced with Cloud", "text-green-600");
@@ -234,6 +310,35 @@
         };
 
         // --- Application Logic (Exposed to window for HTML event handlers) ---
+
+        window.setRosterSize = function(size) {
+            rosterSize = size;
+            updateRosterSizeUI();
+            renderAttendance();
+            renderControls();
+            renderTables();
+            window.saveToDatabase();
+        }
+
+        function updateRosterSizeUI() {
+            const btn7 = document.getElementById('btn-size-7');
+            const btn8 = document.getElementById('btn-size-8');
+            const desc = document.getElementById('attendance-desc');
+            
+            desc.innerText = `Select available staff. The system needs exactly ${rosterSize} staff members to fill the roster.`;
+
+            if (rosterSize === 7) {
+                btn7.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+                btn7.classList.remove('text-gray-600', 'hover:text-gray-900');
+                btn8.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+                btn8.classList.add('text-gray-600', 'hover:text-gray-900');
+            } else {
+                btn8.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+                btn8.classList.remove('text-gray-600', 'hover:text-gray-900');
+                btn7.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+                btn7.classList.add('text-gray-600', 'hover:text-gray-900');
+            }
+        }
 
         window.switchTab = function(tab) {
             const attTab = document.getElementById('tab-attendance');
@@ -314,6 +419,7 @@
 
         window.applyAttendanceToRoster = function() {
             const selectedStaff = masterStaffList.filter(s => s.present);
+            const placeholders = getPlaceholders();
             
             placeholders.forEach((p, index) => {
                 if (selectedStaff[index]) {
@@ -328,13 +434,14 @@
         };
 
         window.handleShuffle = function() {
-            const currentValues = Object.values(assignments);
+            const placeholders = getPlaceholders();
+            const currentValues = placeholders.map(p => assignments[p]);
             const shuffledValues = [...currentValues].sort(() => Math.random() - 0.5);
-            const newAssignments = {};
+            
             placeholders.forEach((p, index) => {
-                newAssignments[p] = shuffledValues[index];
+                assignments[p] = shuffledValues[index];
             });
-            assignments = newAssignments;
+            
             renderControls();
             renderTables();
             window.saveToDatabase();
@@ -353,13 +460,13 @@
             const counter = document.getElementById('selection-counter');
             const selectedCount = masterStaffList.filter(s => s.present).length;
             
-            counter.innerText = `Selected: ${selectedCount} / 8`;
-            if (selectedCount === 8) {
-                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-green-100 text-green-800 whitespace-nowrap";
-            } else if (selectedCount < 8) {
-                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-red-100 text-red-800 whitespace-nowrap";
+            counter.innerText = `Selected: ${selectedCount} / ${rosterSize}`;
+            if (selectedCount === rosterSize) {
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-green-100 text-green-800 whitespace-nowrap self-center";
+            } else if (selectedCount < rosterSize) {
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-red-100 text-red-800 whitespace-nowrap self-center";
             } else {
-                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap";
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap self-center";
             }
 
             let html = '';
@@ -382,9 +489,15 @@
         }
 
         function renderControls() {
+            const placeholders = getPlaceholders();
             const container = document.getElementById('inputs-container');
             let html = '';
-            // Change index to build UI display names "Slot 1" through "Slot 8"
+            
+            // Generate grid with varying sizes dynamically
+            container.className = rosterSize === 7 
+                ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
+                : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3";
+
             placeholders.forEach((p, index) => {
                 const isVacant = assignments[p] === "VACANT";
                 html += `
@@ -392,7 +505,7 @@
                         <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${index + 1}</label>
                         <input
                             type="text"
-                            value="${assignments[p]}"
+                            value="${assignments[p] || p}"
                             oninput="window.updateAssignment('${p}', this.value)"
                             class="w-full border ${isVacant ? 'border-red-300 text-red-600' : 'border-gray-300 text-gray-900'} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                         />
@@ -403,32 +516,13 @@
         }
 
         function renderTables() {
-            const timeHeaders = ["TIME(HRS)", "2000 - 2030", "2030-2100", "2100HRS", "2200HRS", "2300HRS", "2400 - 2430", "2430 - 0100", "0100-0130", "0130-0200", "0200HRS", "0300HRS", "0400HRS", "0500-0530", "0530 - 0600", "0600-0630", "0630-0700", "0700HRS"];
-            const table1Data = [
-                ["CID/FOYER PASS COUNTER", "7481", "V", "5582", "7481", "5582", "7481", "7481", "8663", "V", "8663", "8831", "8663", "7481", "7481", "5582", "V", "7481"],
-                ["", "4511", "E", "", "6399", "4511", "", "", "8795", "E", "", "6399", "", "", "", "8663", "E", "6399"],
-                ["", "8795", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
-                ["", "", "T", "", "", "6399", "6399", "7481", "", "T", "7481", "4511", "4511", "8656", "8656", "", "T", ""],
-                ["", "", "I", "8663", "8663", "6399", "8831", "8831", "8831", "I", "5582", "5582", "8656", "8795", "8795", "8795", "I", ""],
-                ["KIOSK", "8656", "C", "8831", "5582", "8656", "8795", "8795", "6399", "C", "4511", "7481", "8795", "8663", "8663", "7481", "C", "4511"],
-                ["LOBBY C", "6399", "A", "4511", "8795", "7481", "4511", "4511", "5582", "A", "8795", "8663", "6399", "4511", "4511", "6399", "A", "5582"],
-                ["HHMD", "8831", "L", "8656", "8656/8831", "8831", "8656", "8656", "8656", "L", "8656", "8656", "8831", "8831", "8831", "8656/8831", "L", "8831"],
-                ["GUARD HOUSE", "8663", "", "6399", "4511", "8795", "5582", "5582", "4511", "", "6399", "8795", "7481", "6399", "6399", "4511", "", "8663"],
-                ["VERTICAL PATROL", "******", "7481", "******", "******", "8663", "******", "******", "******", "8831", "******", "******", "5582", "******", "******", "******", "8795", "******"]
-            ];
-            const table2Data = [
-                ["REPORT ROOM(BME)", "5582", "5582", "8795", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
-                ["CNB COUNTER", "4834/4270", "4834/4270", "4834/4270", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
-            ];
-            const table3Data = [
-                [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "8795", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "", colSpan: 1 } ],
-                [ { val: "BREAK TIME", colSpan: 1 }, { val: "0200-0300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0300-0500", colSpan: 2 }, { val: "0000-0130", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "", colSpan: 1 } ],
-                [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "4511", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "8795", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "", colSpan: 9 } ],
-                [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2330-0000", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 9 } ]
-            ];
+            const table1Data = rosterSize === 8 ? table1Data_8 : table1Data_7;
+            const table2Data = rosterSize === 8 ? table2Data_8 : table2Data_7;
+            const table3Data = rosterSize === 8 ? table3Data_8 : table3Data_7;
 
             const applyMapping = (val) => {
                 if (!val) return val;
+                // Applies to multi-staff roles via splits e.g. "8656/8831"
                 return String(val).split('/').map(v => assignments[v] || v).join('/');
             }
 
@@ -521,6 +615,7 @@
         }
 
         // Initialize App UI Locally while waiting for Firebase
+        updateRosterSizeUI();
         window.switchTab('roster'); 
         renderAttendance();  
     </script>
