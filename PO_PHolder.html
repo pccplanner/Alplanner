@@ -169,7 +169,7 @@
         placeholders.forEach(p => assignments[p] = p);
         
         let isDbReady = false;
-        let staffToDelete = null; // State for deletion confirmation
+        let staffToDelete = null; 
 
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
@@ -184,7 +184,6 @@
              updateCloudStatus("Warning: Local Sandbox Mode", "text-orange-500");
         }
 
-        // Firebase Auth & Real-time Sync
         signInAnonymously(auth).catch((error) => {
             console.error("Firebase Auth Error:", error);
             updateCloudStatus("Auth Failed", "text-red-500");
@@ -217,7 +216,6 @@
             });
         }
 
-        // Universal Auto-Save
         window.saveToDatabase = async function() {
             if (!isDbReady) return;
             updateCloudStatus("Saving...", "text-blue-500");
@@ -283,9 +281,8 @@
             }
         };
 
-        // Modal Logic
         window.promptDeleteStaff = function(id, event) {
-            if (event) event.stopPropagation(); // Prevents checkbox from toggling
+            if (event) event.stopPropagation(); 
             staffToDelete = id;
             document.getElementById('delete-modal-staff-id').innerText = id;
             document.getElementById('delete-confirmation-modal').classList.remove('hidden');
@@ -298,10 +295,8 @@
 
         window.confirmDelete = function() {
             if (!staffToDelete) return;
-
             masterStaffList = masterStaffList.filter(s => s.id !== staffToDelete);
             
-            // Clean up roster slot if they were assigned
             Object.keys(assignments).forEach(pattern => {
                 if (assignments[pattern] === staffToDelete) {
                     assignments[pattern] = "VACANT";
@@ -389,11 +384,12 @@
         function renderControls() {
             const container = document.getElementById('inputs-container');
             let html = '';
-            placeholders.forEach(p => {
+            // Change index to build UI display names "Slot 1" through "Slot 8"
+            placeholders.forEach((p, index) => {
                 const isVacant = assignments[p] === "VACANT";
                 html += `
                     <div class="flex flex-col bg-gray-50 p-2 rounded border ${isVacant ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
-                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${p}</label>
+                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${index + 1}</label>
                         <input
                             type="text"
                             value="${assignments[p]}"
