@@ -8,9 +8,27 @@
     <style>
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* Modal Animation */
+        .modal-enter { animation: modalIn 0.2s ease-out forwards; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-6 font-sans">
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirmation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full modal-enter border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Confirm Deletion
+            </h3>
+            <p class="text-gray-600 mb-6">Are you sure you want to remove <span id="delete-modal-staff-id" class="font-bold text-gray-900"></span> from the master list? They will also be removed from any assigned roster slots.</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="window.cancelDelete()" class="px-4 py-2 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
+                <button onclick="window.confirmDelete()" class="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm">Delete</button>
+            </div>
+        </div>
+    </div>
 
     <div class="max-w-[1400px] mx-auto">
         
@@ -151,6 +169,7 @@
         placeholders.forEach(p => assignments[p] = p);
         
         let isDbReady = false;
+        let staffToDelete = null; // State for deletion confirmation
 
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
@@ -161,7 +180,6 @@
             `;
         }
 
-        // Catch protocol errors immediately (e.g., file:// or about:blank)
         if (window.location.protocol === 'file:' || window.location.protocol === 'about:') {
              updateCloudStatus("Warning: Local Sandbox Mode", "text-orange-500");
         }
@@ -199,7 +217,7 @@
             });
         }
 
-        // Universal Save Trigger (Now fires automatically on any mutation)
+        // Universal Auto-Save
         window.saveToDatabase = async function() {
             if (!isDbReady) return;
             updateCloudStatus("Saving...", "text-blue-500");
@@ -251,7 +269,7 @@
             const staff = masterStaffList.find(s => s.id === id);
             if (staff) staff.present = !staff.present;
             renderAttendance();
-            window.saveToDatabase(); // Auto-save
+            window.saveToDatabase();
         };
 
         window.addNewStaff = function() {
@@ -261,25 +279,42 @@
                 masterStaffList.push({ id: val, present: true });
                 input.value = '';
                 renderAttendance();
-                window.saveToDatabase(); // Auto-save
+                window.saveToDatabase();
             }
         };
 
-        window.deleteStaff = function(id, event) {
+        // Modal Logic
+        window.promptDeleteStaff = function(id, event) {
             if (event) event.stopPropagation(); // Prevents checkbox from toggling
-            masterStaffList = masterStaffList.filter(s => s.id !== id);
+            staffToDelete = id;
+            document.getElementById('delete-modal-staff-id').innerText = id;
+            document.getElementById('delete-confirmation-modal').classList.remove('hidden');
+        };
+
+        window.cancelDelete = function() {
+            staffToDelete = null;
+            document.getElementById('delete-confirmation-modal').classList.add('hidden');
+        };
+
+        window.confirmDelete = function() {
+            if (!staffToDelete) return;
+
+            masterStaffList = masterStaffList.filter(s => s.id !== staffToDelete);
             
             // Clean up roster slot if they were assigned
             Object.keys(assignments).forEach(pattern => {
-                if (assignments[pattern] === id) {
+                if (assignments[pattern] === staffToDelete) {
                     assignments[pattern] = "VACANT";
                 }
             });
 
+            staffToDelete = null;
+            document.getElementById('delete-confirmation-modal').classList.add('hidden');
+
             renderAttendance();
             renderControls();
             renderTables();
-            window.saveToDatabase(); // Auto-save
+            window.saveToDatabase();
         };
 
         window.applyAttendanceToRoster = function() {
@@ -294,7 +329,7 @@
             });
 
             window.switchTab('roster'); 
-            window.saveToDatabase(); // Auto-save
+            window.saveToDatabase();
         };
 
         window.handleShuffle = function() {
@@ -307,13 +342,13 @@
             assignments = newAssignments;
             renderControls();
             renderTables();
-            window.saveToDatabase(); // Auto-save
+            window.saveToDatabase();
         };
 
         window.updateAssignment = function(pattern, value) {
              assignments[pattern] = value;
              renderTables(); 
-             window.saveToDatabase(); // Auto-save
+             window.saveToDatabase();
         };
 
         // --- Render Functions ---
@@ -335,7 +370,6 @@
             let html = '';
             masterStaffList.forEach(staff => {
                 const isPresent = staff.present;
-                // Modern UI structure containing checkbox + separate delete button
                 html += `
                     <div class="relative flex items-stretch border-2 rounded-lg transition-colors ${isPresent ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}">
                         <label class="cursor-pointer flex-1 flex items-center justify-between p-2 md:p-3 overflow-hidden" title="Toggle Attendance">
@@ -343,7 +377,7 @@
                             <span class="font-bold text-gray-800 text-xs md:text-sm truncate pr-2">${staff.id}</span>
                             <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ? 'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         </label>
-                        <button onclick="window.deleteStaff('${staff.id}', event)" class="px-2 md:px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-transparent hover:border-red-100 rounded-r-lg flex items-center justify-center" title="Remove Staff">
+                        <button onclick="window.promptDeleteStaff('${staff.id}', event)" class="px-2 md:px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-transparent hover:border-red-100 rounded-r-lg flex items-center justify-center" title="Remove Staff">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                         </button>
                     </div>
