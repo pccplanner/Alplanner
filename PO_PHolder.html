@@ -11,6 +11,17 @@
         /* Modal Animation */
         .modal-enter { animation: modalIn 0.2s ease-out forwards; }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        /* Remove default date picker styles for cleaner look if preferred, 
+           but native is kept for maximum mobile compatibility */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: 0.2s;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-6 font-sans">
@@ -162,6 +173,16 @@
 
         // Core App Data Config
         let rosterSize = 8;
+        let rosterDate = "";
+        let shiftSupervisor = "";
+        
+        // Initialize Default Date if empty (Today)
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        rosterDate = `${yyyy}-${mm}-${dd}`;
+
         const placeholders8 = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
         const placeholders7 = ['6399', '8598', '8663', '8831', '7481', '5582', '4511']; 
 
@@ -182,6 +203,15 @@
         
         let isDbReady = false;
         let staffToDelete = null; 
+
+        // Utility: Convert YYYY-MM-DD to Day Name
+        function getDayName(dateStr) {
+            if (!dateStr) return "";
+            const [y, m, d] = dateStr.split('-');
+            const localDate = new Date(y, m - 1, d);
+            const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+            return days[localDate.getDay()];
+        }
 
         // --- Roster Size Data Sets (8 Man vs 7 Man) ---
         
@@ -278,6 +308,8 @@
                     if (data.masterStaffList) masterStaffList = data.masterStaffList;
                     if (data.assignments) assignments = data.assignments;
                     if (data.rosterSize) rosterSize = data.rosterSize;
+                    if (data.rosterDate !== undefined) rosterDate = data.rosterDate;
+                    if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
                     
                     updateRosterSizeUI();
                     renderAttendance();
@@ -300,6 +332,8 @@
                     masterStaffList: masterStaffList,
                     assignments: assignments,
                     rosterSize: rosterSize,
+                    rosterDate: rosterDate,
+                    shiftSupervisor: shiftSupervisor,
                     lastUpdated: new Date().toISOString()
                 });
                 updateCloudStatus("Synced with Cloud", "text-green-600");
@@ -319,6 +353,17 @@
             renderTables();
             window.saveToDatabase();
         }
+        
+        window.updateDate = function(val) {
+            rosterDate = val;
+            renderTables();
+            window.saveToDatabase();
+        };
+
+        window.updateSupervisor = function(val) {
+            shiftSupervisor = val;
+            window.saveToDatabase();
+        };
 
         function updateRosterSizeUI() {
             const btn7 = document.getElementById('btn-size-7');
@@ -537,8 +582,36 @@
             let html = '';
 
             // --- TABLE 1: MAIN ROSTER ---
-            html += `<table class="w-full border-collapse border border-gray-400 text-center mb-6 text-xs sm:text-[11px] md:text-xs">`;
-            html += `<thead><tr>`;
+            // Removed outer border to ensure empty space top-right has NO borders.
+            html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs">`;
+            html += `<thead>`;
+
+            // NEW ROW 1: DAY
+            html += `<tr>`;
+            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold w-[200px] uppercase">`;
+            html += `DAY: <span class="ml-1">${getDayName(rosterDate)}</span>`;
+            html += `</th>`;
+            html += `<th colspan="${timeHeaders.length - 1}" class="border-none"></th>`;
+            html += `</tr>`;
+
+            // NEW ROW 2: DATE
+            html += `<tr>`;
+            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold">`;
+            html += `<div class="flex items-center uppercase"><span class="mr-1">DATE:</span> <input type="date" value="${rosterDate}" onchange="window.updateDate(this.value)" class="bg-transparent focus:outline-none flex-1 font-bold cursor-pointer text-gray-800" /></div>`;
+            html += `</th>`;
+            html += `<th colspan="${timeHeaders.length - 1}" class="border-none"></th>`;
+            html += `</tr>`;
+
+            // NEW ROW 3: SUPERVISOR
+            html += `<tr>`;
+            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold">`;
+            html += `<div class="flex items-center"><span class="mr-1 whitespace-nowrap">Shift Supervisor:</span> <input type="text" value="${shiftSupervisor}" onblur="window.updateSupervisor(this.value)" onchange="window.updateSupervisor(this.value)" class="bg-transparent focus:outline-none flex-1 uppercase font-bold text-gray-800" /></div>`;
+            html += `</th>`;
+            html += `<th colspan="${timeHeaders.length - 1}" class="border-none"></th>`;
+            html += `</tr>`;
+
+            // ROW 4: TIME HEADERS
+            html += `<tr>`;
             timeHeaders.forEach(th => {
                 html += `<th class="border border-gray-400 bg-gray-100 p-1.5 whitespace-nowrap font-bold text-gray-800">${th}</th>`;
             });
@@ -557,7 +630,7 @@
                     const rowSpan = (isHeader && rIdx === 0) ? 'rowspan="5"' : '';
                     let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
                     
-                    if (isHeader) classes += `bg-white text-left px-2 text-gray-700 min-w-[160px]`;
+                    if (isHeader) classes += `bg-white text-left px-2 text-gray-700 min-w-[200px]`;
                     else if (isVacant) classes += `bg-red-100 text-red-700`;
                     else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
                     else classes += `bg-white text-gray-900`;
@@ -569,7 +642,7 @@
             html += `</tbody></table>`;
 
             // --- TABLE 2: REPORT ROOM & CNB ---
-            html += `<table class="w-full border-collapse border border-gray-400 text-center mb-6 text-xs sm:text-[11px] md:text-xs"><tbody>`;
+            html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs"><tbody>`;
             table2Data.forEach((row, rIdx) => {
                 html += `<tr>`;
                 row.forEach((cell, cIdx) => {
@@ -578,7 +651,7 @@
                     const isGrey = cell === "******";
 
                     let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
-                    if (isHeader) classes += `bg-white text-left px-2 w-[180px] text-gray-700`;
+                    if (isHeader) classes += `bg-white text-left px-2 w-[200px] text-gray-700`;
                     else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
                     else classes += `bg-white text-gray-900`;
 
@@ -601,7 +674,7 @@
 
                     let classes = `p-1.5 font-bold tracking-tight whitespace-nowrap `;
                     classes += noBorder ? `border-transparent ` : `border border-gray-400 `;
-                    if (isHeader) classes += `bg-white text-left px-2 w-[180px] text-gray-700 `;
+                    if (isHeader) classes += `bg-white text-left px-2 w-[200px] text-gray-700 `;
                     else if (isVacant) classes += `bg-red-100 text-red-700 `;
                     else classes += `bg-white text-gray-900 `;
 
