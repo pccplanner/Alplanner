@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Shift Roster & Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .staff-checkbox:checked + div { border-color: #2563eb; background-color: #eff6ff; }
+        .staff-checkbox:checked + div svg { opacity: 1; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-6 font-sans">
+
+    <div class="max-w-[1400px] mx-auto">
+        
+        <!-- Header & Cloud Status -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <!-- Tab Navigation -->
+            <div class="flex border-b border-gray-300 w-full md:w-auto">
+                <button onclick="window.switchTab('attendance')" id="btn-tab-attendance" class="flex-1 md:flex-none flex justify-center items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14h6"></path><path d="M9 10h6"></path><path d="M9 18h6"></path></svg>
+                    Staff Attendance
+                </button>
+                <button onclick="window.switchTab('roster')" id="btn-tab-roster" class="flex-1 md:flex-none flex justify-center items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-blue-600 text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line></svg>
+                    Shift Roster
+                </button>
+            </div>
+
+            <!-- Cloud Save Actions -->
+            <div class="flex flex-col items-end gap-1 w-full md:w-auto">
+                <div class="flex items-center gap-3">
+                    <div id="cloud-status" class="text-xs font-bold text-gray-500 flex items-center gap-1">
+                        <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Connecting...
+                    </div>
+                    <button onclick="window.saveToDatabase()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-bold text-sm transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        Save to Database
+                    </button>
+                </div>
+                <!-- Warning Text for Errors -->
+                <div id="cloud-error-hint" class="text-[10px] text-red-500 hidden font-semibold">
+                    Fix rules in Firebase Console
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== ATTENDANCE TAB ==================== -->
+        <div id="tab-attendance" class="hidden animate-fade-in">
+            <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-md mb-6">
+                
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b pb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">Daily Attendance</h2>
+                        <p class="text-sm text-gray-500 mt-1">Select available staff. The system needs exactly 8 staff members to fill the roster.</p>
+                    </div>
+                    
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div id="selection-counter" class="text-sm font-bold px-4 py-2 rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
+                            Selected: 0 / 8
+                        </div>
+                        <button 
+                            onclick="window.applyAttendanceToRoster()"
+                            class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-md font-bold transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            Populate Roster ➔
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Add New Staff -->
+                <div class="flex gap-2 mb-6 max-w-md">
+                    <input type="text" id="new-staff-id" placeholder="Enter new Staff ID/Name" class="flex-1 border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" onkeypress="if(event.key === 'Enter') window.addNewStaff()">
+                    <button onclick="window.addNewStaff()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-bold transition-colors">Add to List</button>
+                </div>
+
+                <!-- Staff Grid -->
+                <div id="staff-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    <!-- Checkboxes injected by JS -->
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================== ROSTER TAB ==================== -->
+        <div id="tab-roster" class="animate-fade-in">
+            <!-- Assignment Control Panel -->
+            <div class="bg-white p-5 border border-gray-200 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                            Staff Assignment Control
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Current assignments. You can manually override these or shuffle them among the slots.
+                        </p>
+                    </div>
+                    <button 
+                        onclick="window.handleShuffle()"
+                        class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                        Shuffle Assigned Staff
+                    </button>
+                </div>
+                
+                <div id="inputs-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                    <!-- Inputs injected by JS -->
+                </div>
+            </div>
+
+            <!-- Roster Tables -->
+            <div class="bg-white p-4 shadow-xl border border-gray-200 rounded-lg overflow-x-auto">
+                <div id="tables-container" class="min-w-max pb-4">
+                    <!-- Tables injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK configured as a Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+            authDomain: "roster-4a997.firebaseapp.com",
+            projectId: "roster-4a997",
+            storageBucket: "roster-4a997.firebasestorage.app",
+            messagingSenderId: "901381868881",
+            appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Core App Data
+        const placeholders = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
+        let masterStaffList = [
+            { id: '7481', present: true }, { id: '5582', present: true },
+            { id: '6399', present: true }, { id: '4511', present: true },
+            { id: '8795', present: true }, { id: '8831', present: true },
+            { id: '8656', present: true }, { id: '8663', present: true },
+            { id: '1001 (Relief)', present: false }, { id: '1002 (Relief)', present: false },
+            { id: '1003 (Relief)', present: false }
+        ];
+
+        let assignments = {};
+        placeholders.forEach(p => assignments[p] = p);
+        
+        let isDbReady = false;
+
+        function updateCloudStatus(message, colorClass, showHint = false) {
+            const statusEl = document.getElementById('cloud-status');
+            const hintEl = document.getElementById('cloud-error-hint');
+            
+            statusEl.className = `text-xs font-bold flex items-center gap-1 ${colorClass}`;
+            statusEl.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                ${message}
+            `;
+
+            if (showHint) {
+                hintEl.classList.remove('hidden');
+            } else {
+                hintEl.classList.add('hidden');
+            }
+        }
+
+        // Catch protocol errors immediately (e.g., file:// or about:blank)
+        if (window.location.protocol === 'file:' || window.location.protocol === 'about:') {
+             updateCloudStatus("Warning: Cannot connect from Local File", "text-orange-500");
+             document.getElementById('cloud-error-hint').innerText = "Must be hosted on a web server (http/https)";
+             document.getElementById('cloud-error-hint').classList.remove('hidden');
+        }
+
+        // Firebase Auth & Real-time Sync
+        signInAnonymously(auth).catch((error) => {
+            console.error("Firebase Auth Error:", error);
+            if (error.code === 'auth/admin-restricted-operation') {
+                updateCloudStatus("Auth Error (Enable Anonymous Sign-in)", "text-red-500", true);
+            } else {
+                updateCloudStatus("Authentication Failed", "text-red-500");
+            }
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                isDbReady = true;
+                listenToCloudData();
+            }
+        });
+
+        function listenToCloudData() {
+            const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+            
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.masterStaffList) masterStaffList = data.masterStaffList;
+                    if (data.assignments) assignments = data.assignments;
+                    
+                    renderAttendance();
+                    renderControls();
+                    renderTables();
+                }
+                updateCloudStatus("Synced with Cloud", "text-green-600");
+            }, (error) => {
+                console.error("Firestore Listen Error:", error);
+                if (error.code === 'permission-denied') {
+                    updateCloudStatus("Permission Denied", "text-red-500", true);
+                } else {
+                    updateCloudStatus("Connection Error", "text-red-500");
+                }
+            });
+        }
+
+        window.saveToDatabase = async function() {
+            if (!isDbReady) {
+                alert("Database is not connected. Please check configuration.");
+                return;
+            }
+            updateCloudStatus("Saving...", "text-blue-500");
+            try {
+                const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+                await setDoc(docRef, {
+                    masterStaffList: masterStaffList,
+                    assignments: assignments,
+                    lastUpdated: new Date().toISOString()
+                });
+                updateCloudStatus("Saved Successfully!", "text-green-600");
+            } catch (error) {
+                console.error("Save Error:", error);
+                if (error.code === 'permission-denied') {
+                    updateCloudStatus("Permission Denied", "text-red-500", true);
+                } else {
+                    updateCloudStatus("Failed to Save", "text-red-500");
+                }
+            }
+        };
+
+        // --- Application Logic (Exposed to window for HTML event handlers) ---
+
+        window.switchTab = function(tab) {
+            const attTab = document.getElementById('tab-attendance');
+            const rosTab = document.getElementById('tab-roster');
+            const btnAtt = document.getElementById('btn-tab-attendance');
+            const btnRos = document.getElementById('btn-tab-roster');
+
+            if (tab === 'attendance') {
+                attTab.classList.remove('hidden');
+                rosTab.classList.add('hidden');
+                
+                btnAtt.classList.add('border-blue-600', 'text-blue-600');
+                btnAtt.classList.remove('border-transparent', 'text-gray-500');
+                btnRos.classList.remove('border-blue-600', 'text-blue-600');
+                btnRos.classList.add('border-transparent', 'text-gray-500');
+                renderAttendance();
+            } else {
+                attTab.classList.add('hidden');
+                rosTab.classList.remove('hidden');
+                
+                btnRos.classList.add('border-blue-600', 'text-blue-600');
+                btnRos.classList.remove('border-transparent', 'text-gray-500');
+                btnAtt.classList.remove('border-blue-600', 'text-blue-600');
+                btnAtt.classList.add('border-transparent', 'text-gray-500');
+                renderControls();
+                renderTables();
+            }
+        };
+
+        window.toggleStaff = function(id) {
+            const staff = masterStaffList.find(s => s.id === id);
+            if (staff) staff.present = !staff.present;
+            renderAttendance();
+        };
+
+        window.addNewStaff = function() {
+            const input = document.getElementById('new-staff-id');
+            const val = input.value.trim();
+            if (val && !masterStaffList.find(s => s.id === val)) {
+                masterStaffList.push({ id: val, present: true });
+                input.value = '';
+                renderAttendance();
+            }
+        };
+
+        window.applyAttendanceToRoster = function() {
+            const selectedStaff = masterStaffList.filter(s => s.present);
+            
+            placeholders.forEach((p, index) => {
+                if (selectedStaff[index]) {
+                    assignments[p] = selectedStaff[index].id;
+                } else {
+                    assignments[p] = "VACANT"; 
+                }
+            });
+
+            window.switchTab('roster'); 
+        };
+
+        window.handleShuffle = function() {
+            const currentValues = Object.values(assignments);
+            const shuffledValues = [...currentValues].sort(() => Math.random() - 0.5);
+            const newAssignments = {};
+            placeholders.forEach((p, index) => {
+                newAssignments[p] = shuffledValues[index];
+            });
+            assignments = newAssignments;
+            renderControls();
+            renderTables();
+        };
+
+        window.updateAssignment = function(pattern, value) {
+             assignments[pattern] = value;
+             renderTables(); 
+        };
+
+        // --- Render Functions ---
+
+        function renderAttendance() {
+            const container = document.getElementById('staff-grid');
+            const counter = document.getElementById('selection-counter');
+            const selectedCount = masterStaffList.filter(s => s.present).length;
+            
+            counter.innerText = `Selected: ${selectedCount} / 8`;
+            if (selectedCount === 8) {
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-green-100 text-green-800 whitespace-nowrap";
+            } else if (selectedCount < 8) {
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-red-100 text-red-800 whitespace-nowrap";
+            } else {
+                counter.className = "text-sm font-bold px-4 py-2 rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap";
+            }
+
+            let html = '';
+            masterStaffList.forEach(staff => {
+                html += `
+                    <label class="cursor-pointer relative">
+                        <input type="checkbox" class="staff-checkbox sr-only" ${staff.present ? 'checked' : ''} onchange="window.toggleStaff('${staff.id}')">
+                        <div class="border-2 border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors flex items-center justify-between">
+                            <span class="font-bold text-gray-800 text-sm truncate pr-2" title="${staff.id}">${staff.id}</span>
+                            <svg class="w-5 h-5 text-blue-600 opacity-0 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                    </label>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderControls() {
+            const container = document.getElementById('inputs-container');
+            let html = '';
+            placeholders.forEach(p => {
+                const isVacant = assignments[p] === "VACANT";
+                html += `
+                    <div class="flex flex-col bg-gray-50 p-2 rounded border ${isVacant ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
+                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${p}</label>
+                        <input
+                            type="text"
+                            value="${assignments[p]}"
+                            oninput="window.updateAssignment('${p}', this.value)"
+                            class="w-full border ${isVacant ? 'border-red-300 text-red-600' : 'border-gray-300 text-gray-900'} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                        />
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderTables() {
+            const timeHeaders = ["TIME(HRS)", "2000 - 2030", "2030-2100", "2100HRS", "2200HRS", "2300HRS", "2400 - 2430", "2430 - 0100", "0100-0130", "0130-0200", "0200HRS", "0300HRS", "0400HRS", "0500-0530", "0530 - 0600", "0600-0630", "0630-0700", "0700HRS"];
+            const table1Data = [
+                ["CID/FOYER PASS COUNTER", "7481", "V", "5582", "7481", "5582", "7481", "7481", "8663", "V", "8663", "8831", "8663", "7481", "7481", "5582", "V", "7481"],
+                ["", "4511", "E", "", "6399", "4511", "", "", "8795", "E", "", "6399", "", "", "", "8663", "E", "6399"],
+                ["", "8795", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
+                ["", "", "T", "", "", "6399", "6399", "7481", "", "T", "7481", "4511", "4511", "8656", "8656", "", "T", ""],
+                ["", "", "I", "8663", "8663", "6399", "8831", "8831", "8831", "I", "5582", "5582", "8656", "8795", "8795", "8795", "I", ""],
+                ["KIOSK", "8656", "C", "8831", "5582", "8656", "8795", "8795", "6399", "C", "4511", "7481", "8795", "8663", "8663", "7481", "C", "4511"],
+                ["LOBBY C", "6399", "A", "4511", "8795", "7481", "4511", "4511", "5582", "A", "8795", "8663", "6399", "4511", "4511", "6399", "A", "5582"],
+                ["HHMD", "8831", "L", "8656", "8656/8831", "8831", "8656", "8656", "8656", "L", "8656", "8656", "8831", "8831", "8831", "8656/8831", "L", "8831"],
+                ["GUARD HOUSE", "8663", "", "6399", "4511", "8795", "5582", "5582", "4511", "", "6399", "8795", "7481", "6399", "6399", "4511", "", "8663"],
+                ["VERTICAL PATROL", "******", "7481", "******", "******", "8663", "******", "******", "******", "8831", "******", "******", "5582", "******", "******", "******", "8795", "******"]
+            ];
+            const table2Data = [
+                ["REPORT ROOM(BME)", "5582", "5582", "8795", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+                ["CNB COUNTER", "4834/4270", "4834/4270", "4834/4270", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
+            ];
+            const table3Data = [
+                [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "8795", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "", colSpan: 1 } ],
+                [ { val: "BREAK TIME", colSpan: 1 }, { val: "0200-0300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0300-0500", colSpan: 2 }, { val: "0000-0130", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "", colSpan: 1 } ],
+                [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "4511", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "8795", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "", colSpan: 9 } ],
+                [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2330-0000", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 9 } ]
+            ];
+
+            const applyMapping = (val) => {
+                if (!val) return val;
+                return String(val).split('/').map(v => assignments[v] || v).join('/');
+            }
+
+            const isGreyCell = (rIdx, cIdx, originalVal) => {
+                if (originalVal === "******") return true;
+                if (rIdx === 9 && originalVal !== "******") return false; 
+                if (cIdx === 2 || cIdx === 9 || cIdx === 16) return true; 
+                return false;
+            }
+
+            const container = document.getElementById('tables-container');
+            let html = '';
+
+            // --- TABLE 1: MAIN ROSTER ---
+            html += `<table class="w-full border-collapse border border-gray-400 text-center mb-6 text-xs sm:text-[11px] md:text-xs">`;
+            html += `<thead><tr>`;
+            timeHeaders.forEach(th => {
+                html += `<th class="border border-gray-400 bg-gray-100 p-1.5 whitespace-nowrap font-bold text-gray-800">${th}</th>`;
+            });
+            html += `</tr></thead><tbody>`;
+
+            table1Data.forEach((row, rIdx) => {
+                html += `<tr>`;
+                row.forEach((cell, cIdx) => {
+                    if (cIdx === 0 && rIdx > 0 && rIdx < 5) return; 
+
+                    const isHeader = cIdx === 0;
+                    const mappedCell = applyMapping(cell);
+                    const isGrey = !isHeader && isGreyCell(rIdx, cIdx, cell);
+                    const isVacant = mappedCell === "VACANT";
+                    
+                    const rowSpan = (isHeader && rIdx === 0) ? 'rowspan="5"' : '';
+                    let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
+                    
+                    if (isHeader) classes += `bg-white text-left px-2 text-gray-700 min-w-[160px]`;
+                    else if (isVacant) classes += `bg-red-100 text-red-700`;
+                    else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
+                    else classes += `bg-white text-gray-900`;
+
+                    html += `<td ${rowSpan} class="${classes}">${mappedCell}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+
+            // --- TABLE 2: REPORT ROOM & CNB ---
+            html += `<table class="w-full border-collapse border border-gray-400 text-center mb-6 text-xs sm:text-[11px] md:text-xs"><tbody>`;
+            table2Data.forEach((row, rIdx) => {
+                html += `<tr>`;
+                row.forEach((cell, cIdx) => {
+                    const isHeader = cIdx === 0;
+                    const mappedCell = applyMapping(cell);
+                    const isGrey = cell === "******";
+
+                    let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
+                    if (isHeader) classes += `bg-white text-left px-2 w-[180px] text-gray-700`;
+                    else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
+                    else classes += `bg-white text-gray-900`;
+
+                    html += `<td class="${classes}">${mappedCell}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+
+            // --- TABLE 3: BREAKS & TIMING ---
+            html += `<table class="w-full border-collapse text-center text-xs sm:text-[11px] md:text-xs"><tbody>`;
+            table3Data.forEach((row, rIdx) => {
+                html += `<tr>`;
+                row.forEach((cell, cIdx) => {
+                    const mappedCell = applyMapping(cell.val);
+                    const isHeader = cIdx === 0;
+                    const noBorder = cell.val === "" && rIdx >= 2;
+                    const colSpan = cell.colSpan > 1 ? `colspan="${cell.colSpan}"` : '';
+                    const isVacant = mappedCell === "VACANT";
+
+                    let classes = `p-1.5 font-bold tracking-tight whitespace-nowrap `;
+                    classes += noBorder ? `border-transparent ` : `border border-gray-400 `;
+                    if (isHeader) classes += `bg-white text-left px-2 w-[180px] text-gray-700 `;
+                    else if (isVacant) classes += `bg-red-100 text-red-700 `;
+                    else classes += `bg-white text-gray-900 `;
+
+                    html += `<td ${colSpan} class="${classes}">${mappedCell}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+
+            container.innerHTML = html;
+        }
+
+        // Initialize App UI Locally while waiting for Firebase
+        window.switchTab('roster'); 
+        renderAttendance();  
+    </script>
+</body>
+</html>
+
+
