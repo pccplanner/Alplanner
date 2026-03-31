@@ -174,7 +174,7 @@
         <div id="tab-roster" class="animate-fade-in">
             <!-- Assignment Control Panel -->
             <div class="bg-white p-5 border border-gray-200 rounded-lg shadow-md mb-6">
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -185,7 +185,7 @@
                         </p>
                     </div>
                     
-                    <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <!-- Edit Mode Toggle -->
                         <button 
                             id="btn-edit-mode"
@@ -311,7 +311,7 @@
         
         let assignments = {};
         let cnbAssignments = {}; 
-        let cellOverrides = {}; // Format: `tableIdx_rowIdx_colIdx` -> `staffId`
+        let cellOverrides = {}; // Format: `t1_rowIdx_colIdx` -> `staffId`
         let archiveHistory = {}; 
         
         let isEditMode = false;
@@ -493,7 +493,10 @@
                     updateRosterSizeUI();
                     
                     if(currentTab === 'attendance') renderAttendance();
-                    if(currentTab === 'roster') { renderControls(); renderTables(); }
+                    if(currentTab === 'roster') { 
+                        renderControls(); // Smart render will prevent focus loss
+                        renderTables(); 
+                    }
                     if(currentTab === 'calendar') renderCalendar();
                 }
                 updateCloudStatus("Synced with Cloud", "text-green-600");
@@ -809,10 +812,16 @@
             window.saveToDatabase();
         };
 
+        // Added Debounce so typing on mobile doesn't rapidly save and steal focus!
+        let saveTimeout;
         window.updateAssignment = function(pattern, value) {
-             assignments[pattern] = value;
-             renderTables(); 
-             window.saveToDatabase();
+            assignments[pattern] = value;
+            renderTables(); // Update visual table instantly for smooth typing 
+             
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                window.saveToDatabase();
+            }, 500); // Wait 500ms after typing stops before hitting database
         };
 
         // --- Archive Options Actions ---
@@ -942,20 +951,51 @@
         function renderControls() {
             const placeholders = getPlaceholders();
             const container = document.getElementById('inputs-container');
-            let html = '';
             
-            container.className = rosterSize === 6 
+            const expectedClass = rosterSize === 6 
                 ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
                 : (rosterSize === 7 
                     ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
                     : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
+            // --- SMART RENDERING: Prevents mobile keyboard from dropping ---
+            // If the grid structure is already correct, we just update the specific values,
+            // EXCEPT for the input the user is currently typing in.
+            if (container.className === expectedClass && container.children.length === placeholders.length) {
+                placeholders.forEach((p, index) => {
+                    const inp = document.getElementById(`input-slot-${index}`);
+                    const parent = document.getElementById(`wrapper-slot-${index}`);
+                    
+                    if (inp) {
+                        // Only update value if the user is NOT actively focused/typing in this box
+                        if (document.activeElement !== inp) {
+                            inp.value = assignments[p] || p;
+                        }
+                        
+                        // Always update styling for Vacant shifts
+                        const isVacant = assignments[p] === "VACANT";
+                        if (isVacant) {
+                            parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300";
+                            inp.className = "w-full border border-red-300 text-red-600 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
+                        } else {
+                            parent.className = "flex flex-col bg-gray-50 p-2 rounded border border-gray-200";
+                            inp.className = "w-full border border-gray-300 text-gray-900 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
+                        }
+                    }
+                });
+                return; // Exit early, skipping full innerHTML recreation!
+            }
+
+            // Fallback: Full rebuild if grid size completely changed (e.g. 8 man to 6 man)
+            container.className = expectedClass;
+            let html = '';
             placeholders.forEach((p, index) => {
                 const isVacant = assignments[p] === "VACANT";
                 html += `
-                    <div class="flex flex-col bg-gray-50 p-2 rounded border ${isVacant ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
+                    <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border ${isVacant ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}">
                         <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${index + 1}</label>
                         <input
+                            id="input-slot-${index}"
                             type="text"
                             value="${assignments[p] || p}"
                             oninput="window.updateAssignment('${p}', this.value)"
@@ -1297,4 +1337,5 @@
     </script>
 </body>
 </html>
+
 
