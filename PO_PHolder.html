@@ -173,7 +173,7 @@
         <div id="tab-roster" class="animate-fade-in">
             <!-- Assignment Control Panel -->
             <div class="bg-white p-5 border border-gray-200 rounded-lg shadow-md mb-6">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -183,7 +183,7 @@
                             Current assignments. You can manually override these or shuffle them.
                         </p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                         <button 
                             id="btn-print"
                             onclick="window.exportPDF()"
@@ -191,6 +191,14 @@
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             Download PDF
+                        </button>
+                        <button 
+                            id="btn-share"
+                            onclick="window.sharePDF()"
+                            class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                            Share PDF
                         </button>
                         <button 
                             onclick="window.handleShuffle()"
@@ -482,11 +490,12 @@
             }
         };
 
-        // --- Export PDF (Fixed for Mobile Browsers) ---
-        window.exportPDF = function() {
-            const btn = document.getElementById('btn-print');
+        // --- Core PDF Processing & Sharing Engine ---
+        window.handlePDFAction = function(action) {
+            const btnId = action === 'share' ? 'btn-share' : 'btn-print';
+            const btn = document.getElementById(btnId);
             const originalText = btn.innerHTML;
-            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating...`;
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
             
             const element = document.getElementById('tables-container');
             const wrapper = document.getElementById('tables-wrapper');
@@ -496,19 +505,13 @@
             inputs.forEach(inp => {
                 inp.setAttribute('value', inp.value);
                 if(inp.type === 'date') {
-                    // Hide the calendar picker icon for the PDF
                     inp.style.cssText = 'appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none; padding: 0; margin: 0; pointer-events: none;';
                 }
             });
 
-            // Temporarily unwrap the container so it's fully visible to html2canvas on mobile screens
             const oldWrapperCss = wrapper.style.cssText;
             const oldElementCss = element.style.cssText;
             
-            // Determine the widest table to compute required width. Without this, the
-            // PDF may clip the final time columns (e.g. 0700hrs). Iterate over
-            // all roster tables to find the maximum scrollWidth. Fallback to the
-            // container's scrollWidth if no tables exist.
             let contentWidth = 0;
             const tables = element.querySelectorAll('table');
             if (tables && tables.length > 0) {
@@ -519,12 +522,14 @@
             }
             if (!contentWidth) contentWidth = element.scrollWidth;
             const newWidth = `${contentWidth}px`;
+            
             wrapper.style.cssText = `overflow: visible !important; width: ${newWidth} !important; max-width: none !important; background: white !important;`;
             element.style.cssText = `width: ${newWidth} !important; max-width: none !important;`;
 
+            const filename = `Night_Shift_Roster_${rosterDate}.pdf`;
             const opt = {
                 margin: [0.2, 0.2, 0.2, 0.2],
-                filename: `Night_Shift_Roster_${rosterDate}.pdf`,
+                filename: filename,
                 image: { type: 'jpeg', quality: 1.0 },
                 html2canvas: {
                     scale: 2,
@@ -532,29 +537,55 @@
                     width: contentWidth,
                     windowWidth: contentWidth
                 },
-                // Use a larger paper size (A2 landscape) to provide ample horizontal
-                // space for the full set of time columns without clipping. A2 is
-                // approximately 23.4" × 16.5", which should comfortably fit 18+ columns.
                 jsPDF: { unit: 'in', format: 'a2', orientation: 'landscape' }
             };
             
-            html2pdf().set(opt).from(element).save().then(() => {
-                // Restore UI
+            const restoreUI = () => {
                 btn.innerHTML = originalText;
                 wrapper.style.cssText = oldWrapperCss;
                 element.style.cssText = oldElementCss;
-                
                 inputs.forEach(inp => {
                     if(inp.type === 'date') inp.style.cssText = '';
                 });
-            }).catch(err => {
-                console.error(err);
-                btn.innerHTML = originalText;
-                wrapper.style.cssText = oldWrapperCss;
-                element.style.cssText = oldElementCss;
-                alert("Failed to export PDF. If you are using a mobile preview app, please open this page in Safari or Chrome.");
-            });
+            };
+
+            if (action === 'download') {
+                html2pdf().set(opt).from(element).save().then(restoreUI).catch(err => {
+                    console.error(err);
+                    restoreUI();
+                    alert("Failed to export PDF.");
+                });
+            } else if (action === 'share') {
+                html2pdf().set(opt).from(element).outputPdf('blob').then((pdfBlob) => {
+                    restoreUI();
+                    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+                    // Use Native Web Share API
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'Shift Roster',
+                            text: `Here is the shift roster for ${rosterDate}.`
+                        }).catch(err => console.log('Share canceled or failed:', err));
+                    } else {
+                        // Fallback if browser doesn't support file sharing
+                        alert("Your device or browser doesn't support direct file sharing. The file will be downloaded instead so you can attach it manually.");
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(pdfBlob);
+                        link.download = filename;
+                        link.click();
+                    }
+                }).catch(err => {
+                    console.error(err);
+                    restoreUI();
+                    alert("Failed to generate PDF for sharing.");
+                });
+            }
         };
+
+        // Hooks for Buttons
+        window.exportPDF = () => window.handlePDFAction('download');
+        window.sharePDF = () => window.handlePDFAction('share');
 
         // --- Application Logic ---
         window.setRosterSize = function(size) {
@@ -1108,5 +1139,4 @@
     </script>
 </body>
 </html>
-
 
