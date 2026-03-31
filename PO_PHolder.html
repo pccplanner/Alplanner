@@ -317,8 +317,11 @@
         ];
 
         let assignments = {};
+        
+        // We will store all archives inside this local dictionary and sync it to the main live_state doc
         let archiveHistory = {}; 
 
+        // Initialize placeholders for both sizes to prevent any missing mappings
         placeholders8.forEach(p => assignments[p] = p);
         placeholders7.forEach(p => assignments[p] = p);
         
@@ -482,32 +485,35 @@
             }
         };
 
-        // --- Export PDF (Fixed for Mobile Browsers) ---
+        // --- Export PDF (Uses a full-width clone to prevent Mobile Browser clipping) ---
         window.exportPDF = function() {
             const btn = document.getElementById('btn-print');
             const originalText = btn.innerHTML;
             btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating...`;
             
             const element = document.getElementById('tables-container');
-            const wrapper = document.getElementById('tables-wrapper');
             
-            // Sync inputs as values so HTML2Canvas captures them correctly
-            const inputs = element.querySelectorAll('input');
-            inputs.forEach(inp => {
+            // Sync inputs as HTML values so HTML2Canvas captures them when cloned
+            const originalInputs = element.querySelectorAll('input');
+            originalInputs.forEach(inp => {
                 inp.setAttribute('value', inp.value);
                 if(inp.type === 'date') {
-                    // Hide the calendar picker icon for the PDF
+                    // Hide the calendar picker icon for the PDF cleanly
                     inp.style.cssText = 'appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none; padding: 0; margin: 0; pointer-events: none;';
                 }
             });
 
-            // Temporarily unwrap the container so it's fully visible to html2canvas on mobile screens
-            const oldWrapperCss = wrapper.style.cssText;
-            const oldElementCss = element.style.cssText;
+            // 1. Create a clone of the table
+            const clone = element.cloneNode(true);
             
-            wrapper.style.cssText = 'overflow: visible !important; width: 1600px !important; max-width: none !important; background: white !important;';
-            element.style.cssText = 'width: 1600px !important; max-width: none !important;';
+            // 2. Put the clone inside a brand new fixed wrapper that forces standard desktop width (1600px).
+            // This prevents Mobile Safari from cutting off hidden scrolling content.
+            const printWrapper = document.createElement('div');
+            printWrapper.style.cssText = 'position: absolute; top: 0; left: 0; width: 1600px; background: white; z-index: -9999; padding: 20px;';
+            printWrapper.appendChild(clone);
+            document.body.appendChild(printWrapper);
 
+            // 3. Configure PDF export settings targeting the CLONE instead of the mobile UI
             const opt = {
                 margin:       [0.2, 0.2, 0.2, 0.2], 
                 filename:     `Night_Shift_Roster_${rosterDate}.pdf`,
@@ -515,27 +521,29 @@
                 html2canvas:  { 
                     scale: 2, 
                     useCORS: true, 
-                    width: 1600,
-                    windowWidth: 1600
+                    width: 1600,       // Force render width
+                    windowWidth: 1600, // Force CSS queries
+                    scrollY: 0,
+                    scrollX: 0
                 },
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
             };
             
-            html2pdf().set(opt).from(element).save().then(() => {
-                // Restore UI
+            html2pdf().set(opt).from(printWrapper).save().then(() => {
+                // Restore UI successfully
                 btn.innerHTML = originalText;
-                wrapper.style.cssText = oldWrapperCss;
-                element.style.cssText = oldElementCss;
-                
-                inputs.forEach(inp => {
+                document.body.removeChild(printWrapper); // Clean up hidden clone
+                originalInputs.forEach(inp => {
                     if(inp.type === 'date') inp.style.cssText = '';
                 });
             }).catch(err => {
                 console.error(err);
                 btn.innerHTML = originalText;
-                wrapper.style.cssText = oldWrapperCss;
-                element.style.cssText = oldElementCss;
-                alert("Failed to export PDF. If you are using a mobile preview app, please open this page in Safari or Chrome.");
+                document.body.removeChild(printWrapper); // Clean up hidden clone
+                originalInputs.forEach(inp => {
+                    if(inp.type === 'date') inp.style.cssText = '';
+                });
+                alert("Failed to export PDF. If you are using a restrictive preview app, please open this URL directly in Safari or Chrome.");
             });
         };
 
@@ -1091,4 +1099,5 @@
     </script>
 </body>
 </html>
+
 
