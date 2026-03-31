@@ -184,14 +184,31 @@
                             Current assignments. You can manually override these or shuffle them.
                         </p>
                     </div>
+                    
                     <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                        <!-- Edit Mode Toggle -->
+                        <button 
+                            id="btn-edit-mode"
+                            onclick="window.toggleEditMode()"
+                            class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            <span id="edit-mode-text">Edit Cells</span>
+                        </button>
+                        <button 
+                            onclick="window.handleShuffle()"
+                            class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                            Shuffle
+                        </button>
                         <button 
                             id="btn-print"
                             onclick="window.exportPDF()"
                             class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Download PDF
+                            PDF
                         </button>
                         <button 
                             id="btn-share"
@@ -199,14 +216,7 @@
                             class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-                            Share PDF
-                        </button>
-                        <button 
-                            onclick="window.handleShuffle()"
-                            class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-semibold transition-colors shadow-sm whitespace-nowrap"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
-                            Shuffle Assignments
+                            Share
                         </button>
                     </div>
                 </div>
@@ -298,7 +308,13 @@
         let rosterDate = "";
         let shiftSupervisor = "";
         let currentCalDate = new Date(); 
+        
+        let assignments = {};
         let cnbAssignments = {}; 
+        let cellOverrides = {}; // Format: `tableIdx_rowIdx_colIdx` -> `staffId`
+        let archiveHistory = {}; 
+        
+        let isEditMode = false;
         
         // Initialize Default Date if empty (Today)
         const today = new Date();
@@ -326,9 +342,6 @@
             { id: '1002 (Relief)', name: 'Relief Staff B', present: false },
             { id: '1003 (Relief)', name: 'Relief Staff C', present: false }
         ];
-
-        let assignments = {};
-        let archiveHistory = {}; 
 
         placeholders8.forEach(p => assignments[p] = p);
         placeholders7.forEach(p => assignments[p] = p);
@@ -467,6 +480,8 @@
                     if (data.masterStaffList) masterStaffList = data.masterStaffList;
                     if (data.assignments) assignments = data.assignments;
                     if (data.cnbAssignments) cnbAssignments = data.cnbAssignments;
+                    if (data.cellOverrides) cellOverrides = data.cellOverrides;
+                    else cellOverrides = {}; // Fallback
                     if (data.rosterSize) rosterSize = data.rosterSize;
                     if (data.rosterDate !== undefined) rosterDate = data.rosterDate;
                     if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
@@ -496,6 +511,7 @@
                     archiveHistory[rosterDate] = {
                         assignments: assignments,
                         cnbAssignments: cnbAssignments,
+                        cellOverrides: cellOverrides,
                         rosterSize: rosterSize,
                         shiftSupervisor: shiftSupervisor,
                         savedAt: new Date().toISOString()
@@ -507,6 +523,7 @@
                     masterStaffList: masterStaffList,
                     assignments: assignments,
                     cnbAssignments: cnbAssignments,
+                    cellOverrides: cellOverrides,
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -528,6 +545,13 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
             
+            // Momentarily Turn off Edit Mode to avoid generating PDF with Dropdowns
+            const wasEditMode = isEditMode;
+            if (isEditMode) {
+                isEditMode = false;
+                renderTables();
+            }
+
             const element = document.getElementById('tables-container');
             const wrapper = document.getElementById('tables-wrapper');
             
@@ -578,6 +602,10 @@
                 inputs.forEach(inp => {
                     if(inp.type === 'date') inp.style.cssText = '';
                 });
+                if (wasEditMode) {
+                    isEditMode = true;
+                    renderTables();
+                }
             };
 
             if (action === 'download') {
@@ -619,8 +647,36 @@
         window.sharePDF = () => window.handlePDFAction('share');
 
         // --- Application Logic ---
+        
+        window.toggleEditMode = function() {
+            isEditMode = !isEditMode;
+            const btnText = document.getElementById('edit-mode-text');
+            const btn = document.getElementById('btn-edit-mode');
+            if (isEditMode) {
+                btnText.innerText = "Disable Edit Cells";
+                btn.classList.replace('bg-yellow-500', 'bg-red-500');
+                btn.classList.replace('hover:bg-yellow-600', 'hover:bg-red-600');
+            } else {
+                btnText.innerText = "Edit Cells";
+                btn.classList.replace('bg-red-500', 'bg-yellow-500');
+                btn.classList.replace('hover:bg-red-600', 'hover:bg-yellow-600');
+            }
+            renderTables();
+        };
+
+        window.updateCellOverride = function(overrideKey, val) {
+            if (val === "") {
+                delete cellOverrides[overrideKey];
+            } else {
+                cellOverrides[overrideKey] = val;
+            }
+            renderTables();
+            window.saveToDatabase();
+        };
+
         window.setRosterSize = function(size) {
             rosterSize = size;
+            cellOverrides = {}; // Reset overrides to prevent misalignment across modes
             updateRosterSizeUI();
             renderAttendance();
             renderControls();
@@ -779,6 +835,7 @@
             if (archive) {
                 assignments = archive.assignments || {};
                 cnbAssignments = archive.cnbAssignments || {};
+                cellOverrides = archive.cellOverrides || {};
                 rosterSize = archive.rosterSize || 8;
                 rosterDate = dateId;
                 shiftSupervisor = archive.shiftSupervisor || "";
@@ -816,6 +873,7 @@
                     masterStaffList: masterStaffList,
                     assignments: assignments,
                     cnbAssignments: cnbAssignments,
+                    cellOverrides: cellOverrides,
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -910,6 +968,25 @@
         }
 
         function renderTables() {
+            // Helpers for editing capability
+            const activeStaff = masterStaffList.filter(s => s.present);
+            
+            function buildSelect(overrideKey, defaultMapped) {
+                const currentOverride = cellOverrides[overrideKey];
+                
+                let optionsHtml = `<option value="">Default (${defaultMapped})</option>`;
+                optionsHtml += `<option value="VACANT" ${currentOverride === 'VACANT' ? 'selected' : ''}>VACANT</option>`;
+                
+                activeStaff.forEach(staff => {
+                    const isSelected = currentOverride === staff.id;
+                    optionsHtml += `<option value="${staff.id}" ${isSelected ? 'selected' : ''}>${staff.id}</option>`;
+                });
+
+                return `<select onchange="window.updateCellOverride('${overrideKey}', this.value)" class="w-full min-w-[65px] bg-yellow-50 border border-yellow-400 text-gray-900 text-[10px] md:text-xs font-bold rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                    ${optionsHtml}
+                </select>`;
+            }
+
             // Use deep copies so we do not mutate the base templates during weekend overwrites
             let t1Data, t2Data, t3Data;
             
@@ -1034,7 +1111,18 @@
                     if (cIdx === 0 && rIdx > 0 && rIdx < 5) return; 
 
                     const isHeader = cIdx === 0;
-                    const mappedCell = applyMapping(cell);
+                    
+                    const isStaff = rIdx < 10 && cIdx > 0 && cell !== "" && cell !== "******" && !["V","E","R","T","I","C","A","L"].includes(cell);
+                    const overrideKey = `t1_${rIdx}_${cIdx}`;
+                    
+                    let mappedCell = applyMapping(cell);
+                    if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
+
+                    let content = mappedCell;
+                    if (isEditMode && isStaff) {
+                        content = buildSelect(overrideKey, applyMapping(cell));
+                    }
+
                     const isGrey = !isHeader && isGreyCell(rIdx, cIdx, cell);
                     const isVacant = mappedCell === "VACANT";
                     
@@ -1046,7 +1134,7 @@
                     else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
                     else classes += `bg-white text-gray-900`;
 
-                    html += `<td ${rowSpan} class="${classes}">${mappedCell}</td>`;
+                    html += `<td ${rowSpan} class="${classes}">${content}</td>`;
                 });
                 html += `</tr>`;
             });
@@ -1058,7 +1146,18 @@
                 html += `<tr>`;
                 row.forEach((cell, cIdx) => {
                     const isHeader = cIdx === 0;
-                    const mappedCell = applyMapping(cell);
+                    
+                    const isStaff = rIdx === 0 && cIdx > 0 && cell !== "******";
+                    const overrideKey = `t2_${rIdx}_${cIdx}`;
+                    
+                    let mappedCell = applyMapping(cell);
+                    if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
+
+                    let content = mappedCell;
+                    if (isEditMode && isStaff) {
+                        content = buildSelect(overrideKey, applyMapping(cell));
+                    }
+
                     const isGrey = cell === "******";
 
                     let classes = `border border-gray-400 font-bold tracking-tight whitespace-nowrap `;
@@ -1079,9 +1178,9 @@
                                 <input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none focus:bg-blue-100 text-blue-600 font-bold cursor-text px-1" />
                             </td>`;
                         } else {
-                            // Normal cell processing
+                            // Normal cell processing (Report Room)
                             classes += `p-1.5 bg-white text-gray-900`;
-                            html += `<td class="${classes}">${mappedCell}</td>`;
+                            html += `<td class="${classes}">${content}</td>`;
                         }
                     }
                 });
@@ -1094,8 +1193,19 @@
             t3Data.forEach((row, rIdx) => {
                 html += `<tr>`;
                 row.forEach((cell, cIdx) => {
-                    const mappedCell = applyMapping(cell.val);
                     const isHeader = cIdx === 0;
+                    
+                    const isStaff = (rIdx === 0 || rIdx === 2) && cIdx > 0 && cell.val !== "";
+                    const overrideKey = `t3_${rIdx}_${cIdx}`;
+                    
+                    let mappedCell = applyMapping(cell.val);
+                    if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
+
+                    let content = mappedCell;
+                    if (isEditMode && isStaff) {
+                        content = buildSelect(overrideKey, applyMapping(cell.val));
+                    }
+
                     const noBorder = cell.val === "" && rIdx >= 2;
                     const colSpan = cell.colSpan > 1 ? `colspan="${cell.colSpan}"` : '';
                     const isVacant = mappedCell === "VACANT";
@@ -1106,7 +1216,7 @@
                     else if (isVacant) classes += `bg-red-100 text-red-700 `;
                     else classes += `bg-white text-gray-900 `;
 
-                    html += `<td ${colSpan} class="${classes}">${mappedCell}</td>`;
+                    html += `<td ${colSpan} class="${classes}">${content}</td>`;
                 });
                 html += `</tr>`;
             });
