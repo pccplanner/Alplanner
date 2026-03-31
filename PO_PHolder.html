@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -491,40 +490,38 @@
             
             const element = document.getElementById('tables-container');
             const wrapper = document.getElementById('tables-wrapper');
-
+            
             // Sync inputs as values so HTML2Canvas captures them correctly
             const inputs = element.querySelectorAll('input');
             inputs.forEach(inp => {
                 inp.setAttribute('value', inp.value);
-                if (inp.type === 'date') {
+                if(inp.type === 'date') {
                     // Hide the calendar picker icon for the PDF
                     inp.style.cssText = 'appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none; padding: 0; margin: 0; pointer-events: none;';
                 }
             });
 
-            // Store original styles to restore later
+            // Temporarily unwrap the container so it's fully visible to html2canvas on mobile screens
             const oldWrapperCss = wrapper.style.cssText;
             const oldElementCss = element.style.cssText;
-
-            /*
-             * Compute the full scroll width of the roster tables.  When the PDF
-             * export was restricted to a fixed width (e.g. 1600px), large
-             * rosters with many time slots would be clipped on the right side.
-             * To ensure every column up to 07:00hrs is included in the export,
-             * measure the actual scrollWidth of the container and temporarily
-             * set both the wrapper and inner element to that width.  html2canvas
-             * will then render the entire content, and jsPDF will scale it
-             * down to fit the chosen paper size.
-             */
-            const contentWidth = element.scrollWidth;
+            
+            // Determine the widest table to compute required width. Without this, the
+            // PDF may clip the final time columns (e.g. 0700hrs). Iterate over
+            // all roster tables to find the maximum scrollWidth. Fallback to the
+            // container's scrollWidth if no tables exist.
+            let contentWidth = 0;
+            const tables = element.querySelectorAll('table');
+            if (tables && tables.length > 0) {
+                tables.forEach(tbl => {
+                    const w = tbl.scrollWidth;
+                    if (w > contentWidth) contentWidth = w;
+                });
+            }
+            if (!contentWidth) contentWidth = element.scrollWidth;
             const newWidth = `${contentWidth}px`;
             wrapper.style.cssText = `overflow: visible !important; width: ${newWidth} !important; max-width: none !important; background: white !important;`;
             element.style.cssText = `width: ${newWidth} !important; max-width: none !important;`;
 
-            // Prepare options for html2pdf.  Use the measured width for the
-            // html2canvas viewport to avoid clipping, and allow html2pdf/jsPDF
-            // to auto-scale content to fit the page.  Keeping the same
-            // landscape orientation ensures the roster is readable.
             const opt = {
                 margin: [0.2, 0.2, 0.2, 0.2],
                 filename: `Night_Shift_Roster_${rosterDate}.pdf`,
@@ -535,10 +532,10 @@
                     width: contentWidth,
                     windowWidth: contentWidth
                 },
-                // Use an A3 landscape page for better horizontal space.  This
-                // provides more room for the full set of time slots without
-                // compressing the content too much.  A3 is roughly 16.5" x 11.7".
-                jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' }
+                // Use a larger paper size (A2 landscape) to provide ample horizontal
+                // space for the full set of time columns without clipping. A2 is
+                // approximately 23.4" × 16.5", which should comfortably fit 18+ columns.
+                jsPDF: { unit: 'in', format: 'a2', orientation: 'landscape' }
             };
             
             html2pdf().set(opt).from(element).save().then(() => {
