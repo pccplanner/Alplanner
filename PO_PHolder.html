@@ -207,8 +207,8 @@
                 </div>
             </div>
 
-            <!-- Roster Tables -->
-            <div class="bg-white p-4 shadow-xl border border-gray-200 rounded-lg overflow-x-auto overflow-y-hidden">
+            <!-- Roster Tables Wrapper (Used for PDF Export manipulation) -->
+            <div id="tables-wrapper" class="bg-white p-4 shadow-xl border border-gray-200 rounded-lg overflow-x-auto overflow-y-hidden">
                 <div id="tables-container" class="min-w-max pb-4 bg-white transition-all duration-300">
                     <!-- Tables injected by JS -->
                 </div>
@@ -485,39 +485,61 @@
             }
         };
 
-        // --- Export PDF (Solves iframe print issues on mobile) ---
+        // --- Export PDF (Fixed specifically for accurate mobile capture) ---
         window.exportPDF = function() {
             const btn = document.getElementById('btn-print');
             const originalText = btn.innerHTML;
             btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating...`;
             
             const element = document.getElementById('tables-container');
+            const wrapper = document.getElementById('tables-wrapper');
             
             // Sync inputs as values so HTML2Canvas captures them correctly
             const inputs = element.querySelectorAll('input');
             inputs.forEach(inp => {
                 inp.setAttribute('value', inp.value);
-                if(inp.type === 'date') inp.style.appearance = 'none'; // Hide calendar icon
+                if(inp.type === 'date') {
+                    // Hide the calendar picker icon for the PDF
+                    inp.style.cssText = 'appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none; padding: 0; margin: 0; pointer-events: none;';
+                }
             });
 
-            // Temporarily lock width to force desktop layout for crisp PDF render
+            // Store original styles to restore later
+            const oldWrapperClass = wrapper.className;
             const oldWidth = element.style.width;
-            element.style.width = '1200px';
+            
+            // Remove overflow classes so mobile browsers don't clip the screenshot
+            wrapper.className = "bg-white p-4";
+            
+            // Force a standard desktop width for the table (1400px ensures it fits safely on A4 Landscape)
+            element.style.width = '1400px';
 
             const opt = {
-                margin:       0.2,
+                margin:       [0.2, 0.2, 0.2, 0.2], // top, left, bottom, right
                 filename:     `Night_Shift_Roster_${rosterDate}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, windowWidth: 1200 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    width: 1400,
+                    windowWidth: 1400 // Tricks CSS media queries into desktop mode for layout consistency
+                },
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
             };
             
             html2pdf().set(opt).from(element).save().then(() => {
+                // Restore UI
                 btn.innerHTML = originalText;
+                wrapper.className = oldWrapperClass;
                 element.style.width = oldWidth;
+                
+                inputs.forEach(inp => {
+                    if(inp.type === 'date') inp.style.cssText = '';
+                });
             }).catch(err => {
                 console.error(err);
                 btn.innerHTML = originalText;
+                wrapper.className = oldWrapperClass;
                 element.style.width = oldWidth;
                 alert("Failed to export PDF. If you are using a mobile preview app, please open this page in Safari or Chrome.");
             });
