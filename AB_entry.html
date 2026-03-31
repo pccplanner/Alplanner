@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Facility Vehicle & Incident Log (Live)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .form-label { @apply block text-sm font-semibold text-slate-700 mb-1.5; }
+        .form-input { @apply block w-full rounded-xl border-0 py-3.5 px-4 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 bg-white transition-shadow duration-200 outline-none appearance-none; }
+        
+        select.form-input {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+
+        .btn-primary { @apply flex items-center justify-center w-full gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-blue-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed; }
+        .btn-secondary { @apply flex items-center justify-center w-full gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-all active:scale-[0.98]; }
+        .btn-success { @apply flex items-center justify-center w-full gap-2 rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed; }
+
+        .modal-backdrop {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-backdrop.show { opacity: 1; }
+        .modal-content {
+            transform: scale(0.95) translateY(10px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .modal-backdrop.show .modal-content {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        .uppercase-input { text-transform: uppercase; }
+        
+        #toast {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateY(100px) translateX(-50%);
+            opacity: 0;
+        }
+        #toast.show {
+            transform: translateY(0) translateX(-50%);
+            opacity: 1;
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Sync Pulse Indicator */
+        .sync-active { animation: pulse-green 2s infinite; }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col overflow-hidden selection:bg-blue-100 selection:text-blue-900">
+
+    <!-- Top Navigation -->
+    <header class="bg-white border-b border-slate-200 shadow-sm z-10 sticky top-0">
+        <div class="max-w-5xl mx-auto px-4 py-3 sm:py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="text-white" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold text-slate-900 leading-tight">Operations Log</h1>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <div id="dbStatusDot" class="w-2 h-2 rounded-full bg-slate-300"></div>
+                        <p id="dbStatusText" class="text-xs font-medium text-slate-500">Connecting to Database...</p>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.openEntryModal()" id="btnNewEntry" class="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 sm:px-5 sm:py-2.5 text-sm font-bold text-white shadow-md hover:bg-blue-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span class="hidden sm:inline">Log Entry</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full no-scrollbar">
+        
+        <!-- Active Vehicles -->
+        <section class="mb-10">
+            <div class="flex items-center gap-2 mb-5">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                </span>
+                <h2 class="text-base sm:text-lg font-bold text-slate-800">Active in Facility</h2>
+            </div>
+            
+            <div id="activeList" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                <!-- Active cards injected here -->
+            </div>
+        </section>
+
+        <!-- Completed Exits -->
+        <section>
+            <div class="flex items-center gap-2 mb-5">
+                <span class="h-3 w-3 rounded-full bg-emerald-500 shadow-inner"></span>
+                <h2 class="text-base sm:text-lg font-bold text-slate-800">Completed Exits (Today)</h2>
+            </div>
+            
+            <div id="completedList" class="grid grid-cols-1 gap-3 sm:gap-4">
+                <!-- Completed logs injected here -->
+            </div>
+        </section>
+        
+        <div class="h-20"></div>
+    </main>
+
+    <!-- MODAL 1: ENTRY LOG -->
+    <div id="entryModal" class="modal-backdrop fixed inset-0 z-50 hidden flex justify-center items-end sm:items-center p-0 sm:p-4">
+        <div class="modal-content bg-white w-full max-w-lg sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                    <span class="text-xs font-bold tracking-wider text-blue-600 uppercase mb-1 block">Step 1</span>
+                    <h3 class="text-xl font-bold text-slate-900 leading-tight">Log Vehicle Entry</h3>
+                </div>
+                <button type="button" onclick="window.closeModals()" class="p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto p-6 no-scrollbar">
+                <form id="entryForm" class="space-y-5">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="form-label">Date</label>
+                            <input type="date" id="entry_date" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Entry Time</label>
+                            <input type="time" id="entry_time" class="form-input" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Vehicle Number</label>
+                        <input type="text" id="vehicle_no" class="form-input uppercase-input font-mono text-lg tracking-widest font-bold" placeholder="e.g. SXXXXX" oninput="this.value = this.value.toUpperCase()" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Callsign</label>
+                        <div class="flex gap-3">
+                            <select id="callsign_type" class="form-input w-[110px] shrink-0 font-medium" required>
+                                <option value="FB">FB</option>
+                                <option value="LF">LF</option>
+                                <option value="PL">PL</option>
+                                <option value="A/PA">A/PA</option>
+                            </select>
+                            <input type="text" id="callsign_val" class="form-input uppercase-input flex-1" oninput="this.value = this.value.toUpperCase()" placeholder="Enter ID" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Paramedic (Rank & Name)</label>
+                        <div class="flex gap-3">
+                            <select id="paramedic_rank" class="form-input w-[110px] shrink-0 font-medium" required>
+                                <option value="SGT 1">SGT 1</option>
+                                <option value="SGT 2">SGT 2</option>
+                                <option value="SGT 3">SGT 3</option>
+                                <option value="SSGT">SSGT</option>
+                                <option value="WO1">WO1</option>
+                                <option value="WO2">WO2</option>
+                                <option value="LTA">LTA</option>
+                            </select>
+                            <input type="text" id="paramedic_name" class="form-input flex-1" placeholder="Full Name" required>
+                        </div>
+                    </div>
+                    <div class="pt-6 mt-2 flex gap-3 sm:gap-4 sticky bottom-0 bg-white pb-2 sm:pb-0">
+                        <button type="button" onclick="window.closeModals()" class="btn-secondary w-1/3">Cancel</button>
+                        <button type="submit" id="btnSubmitEntry" class="btn-primary w-2/3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Save & Copy
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: EXIT PROCESS -->
+    <div id="exitModal" class="modal-backdrop fixed inset-0 z-50 hidden flex justify-center items-end sm:items-center p-0 sm:p-4">
+        <div class="modal-content bg-white w-full max-w-lg sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
+                <div>
+                    <span class="text-xs font-bold tracking-wider text-emerald-600 uppercase mb-1 block">Step 2</span>
+                    <h3 class="text-xl font-bold text-slate-900 leading-tight">Process Exit</h3>
+                    <p id="exit_vehicle_display" class="text-sm font-mono font-semibold text-slate-500 mt-0.5">VEHICLE_NO</p>
+                </div>
+                <button type="button" onclick="window.closeModals()" class="p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto p-6 no-scrollbar">
+                <form id="exitForm" class="space-y-5">
+                    <input type="hidden" id="exit_id">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="form-label">Exit Time</label>
+                            <input type="time" id="exit_time" class="form-input font-medium" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Fire Station</label>
+                            <select id="fire_station" class="form-input font-medium" required>
+                                <option value="NA" selected>NA</option>
+                                <option value="STN 11">Central (11)</option>
+                                <option value="STN 12">Alexandra (12)</option>
+                                <option value="STN 13">Clementi (13)</option>
+                                <option value="STN 17">Marina Bay (17)</option>
+                                <option value="STN 18">Sentosa (18)</option>
+                                <option value="STN 21">Paya Lebar (21)</option>
+                                <option value="STN 24">Kallang (24)</option>
+                                <option value="OTHERS">Others...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="station_others_container" class="hidden">
+                        <input type="text" id="station_others" class="form-input" placeholder="Specify fire station...">
+                    </div>
+
+                    <div>
+                        <label class="form-label">Escorting Officer</label>
+                        <div class="flex gap-3">
+                            <select id="escort_rank" class="form-input w-[110px] shrink-0 font-medium">
+                                <option value="NONE">None</option>
+                                <option value="CPL">CPL</option>
+                                <option value="SGT">SGT</option>
+                                <option value="SSGT">SSGT</option>
+                                <option value="SI">SI</option>
+                                <option value="INSP">INSP</option>
+                            </select>
+                            <input type="text" id="escort_name" class="form-input flex-1" placeholder="Name (If applicable)">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div>
+                            <label class="form-label">Casualty Gender</label>
+                            <select id="gender" class="form-input bg-white font-medium">
+                                <option value="N/A">N/A</option>
+                                <option value="MALE">Male</option>
+                                <option value="FEMALE">Female</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Casualty Race</label>
+                            <select id="race" class="form-input bg-white font-medium">
+                                <option value="N/A">N/A</option>
+                                <option value="CHINESE">Chinese</option>
+                                <option value="MALAY">Malay</option>
+                                <option value="INDIAN">Indian</option>
+                                <option value="OTHERS">Others</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label">Conveying To Hospital</label>
+                        <select id="hospital" class="form-input font-medium" required>
+                            <option value="" disabled selected>Select Hospital...</option>
+                            <option value="SGH">SGH</option>
+                            <option value="NUH">NUH</option>
+                            <option value="OTHERS">Others...</option>
+                        </select>
+                    </div>
+
+                    <div id="hospital_others_container" class="hidden">
+                        <input type="text" id="hospital_others" class="form-input" placeholder="Specify hospital...">
+                    </div>
+
+                    <div class="pt-6 mt-2 flex gap-3 sm:gap-4 sticky bottom-0 bg-white pb-2 sm:pb-0">
+                        <button type="button" onclick="window.closeModals()" class="btn-secondary w-1/3">Cancel</button>
+                        <button type="submit" id="btnSubmitExit" class="btn-success w-2/3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                            Finish & Copy
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 left-1/2 flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl z-[60] w-[90%] sm:w-auto max-w-sm">
+        <div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="text-emerald-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <span id="toastMsg" class="font-medium text-sm">Action completed successfully!</span>
+    </div>
+
+    <!-- FIREBASE SDK & APP LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your specific Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
+            authDomain: "roster-4a997.firebaseapp.com",
+            projectId: "roster-4a997",
+            storageBucket: "roster-4a997.firebasestorage.app",
+            messagingSenderId: "901381868881",
+            appId: "1:901381868881:web:92930481d6c1c85fedd770"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Define New Catalog Name
+        const COLLECTION_NAME = "facility_operations_log";
+
+        // State Management
+        let vehicles = [];
+        let dbUser = null;
+
+        // UI Elements
+        const activeList = document.getElementById('activeList');
+        const completedList = document.getElementById('completedList');
+        const dbStatusDot = document.getElementById('dbStatusDot');
+        const dbStatusText = document.getElementById('dbStatusText');
+        const btnNewEntry = document.getElementById('btnNewEntry');
+
+        // UI Feedback functions
+        const showToast = (message) => {
+            document.getElementById('toastMsg').textContent = message;
+            document.getElementById('toast').classList.add('show');
+            setTimeout(() => document.getElementById('toast').classList.remove('show'), 3500);
+        };
+
+        const setDbStatus = (status, msg) => {
+            dbStatusText.textContent = msg;
+            if (status === 'connected') {
+                dbStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500 sync-active';
+                dbStatusText.className = 'text-xs font-bold text-emerald-600';
+                btnNewEntry.disabled = false;
+            } else if (status === 'error') {
+                dbStatusDot.className = 'w-2 h-2 rounded-full bg-red-500';
+                dbStatusText.className = 'text-xs font-bold text-red-500';
+                btnNewEntry.disabled = true;
+            }
+        };
+
+        const copyToClipboard = (text) => {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Report saved & copied to clipboard!");
+            } catch (err) {
+                showToast("Saved! (Failed to copy to clipboard)");
+            }
+            document.body.removeChild(textArea);
+        };
+
+        // Helpers
+        const getCurrentTime = () => {
+            const now = new Date();
+            return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        };
+        const getCurrentDate = () => new Date().toISOString().split('T')[0];
+
+        // --- FIREBASE AUTH & SYNC ---
+        const initDatabase = async () => {
+            try {
+                // Anonymous sign-in so staff don't need passwords
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Auth Error:", error);
+                setDbStatus('error', 'Auth Failed. Check Firebase Settings.');
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            dbUser = user;
+            if (user) {
+                setDbStatus('connected', 'Live Sync Active');
+                
+                // Real-time listener on the new catalog
+                const q = collection(db, COLLECTION_NAME);
+                onSnapshot(q, (snapshot) => {
+                    vehicles = [];
+                    snapshot.forEach((doc) => {
+                        vehicles.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // Sort locally: newest entries first based on timestamp
+                    vehicles.sort((a, b) => b.timestamp - a.timestamp);
+                    renderDashboard();
+                }, (error) => {
+                    console.error("Sync Error:", error);
+                    setDbStatus('error', 'Permission Denied');
+                });
+            }
+        });
+
+        // Initialize App
+        initDatabase();
+
+        // --- MODAL CONTROLS (Exposed to global window for HTML buttons) ---
+        window.openEntryModal = () => {
+            document.getElementById('entryForm').reset();
+            document.getElementById('entry_date').value = getCurrentDate();
+            document.getElementById('entry_time').value = getCurrentTime();
+            const modal = document.getElementById('entryModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('show'), 10);
+        };
+
+        window.openExitModal = (id) => {
+            const vehicle = vehicles.find(v => v.id === id);
+            if(!vehicle) return;
+
+            document.getElementById('exitForm').reset();
+            document.getElementById('exit_id').value = id;
+            document.getElementById('exit_vehicle_display').textContent = `${vehicle.vehicleNo} (${vehicle.callsign})`;
+            document.getElementById('exit_time').value = getCurrentTime();
+            
+            document.getElementById('station_others_container').classList.add('hidden');
+            document.getElementById('hospital_others_container').classList.add('hidden');
+
+            const modal = document.getElementById('exitModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('show'), 10);
+        };
+
+        window.closeModals = () => {
+            document.getElementById('entryModal').classList.remove('show');
+            document.getElementById('exitModal').classList.remove('show');
+            setTimeout(() => {
+                document.getElementById('entryModal').classList.add('hidden');
+                document.getElementById('exitModal').classList.add('hidden');
+            }, 300);
+        };
+
+        // --- FORM LOGIC ---
+        // Toggle dynamic fields
+        document.getElementById('fire_station').addEventListener('change', (e) => {
+            const container = document.getElementById('station_others_container');
+            const input = document.getElementById('station_others');
+            if(e.target.value === 'OTHERS') {
+                container.classList.remove('hidden'); input.setAttribute('required', 'true'); input.focus();
+            } else { container.classList.add('hidden'); input.removeAttribute('required'); }
+        });
+
+        document.getElementById('hospital').addEventListener('change', (e) => {
+            const container = document.getElementById('hospital_others_container');
+            const input = document.getElementById('hospital_others');
+            if(e.target.value === 'OTHERS') {
+                container.classList.remove('hidden'); input.setAttribute('required', 'true'); input.focus();
+            } else { container.classList.add('hidden'); input.removeAttribute('required'); }
+        });
+
+        // Submit Entry
+        document.getElementById('entryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!dbUser) return;
+            
+            const btn = document.getElementById('btnSubmitEntry');
+            btn.disabled = true; btn.innerHTML = 'Saving...';
+
+            const id = Date.now().toString(); // Use timestamp as simple unique ID
+            const newEntry = {
+                status: 'ACTIVE',
+                timestamp: Date.now(),
+                date: document.getElementById('entry_date').value,
+                entryTime: document.getElementById('entry_time').value,
+                vehicleNo: document.getElementById('vehicle_no').value.trim(),
+                callsign: `${document.getElementById('callsign_type').value} ${document.getElementById('callsign_val').value.trim()}`,
+                paramedic: `${document.getElementById('paramedic_rank').value} ${document.getElementById('paramedic_name').value.trim()}`
+            };
+
+            try {
+                // Save to Firebase
+                await setDoc(doc(db, COLLECTION_NAME, id), newEntry);
+                
+                const shareText = `*VEHICLE ENTRY*\nDate: ${newEntry.date}\nTime In: ${newEntry.entryTime}\nVehicle: ${newEntry.vehicleNo} (Callsign: ${newEntry.callsign})\nParamedic: ${newEntry.paramedic}`;
+                copyToClipboard(shareText);
+                window.closeModals();
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                showToast("Failed to save to database!");
+            } finally {
+                btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Save & Copy';
+            }
+        });
+
+        // Submit Exit
+        document.getElementById('exitForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!dbUser) return;
+
+            const btn = document.getElementById('btnSubmitExit');
+            btn.disabled = true; btn.innerHTML = 'Processing...';
+
+            const id = document.getElementById('exit_id').value;
+            const vehicle = vehicles.find(v => v.id === id);
+            
+            const stnSelect = document.getElementById('fire_station').value;
+            const hospSelect = document.getElementById('hospital').value;
+            const escortRank = document.getElementById('escort_rank').value;
+            const escortName = document.getElementById('escort_name').value.trim();
+
+            const updates = {
+                status: 'COMPLETED',
+                exitTime: document.getElementById('exit_time').value,
+                station: stnSelect === 'OTHERS' ? document.getElementById('station_others').value : stnSelect,
+                escort: escortRank === 'NONE' ? 'None' : `${escortRank} ${escortName}`,
+                gender: document.getElementById('gender').value,
+                race: document.getElementById('race').value,
+                hospital: hospSelect === 'OTHERS' ? document.getElementById('hospital_others').value : hospSelect
+            };
+
+            try {
+                // Update in Firebase
+                await updateDoc(doc(db, COLLECTION_NAME, id), updates);
+                
+                const v = { ...vehicle, ...updates }; // Merge for share text
+                const shareText = `*VEHICLE EXIT / INCIDENT REPORT*\nDate: ${v.date}\nTime In: ${v.entryTime} | Time Out: ${v.exitTime}\nVehicle: ${v.vehicleNo} (Callsign: ${v.callsign})\nStation: ${v.station}\nParamedic: ${v.paramedic}\nEscort: ${v.escort}\nCasualty: ${v.gender}, ${v.race}\nHospital: ${v.hospital}`;
+                
+                copyToClipboard(shareText);
+                window.closeModals();
+            } catch (error) {
+                console.error("Error updating document: ", error);
+                showToast("Failed to update database!");
+            } finally {
+                btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg> Finish & Copy';
+            }
+        });
+
+        // --- DASHBOARD RENDERING ---
+        const renderDashboard = () => {
+            // Filter records 
+            const active = vehicles.filter(v => v.status === 'ACTIVE');
+            
+            // For completed, only show today's exits to keep the UI clean
+            const today = getCurrentDate();
+            const completed = vehicles.filter(v => v.status === 'COMPLETED' && v.date === today);
+
+            // Render Active
+            if(active.length === 0) {
+                activeList.innerHTML = `
+                <div class="col-span-full bg-white rounded-2xl border-2 border-dashed border-slate-200 p-10 flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="text-slate-400" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+                    </div>
+                    <p class="text-slate-500 font-medium">No active vehicles</p>
+                </div>`;
+            } else {
+                activeList.innerHTML = active.map(v => `
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 relative overflow-hidden group hover:shadow-md transition-shadow">
+                        <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                        <div class="flex justify-between items-start mb-4 pl-2">
+                            <div>
+                                <h4 class="font-mono text-2xl font-bold text-slate-900 tracking-tight">${v.vehicleNo}</h4>
+                                <p class="text-sm font-medium text-slate-500 mt-0.5">Callsign: <span class="text-slate-700">${v.callsign}</span></p>
+                            </div>
+                            <div class="text-right">
+                                <span class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-blue-100">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> In
+                                </span>
+                                <p class="text-xs font-bold text-slate-400 mt-1.5">${v.entryTime}</p>
+                            </div>
+                        </div>
+                        <div class="mb-5 pl-2">
+                            <div class="flex items-center gap-2 text-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="text-slate-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <span class="text-slate-600 font-medium">${v.paramedic}</span>
+                            </div>
+                        </div>
+                        <button onclick="window.openExitModal('${v.id}')" class="w-full bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-xl transition-colors text-sm flex justify-center items-center gap-2">
+                            Process Exit Details
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            // Render Completed
+            if(completed.length === 0) {
+                completedList.innerHTML = `<p class="text-slate-400 font-medium text-sm py-6 text-center">No completed records today.</p>`;
+            } else {
+                completedList.innerHTML = completed.map(v => `
+                    <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 hover:border-slate-300 transition-colors">
+                        <div class="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Vehicle</p>
+                                <p class="font-mono font-bold text-slate-900">${v.vehicleNo} <span class="text-slate-500 text-xs font-sans">(${v.callsign})</span></p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Duration</p>
+                                <p class="text-slate-700 font-medium">${v.entryTime} <span class="text-slate-400 mx-0.5">→</span> ${v.exitTime}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Hospital</p>
+                                <p class="text-slate-900 font-semibold truncate">${v.hospital}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Paramedic</p>
+                                <p class="text-slate-700 font-medium truncate">${v.paramedic}</p>
+                            </div>
+                        </div>
+                        <button onclick="window.copyCompletedData('${v.id}')" class="shrink-0 flex items-center justify-center gap-2 text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-blue-50 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors border border-slate-200 hover:border-blue-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Copy text
+                        </button>
+                    </div>
+                `).join('');
+            }
+        };
+
+        window.copyCompletedData = (id) => {
+            const v = vehicles.find(v => v.id === id);
+            if(!v) return;
+            const shareText = `*VEHICLE EXIT / INCIDENT REPORT*\nDate: ${v.date}\nTime In: ${v.entryTime} | Time Out: ${v.exitTime}\nVehicle: ${v.vehicleNo} (Callsign: ${v.callsign})\nStation: ${v.station}\nParamedic: ${v.paramedic}\nEscort: ${v.escort}\nCasualty: ${v.gender}, ${v.race}\nHospital: ${v.hospital}`;
+            copyToClipboard(shareText);
+        };
+    </script>
+</body>
+</html>
+
+
