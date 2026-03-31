@@ -102,9 +102,10 @@
                 </div>
 
                 <!-- Add New Staff -->
-                <div class="flex gap-2 mb-6 max-w-md">
-                    <input type="text" id="new-staff-id" placeholder="Enter new Staff ID/Name" class="flex-1 border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" onkeypress="if(event.key === 'Enter') window.addNewStaff()">
-                    <button onclick="window.addNewStaff()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-bold transition-colors whitespace-nowrap">Add to List</button>
+                <div class="flex flex-col sm:flex-row gap-2 mb-6 max-w-lg">
+                    <input type="text" id="new-staff-id" placeholder="Staff ID (e.g. 1234)" class="w-full sm:w-1/3 border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <input type="text" id="new-staff-name" placeholder="Staff Name (Optional)" class="w-full sm:flex-1 border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" onkeypress="if(event.key === 'Enter') window.addNewStaff()">
+                    <button onclick="window.addNewStaff()" class="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded text-sm font-bold transition-colors whitespace-nowrap">Add Staff</button>
                 </div>
 
                 <!-- Staff Grid -->
@@ -187,13 +188,18 @@
         const placeholders7 = ['6399', '8598', '8663', '8831', '7481', '5582', '4511']; 
 
         let masterStaffList = [
-            { id: '7481', present: true }, { id: '5582', present: true },
-            { id: '6399', present: true }, { id: '4511', present: true },
-            { id: '8795', present: true }, { id: '8831', present: true },
-            { id: '8656', present: true }, { id: '8663', present: true },
-            { id: '8598', present: false },
-            { id: '1001 (Relief)', present: false }, { id: '1002 (Relief)', present: false },
-            { id: '1003 (Relief)', present: false }
+            { id: '7481', name: 'S. Officer 1', present: true }, 
+            { id: '5582', name: 'S. Officer 2', present: true },
+            { id: '6399', name: 'S. Officer 3', present: true }, 
+            { id: '4511', name: 'S. Officer 4', present: true },
+            { id: '8795', name: 'S. Officer 5', present: true }, 
+            { id: '8831', name: 'S. Officer 6', present: true },
+            { id: '8656', name: 'S. Officer 7', present: true }, 
+            { id: '8663', name: 'S. Officer 8', present: true },
+            { id: '8598', name: 'S. Officer 9', present: false },
+            { id: '1001 (Relief)', name: 'Relief Staff A', present: false }, 
+            { id: '1002 (Relief)', name: 'Relief Staff B', present: false },
+            { id: '1003 (Relief)', name: 'Relief Staff C', present: false }
         ];
 
         let assignments = {};
@@ -421,11 +427,15 @@
         };
 
         window.addNewStaff = function() {
-            const input = document.getElementById('new-staff-id');
-            const val = input.value.trim();
-            if (val && !masterStaffList.find(s => s.id === val)) {
-                masterStaffList.push({ id: val, present: true });
-                input.value = '';
+            const idInput = document.getElementById('new-staff-id');
+            const nameInput = document.getElementById('new-staff-name');
+            const idVal = idInput.value.trim();
+            const nameVal = nameInput.value.trim();
+            
+            if (idVal && !masterStaffList.find(s => s.id === idVal)) {
+                masterStaffList.push({ id: idVal, name: nameVal, present: true });
+                idInput.value = '';
+                nameInput.value = '';
                 renderAttendance();
                 window.saveToDatabase();
             }
@@ -521,7 +531,10 @@
                     <div class="relative flex items-stretch border-2 rounded-lg transition-colors ${isPresent ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}">
                         <label class="cursor-pointer flex-1 flex items-center justify-between p-2 md:p-3 overflow-hidden" title="Toggle Attendance">
                             <input type="checkbox" class="sr-only" ${isPresent ? 'checked' : ''} onchange="window.toggleStaff('${staff.id}')">
-                            <span class="font-bold text-gray-800 text-xs md:text-sm truncate pr-2">${staff.id}</span>
+                            <div class="flex flex-col truncate pr-2">
+                                <span class="font-bold text-gray-800 text-xs md:text-sm truncate">${staff.id}</span>
+                                <span class="text-[10px] md:text-xs text-gray-500 truncate">${staff.name || ''}</span>
+                            </div>
                             <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ? 'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         </label>
                         <button onclick="window.promptDeleteStaff('${staff.id}', event)" class="px-2 md:px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-transparent hover:border-red-100 rounded-r-lg flex items-center justify-center" title="Remove Staff">
