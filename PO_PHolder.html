@@ -12,8 +12,7 @@
         .modal-enter { animation: modalIn 0.2s ease-out forwards; }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         
-        /* Remove default date picker styles for cleaner look if preferred, 
-           but native is kept for maximum mobile compatibility */
+        /* Remove default date picker styles for cleaner look if preferred */
         input[type="date"]::-webkit-calendar-picker-indicator {
             cursor: pointer;
             opacity: 0.6;
@@ -22,11 +21,15 @@
         input[type="date"]::-webkit-calendar-picker-indicator:hover {
             opacity: 1;
         }
+        
+        /* Hide scrollbar for a cleaner tab layout on mobile but keep functionality */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-6 font-sans">
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Delete Staff Confirmation Modal -->
     <div id="delete-confirmation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full modal-enter border border-gray-200">
             <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
@@ -41,24 +44,46 @@
         </div>
     </div>
 
+    <!-- Delete Archive Confirmation Modal -->
+    <div id="delete-archive-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full modal-enter border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Delete Archive
+            </h3>
+            <p class="text-gray-600 mb-6">Are you sure you want to permanently delete the archived roster for <span id="delete-modal-archive-id" class="font-bold text-gray-900"></span>? This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="window.cancelDeleteArchive()" class="px-4 py-2 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
+                <button onclick="window.confirmDeleteArchive()" class="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-[1400px] mx-auto">
         
         <!-- Header & Cloud Status -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <!-- Tab Navigation -->
-            <div class="flex border-b border-gray-300 w-full md:w-auto">
-                <button onclick="window.switchTab('attendance')" id="btn-tab-attendance" class="flex-1 md:flex-none flex justify-center items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14h6"></path><path d="M9 10h6"></path><path d="M9 18h6"></path></svg>
-                    Staff Attendance
-                </button>
-                <button onclick="window.switchTab('roster')" id="btn-tab-roster" class="flex-1 md:flex-none flex justify-center items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-blue-600 text-blue-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line></svg>
-                    Shift Roster
-                </button>
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+            
+            <!-- Tab Navigation (Scrollable on small screens) -->
+            <div class="w-full lg:w-auto overflow-x-auto no-scrollbar border-b border-gray-300">
+                <div class="flex min-w-max">
+                    <button onclick="window.switchTab('attendance')" id="btn-tab-attendance" class="flex items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M9 14h6"></path><path d="M9 10h6"></path><path d="M9 18h6"></path></svg>
+                        Staff Attendance
+                    </button>
+                    <button onclick="window.switchTab('roster')" id="btn-tab-roster" class="flex items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-blue-600 text-blue-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line></svg>
+                        Shift Roster
+                    </button>
+                    <button onclick="window.switchTab('archives')" id="btn-tab-archives" class="flex items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Archives
+                    </button>
+                </div>
             </div>
 
             <!-- Cloud Save Actions -->
-            <div class="flex flex-col items-end gap-1 w-full md:w-auto">
+            <div class="flex flex-col items-end gap-1 w-full lg:w-auto mt-2 lg:mt-0">
                 <div class="flex items-center gap-3">
                     <div id="cloud-status" class="text-xs font-bold text-gray-500 flex items-center gap-1">
                         <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -69,6 +94,7 @@
                         Save to Database
                     </button>
                 </div>
+                <span class="text-[10px] text-gray-400 font-semibold mr-1">Saves Live State & Auto-Archives by Date</span>
             </div>
         </div>
 
@@ -151,13 +177,32 @@
                 </div>
             </div>
         </div>
+
+        <!-- ==================== ARCHIVES TAB ==================== -->
+        <div id="tab-archives" class="hidden animate-fade-in">
+            <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b pb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Archived Rosters
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-1">Past rosters are saved automatically when you click "Save to Database".</p>
+                    </div>
+                </div>
+
+                <div id="archives-container">
+                    <!-- Archived Cards Injected by JS -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDK configured as a Module -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDocs, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -173,6 +218,7 @@
         const db = getFirestore(app);
 
         // Core App Data Config
+        let currentTab = 'roster';
         let rosterSize = 8;
         let rosterDate = "";
         let shiftSupervisor = "";
@@ -203,12 +249,15 @@
         ];
 
         let assignments = {};
+        let archivesList = []; // Holds data from Firebase archives collection
+
         // Initialize placeholders for both sizes to prevent any missing mappings
         placeholders8.forEach(p => assignments[p] = p);
         placeholders7.forEach(p => assignments[p] = p);
         
         let isDbReady = false;
         let staffToDelete = null; 
+        let archiveToDelete = null;
 
         // Utility: Convert YYYY-MM-DD to Day Name
         function getDayName(dateStr) {
@@ -302,9 +351,11 @@
             if (user) {
                 isDbReady = true;
                 listenToCloudData();
+                listenToArchives();
             }
         });
 
+        // Listen for live collaborative state
         function listenToCloudData() {
             const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
             
@@ -318,9 +369,13 @@
                     if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
                     
                     updateRosterSizeUI();
-                    renderAttendance();
-                    renderControls();
-                    renderTables();
+                    
+                    // Only re-render if we are in that tab
+                    if(currentTab === 'attendance') renderAttendance();
+                    if(currentTab === 'roster') {
+                        renderControls();
+                        renderTables();
+                    }
                 }
                 updateCloudStatus("Synced with Cloud", "text-green-600");
             }, (error) => {
@@ -329,12 +384,29 @@
             });
         }
 
+        // Listen for all archives
+        function listenToArchives() {
+            const archivesCol = collection(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'archives_v1');
+            onSnapshot(archivesCol, (snapshot) => {
+                archivesList = [];
+                snapshot.forEach(doc => {
+                    archivesList.push({ id: doc.id, ...doc.data() });
+                });
+                // Sort descending (newest dates first)
+                archivesList.sort((a, b) => b.rosterDate.localeCompare(a.rosterDate));
+                if (currentTab === 'archives') renderArchives();
+            }, (error) => {
+                console.error("Firestore Archives Error:", error);
+            });
+        }
+
         window.saveToDatabase = async function() {
             if (!isDbReady) return;
             updateCloudStatus("Saving...", "text-blue-500");
             try {
-                const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
-                await setDoc(docRef, {
+                // 1. Save Live State
+                const liveRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+                await setDoc(liveRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
                     rosterSize: rosterSize,
@@ -342,6 +414,19 @@
                     shiftSupervisor: shiftSupervisor,
                     lastUpdated: new Date().toISOString()
                 });
+
+                // 2. Save Archival Snapshot (using rosterDate as document ID)
+                if (rosterDate) {
+                    const archiveRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'archives_v1', rosterDate);
+                    await setDoc(archiveRef, {
+                        assignments: assignments,
+                        rosterSize: rosterSize,
+                        rosterDate: rosterDate,
+                        shiftSupervisor: shiftSupervisor,
+                        savedAt: new Date().toISOString()
+                    });
+                }
+
                 updateCloudStatus("Synced with Cloud", "text-green-600");
             } catch (error) {
                 console.error("Save Error:", error);
@@ -392,31 +477,26 @@
         }
 
         window.switchTab = function(tab) {
-            const attTab = document.getElementById('tab-attendance');
-            const rosTab = document.getElementById('tab-roster');
-            const btnAtt = document.getElementById('btn-tab-attendance');
-            const btnRos = document.getElementById('btn-tab-roster');
+            currentTab = tab;
+            const tabs = ['attendance', 'roster', 'archives'];
+            
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`btn-tab-${t}`);
+                if (t === tab) {
+                    el.classList.remove('hidden');
+                    btn.classList.add('border-blue-600', 'text-blue-600');
+                    btn.classList.remove('border-transparent', 'text-gray-500');
+                } else {
+                    el.classList.add('hidden');
+                    btn.classList.remove('border-blue-600', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                }
+            });
 
-            if (tab === 'attendance') {
-                attTab.classList.remove('hidden');
-                rosTab.classList.add('hidden');
-                
-                btnAtt.classList.add('border-blue-600', 'text-blue-600');
-                btnAtt.classList.remove('border-transparent', 'text-gray-500');
-                btnRos.classList.remove('border-blue-600', 'text-blue-600');
-                btnRos.classList.add('border-transparent', 'text-gray-500');
-                renderAttendance();
-            } else {
-                attTab.classList.add('hidden');
-                rosTab.classList.remove('hidden');
-                
-                btnRos.classList.add('border-blue-600', 'text-blue-600');
-                btnRos.classList.remove('border-transparent', 'text-gray-500');
-                btnAtt.classList.remove('border-blue-600', 'text-blue-600');
-                btnAtt.classList.add('border-transparent', 'text-gray-500');
-                renderControls();
-                renderTables();
-            }
+            if (tab === 'attendance') renderAttendance();
+            if (tab === 'roster') { renderControls(); renderTables(); }
+            if (tab === 'archives') renderArchives();
         };
 
         window.toggleStaff = function(id) {
@@ -507,6 +587,50 @@
              renderTables(); 
              window.saveToDatabase();
         };
+
+        // --- Archive Functionality ---
+
+        window.loadArchive = function(dateId) {
+            const archive = archivesList.find(a => a.id === dateId);
+            if (archive) {
+                // Load archived data into live variables
+                assignments = archive.assignments || {};
+                rosterSize = archive.rosterSize || 8;
+                rosterDate = archive.rosterDate || dateId;
+                shiftSupervisor = archive.shiftSupervisor || "";
+                
+                // Switch to roster tab & save to make it the active live view
+                window.switchTab('roster');
+                window.saveToDatabase();
+            }
+        };
+
+        window.promptDeleteArchive = function(dateId, event) {
+            if (event) event.stopPropagation();
+            archiveToDelete = dateId;
+            document.getElementById('delete-modal-archive-id').innerText = dateId;
+            document.getElementById('delete-archive-modal').classList.remove('hidden');
+        };
+
+        window.cancelDeleteArchive = function() {
+            archiveToDelete = null;
+            document.getElementById('delete-archive-modal').classList.add('hidden');
+        };
+
+        window.confirmDeleteArchive = async function() {
+            if (!archiveToDelete || !isDbReady) return;
+            const idToDelete = archiveToDelete;
+            archiveToDelete = null;
+            document.getElementById('delete-archive-modal').classList.add('hidden');
+            
+            try {
+                await deleteDoc(doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'archives_v1', idToDelete));
+                // Real-time listener will auto-update UI
+            } catch(e) {
+                console.error("Failed to delete archive:", e);
+            }
+        };
+
 
         // --- Render Functions ---
 
@@ -725,6 +849,54 @@
             });
             html += `</tbody></table>`;
 
+            container.innerHTML = html;
+        }
+
+        function renderArchives() {
+            const container = document.getElementById('archives-container');
+            
+            if (archivesList.length === 0) {
+                container.innerHTML = `
+                    <div class="p-12 text-center text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                        <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        <p class="font-semibold text-lg">No Archives Found</p>
+                        <p class="text-sm">Click "Save to Database" on the Roster tab to back up a specific date.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = '<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">';
+            archivesList.forEach(arc => {
+                const dayName = getDayName(arc.rosterDate);
+                const isCurrentLive = (arc.rosterDate === rosterDate); // Highlight currently loaded date
+
+                html += `
+                    <div class="bg-white border ${isCurrentLive ? 'border-blue-400 shadow-md ring-1 ring-blue-400' : 'border-gray-200 shadow-sm hover:shadow-md'} rounded-lg p-4 transition-all">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-bold text-lg text-gray-900">${arc.rosterDate}</h3>
+                                <p class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">${dayName}</p>
+                            </div>
+                            <span class="bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold px-2 py-1 rounded-md">Size: ${arc.rosterSize || 8}</span>
+                        </div>
+                        
+                        <div class="mb-4 text-sm text-gray-600 space-y-1">
+                            <p><span class="font-semibold text-gray-800">Supervisor:</span> ${arc.shiftSupervisor || '<span class="italic text-gray-400">None</span>'}</p>
+                            <p class="text-[10px] text-gray-400">Saved: ${new Date(arc.savedAt).toLocaleDateString()} ${new Date(arc.savedAt).toLocaleTimeString()}</p>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="window.loadArchive('${arc.id}')" class="flex-1 ${isCurrentLive ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'} font-bold py-2 px-3 rounded-md text-sm transition-colors">
+                                ${isCurrentLive ? 'Currently Active' : 'Load Roster'}
+                            </button>
+                            <button onclick="window.promptDeleteArchive('${arc.id}', event)" class="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 font-bold py-2 px-3 rounded-md transition-colors border border-red-100" title="Delete Archive">
+                                <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
             container.innerHTML = html;
         }
 
