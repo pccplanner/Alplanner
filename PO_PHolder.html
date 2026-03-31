@@ -46,7 +46,7 @@
         </div>
     </div>
 
-    <!-- Archive Action Modal (Choose Load or Delete) -->
+    <!-- Archive Action Modal -->
     <div id="archive-action-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4">
         <div class="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl p-6 w-full sm:max-w-sm modal-enter border border-gray-200">
             <h3 class="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
@@ -138,6 +138,7 @@
                     <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
                         <!-- Roster Size Selector -->
                         <div class="flex bg-gray-200 rounded-lg p-1 w-full md:w-auto shadow-inner">
+                            <button onclick="window.setRosterSize(6)" id="btn-size-6" class="flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900">6 Staff Mode</button>
                             <button onclick="window.setRosterSize(7)" id="btn-size-7" class="flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900">7 Staff Mode</button>
                             <button onclick="window.setRosterSize(8)" id="btn-size-8" class="flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 bg-white shadow-sm text-blue-600">8 Staff Mode</button>
                         </div>
@@ -215,7 +216,7 @@
                 </div>
             </div>
 
-            <!-- Roster Tables Wrapper (Used for PDF Export manipulation) -->
+            <!-- Roster Tables Wrapper -->
             <div id="tables-wrapper" class="bg-white p-4 shadow-xl border border-gray-200 rounded-lg overflow-x-auto overflow-y-hidden transition-all duration-300">
                 <div id="tables-container" class="min-w-max pb-4 bg-white">
                     <!-- Tables injected by JS -->
@@ -308,6 +309,7 @@
 
         const placeholders8 = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
         const placeholders7 = ['6399', '8598', '8663', '8831', '7481', '5582', '4511']; 
+        const placeholders6 = ['5582', '7481', '4511', '4270', '8656', '8598'];
 
         let masterStaffList = [
             { id: '7481', name: 'S. Officer 1', present: true }, 
@@ -319,6 +321,7 @@
             { id: '8656', name: 'S. Officer 7', present: true }, 
             { id: '8663', name: 'S. Officer 8', present: true },
             { id: '8598', name: 'S. Officer 9', present: false },
+            { id: '4270', name: 'S. Officer 10', present: false },
             { id: '1001 (Relief)', name: 'Relief Staff A', present: false }, 
             { id: '1002 (Relief)', name: 'Relief Staff B', present: false },
             { id: '1003 (Relief)', name: 'Relief Staff C', present: false }
@@ -329,6 +332,7 @@
 
         placeholders8.forEach(p => assignments[p] = p);
         placeholders7.forEach(p => assignments[p] = p);
+        placeholders6.forEach(p => assignments[p] = p);
         
         let isDbReady = false;
         let staffToDelete = null; 
@@ -344,7 +348,7 @@
             return days[localDate.getDay()];
         }
 
-        // --- Roster Size Data Sets (8 Man vs 7 Man) ---
+        // --- Roster Size Data Sets (8, 7, and 6 Man) ---
         const timeHeaders = ["TIME(HRS)", "2000 - 2030", "2030-2100", "2100HRS", "2200HRS", "2300HRS", "2400 - 2430", "2430 - 0100", "0100-0130", "0130-0200", "0200HRS", "0300HRS", "0400HRS", "0500-0530", "0530 - 0600", "0600-0630", "0630-0700", "0700HRS"];
 
         const table1Data_8 = [
@@ -397,8 +401,35 @@
             [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0330-0400", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 10 } ]
         ];
 
+        const table1Data_6 = [
+            ["CID/FOYER PASS COUNTER", "5582", "V", "8656", "5582", "7481", "8656", "7481", "4511", "V", "4270", "7481", "4511", "7481", "4270", "5582", "V", "4511"],
+            ["", "8656", "E", "", "4270", "", "7481", "", "5582", "E", "", "4270", "5582", "4270", "", "", "E", ""],
+            ["", "", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
+            ["", "", "T", "", "", "", "", "", "", "T", "", "", "", "", "", "", "T", ""],
+            ["", "", "I", "", "4511", "4270", "", "8656", "8656", "I", "5582", "8598", "", "", "7481", "7481", "I", ""],
+            ["KIOSK", "4270", "C", "4511", "7481", "8656", "5582", "5582", "4270", "C", "7481", "4511", "7481", "5582", "5582", "4511", "C", "5582"],
+            ["LOBBY C", "******", "A", "******", "******", "******", "******", "******", "******", "A", "******", "******", "******", "******", "******", "******", "A", "******"],
+            ["HHMD", "8598", "L", "8598", "8656", "8598", "8598", "8598", "8598", "L", "8598", "8656", "8656", "8656", "8656", "8656/8598", "L", "8656"],
+            ["GUARD HOUSE", "4511", "", "7481", "8598", "5582", "4270", "4270", "7481", "", "4511", "5582", "4270", "4511", "4511", "4270", "", "8598"],
+            ["VERTICAL PATROL", "******", "5582", "******", "******", "4511", "******", "******", "******", "8656", "******", "******", "8598", "******", "******", "******", "7481", "******"]
+        ];
+
+        const table2Data_6 = [
+            ["REPORT ROOM(BME)", "7481", "7481", "4270", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+            ["CNB COUNTER", "4834/4928", "4834/4928", "4834/4928", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
+        ];
+
+        const table3Data_6 = [
+            [ { val: "MANPOWER: 6", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "4270", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "8598", colSpan: 2 }, { val: "", colSpan: 5 } ],
+            [ { val: "BREAK TIME", colSpan: 1 }, { val: "0200-0300", colSpan: 2 }, { val: "0530-0630", colSpan: 2 }, { val: "2200-2300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0030-0130", colSpan: 2 }, { val: "0300-0400", colSpan: 2 }, { val: "", colSpan: 5 } ],
+            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 11 } ],
+            [ { val: "TIMING:", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "", colSpan: 11 } ]
+        ];
+
         function getPlaceholders() {
-            return rosterSize === 8 ? placeholders8 : placeholders7;
+            if (rosterSize === 8) return placeholders8;
+            if (rosterSize === 7) return placeholders7;
+            return placeholders6;
         }
 
         function updateCloudStatus(message, colorClass) {
@@ -614,22 +645,20 @@
         };
 
         function updateRosterSizeUI() {
+            const btn6 = document.getElementById('btn-size-6');
             const btn7 = document.getElementById('btn-size-7');
             const btn8 = document.getElementById('btn-size-8');
             const desc = document.getElementById('attendance-desc');
             desc.innerText = `Select available staff. The system needs exactly ${rosterSize} staff members to fill the roster.`;
 
-            if (rosterSize === 7) {
-                btn7.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
-                btn7.classList.remove('text-gray-600', 'hover:text-gray-900');
-                btn8.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
-                btn8.classList.add('text-gray-600', 'hover:text-gray-900');
-            } else {
-                btn8.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
-                btn8.classList.remove('text-gray-600', 'hover:text-gray-900');
-                btn7.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
-                btn7.classList.add('text-gray-600', 'hover:text-gray-900');
-            }
+            // Reset all to default inactive state
+            [btn6, btn7, btn8].forEach(btn => {
+                btn.className = "flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900";
+            });
+
+            // Set active state for the selected one
+            const activeBtn = rosterSize === 8 ? btn8 : (rosterSize === 7 ? btn7 : btn6);
+            activeBtn.className = "flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 bg-white shadow-sm text-blue-600";
         }
 
         window.switchTab = function(tab) {
@@ -857,9 +886,11 @@
             const container = document.getElementById('inputs-container');
             let html = '';
             
-            container.className = rosterSize === 7 
-                ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
-                : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3";
+            container.className = rosterSize === 6 
+                ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+                : (rosterSize === 7 
+                    ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
+                    : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
             placeholders.forEach((p, index) => {
                 const isVacant = assignments[p] === "VACANT";
@@ -880,9 +911,21 @@
 
         function renderTables() {
             // Use deep copies so we do not mutate the base templates during weekend overwrites
-            let t1Data = JSON.parse(JSON.stringify(rosterSize === 8 ? table1Data_8 : table1Data_7));
-            let t2Data = JSON.parse(JSON.stringify(rosterSize === 8 ? table2Data_8 : table2Data_7));
-            let t3Data = JSON.parse(JSON.stringify(rosterSize === 8 ? table3Data_8 : table3Data_7));
+            let t1Data, t2Data, t3Data;
+            
+            if (rosterSize === 8) {
+                t1Data = JSON.parse(JSON.stringify(table1Data_8));
+                t2Data = JSON.parse(JSON.stringify(table2Data_8));
+                t3Data = JSON.parse(JSON.stringify(table3Data_8));
+            } else if (rosterSize === 7) {
+                t1Data = JSON.parse(JSON.stringify(table1Data_7));
+                t2Data = JSON.parse(JSON.stringify(table2Data_7));
+                t3Data = JSON.parse(JSON.stringify(table3Data_7));
+            } else {
+                t1Data = JSON.parse(JSON.stringify(table1Data_6));
+                t2Data = JSON.parse(JSON.stringify(table2Data_6));
+                t3Data = JSON.parse(JSON.stringify(table3Data_6));
+            }
 
             const dayName = getDayName(rosterDate);
             const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
@@ -918,7 +961,12 @@
             const container = document.getElementById('tables-container');
             let html = '';
             
-            const dynamicTPPlaceholder = rosterSize === 8 ? '8656' : '6399';
+            // Dynamic TP Assignment based on Roster Size
+            let dynamicTPPlaceholder;
+            if (rosterSize === 8) dynamicTPPlaceholder = '8656';
+            else if (rosterSize === 7) dynamicTPPlaceholder = '6399';
+            else dynamicTPPlaceholder = '4270';
+            
             const mappedTPValue = applyMapping(dynamicTPPlaceholder);
 
             // --- TABLE 1: MAIN ROSTER ---
@@ -1139,4 +1187,5 @@
     </script>
 </body>
 </html>
+
 
