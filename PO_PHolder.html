@@ -277,6 +277,7 @@
         let rosterDate = "";
         let shiftSupervisor = "";
         let currentCalDate = new Date(); // Tracks calendar view month/year
+        let cnbAssignments = {}; // Holds editable state for CNB table cells
         
         // Initialize Default Date if empty (Today)
         const today = new Date();
@@ -417,6 +418,7 @@
                     
                     if (data.masterStaffList) masterStaffList = data.masterStaffList;
                     if (data.assignments) assignments = data.assignments;
+                    if (data.cnbAssignments) cnbAssignments = data.cnbAssignments;
                     if (data.rosterSize) rosterSize = data.rosterSize;
                     if (data.rosterDate !== undefined) rosterDate = data.rosterDate;
                     if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
@@ -445,6 +447,7 @@
                 if (rosterDate) {
                     archiveHistory[rosterDate] = {
                         assignments: assignments,
+                        cnbAssignments: cnbAssignments,
                         rosterSize: rosterSize,
                         shiftSupervisor: shiftSupervisor,
                         savedAt: new Date().toISOString()
@@ -455,6 +458,7 @@
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
+                    cnbAssignments: cnbAssignments,
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -487,6 +491,11 @@
 
         window.updateSupervisor = function(val) {
             shiftSupervisor = val;
+            window.saveToDatabase();
+        };
+
+        window.updateCNB = function(colIdx, val) {
+            cnbAssignments[colIdx] = val;
             window.saveToDatabase();
         };
 
@@ -626,6 +635,7 @@
             const archive = archiveHistory[dateId];
             if (archive) {
                 assignments = archive.assignments || {};
+                cnbAssignments = archive.cnbAssignments || {};
                 rosterSize = archive.rosterSize || 8;
                 rosterDate = dateId;
                 shiftSupervisor = archive.shiftSupervisor || "";
@@ -662,6 +672,7 @@
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
+                    cnbAssignments: cnbAssignments,
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -764,17 +775,14 @@
 
             // Weekend Logic: Blank out REPORT ROOM (BME) & move its first staff to CID/FOYER at 2000-2030
             if (isWeekend) {
-                // Get the staff assigned to the first BME cell (2000-2030)
                 const bmeFirstStaff = t2Data[0][1]; 
                 
-                // Blank the BME assignments for the day
                 t2Data[0][1] = "******";
                 t2Data[0][2] = "******";
                 t2Data[0][3] = "******";
 
-                // Move to CID/FOYER PASS COUNTER (Row 0 through 4), Column 1 (2000-2030)
                 for (let r = 0; r < 5; r++) {
-                    if (t1Data[r][1] === "") { // Find first empty slot
+                    if (t1Data[r][1] === "") {
                         t1Data[r][1] = bmeFirstStaff;
                         break;
                     }
@@ -882,7 +890,7 @@
             });
             html += `</tbody></table>`;
 
-            // --- TABLE 2: REPORT ROOM & CNB ---
+            // --- TABLE 2: REPORT ROOM & CNB (Now Editable) ---
             html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs"><tbody>`;
             t2Data.forEach((row, rIdx) => {
                 html += `<tr>`;
@@ -891,12 +899,29 @@
                     const mappedCell = applyMapping(cell);
                     const isGrey = cell === "******";
 
-                    let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
-                    if (isHeader) classes += `bg-white text-left px-2 w-[200px] text-gray-700`;
-                    else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
-                    else classes += `bg-white text-gray-900`;
-
-                    html += `<td class="${classes}">${mappedCell}</td>`;
+                    let classes = `border border-gray-400 font-bold tracking-tight whitespace-nowrap `;
+                    
+                    if (isHeader) {
+                        classes += `p-1.5 bg-white text-left px-2 w-[200px] text-gray-700`;
+                        html += `<td class="${classes}">${mappedCell}</td>`;
+                    } else if (isGrey) {
+                        classes += `p-1.5 bg-[#b3b3b3] text-gray-900`;
+                        html += `<td class="${classes}">${mappedCell}</td>`;
+                    } else {
+                        // Interactive CNB COUNTER Logic
+                        if (row[0] === "CNB COUNTER") {
+                            const cnbVal = (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : cell;
+                            let tdClasses = classes + 'p-0 bg-white hover:bg-gray-50';
+                            
+                            html += `<td class="${tdClasses}">
+                                <input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none focus:bg-blue-100 text-blue-600 font-bold cursor-text px-1" />
+                            </td>`;
+                        } else {
+                            // Normal cell processing
+                            classes += `p-1.5 bg-white text-gray-900`;
+                            html += `<td class="${classes}">${mappedCell}</td>`;
+                        }
+                    }
                 });
                 html += `</tr>`;
             });
