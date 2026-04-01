@@ -319,6 +319,9 @@
         let cellOverrides = {}; // Format: `t1_rowIdx_colIdx` -> `staffId`
         let archiveHistory = {}; 
         
+        // Master Roster Sync State
+        let mRosterData = {};
+        
         let isEditMode = false;
         
         // Initialize Default Date if empty (Today)
@@ -356,6 +359,77 @@
         let staffToDelete = null; 
         let archiveToDelete = null;
         window.selectedArchiveDate = null;
+
+        // --- Status Tracker Utilities ---
+        function getAdjacentDates(currentDateStr) {
+            if (!currentDateStr) return { yest: null, tom: null };
+            const [y, m, d] = currentDateStr.split('-').map(Number);
+            const curr = new Date(y, m - 1, d);
+            
+            const yest = new Date(curr);
+            yest.setDate(yest.getDate() - 1);
+            
+            const tom = new Date(curr);
+            tom.setDate(tom.getDate() + 1);
+            
+            const format = (date) => {
+                return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            };
+            
+            return { yest: format(yest), tom: format(tom) };
+        }
+
+        function findStatusInMRoster(staffId, dateStr) {
+            if (!mRosterData || !mRosterData[staffId]) return null;
+            
+            // Try full date: '2026-04-01'
+            if (mRosterData[staffId][dateStr]) return mRosterData[staffId][dateStr];
+            
+            // Try day number: '1' or '01' 
+            const [y, m, d] = dateStr.split('-');
+            const dayNum = parseInt(d, 10).toString(); // '1'
+            if (mRosterData[staffId][dayNum]) return mRosterData[staffId][dayNum];
+            
+            const paddedDay = String(d).padStart(2, '0'); // '01'
+            if (mRosterData[staffId][paddedDay]) return mRosterData[staffId][paddedDay];
+
+            return null;
+        }
+
+        function getStaffStatus(staffId, dateStr) {
+            if (!staffId || staffId === "VACANT" || staffId.includes("******")) return "-";
+
+            // 1. Try to check MRoster Data (if loaded)
+            const mStatus = findStatusInMRoster(staffId, dateStr);
+            if (mStatus) return mStatus;
+
+            // 2. Try to check this app's own archiveHistory fallback
+            if (archiveHistory && archiveHistory[dateStr]) {
+                const archive = archiveHistory[dateStr];
+                
+                if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "Night";
+                if (archive.cnbAssignments && Object.values(archive.cnbAssignments).includes(staffId)) return "CNB";
+                if (archive.cellOverrides && Object.values(archive.cellOverrides).includes(staffId)) return "Night";
+                
+                return "-"; // App knows roster exists, but staff not deployed
+            }
+
+            return "-";
+        }
+
+        function formatStatusBadge(status) {
+            if (!status || status === "-" || status === "N/A") return `<span class="text-gray-400 font-normal">-</span>`;
+            
+            let colorClass = "text-gray-600";
+            const s = status.toUpperCase();
+            if (s.includes("2A") || s.includes("NIGHT")) colorClass = "text-green-600 font-bold";
+            else if (s.includes("OFF") || s.includes("OOD") || s.includes("OSD")) colorClass = "text-yellow-600 font-bold";
+            else if (s.includes("MC") || s.includes("UL") || s.includes("AL") || s.includes("HL")) colorClass = "text-red-600 font-bold";
+            else if (s.includes("CNB")) colorClass = "text-purple-600 font-bold";
+            else colorClass = "text-blue-600 font-bold";
+
+            return `<span class="${colorClass}">${status}</span>`;
+        }
 
         // Utility: Convert YYYY-MM-DD to Day Name
         function getDayName(dateStr) {
@@ -472,8 +546,24 @@
             if (user) {
                 isDbReady = true;
                 listenToCloudData();
+                listenToMRoster();
             }
         });
+
+        function listenToMRoster() {
+            // Listen to standard possible paths for MRoster data
+            const mRosterRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'mroster_v1', 'live_state');
+            onSnapshot(mRosterRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // MRoster could store in different common structures
+                    mRosterData = data.rosterData || data.staffRecords || data.gridData || {};
+                    renderControls(); // Re-render to show updated statuses
+                }
+            }, (error) => {
+                console.log("No external MRoster connection available, will use local archive fallback.");
+            });
+        }
 
         function listenToCloudData() {
             const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
@@ -694,6 +784,7 @@
         
         window.updateDate = function(val) {
             rosterDate = val;
+            renderControls();
             renderTables();
             window.saveToDatabase();
         };
@@ -825,6 +916,20 @@
         let saveTimeout;
         window.updateAssignment = function(pattern, value) {
             assignments[pattern] = value;
+            
+            // Instantly update the Local UI Element for the status tracker
+            const index = getPlaceholders().indexOf(pattern);
+            const statusDiv = document.getElementById(`status-slot-${index}`);
+            if (statusDiv) {
+                const dates = getAdjacentDates(rosterDate);
+                const yestStatus = getStaffStatus(value, dates.yest);
+                const tomStatus = getStaffStatus(value, dates.tom);
+                statusDiv.innerHTML = `
+                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
+                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Tomorrow's Status">T: ${formatStatusBadge(tomStatus)}</span>
+                `;
+            }
+
             renderTables(); // Update visual table instantly for smooth typing 
              
             clearTimeout(saveTimeout);
@@ -960,6 +1065,7 @@
         function renderControls() {
             const placeholders = getPlaceholders();
             const container = document.getElementById('inputs-container');
+            const dates = getAdjacentDates(rosterDate);
             
             const expectedClass = rosterSize === 6 
                 ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
@@ -968,28 +1074,40 @@
                     : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
             // --- SMART RENDERING: Prevents mobile keyboard from dropping ---
-            // If the grid structure is already correct, we just update the specific values,
-            // EXCEPT for the input the user is currently typing in.
+            // Update values and DOM locally without rebuilding full HTML if grid hasn't changed structure
             if (container.className === expectedClass && container.children.length === placeholders.length) {
                 placeholders.forEach((p, index) => {
                     const inp = document.getElementById(`input-slot-${index}`);
                     const parent = document.getElementById(`wrapper-slot-${index}`);
+                    const statusDiv = document.getElementById(`status-slot-${index}`);
                     
+                    const staffId = assignments[p] || p;
+                    const isVacant = staffId === "VACANT";
+
                     if (inp) {
                         // Only update value if the user is NOT actively focused/typing in this box
                         if (document.activeElement !== inp) {
-                            inp.value = assignments[p] || p;
+                            inp.value = staffId;
                         }
                         
-                        // Always update styling for Vacant shifts
-                        const isVacant = assignments[p] === "VACANT";
+                        // Update border styling
                         if (isVacant) {
-                            parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300";
+                            parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300 relative";
                             inp.className = "w-full border border-red-300 text-red-600 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
                         } else {
-                            parent.className = "flex flex-col bg-gray-50 p-2 rounded border border-gray-200";
+                            parent.className = "flex flex-col bg-gray-50 p-2 rounded border border-gray-200 relative";
                             inp.className = "w-full border border-gray-300 text-gray-900 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
                         }
+                    }
+
+                    // Always update Status Badges with latest input
+                    if (statusDiv) {
+                        const yestStatus = getStaffStatus(staffId, dates.yest);
+                        const tomStatus = getStaffStatus(staffId, dates.tom);
+                        statusDiv.innerHTML = `
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Tomorrow's Status">T: ${formatStatusBadge(tomStatus)}</span>
+                        `;
                     }
                 });
                 return; // Exit early, skipping full innerHTML recreation!
@@ -999,17 +1117,26 @@
             container.className = expectedClass;
             let html = '';
             placeholders.forEach((p, index) => {
-                const isVacant = assignments[p] === "VACANT";
+                const staffId = assignments[p] || p;
+                const isVacant = staffId === "VACANT";
+                
+                const yestStatus = getStaffStatus(staffId, dates.yest);
+                const tomStatus = getStaffStatus(staffId, dates.tom);
+
                 html += `
-                    <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border ${isVacant ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}">
+                    <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border relative ${isVacant ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}">
                         <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${index + 1}</label>
                         <input
                             id="input-slot-${index}"
                             type="text"
-                            value="${assignments[p] || p}"
+                            value="${staffId}"
                             oninput="window.updateAssignment('${p}', this.value)"
                             class="w-full border ${isVacant ? 'border-red-300 text-red-600' : 'border-gray-300 text-gray-900'} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                         />
+                        <div id="status-slot-${index}" class="flex justify-between items-center mt-1.5 px-0.5 border-t border-gray-200 pt-1">
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Tomorrow's Status">T: ${formatStatusBadge(tomStatus)}</span>
+                        </div>
                     </div>
                 `;
             });
