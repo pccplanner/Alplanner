@@ -191,6 +191,16 @@
                     </div>
                     
                     <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <!-- Reset to Defaults Button -->
+                        <button 
+                            onclick="window.resetAssignments()"
+                            class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-md font-bold transition-colors shadow-sm whitespace-nowrap"
+                            title="Reset all inputs back to their original placeholders"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                            Reset
+                        </button>
+                        
                         <!-- Edit Mode Toggle -->
                         <button 
                             id="btn-edit-mode"
@@ -314,10 +324,14 @@
         let shiftSupervisor = "";
         let currentCalDate = new Date(); 
         
-        let assignments = {};
         let cnbAssignments = {}; 
         let cellOverrides = {}; 
         let archiveHistory = {}; 
+        
+        // Segregated State Maps to prevent overlapping corruption
+        let assignments8 = {};
+        let assignments7 = {};
+        let assignments6 = {};
         
         // Master Roster Sync State
         let masterSchedule = {}; // Structure: { "2026_04": { "4270": { "01": "2A" } } }
@@ -359,14 +373,21 @@
             { id: '1003 (Relief)', name: 'Relief Staff C', present: false }
         ];
 
-        placeholders8.forEach(p => assignments[p] = p);
-        placeholders7.forEach(p => assignments[p] = p);
-        placeholders6.forEach(p => assignments[p] = p);
+        placeholders8.forEach(p => assignments8[p] = p);
+        placeholders7.forEach(p => assignments7[p] = p);
+        placeholders6.forEach(p => assignments6[p] = p);
         
         let isDbReady = false;
         let staffToDelete = null; 
         let archiveToDelete = null;
         window.selectedArchiveDate = null;
+
+        // Helper to get active assignments mapped to current roster size
+        function getActiveAssignments() {
+            if (rosterSize === 8) return assignments8;
+            if (rosterSize === 7) return assignments7;
+            return assignments6;
+        }
 
         // --- Status Tracker Utilities (NEW EXACT-PATH CONNECTION) ---
         function getAdjacentDates(currentDateStr) {
@@ -414,7 +435,11 @@
             // 2. FALLBACK: Local Archive History (ONLY used if Master Roster isn't linked for that specific month)
             if (archiveHistory && archiveHistory[dateStr]) {
                 const archive = archiveHistory[dateStr];
-                if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "NIGHT";
+                
+                // Safely handle archives, checking appropriately segregated assignment structures if applicable
+                const assignObj = archive.assignments || archive.assignments8 || archive.assignments7 || archive.assignments6 || {};
+                
+                if (assignObj && Object.values(assignObj).includes(staffId)) return "NIGHT";
                 if (archive.cnbAssignments && Object.values(archive.cnbAssignments).includes(staffId)) return "CNB";
                 if (archive.cellOverrides && Object.values(archive.cellOverrides).includes(staffId)) return "NIGHT";
             }
@@ -562,13 +587,13 @@
             }
         });
 
-        // Exact Path Connection to the Master Roster
+        // Exact Path Connection to the Master Roster (Syncs exact structure from your provided script)
         function listenToMasterRoster(targetDateStr) {
             if (!targetDateStr || !db) return;
             const [y, m, d] = targetDateStr.split('-');
             const currDate = new Date(y, m - 1, d);
             
-            // We need to fetch current month, and the adjacent months to safely check "Yesterday" and "Tomorrow"
+            // Fetch current month, and the adjacent months to safely check "Yesterday" and "Tomorrow"
             const prev = new Date(currDate.getFullYear(), currDate.getMonth() - 1, 1);
             const next = new Date(currDate.getFullYear(), currDate.getMonth() + 1, 1);
 
@@ -614,16 +639,24 @@
                     const data = docSnap.data();
                     
                     if (data.masterStaffList) masterStaffList = data.masterStaffList;
-                    if (data.assignments) assignments = data.assignments;
                     if (data.cnbAssignments) cnbAssignments = data.cnbAssignments;
                     if (data.cellOverrides) cellOverrides = data.cellOverrides;
                     else cellOverrides = {}; 
                     if (data.rosterSize) rosterSize = data.rosterSize;
                     if (data.rosterDate !== undefined) rosterDate = data.rosterDate;
                     if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
+                    if (data.archiveHistory) archiveHistory = data.archiveHistory;
                     
-                    if (data.archiveHistory) {
-                        archiveHistory = data.archiveHistory;
+                    // Segregated assignments parsing to prevent overlapping
+                    if (data.assignments8) assignments8 = data.assignments8;
+                    if (data.assignments7) assignments7 = data.assignments7;
+                    if (data.assignments6) assignments6 = data.assignments6;
+                    
+                    // Fallback migration for older single-assignments structure
+                    if (data.assignments && !data.assignments8 && !data.assignments7 && !data.assignments6) {
+                        if (data.rosterSize === 8) assignments8 = data.assignments;
+                        if (data.rosterSize === 7) assignments7 = data.assignments;
+                        if (data.rosterSize === 6) assignments6 = data.assignments;
                     }
                     
                     updateRosterSizeUI();
@@ -649,7 +682,9 @@
             try {
                 if (rosterDate) {
                     archiveHistory[rosterDate] = {
-                        assignments: assignments,
+                        assignments8: assignments8,
+                        assignments7: assignments7,
+                        assignments6: assignments6,
                         cnbAssignments: cnbAssignments,
                         cellOverrides: cellOverrides,
                         rosterSize: rosterSize,
@@ -661,7 +696,9 @@
                 const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
-                    assignments: assignments,
+                    assignments8: assignments8,
+                    assignments7: assignments7,
+                    assignments6: assignments6,
                     cnbAssignments: cnbAssignments,
                     cellOverrides: cellOverrides,
                     rosterSize: rosterSize,
@@ -923,9 +960,12 @@
         window.confirmDelete = function() {
             if (!staffToDelete) return;
             masterStaffList = masterStaffList.filter(s => s.id !== staffToDelete);
-            Object.keys(assignments).forEach(pattern => {
-                if (assignments[pattern] === staffToDelete) assignments[pattern] = "VACANT";
-            });
+            
+            // Remove from all 3 segregated memory arrays
+            Object.keys(assignments8).forEach(p => { if (assignments8[p] === staffToDelete) assignments8[p] = "VACANT"; });
+            Object.keys(assignments7).forEach(p => { if (assignments7[p] === staffToDelete) assignments7[p] = "VACANT"; });
+            Object.keys(assignments6).forEach(p => { if (assignments6[p] === staffToDelete) assignments6[p] = "VACANT"; });
+            
             staffToDelete = null;
             document.getElementById('delete-confirmation-modal').classList.add('hidden');
             renderAttendance();
@@ -937,9 +977,11 @@
         window.applyAttendanceToRoster = function() {
             const selectedStaff = masterStaffList.filter(s => s.present);
             const placeholders = getPlaceholders();
+            const activeAssignments = getActiveAssignments();
+            
             placeholders.forEach((p, index) => {
-                if (selectedStaff[index]) assignments[p] = selectedStaff[index].id;
-                else assignments[p] = "VACANT"; 
+                if (selectedStaff[index]) activeAssignments[p] = selectedStaff[index].id;
+                else activeAssignments[p] = "VACANT"; 
             });
             window.switchTab('roster'); 
             window.saveToDatabase();
@@ -947,9 +989,19 @@
 
         window.handleShuffle = function() {
             const placeholders = getPlaceholders();
-            const currentValues = placeholders.map(p => assignments[p]);
+            const activeAssignments = getActiveAssignments();
+            const currentValues = placeholders.map(p => activeAssignments[p]);
             const shuffledValues = [...currentValues].sort(() => Math.random() - 0.5);
-            placeholders.forEach((p, index) => assignments[p] = shuffledValues[index]);
+            placeholders.forEach((p, index) => activeAssignments[p] = shuffledValues[index]);
+            renderControls();
+            renderTables();
+            window.saveToDatabase();
+        };
+
+        window.resetAssignments = function() {
+            const placeholders = getPlaceholders();
+            const activeAssignments = getActiveAssignments();
+            placeholders.forEach(p => activeAssignments[p] = p);
             renderControls();
             renderTables();
             window.saveToDatabase();
@@ -958,7 +1010,8 @@
         // Added Debounce so typing on mobile doesn't rapidly save and steal focus!
         let saveTimeout;
         window.updateAssignment = function(pattern, value) {
-            assignments[pattern] = value;
+            const activeAssignments = getActiveAssignments();
+            activeAssignments[pattern] = value;
             
             // Instantly update the Local UI Element for the status tracker
             const index = getPlaceholders().indexOf(pattern);
@@ -999,7 +1052,16 @@
             
             const archive = archiveHistory[dateId];
             if (archive) {
-                assignments = archive.assignments || {};
+                // Read segregated memory, fall back to old memory format if necessary
+                if (archive.assignments8) assignments8 = archive.assignments8;
+                if (archive.assignments7) assignments7 = archive.assignments7;
+                if (archive.assignments6) assignments6 = archive.assignments6;
+                if (archive.assignments && !archive.assignments8 && !archive.assignments7 && !archive.assignments6) {
+                    if (archive.rosterSize === 8) assignments8 = archive.assignments;
+                    if (archive.rosterSize === 7) assignments7 = archive.assignments;
+                    if (archive.rosterSize === 6) assignments6 = archive.assignments;
+                }
+
                 cnbAssignments = archive.cnbAssignments || {};
                 cellOverrides = archive.cellOverrides || {};
                 rosterSize = archive.rosterSize || 8;
@@ -1037,7 +1099,9 @@
                 const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
-                    assignments: assignments,
+                    assignments8: assignments8,
+                    assignments7: assignments7,
+                    assignments6: assignments6,
                     cnbAssignments: cnbAssignments,
                     cellOverrides: cellOverrides,
                     rosterSize: rosterSize,
@@ -1107,6 +1171,7 @@
 
         function renderControls() {
             const placeholders = getPlaceholders();
+            const activeAssignments = getActiveAssignments();
             const container = document.getElementById('inputs-container');
             const dates = getAdjacentDates(rosterDate);
             
@@ -1124,7 +1189,7 @@
                     const parent = document.getElementById(`wrapper-slot-${index}`);
                     const statusDiv = document.getElementById(`status-slot-${index}`);
                     
-                    const staffId = assignments[p] || p;
+                    const staffId = activeAssignments[p] || p;
                     const isVacant = staffId === "VACANT";
 
                     if (inp) {
@@ -1160,7 +1225,7 @@
             container.className = expectedClass;
             let html = '';
             placeholders.forEach((p, index) => {
-                const staffId = assignments[p] || p;
+                const staffId = activeAssignments[p] || p;
                 const isVacant = staffId === "VACANT";
                 
                 const yestStatus = getStaffStatus(staffId, dates.yest);
@@ -1244,7 +1309,8 @@
 
             const applyMapping = (val) => {
                 if (!val) return val;
-                return String(val).split('/').map(v => assignments[v] || v).join('/');
+                const activeAssignments = getActiveAssignments();
+                return String(val).split('/').map(v => activeAssignments[v] || v).join('/');
             }
 
             const isGreyCell = (rIdx, cIdx, originalVal) => {
@@ -1260,7 +1326,7 @@
             // Dynamic TP Assignment based on Roster Size
             let dynamicTPPlaceholder;
             if (rosterSize === 8) dynamicTPPlaceholder = '8656';
-            else if (rosterSize === 7) dynamicTPPlaceholder = '4511';
+            else if (rosterSize === 7) dynamicTPPlaceholder = '4511'; // Verified TP placeholder for 7 man mode
             else dynamicTPPlaceholder = '4270';
             
             const mappedTPValue = applyMapping(dynamicTPPlaceholder);
