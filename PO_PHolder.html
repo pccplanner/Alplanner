@@ -380,26 +380,53 @@
         }
 
         function findStatusInMRoster(staffId, dateStr) {
-            if (!mRosterData || !mRosterData[staffId]) return null;
+            if (!mRosterData) return null;
             
-            // Try full date: '2026-04-01'
-            if (mRosterData[staffId][dateStr]) return mRosterData[staffId][dateStr];
+            // Clean staff ID to just digits to ensure exact matches with MRoster "ID" columns
+            const cleanId = String(staffId).replace(/\D/g, ''); 
+            const record = mRosterData[staffId] || mRosterData[cleanId];
             
-            // Try day number: '1' or '01' 
+            if (!record) return null;
+            
             const [y, m, d] = dateStr.split('-');
-            const dayNum = parseInt(d, 10).toString(); // '1'
-            if (mRosterData[staffId][dayNum]) return mRosterData[staffId][dayNum];
+            const dayNum = parseInt(d, 10);
             
-            const paddedDay = String(d).padStart(2, '0'); // '01'
-            if (mRosterData[staffId][paddedDay]) return mRosterData[staffId][paddedDay];
-
+            if (record.type === 'array') {
+                const row = record.data;
+                const idIndex = record.idIndex;
+                
+                // For Handsontable raw arrays: Day 1 usually comes right after S/N (0), ID (1), Name (2).
+                // So Day 1 = index 3. Formula: idIndex + 1 + dayNum.
+                const targetIdx = idIndex + 1 + dayNum; 
+                
+                if (row.length > targetIdx) {
+                    const val = row[targetIdx];
+                    if (val !== undefined && val !== null && String(val).trim() !== "") {
+                        return String(val).trim();
+                    }
+                }
+            } else if (record.type === 'object') {
+                const row = record.data;
+                const possibleKeys = [
+                    dateStr,
+                    dayNum.toString(),
+                    String(dayNum).padStart(2, '0'),
+                    `day${dayNum}`,
+                    `day_${dayNum}`
+                ];
+                for (let key of possibleKeys) {
+                    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+                        return String(row[key]).trim();
+                    }
+                }
+            }
             return null;
         }
 
         function getStaffStatus(staffId, dateStr) {
             if (!staffId || staffId === "VACANT" || staffId.includes("******")) return "-";
 
-            // 1. Try to check MRoster Data (if loaded)
+            // 1. Try to check MRoster Data parser (if loaded)
             const mStatus = findStatusInMRoster(staffId, dateStr);
             if (mStatus) return mStatus;
 
@@ -407,9 +434,9 @@
             if (archiveHistory && archiveHistory[dateStr]) {
                 const archive = archiveHistory[dateStr];
                 
-                if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "Night";
+                if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "NIGHT";
                 if (archive.cnbAssignments && Object.values(archive.cnbAssignments).includes(staffId)) return "CNB";
-                if (archive.cellOverrides && Object.values(archive.cellOverrides).includes(staffId)) return "Night";
+                if (archive.cellOverrides && Object.values(archive.cellOverrides).includes(staffId)) return "NIGHT";
                 
                 return "-"; // App knows roster exists, but staff not deployed
             }
@@ -556,8 +583,44 @@
             onSnapshot(mRosterRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    // MRoster could store in different common structures
-                    mRosterData = data.rosterData || data.staffRecords || data.gridData || {};
+                    let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || [];
+                    
+                    let newMRosterMap = {};
+                    
+                    // Parse Array-based spreadsheet structure (e.g. from Handsontable)
+                    if (Array.isArray(rawData)) {
+                        rawData.forEach(row => {
+                            if (!row) return;
+                            
+                            if (Array.isArray(row)) {
+                                // Find which index has the ID (usually a 4 digit number)
+                                let idIndex = -1;
+                                for(let i=0; i<row.length; i++) {
+                                    if(row[i] && String(row[i]).match(/^\d{4}$/)) {
+                                        idIndex = i;
+                                        break;
+                                    }
+                                }
+                                if (idIndex === -1) idIndex = 1; // Default to col 1
+                                
+                                let id = String(row[idIndex]).trim();
+                                if (id && id !== "ID" && id !== "id") {
+                                    newMRosterMap[id] = { type: 'array', data: row, idIndex: idIndex };
+                                }
+                            } else {
+                                // Object-based parser
+                                let id = row.id || row.ID || row.Id || row.staffId || row.StaffId;
+                                if (id) {
+                                    newMRosterMap[String(id).trim()] = { type: 'object', data: row };
+                                }
+                            }
+                        });
+                        mRosterData = newMRosterMap;
+                    } else if (typeof rawData === 'object') {
+                        Object.keys(rawData).forEach(key => {
+                            mRosterData[key] = { type: 'object', data: rawData[key] };
+                        });
+                    }
                     renderControls(); // Re-render to show updated statuses
                 }
             }, (error) => {
