@@ -292,7 +292,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -320,10 +320,16 @@
         let archiveHistory = {}; 
         
         // Master Roster Sync State
-        let mRosterData = {};
+        let masterSchedule = {}; // Structure: { "2026_04": { "4270": { "01": "2A" } } }
+        let currentMasterMonths = []; // Array of "YYYY_MM" currently being listened to
+        let unsubMaster = [];
         let isMRosterConnected = false;
         
         let isEditMode = false;
+        
+        // Use proper dynamic App ID
+        const mRosterAppId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
+        const localAppId = 'custom_roster_app'; // Keeping local save hardcoded to prevent data loss for existing users
         
         // Initialize Default Date if empty (Today)
         const today = new Date();
@@ -361,7 +367,7 @@
         let archiveToDelete = null;
         window.selectedArchiveDate = null;
 
-        // --- Status Tracker Utilities (OMNI-SCANNER) ---
+        // --- Status Tracker Utilities (NEW EXACT-PATH CONNECTION) ---
         function getAdjacentDates(currentDateStr) {
             if (!currentDateStr) return { yest: null, tom: null };
             const [y, m, d] = currentDateStr.split('-').map(Number);
@@ -380,116 +386,31 @@
             return { yest: format(yest), tom: format(tom) };
         }
 
-        // Helper to parse MRoster regardless of how it was originally saved
-        function processMRosterData(data) {
-            if (!data) return;
-            
-            let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || data.masterRoster || data; 
-            
-            // If the wrapper is an object containing a data array
-            if (typeof rawData === 'object' && !Array.isArray(rawData) && rawData.data && Array.isArray(rawData.data)) {
-                rawData = rawData.data;
-            }
-
-            let newMRosterMap = {};
-
-            // If it's a map directly
-            if (!Array.isArray(rawData) && typeof rawData === 'object') {
-                let keys = Object.keys(rawData);
-                if (keys.length > 0 && keys.some(k => String(k).match(/^\d{4}$/))) {
-                    keys.forEach(k => {
-                        let cleanId = String(k).replace(/\D/g, '');
-                        if (cleanId) newMRosterMap[cleanId] = { type: 'object', data: rawData[k] };
-                    });
-                    mRosterData = Object.assign(mRosterData || {}, newMRosterMap);
-                    return;
-                }
-            }
-
-            if (Array.isArray(rawData)) {
-                rawData.forEach(row => {
-                    if (!row) return;
-                    
-                    if (Array.isArray(row)) {
-                        // Find ID column (the first cell containing mostly digits)
-                        let idIndex = -1;
-                        for (let i = 0; i < Math.min(row.length, 5); i++) {
-                            if (row[i] && String(row[i]).trim().match(/^\d{3,6}$/)) {
-                                idIndex = i;
-                                break;
-                            }
-                        }
-                        
-                        if (idIndex !== -1) {
-                            let cleanId = String(row[idIndex]).replace(/\D/g, '');
-                            if (cleanId) newMRosterMap[cleanId] = { type: 'array', data: row, idIndex: idIndex };
-                        }
-                    } else if (typeof row === 'object') {
-                        // Object-based parser
-                        let rawId = String(row.id || row.ID || row.Id || row.staffId || row.StaffId || row['ID'] || "").trim();
-                        let cleanId = rawId.replace(/\D/g, '');
-                        if (cleanId) newMRosterMap[cleanId] = { type: 'object', data: row };
-                    }
-                });
-                
-                if (Object.keys(newMRosterMap).length > 0) {
-                    mRosterData = Object.assign(mRosterData || {}, newMRosterMap);
-                }
-            }
-        }
-
-        function findStatusInMRoster(staffId, dateStr) {
-            if (!mRosterData) return null;
-            
-            const cleanId = String(staffId).replace(/\D/g, ''); 
-            const record = mRosterData[staffId] || mRosterData[cleanId];
-            if (!record) return null; // Staff member entirely not found in Master Roster
-            
-            const [y, m, d] = dateStr.split('-');
-            const dayNum = parseInt(d, 10);
-
-            if (record.type === 'array') {
-                const row = record.data;
-                // Handsontable format is typically [S/N, ID, NAME, DAY1, DAY2...]
-                // So DAY1 is idIndex + 1 (Name) + 1 (Day 1) => idIndex + 2
-                // DAY_X = idIndex + 1 + dayNum
-                const targetIdx = record.idIndex + 1 + dayNum; 
-                
-                if (row.length > targetIdx) {
-                    const val = row[targetIdx];
-                    if (val !== undefined && val !== null && String(val).trim() !== "") {
-                        return String(val).trim();
-                    }
-                }
-            } else if (record.type === 'object') {
-                const row = record.data;
-                const possibleKeys = [ dateStr, dayNum.toString(), String(dayNum).padStart(2, '0') ];
-                for (let key of possibleKeys) {
-                    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
-                        return String(row[key]).trim();
-                    }
-                }
-            }
-            return null; // Cell exists but is perfectly empty
-        }
-
         function getStaffStatus(staffId, dateStr) {
             if (!staffId || staffId === "VACANT" || staffId.includes("******")) return "-";
 
             const cleanId = String(staffId).replace(/\D/g, '');
 
-            // 1. OMNI-LINK: Check Master Roster FIRST
+            // 1. Check Master Roster FIRST
             // Master Roster acts as absolute source of truth. If linked, we trust it completely.
-            if (isMRosterConnected && mRosterData && (mRosterData[staffId] || mRosterData[cleanId])) {
-                const mStatus = findStatusInMRoster(staffId, dateStr);
-                if (mStatus) {
-                    return mStatus; // Perfectly pulled from Master Roster (e.g. "OFF", "CNB", "2A")
-                } else {
-                    return "-"; // Master Roster cell is definitively empty for this staff on this day
+            if (isMRosterConnected) {
+                const [y, m, d] = dateStr.split('-');
+                const monthKey = `${y}_${m}`;
+                const dayKey = d; // "01", "02", etc.
+                
+                if (masterSchedule[monthKey]) {
+                    const staffData = masterSchedule[monthKey][cleanId] || masterSchedule[monthKey][staffId];
+                    if (staffData && staffData[dayKey]) {
+                        const status = String(staffData[dayKey]).trim();
+                        if (status !== "") return status; // Return exact string (e.g. "OFF", "CNB")
+                    }
+                    // If month document exists, but cell is completely empty -> Staff is not working.
+                    // DO NOT FALLBACK TO LOCAL MEMORY. Trust the Master Roster!
+                    return "-";
                 }
             }
 
-            // 2. FALLBACK: Local Archive History (ONLY used if Master Roster isn't linked)
+            // 2. FALLBACK: Local Archive History (ONLY used if Master Roster isn't linked for that specific month)
             if (archiveHistory && archiveHistory[dateStr]) {
                 const archive = archiveHistory[dateStr];
                 if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "NIGHT";
@@ -610,7 +531,7 @@
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
             
-            // Visual indicator to prove the Omni-Link is hooked to the Master Roster
+            // Visual indicator to prove the app is perfectly hooked to the Master Roster
             if (isMRosterConnected && message === "Synced with Cloud") {
                 message = "Live State + MRoster Linked";
                 colorClass = "text-blue-600";
@@ -636,58 +557,56 @@
             if (user) {
                 isDbReady = true;
                 listenToCloudData();
-                listenToMRosterOmniLink();
+                listenToMasterRoster(rosterDate);
             }
         });
 
-        // The Omni-Link aggressively queries multiple potential databases to ensure
-        // it locks onto the Master Roster regardless of App ID or Collection naming differences.
-        async function listenToMRosterOmniLink() {
-            // 1. Try LocalStorage Bridging (Fastest & most reliable for Github Pages sharing same domain)
-            try {
-                for (let i = 0; i < localStorage.length; i++) {
-                    let key = localStorage.key(i);
-                    if (key.toLowerCase().includes('mroster') || key.toLowerCase().includes('master')) {
-                        let data = localStorage.getItem(key);
-                        let parsed = JSON.parse(data);
-                        if (parsed && (parsed.rosterData || parsed.staffRecords || parsed.gridData || Array.isArray(parsed))) {
-                            isMRosterConnected = true;
-                            processMRosterData(parsed);
-                            updateCloudStatus("MRoster Linked (Local)", "text-blue-600");
-                            renderControls();
-                            return; // Stop here if we found it locally!
-                        }
+        // Exact Path Connection to the Master Roster
+        function listenToMasterRoster(targetDateStr) {
+            if (!targetDateStr || !db) return;
+            const [y, m, d] = targetDateStr.split('-');
+            const currDate = new Date(y, m - 1, d);
+            
+            // We need to fetch current month, and the adjacent months to safely check "Yesterday" and "Tomorrow"
+            const prev = new Date(currDate.getFullYear(), currDate.getMonth() - 1, 1);
+            const next = new Date(currDate.getFullYear(), currDate.getMonth() + 1, 1);
+
+            const neededMonths = [
+                `${prev.getFullYear()}_${String(prev.getMonth()+1).padStart(2, '0')}`,
+                `${currDate.getFullYear()}_${String(currDate.getMonth()+1).padStart(2, '0')}`,
+                `${next.getFullYear()}_${String(next.getMonth()+1).padStart(2, '0')}`
+            ];
+
+            // Avoid reconnecting if dates haven't crossed a month boundary
+            if (neededMonths.join() === currentMasterMonths.join()) return;
+            currentMasterMonths = neededMonths;
+
+            // Cleanup old listeners
+            unsubMaster.forEach(u => u());
+            unsubMaster = [];
+
+            neededMonths.forEach(monthKey => {
+                // Connect to the exact path your MRoster uses:
+                const mRef = doc(db, 'artifacts', mRosterAppId, 'public', 'data', 'monthly_schedule', `schedule_${monthKey}`);
+                const unsub = onSnapshot(mRef, (snap) => {
+                    if (snap.exists()) {
+                        isMRosterConnected = true;
+                        masterSchedule[monthKey] = snap.data().data || {};
+                        updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
+                        renderControls();
+                    } else {
+                        // Document doesn't exist yet for this month. Mark as empty to prevent falls positives.
+                        masterSchedule[monthKey] = {};
                     }
-                }
-            } catch(e) {}
-
-            // 2. Try Firebase Discovery (Scans multiple possible Firebase app paths)
-            const possibleAppIds = ['custom_roster_app', 'po_mroster_app', 'mroster_app', 'master_roster_app', 'alplanner', 'pcc_planner', 'default-app-id'];
-            const possibleColls = ['mroster_v1', 'po_mroster_v1', 'master_roster_v1', 'master_roster', 'live_state', 'data', 'roster_data'];
-
-            for (let aId of possibleAppIds) {
-                for (let coll of possibleColls) {
-                    try {
-                        const mRosterRef = doc(db, 'artifacts', aId, 'public', 'data', coll, 'live_state');
-                        const snap = await getDoc(mRosterRef);
-                        if (snap.exists()) {
-                            onSnapshot(mRosterRef, (docSnap) => {
-                                if (docSnap.exists()) {
-                                    isMRosterConnected = true;
-                                    processMRosterData(docSnap.data());
-                                    updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
-                                    renderControls(); // Re-render to show updated statuses
-                                }
-                            });
-                            return; // Found the active cloud link, stop searching!
-                        }
-                    } catch(e) { } // Silently skip missed paths
-                }
-            }
+                }, (err) => {
+                    console.log(`Silent fail for MRoster month ${monthKey}:`, err);
+                });
+                unsubMaster.push(unsub);
+            });
         }
 
         function listenToCloudData() {
-            const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+            const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
             
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -707,6 +626,7 @@
                     }
                     
                     updateRosterSizeUI();
+                    listenToMasterRoster(rosterDate); // Update Master Connection based on latest date
                     
                     if(currentTab === 'attendance') renderAttendance();
                     if(currentTab === 'roster') { 
@@ -737,7 +657,7 @@
                     };
                 }
 
-                const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+                const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
@@ -905,6 +825,7 @@
         
         window.updateDate = function(val) {
             rosterDate = val;
+            listenToMasterRoster(rosterDate); // Boot up sync for the newly selected date
             renderControls();
             renderTables();
             window.saveToDatabase();
@@ -1112,7 +1033,7 @@
             
             try {
                 delete archiveHistory[idToDelete];
-                const docRef = doc(db, 'artifacts', 'custom_roster_app', 'public', 'data', 'new_catalogue_v1', 'live_state');
+                const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
                     assignments: assignments,
