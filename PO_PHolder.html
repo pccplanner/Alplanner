@@ -292,7 +292,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
@@ -384,15 +384,27 @@
         function processMRosterData(data) {
             if (!data) return;
             
-            let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || data.masterRoster || [];
+            let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || data.masterRoster || data; 
             
             // If the wrapper is an object containing a data array
             if (typeof rawData === 'object' && !Array.isArray(rawData) && rawData.data && Array.isArray(rawData.data)) {
                 rawData = rawData.data;
             }
 
-            window.mRosterMonthYear = data.monthYear || data.currentMonth || data.month || "";
             let newMRosterMap = {};
+
+            // If it's a map directly
+            if (!Array.isArray(rawData) && typeof rawData === 'object') {
+                let keys = Object.keys(rawData);
+                if (keys.length > 0 && keys.some(k => String(k).match(/^\d{4}$/))) {
+                    keys.forEach(k => {
+                        let cleanId = String(k).replace(/\D/g, '');
+                        if (cleanId) newMRosterMap[cleanId] = { type: 'object', data: rawData[k] };
+                    });
+                    mRosterData = Object.assign(mRosterData || {}, newMRosterMap);
+                    return;
+                }
+            }
 
             if (Array.isArray(rawData)) {
                 rawData.forEach(row => {
@@ -409,22 +421,20 @@
                         }
                         
                         if (idIndex !== -1) {
-                            let cleanId = String(row[idIndex]).trim();
-                            newMRosterMap[cleanId] = { type: 'array', data: row, idIndex: idIndex };
+                            let cleanId = String(row[idIndex]).replace(/\D/g, '');
+                            if (cleanId) newMRosterMap[cleanId] = { type: 'array', data: row, idIndex: idIndex };
                         }
                     } else if (typeof row === 'object') {
                         // Object-based parser
-                        let rawId = String(row.id || row.ID || row.Id || row.staffId || row.StaffId || "").trim();
+                        let rawId = String(row.id || row.ID || row.Id || row.staffId || row.StaffId || row['ID'] || "").trim();
                         let cleanId = rawId.replace(/\D/g, '');
                         if (cleanId) newMRosterMap[cleanId] = { type: 'object', data: row };
                     }
                 });
-                mRosterData = newMRosterMap;
-            } else if (typeof rawData === 'object') {
-                Object.keys(rawData).forEach(key => {
-                    let cleanId = String(key).replace(/\D/g, '');
-                    if (cleanId) mRosterData[cleanId] = { type: 'object', data: rawData[key] };
-                });
+                
+                if (Object.keys(newMRosterMap).length > 0) {
+                    mRosterData = Object.assign(mRosterData || {}, newMRosterMap);
+                }
             }
         }
 
@@ -469,6 +479,7 @@
             const cleanId = String(staffId).replace(/\D/g, '');
 
             // 1. OMNI-LINK: Check Master Roster FIRST
+            // Master Roster acts as absolute source of truth. If linked, we trust it completely.
             if (isMRosterConnected && mRosterData && (mRosterData[staffId] || mRosterData[cleanId])) {
                 const mStatus = findStatusInMRoster(staffId, dateStr);
                 if (mStatus) {
@@ -478,7 +489,7 @@
                 }
             }
 
-            // 2. FALLBACK: Local Archive History (Only used if Master Roster isn't linked)
+            // 2. FALLBACK: Local Archive History (ONLY used if Master Roster isn't linked)
             if (archiveHistory && archiveHistory[dateStr]) {
                 const archive = archiveHistory[dateStr];
                 if (archive.assignments && Object.values(archive.assignments).includes(staffId)) return "NIGHT";
@@ -490,13 +501,13 @@
         }
 
         function formatStatusBadge(status) {
-            if (!status || status === "-" || status === "N/A") return `<span class="text-gray-400 font-normal">-</span>`;
+            if (!status || status === "-" || status === "N/A" || status === "null") return `<span class="text-gray-400 font-normal">-</span>`;
             
             let colorClass = "text-gray-600";
             const s = String(status).toUpperCase();
             if (s.includes("2A") || s.includes("NIGHT")) colorClass = "text-green-600 font-bold";
             else if (s.includes("OFF") || s.includes("OOD") || s.includes("OSD")) colorClass = "text-yellow-600 font-bold";
-            else if (s.includes("MC") || s.includes("UL") || s.includes("AL") || s.includes("HL")) colorClass = "text-red-600 font-bold";
+            else if (s.includes("MC") || s.includes("UL") || s.includes("AL") || s.includes("HL") || s.includes("UP")) colorClass = "text-red-600 font-bold";
             else if (s.includes("CNB")) colorClass = "text-purple-600 font-bold";
             else colorClass = "text-blue-600 font-bold";
 
@@ -601,7 +612,7 @@
             
             // Visual indicator to prove the Omni-Link is hooked to the Master Roster
             if (isMRosterConnected && message === "Synced with Cloud") {
-                message = "Live State + MRoster";
+                message = "Live State + MRoster Linked";
                 colorClass = "text-blue-600";
             }
             
@@ -631,33 +642,48 @@
 
         // The Omni-Link aggressively queries multiple potential databases to ensure
         // it locks onto the Master Roster regardless of App ID or Collection naming differences.
-        function listenToMRosterOmniLink() {
-            const possibleAppIds = ['custom_roster_app', 'po_mroster_app', 'mroster_app', 'master_roster_app', 'alplanner', 'pcc_planner', 'default-app-id'];
-            const possibleColls = ['mroster_v1', 'po_mroster_v1', 'master_roster_v1', 'master_roster'];
-
-            possibleAppIds.forEach(aId => {
-                possibleColls.forEach(coll => {
-                    const mRosterRef = doc(db, 'artifacts', aId, 'public', 'data', coll, 'live_state');
-                    onSnapshot(mRosterRef, (docSnap) => {
-                        if (docSnap.exists()) {
-                            isMRosterConnected = true;
-                            processMRosterData(docSnap.data());
-                            updateCloudStatus("Live State + MRoster", "text-blue-600");
-                            renderControls(); // Re-render to show updated statuses
-                        }
-                    }, () => {}); // Fail silently for wrong paths
-                });
-            });
-            
-            // Try LocalStorage Bridging just in case it's sharing the same browser domain
+        async function listenToMRosterOmniLink() {
+            // 1. Try LocalStorage Bridging (Fastest & most reliable for Github Pages sharing same domain)
             try {
-                const localMRoster = localStorage.getItem('mroster_live_state');
-                if (localMRoster) {
-                    isMRosterConnected = true;
-                    processMRosterData(JSON.parse(localMRoster));
-                    renderControls();
+                for (let i = 0; i < localStorage.length; i++) {
+                    let key = localStorage.key(i);
+                    if (key.toLowerCase().includes('mroster') || key.toLowerCase().includes('master')) {
+                        let data = localStorage.getItem(key);
+                        let parsed = JSON.parse(data);
+                        if (parsed && (parsed.rosterData || parsed.staffRecords || parsed.gridData || Array.isArray(parsed))) {
+                            isMRosterConnected = true;
+                            processMRosterData(parsed);
+                            updateCloudStatus("MRoster Linked (Local)", "text-blue-600");
+                            renderControls();
+                            return; // Stop here if we found it locally!
+                        }
+                    }
                 }
             } catch(e) {}
+
+            // 2. Try Firebase Discovery (Scans multiple possible Firebase app paths)
+            const possibleAppIds = ['custom_roster_app', 'po_mroster_app', 'mroster_app', 'master_roster_app', 'alplanner', 'pcc_planner', 'default-app-id'];
+            const possibleColls = ['mroster_v1', 'po_mroster_v1', 'master_roster_v1', 'master_roster', 'live_state', 'data', 'roster_data'];
+
+            for (let aId of possibleAppIds) {
+                for (let coll of possibleColls) {
+                    try {
+                        const mRosterRef = doc(db, 'artifacts', aId, 'public', 'data', coll, 'live_state');
+                        const snap = await getDoc(mRosterRef);
+                        if (snap.exists()) {
+                            onSnapshot(mRosterRef, (docSnap) => {
+                                if (docSnap.exists()) {
+                                    isMRosterConnected = true;
+                                    processMRosterData(docSnap.data());
+                                    updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
+                                    renderControls(); // Re-render to show updated statuses
+                                }
+                            });
+                            return; // Found the active cloud link, stop searching!
+                        }
+                    } catch(e) { } // Silently skip missed paths
+                }
+            }
         }
 
         function listenToCloudData() {
