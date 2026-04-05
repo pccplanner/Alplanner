@@ -168,7 +168,7 @@
                 </div>
 
                 <!-- Staff Grid -->
-                <div id="staff-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div id="staff-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                     <!-- Checkboxes injected by JS -->
                 </div>
 
@@ -334,8 +334,8 @@
         let assignments6 = {};
         
         // Master Roster Sync State
-        let masterSchedule = {}; // Structure: { "2026_04": { "4270": { "01": "2A" } } }
-        let currentMasterMonths = []; // Array of "YYYY_MM" currently being listened to
+        let masterSchedule = {}; 
+        let currentMasterMonths = []; 
         let unsubMaster = [];
         let isMRosterConnected = false;
         
@@ -343,7 +343,7 @@
         
         // Use proper dynamic App ID
         const mRosterAppId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
-        const localAppId = 'custom_roster_app'; // Keeping local save hardcoded to prevent data loss for existing users
+        const localAppId = 'custom_roster_app'; 
         
         // Initialize Default Date if empty (Today)
         const today = new Date();
@@ -357,20 +357,20 @@
         const placeholders6 = ['5582', '7481', '4511', '4270', '8656', '8598'];
 
         let masterStaffList = [
-            { id: '7481', name: 'S. Officer 1', present: true }, 
-            { id: '5582', name: 'S. Officer 2', present: true },
-            { id: '6399', name: 'S. Officer 3', present: true }, 
-            { id: '4511', name: 'S. Officer 4', present: true },
-            { id: '8795', name: 'S. Officer 5', present: true }, 
-            { id: '8831', name: 'S. Officer 6', present: true },
-            { id: '8656', name: 'S. Officer 7', present: true }, 
-            { id: '8663', name: 'S. Officer 8', present: true },
-            { id: '8598', name: 'S. Officer 9', present: false },
-            { id: '4270', name: 'S. Officer 10', present: false },
-            { id: '7415', name: 'S. Officer 11', present: false },
-            { id: '1001 (Relief)', name: 'Relief Staff A', present: false }, 
-            { id: '1002 (Relief)', name: 'Relief Staff B', present: false },
-            { id: '1003 (Relief)', name: 'Relief Staff C', present: false }
+            { id: '7481', name: 'S. Officer 1', present: true, hhmd: true }, 
+            { id: '5582', name: 'S. Officer 2', present: true, hhmd: true },
+            { id: '6399', name: 'S. Officer 3', present: true, hhmd: true }, 
+            { id: '4511', name: 'S. Officer 4', present: true, hhmd: true },
+            { id: '8795', name: 'S. Officer 5', present: true, hhmd: true }, 
+            { id: '8831', name: 'S. Officer 6', present: true, hhmd: true },
+            { id: '8656', name: 'S. Officer 7', present: true, hhmd: true }, 
+            { id: '8663', name: 'S. Officer 8', present: true, hhmd: true },
+            { id: '8598', name: 'S. Officer 9', present: false, hhmd: true },
+            { id: '4270', name: 'S. Officer 10', present: false, hhmd: true },
+            { id: '7415', name: 'S. Officer 11', present: false, hhmd: true },
+            { id: '1001 (Relief)', name: 'Relief Staff A', present: false, hhmd: true }, 
+            { id: '1002 (Relief)', name: 'Relief Staff B', present: false, hhmd: true },
+            { id: '1003 (Relief)', name: 'Relief Staff C', present: false, hhmd: true }
         ];
 
         placeholders8.forEach(p => assignments8[p] = p);
@@ -413,30 +413,23 @@
 
             const cleanId = String(staffId).replace(/\D/g, '');
 
-            // 1. Check Master Roster FIRST
-            // Master Roster acts as absolute source of truth. If linked, we trust it completely.
             if (isMRosterConnected) {
                 const [y, m, d] = dateStr.split('-');
                 const monthKey = `${y}_${m}`;
-                const dayKey = d; // "01", "02", etc.
+                const dayKey = d; 
                 
                 if (masterSchedule[monthKey]) {
                     const staffData = masterSchedule[monthKey][cleanId] || masterSchedule[monthKey][staffId];
                     if (staffData && staffData[dayKey]) {
                         const status = String(staffData[dayKey]).trim();
-                        if (status !== "") return status; // Return exact string (e.g. "OFF", "CNB")
+                        if (status !== "") return status; 
                     }
-                    // If month document exists, but cell is completely empty -> Staff is not working.
-                    // DO NOT FALLBACK TO LOCAL MEMORY. Trust the Master Roster!
                     return "-";
                 }
             }
 
-            // 2. FALLBACK: Local Archive History (ONLY used if Master Roster isn't linked for that specific month)
             if (archiveHistory && archiveHistory[dateStr]) {
                 const archive = archiveHistory[dateStr];
-                
-                // Safely handle archives, checking appropriately segregated assignment structures if applicable
                 const assignObj = archive.assignments || archive.assignments8 || archive.assignments7 || archive.assignments6 || {};
                 
                 if (assignObj && Object.values(assignObj).includes(staffId)) return "NIGHT";
@@ -444,7 +437,7 @@
                 if (archive.cellOverrides && Object.values(archive.cellOverrides).includes(staffId)) return "NIGHT";
             }
 
-            return "-"; // Completely unknown
+            return "-"; 
         }
 
         function formatStatusBadge(status) {
@@ -461,7 +454,6 @@
             return `<span class="${colorClass}">${status}</span>`;
         }
 
-        // Utility: Convert YYYY-MM-DD to Day Name
         function getDayName(dateStr) {
             if (!dateStr) return "";
             const [y, m, d] = dateStr.split('-');
@@ -554,6 +546,13 @@
             return placeholders6;
         }
 
+        function getHHMDSlots() {
+            // Returns the exact placeholder IDs that represent the HHMD roles in the current mode
+            if (rosterSize === 8) return ['8831', '8656'];
+            if (rosterSize === 7) return ['8795', '7415'];
+            return ['8656', '8598'];
+        }
+
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
             
@@ -587,7 +586,7 @@
             }
         });
 
-        // Exact Path Connection to the Master Roster (Syncs exact structure from your provided script)
+        // Exact Path Connection to the Master Roster
         function listenToMasterRoster(targetDateStr) {
             if (!targetDateStr || !db) return;
             const [y, m, d] = targetDateStr.split('-');
@@ -638,7 +637,13 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     
-                    if (data.masterStaffList) masterStaffList = data.masterStaffList;
+                    if (data.masterStaffList) {
+                        // Safe merge to retain missing HHMD property in older saved data
+                        masterStaffList = data.masterStaffList.map(s => ({
+                            ...s,
+                            hhmd: s.hhmd !== false // default to true if undefined
+                        }));
+                    }
                     if (data.cnbAssignments) cnbAssignments = data.cnbAssignments;
                     if (data.cellOverrides) cellOverrides = data.cellOverrides;
                     else cellOverrides = {}; 
@@ -929,6 +934,15 @@
             renderAttendance();
             window.saveToDatabase();
         };
+        
+        window.toggleHHMD = function(id) {
+            const staff = masterStaffList.find(s => s.id === id);
+            if (staff) {
+                staff.hhmd = staff.hhmd === false ? true : false; // undefined gracefully goes to false
+            }
+            renderAttendance();
+            window.saveToDatabase();
+        };
 
         window.addNewStaff = function() {
             const idInput = document.getElementById('new-staff-id');
@@ -937,7 +951,7 @@
             const nameVal = nameInput.value.trim();
             
             if (idVal && !masterStaffList.find(s => s.id === idVal)) {
-                masterStaffList.push({ id: idVal, name: nameVal, present: true });
+                masterStaffList.push({ id: idVal, name: nameVal, present: true, hhmd: true });
                 idInput.value = '';
                 nameInput.value = '';
                 renderAttendance();
@@ -990,9 +1004,62 @@
         window.handleShuffle = function() {
             const placeholders = getPlaceholders();
             const activeAssignments = getActiveAssignments();
-            const currentValues = placeholders.map(p => activeAssignments[p]);
-            const shuffledValues = [...currentValues].sort(() => Math.random() - 0.5);
-            placeholders.forEach((p, index) => activeAssignments[p] = shuffledValues[index]);
+            const currentStaffIds = placeholders.map(p => activeAssignments[p]);
+            
+            let hhmdCapable = [];
+            let nonHhmd = [];
+
+            // Partition Staff
+            currentStaffIds.forEach(id => {
+                const staffNode = masterStaffList.find(s => s.id === id);
+                // "VACANT" is treated as capable so it can fill empty slots if we are short on men
+                if (id === "VACANT" || (staffNode && staffNode.hhmd !== false)) {
+                    hhmdCapable.push(id);
+                } else {
+                    nonHhmd.push(id);
+                }
+            });
+
+            const hhmdSlots = getHHMDSlots();
+
+            if (hhmdCapable.length < hhmdSlots.length) {
+                alert("Warning: Not enough HHMD-certified staff selected to fill the required HHMD slots. Some non-certified staff may be assigned out of necessity.");
+            }
+
+            // Shuffle both pools
+            hhmdCapable.sort(() => Math.random() - 0.5);
+            nonHhmd.sort(() => Math.random() - 0.5);
+
+            let newAssignments = {};
+            let unassignedHhmdSlots = [];
+
+            // 1. Fill HHMD slots with Certified Staff
+            hhmdSlots.forEach(slot => {
+                if (hhmdCapable.length > 0) {
+                    newAssignments[slot] = hhmdCapable.pop();
+                } else {
+                    unassignedHhmdSlots.push(slot); // Need a fallback later
+                }
+            });
+
+            // 2. Combine all remaining staff for regular slots
+            let remainingStaff = [...hhmdCapable, ...nonHhmd].sort(() => Math.random() - 0.5);
+
+            // 3. Fill normal slots
+            placeholders.forEach(slot => {
+                if (!hhmdSlots.includes(slot)) {
+                    newAssignments[slot] = remainingStaff.pop();
+                }
+            });
+
+            // 4. Fill unassigned HHMD slots with leftovers if we completely ran out of certified staff
+            unassignedHhmdSlots.forEach(slot => {
+                newAssignments[slot] = remainingStaff.pop();
+            });
+
+            // Apply back
+            placeholders.forEach(p => activeAssignments[p] = newAssignments[p]);
+            
             renderControls();
             renderTables();
             window.saveToDatabase();
@@ -1150,6 +1217,8 @@
             let html = '';
             masterStaffList.forEach(staff => {
                 const isPresent = staff.present;
+                const isHHMD = staff.hhmd !== false;
+                
                 html += `
                     <div class="relative flex items-stretch border-2 rounded-lg transition-colors ${isPresent ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}">
                         <label class="cursor-pointer flex-1 flex items-center justify-between p-2 md:p-3 overflow-hidden" title="Toggle Attendance">
@@ -1160,9 +1229,14 @@
                             </div>
                             <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ? 'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         </label>
-                        <button onclick="window.promptDeleteStaff('${staff.id}', event)" class="px-2 md:px-3 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-transparent hover:border-red-100 rounded-r-lg flex items-center justify-center" title="Remove Staff">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                        </button>
+                        <div class="flex flex-col border-l border-gray-200 w-10 shrink-0">
+                            <button type="button" onclick="window.toggleHHMD('${staff.id}')" class="flex-1 flex items-center justify-center transition-colors ${isHHMD ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-tr-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 rounded-tr-md'}" title="Toggle HHMD Certification">
+                                <span class="text-[8px] font-extrabold">HHMD</span>
+                            </button>
+                            <button type="button" onclick="window.promptDeleteStaff('${staff.id}', event)" class="flex-1 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-t border-gray-200 flex items-center justify-center rounded-br-md" title="Remove Staff">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
                     </div>
                 `;
             });
@@ -1171,6 +1245,7 @@
 
         function renderControls() {
             const placeholders = getPlaceholders();
+            const hhmdSlots = getHHMDSlots();
             const activeAssignments = getActiveAssignments();
             const container = document.getElementById('inputs-container');
             const dates = getAdjacentDates(rosterDate);
@@ -1227,13 +1302,16 @@
             placeholders.forEach((p, index) => {
                 const staffId = activeAssignments[p] || p;
                 const isVacant = staffId === "VACANT";
+                const isHHMD = hhmdSlots.includes(p);
                 
                 const yestStatus = getStaffStatus(staffId, dates.yest);
                 const tomStatus = getStaffStatus(staffId, dates.tom);
 
+                const hhmdBadge = isHHMD ? `<span class="bg-purple-100 text-purple-700 text-[8px] font-bold px-1 rounded ml-1 tracking-tighter">HHMD</span>` : '';
+
                 html += `
                     <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border relative ${isVacant ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}">
-                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1">Slot ${index + 1}</label>
+                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 flex items-center">Slot ${index + 1} ${hhmdBadge}</label>
                         <input
                             id="input-slot-${index}"
                             type="text"
@@ -1326,7 +1404,7 @@
             // Dynamic TP Assignment based on Roster Size
             let dynamicTPPlaceholder;
             if (rosterSize === 8) dynamicTPPlaceholder = '8656';
-            else if (rosterSize === 7) dynamicTPPlaceholder = '4511'; // Verified TP placeholder for 7 man mode
+            else if (rosterSize === 7) dynamicTPPlaceholder = '4511';
             else dynamicTPPlaceholder = '4270';
             
             const mappedTPValue = applyMapping(dynamicTPPlaceholder);
