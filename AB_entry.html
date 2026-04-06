@@ -623,7 +623,7 @@
                 
                 <div class="autocomplete-wrap">
                     <label class="form-label">Vehicle Number</label>
-                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. 1520" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
+                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. QX1520S" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
                     <div id="vehicle_no_dropdown" class="autocomplete-list uppercase-input" style="font-size:15px;"></div>
                 </div>
                 
@@ -885,8 +885,8 @@
         return fullName.trim();
     };
 
-    // Seeded data parsed exactly from your Data.txt
-    const PREDEFINED_VEHICLES = ['1222', '1233', '1234', '1242', '1243', '1295', '1520', '1674', '1683', '1702', '1945', '2074', '2097', '2137', '2194', '2197', '2433', '2439', '2495', '2538', '2539', '2591', '2658'];
+    // Predefined data (Vehicle includes letters and digits as requested)
+    const PREDEFINED_VEHICLES = ['QX1222S', 'QX1233K', 'QX1234H', 'QX1242J', 'QX1243G', 'QX1295G', 'QX1520G', 'QX1520S', 'QX1674X', 'QX1683U', 'QX1702Z', 'QX1945L', 'QX2074X', 'QX2097E', 'QX2137Z', 'QX2194H', 'QX2197Z', 'QX2433C', 'QX2439C', 'QX2495P', 'QX2538A', 'QX2539Y', 'QX2591U', 'QX2658L'];
     const PREDEFINED_CALLSIGNS = ['111', '112', '113', '114', '115', '121', '122', '123', '124', '171', '172'];
 
     const updateSuggestions = () => {
@@ -900,13 +900,12 @@
 
         vehicles.forEach(v => {
             if (v.vehicleNo) {
-                let digits = v.vehicleNo.replace(/[^0-9]/g, ''); // Extract only digits
-                if (digits) vNos.add(digits);
+                vNos.add(v.vehicleNo.trim().toUpperCase()); // Store full string for vehicle
             }
             if (v.callsign) {
                 let c = extractName(v.callsign, callsignTypes);
                 if (c) {
-                    let digits = c.replace(/[^0-9]/g, ''); // Extract only digits
+                    let digits = c.replace(/[^0-9]/g, ''); // Extract only digits for callsign
                     if (digits) cVals.add(digits);
                 }
             }
@@ -935,18 +934,22 @@
             const q = input.value.trim().toUpperCase();
             let matches = [];
 
-            if (inputId === 'vehicle_no' || inputId === 'callsign_val') {
-                const searchQ = q.replace(/[^0-9]/g, ''); // Ignore any alphabet the user typed
-                
+            if (inputId === 'callsign_val') {
+                // For callsing, ignore alphabets to match numbers only
+                const searchQ = q.replace(/[^0-9]/g, ''); 
                 if (searchQ) {
                     matches = suggestionData[inputId].filter(item => item.includes(searchQ));
                 } else if (q) {
-                    // If they typed "QX" but no numbers yet, show all the predefined digits
+                    matches = suggestionData[inputId];
+                } else {
                     matches = suggestionData[inputId];
                 }
             } else {
+                // For vehicle, paramedics, and escorts, match EXACTLY what they type (including "QX" letters)
                 if (q) {
                     matches = suggestionData[inputId].filter(item => item.toUpperCase().includes(q));
+                } else {
+                    matches = suggestionData[inputId];
                 }
             }
 
@@ -965,7 +968,6 @@
 
         dropdown.addEventListener('click', (e) => {
             if(e.target.classList.contains('autocomplete-item')) {
-                // Inserts only the digits, satisfying the requirement to "save only the digit"
                 input.value = e.target.textContent;
                 dropdown.classList.remove('show');
                 input.focus();
@@ -1188,15 +1190,17 @@
         const btn=$('btnSubmitEntry'); btn.disabled=true; btn.innerHTML='Saving...';
         const id=Date.now().toString();
         
-        // Strip out non-digits directly when submitting to ensure "save only digit" compliance
-        const vehicleDigits = $('vehicle_no').value.replace(/[^0-9]/g, '');
+        // Strip out non-digits ONLY for Callsign
         const callsignDigits = $('callsign_val').value.replace(/[^0-9]/g, '');
+
+        // Maintain full input with alphabet for Vehicle Number
+        const vehicleFull = $('vehicle_no').value.trim().toUpperCase();
 
         const entry={
             status:'ACTIVE', timestamp:Date.now(),
             date:$('entry_date').value,
             entryTime:$('entry_time').value,
-            vehicleNo: vehicleDigits || $('vehicle_no').value.trim().toUpperCase(),
+            vehicleNo: vehicleFull,
             callsign:`${$('callsign_type').value} ${callsignDigits || $('callsign_val').value.trim().toUpperCase()}`,
             paramedic:`${$('paramedic_rank').value} ${$('paramedic_name').value.trim()}`
         };
