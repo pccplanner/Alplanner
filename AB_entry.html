@@ -623,7 +623,7 @@
                 
                 <div class="autocomplete-wrap">
                     <label class="form-label">Vehicle Number</label>
-                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. SXXXXX" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
+                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. 1520" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
                     <div id="vehicle_no_dropdown" class="autocomplete-list uppercase-input" style="font-size:15px;"></div>
                 </div>
                 
@@ -637,7 +637,7 @@
                             <option value="A/PA">A/PA</option>
                         </select>
                         <div class="flex-1 autocomplete-wrap">
-                            <input type="text" id="callsign_val" class="form-input uppercase-input" autocomplete="off" placeholder="Enter ID" required>
+                            <input type="text" id="callsign_val" class="form-input uppercase-input" autocomplete="off" placeholder="e.g. 111" required>
                             <div id="callsign_val_dropdown" class="autocomplete-list uppercase-input"></div>
                         </div>
                     </div>
@@ -885,17 +885,30 @@
         return fullName.trim();
     };
 
+    // Seeded data parsed exactly from your Data.txt
+    const PREDEFINED_VEHICLES = ['1222', '1233', '1234', '1242', '1243', '1295', '1520', '1674', '1683', '1702', '1945', '2074', '2097', '2137', '2194', '2197', '2433', '2439', '2495', '2538', '2539', '2591', '2658'];
+    const PREDEFINED_CALLSIGNS = ['111', '112', '113', '114', '115', '121', '122', '123', '124', '171', '172'];
+
     const updateSuggestions = () => {
-        const pNames = new Set(), eNames = new Set(), vNos = new Set(), cVals = new Set();
+        const pNames = new Set(), eNames = new Set();
+        const vNos = new Set(PREDEFINED_VEHICLES);
+        const cVals = new Set(PREDEFINED_CALLSIGNS);
+
         const paramRanks = ['SGT 1', 'SGT 2', 'SGT 3', 'SSGT', 'WO1', 'WO2', 'LTA'];
         const escortRanks = ['CPL', 'SGT', 'SSGT', 'SI', 'INSP'];
         const callsignTypes = ['FB', 'LF', 'PL', 'A/PA'];
 
         vehicles.forEach(v => {
-            if (v.vehicleNo) vNos.add(v.vehicleNo);
+            if (v.vehicleNo) {
+                let digits = v.vehicleNo.replace(/[^0-9]/g, ''); // Extract only digits
+                if (digits) vNos.add(digits);
+            }
             if (v.callsign) {
                 let c = extractName(v.callsign, callsignTypes);
-                if (c) cVals.add(c);
+                if (c) {
+                    let digits = c.replace(/[^0-9]/g, ''); // Extract only digits
+                    if (digits) cVals.add(digits);
+                }
             }
             if (v.paramedic) {
                 let p = extractName(v.paramedic, paramRanks);
@@ -919,15 +932,30 @@
         if (!input || !dropdown) return;
 
         const render = () => {
-            const q = input.value.trim().toLowerCase();
-            const matches = suggestionData[inputId].filter(item => item.toLowerCase().includes(q));
+            const q = input.value.trim().toUpperCase();
+            let matches = [];
 
-            if (matches.length === 0 || (matches.length === 1 && matches[0].toLowerCase() === q)) {
+            if (inputId === 'vehicle_no' || inputId === 'callsign_val') {
+                const searchQ = q.replace(/[^0-9]/g, ''); // Ignore any alphabet the user typed
+                
+                if (searchQ) {
+                    matches = suggestionData[inputId].filter(item => item.includes(searchQ));
+                } else if (q) {
+                    // If they typed "QX" but no numbers yet, show all the predefined digits
+                    matches = suggestionData[inputId];
+                }
+            } else {
+                if (q) {
+                    matches = suggestionData[inputId].filter(item => item.toUpperCase().includes(q));
+                }
+            }
+
+            if (matches.length === 0 || (matches.length === 1 && matches[0].toUpperCase() === q)) {
                 dropdown.classList.remove('show');
                 return;
             }
 
-            dropdown.innerHTML = matches.map(m => `<div class="autocomplete-item">${m}</div>`).join('');
+            dropdown.innerHTML = matches.slice(0, 15).map(m => `<div class="autocomplete-item">${m}</div>`).join('');
             dropdown.classList.add('show');
         };
 
@@ -937,8 +965,10 @@
 
         dropdown.addEventListener('click', (e) => {
             if(e.target.classList.contains('autocomplete-item')) {
+                // Inserts only the digits, satisfying the requirement to "save only the digit"
                 input.value = e.target.textContent;
                 dropdown.classList.remove('show');
+                input.focus();
             }
         });
     };
@@ -1157,12 +1187,17 @@
         e.preventDefault(); if(!dbUser) return;
         const btn=$('btnSubmitEntry'); btn.disabled=true; btn.innerHTML='Saving...';
         const id=Date.now().toString();
+        
+        // Strip out non-digits directly when submitting to ensure "save only digit" compliance
+        const vehicleDigits = $('vehicle_no').value.replace(/[^0-9]/g, '');
+        const callsignDigits = $('callsign_val').value.replace(/[^0-9]/g, '');
+
         const entry={
             status:'ACTIVE', timestamp:Date.now(),
             date:$('entry_date').value,
             entryTime:$('entry_time').value,
-            vehicleNo:$('vehicle_no').value.trim().toUpperCase(),
-            callsign:`${$('callsign_type').value} ${$('callsign_val').value.trim().toUpperCase()}`,
+            vehicleNo: vehicleDigits || $('vehicle_no').value.trim().toUpperCase(),
+            callsign:`${$('callsign_type').value} ${callsignDigits || $('callsign_val').value.trim().toUpperCase()}`,
             paramedic:`${$('paramedic_rank').value} ${$('paramedic_name').value.trim()}`
         };
         try {
