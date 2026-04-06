@@ -352,7 +352,7 @@
         const dd = String(today.getDate()).padStart(2, '0');
         rosterDate = `${yyyy}-${mm}-${dd}`;
 
-        const placeholders8 = ['7481', '5582', '6399', '4511', '8795', '8831', '8656', '8663'];
+        const placeholders8 = ['5582', '7481', '6399', '8663', '8831', '8598', '8656', '4270'];
         const placeholders7 = ['5582', '6399', '4511', '8795', '8663', '7415', '4270']; 
         const placeholders6 = ['5582', '7481', '4511', '4270', '8656', '8598'];
 
@@ -406,6 +406,54 @@
             };
             
             return { yest: format(yest), tom: format(tom) };
+        }
+
+        // Helper to parse MRoster regardless of how it was originally saved
+        function processMRosterData(data) {
+            if (!data) return;
+            
+            let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || data.masterRoster || [];
+            
+            // If the wrapper is an object containing a data array
+            if (typeof rawData === 'object' && !Array.isArray(rawData) && rawData.data && Array.isArray(rawData.data)) {
+                rawData = rawData.data;
+            }
+
+            window.mRosterMonthYear = data.monthYear || data.currentMonth || data.month || "";
+            let newMRosterMap = {};
+
+            if (Array.isArray(rawData)) {
+                rawData.forEach(row => {
+                    if (!row) return;
+                    
+                    if (Array.isArray(row)) {
+                        // Find ID column (the first cell containing mostly digits)
+                        let idIndex = -1;
+                        for (let i = 0; i < Math.min(row.length, 5); i++) {
+                            if (row[i] && String(row[i]).trim().match(/^\d{3,6}$/)) {
+                                idIndex = i;
+                                break;
+                            }
+                        }
+                        
+                        if (idIndex !== -1) {
+                            let cleanId = String(row[idIndex]).trim();
+                            newMRosterMap[cleanId] = { type: 'array', data: row, idIndex: idIndex };
+                        }
+                    } else if (typeof row === 'object') {
+                        // Object-based parser
+                        let rawId = String(row.id || row.ID || row.Id || row.staffId || row.StaffId || "").trim();
+                        let cleanId = rawId.replace(/\D/g, '');
+                        if (cleanId) newMRosterMap[cleanId] = { type: 'object', data: row };
+                    }
+                });
+                mRosterData = newMRosterMap;
+            } else if (typeof rawData === 'object') {
+                Object.keys(rawData).forEach(key => {
+                    let cleanId = String(key).replace(/\D/g, '');
+                    if (cleanId) mRosterData[cleanId] = { type: 'object', data: rawData[key] };
+                });
+            }
         }
 
         function getStaffStatus(staffId, dateStr) {
@@ -465,29 +513,54 @@
         // --- Roster Size Data Sets (8, 7, and 6 Man) ---
         const timeHeaders = ["TIME(HRS)", "2000 - 2030", "2030-2100", "2100HRS", "2200HRS", "2300HRS", "2400 - 2430", "2430 - 0100", "0100-0130", "0130-0200", "0200HRS", "0300HRS", "0400HRS", "0500-0530", "0530 - 0600", "0600-0630", "0630-0700", "0700HRS"];
 
-        const table1Data_8 = [
-            ["CID/FOYER PASS COUNTER", "7481", "V", "5582", "7481", "5582", "7481", "7481", "8663", "V", "8663", "8831", "8663", "7481", "7481", "5582", "V", "7481"],
-            ["", "4511", "E", "", "6399", "4511", "", "", "8795", "E", "", "6399", "", "", "", "8663", "E", "6399"],
-            ["", "8795", "R", "", "", "", "", "", "", "R", "", "", "", "", "", "", "R", ""],
-            ["", "", "T", "", "", "6399", "6399", "7481", "", "T", "7481", "4511", "4511", "8656", "8656", "", "T", ""],
-            ["", "", "I", "8663", "8663", "6399", "8831", "8831", "8831", "I", "5582", "5582", "8656", "8795", "8795", "8795", "I", ""],
-            ["KIOSK", "8656", "C", "8831", "5582", "8656", "8795", "8795", "6399", "C", "4511", "7481", "8795", "8663", "8663", "7481", "C", "4511"],
-            ["LOBBY C", "6399", "A", "4511", "8795", "7481", "4511", "4511", "5582", "A", "8795", "8663", "6399", "4511", "4511", "6399", "A", "5582"],
-            ["HHMD", "8831", "L", "8656", "8656/8831", "8831", "8656", "8656", "8656", "L", "8656", "8656", "8831", "8831", "8831", "8656/8831", "L", "8831"],
-            ["GUARD HOUSE", "8663", "", "6399", "4511", "8795", "5582", "5582", "4511", "", "6399", "8795", "7481", "6399", "6399", "4511", "", "8663"],
-            ["VERTICAL PATROL", "******", "7481", "******", "******", "8663", "******", "******", "******", "8831", "******", "******", "5582", "******", "******", "******", "8795", "******"]
+        const table1Data_8_Weekday = [
+            ["CID/FOYER PASS COUNTER", "4270", "V", "8598", "4270", "5582", "4270", "4270", "8663", "V", "8656", "5582", "6399", "8663", "8663", "7481", "V", "5582"],
+            ["", "8663", "E", "", "6399", "", "", "", "7481", "E", "", "8656", "8598", "", "", "8663", "E", "7481"],
+            ["", "", "R", "", "", "", "", "", "", "R", "", "8831", "", "", "", "4270", "R", ""],
+            ["", "", "T", "", "8831", "8831", "6399", "6399", "4270", "T", "4270", "", "", "8656", "8656", "", "T", ""],
+            ["", "", "I", "8663", "8663", "6399", "5582", "5582", "5582", "I", "7481", "7481", "8656", "8598", "8598", "8598", "I", ""],
+            ["KIOSK", "8831", "C", "6399", "7481", "7481", "7481", "7481", "8656", "C", "8831", "6399", "8663", "8831", "8831", "5582", "C", "8663"],
+            ["LOBBY C", "7481", "A", "5582", "8598", "8656", "8598", "8598", "6399", "A", "8663", "4270", "5582", "4270", "4270", "6399", "A", "8831"],
+            ["HHMD", "8598/8656", "L", "8656", "8656", "8598", "8831", "8831", "8831", "L", "8598", "8598", "8831", "6399", "6399", "8656", "L", "6399"],
+            ["GUARD HOUSE", "6399", "", "7481", "5582", "7481", "8656", "8656", "8598", "", "6399", "8663", "4270", "5582", "5582", "8831", "", "8656"],
+            ["VERTICAL PATROL", "******", "4270", "******", "******", "8663", "******", "******", "******", "5582", "******", "******", "7481", "******", "******", "******", "8598", "******"]
         ];
 
-        const table2Data_8 = [
-            ["REPORT ROOM(BME)", "5582", "5582", "8795", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+        const table2Data_8_Weekday = [
+            ["REPORT ROOM(BME)", "5582", "5582", "8831", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
             ["CNB COUNTER", "4834/4928", "4834/4928", "4834/4928", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
         ];
 
-        const table3Data_8 = [
-            [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "8795", colSpan: 2 }, { val: "4511", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "", colSpan: 1 } ],
-            [ { val: "BREAK TIME", colSpan: 1 }, { val: "0200-0300", colSpan: 2 }, { val: "2300-0000", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0300-0500", colSpan: 2 }, { val: "0000-0130", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "", colSpan: 1 } ],
-            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "4511", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "8795", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "", colSpan: 9 } ],
-            [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2330-0000", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0600-0630", colSpan: 1 }, { val: "", colSpan: 9 } ]
+        const table3Data_8_Weekday = [
+            [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8598", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "4270", colSpan: 2 }, { val: "8831", colSpan: 2 } ],
+            [ { val: "BREAK TIME", colSpan: 1 }, { val: "0000-0130", colSpan: 2 }, { val: "0200-0300", colSpan: 2 }, { val: "2300-0100", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "2200-0000", colSpan: 2 } ],
+            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "4270", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "8598", colSpan: 1 }, { val: "", colSpan: 9 } ],
+            [ { val: "TIMING:", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "2230-2300", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0330-0400", colSpan: 1 }, { val: "", colSpan: 1 }, { val: "0430-0500", colSpan: 1 }, { val: "", colSpan: 9 } ]
+        ];
+
+        const table1Data_8_Weekend = [
+            ["CID/FOYER PASS COUNTER", "4270", "V", "5582", "8663", "6399", "7481", "7481", "8831", "V", "5582", "8656", "8663", "5582", "5582", "6399", "V", "8598"],
+            ["", "7481", "E", "4270", "8656", "", "", "", "6399", "E", "", "4270", "7481", "", "", "5582", "E", "6399"],
+            ["", "8663", "R", "", "", "", "", "", "", "R", "", "8598", "", "", "", "8831", "R", ""],
+            ["", "", "T", "", "4270", "4270", "5582", "5582", "8663", "T", "8663", "", "", "8598", "8598", "", "T", ""],
+            ["", "", "I", "8831", "8831", "5582", "8656", "8656", "8656", "I", "6399", "6399", "8598", "7481", "7481", "7481", "I", ""],
+            ["KIOSK", "5582", "C", "8656", "6399", "7481", "6399", "6399", "5582", "C", "4270", "7481", "5582", "8831", "8831", "8663", "C", "8656"],
+            ["LOBBY C", "6399", "A", "7481", "5582", "8663", "4270", "4270", "7481", "A", "8598", "8663", "8656", "4270", "4270", "8598", "A", "4270"],
+            ["HHMD", "8598/8831", "L", "8598", "8598", "8656", "8598", "8598", "8598", "L", "8831", "8831", "8831", "8656", "8656", "8656", "L", "8831"],
+            ["GUARD HOUSE", "8656", "", "6399", "7481", "8598", "8663", "8663", "4270", "", "7481", "5582", "4270", "8663", "8663", "4270", "", "5582"],
+            ["VERTICAL PATROL", "******", "8663", "******", "******", "8831", "******", "******", "******", "8656", "******", "******", "6399", "******", "******", "******", "7481", "******"]
+        ];
+
+        const table2Data_8_Weekend = [
+            ["REPORT ROOM(BME)", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"],
+            ["CNB COUNTER", "4834/4928", "4834/4928", "4834/4928", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******", "******"]
+        ];
+
+        const table3Data_8_Weekend = [
+            [ { val: "MANPOWER: 8", colSpan: 1 }, { val: "5582", colSpan: 2 }, { val: "6399", colSpan: 2 }, { val: "7481", colSpan: 2 }, { val: "8663", colSpan: 2 }, { val: "8831", colSpan: 2 }, { val: "8598", colSpan: 2 }, { val: "8656", colSpan: 2 }, { val: "4270", colSpan: 2 } ],
+            [ { val: "BREAK TIME", colSpan: 1 }, { val: "2300-0100", colSpan: 2 }, { val: "0200-0400", colSpan: 2 }, { val: "0500-0630", colSpan: 2 }, { val: "0100-0300", colSpan: 2 }, { val: "2100-2300", colSpan: 2 }, { val: "0400-0600", colSpan: 2 }, { val: "0000-0130", colSpan: 2 }, { val: "2200-0000", colSpan: 2 } ],
+            [ { val: "PRIVILEGE BREAK", colSpan: 1 }, { val: "5582", colSpan: 1 }, { val: "4270", colSpan: 1 }, { val: "8663", colSpan: 1 }, { val: "8831", colSpan: 1 }, { val: "6399", colSpan: 1 }, { val: "8656", colSpan: 1 }, { val: "8598", colSpan: 1 }, { val: "7481", colSpan: 1 }, { val: "", colSpan: 9 } ],
+            [ { val: "TIMING:", colSpan: 1 }, { val: "2100-2130", colSpan: 1 }, { val: "2130-2200", colSpan: 1 }, { val: "2200-2230", colSpan: 1 }, { val: "0100-0130", colSpan: 1 }, { val: "0130-0200", colSpan: 1 }, { val: "0300-0330", colSpan: 1 }, { val: "0330-0400", colSpan: 1 }, { val: "0430-0500", colSpan: 1 }, { val: "", colSpan: 9 } ]
         ];
 
         const table1Data_7 = [
@@ -547,8 +620,10 @@
         }
 
         function getHHMDSlots() {
+            const dayName = getDayName(rosterDate);
+            const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
             // Returns the exact placeholder IDs that represent the HHMD roles in the current mode
-            if (rosterSize === 8) return ['8831', '8656'];
+            if (rosterSize === 8) return isWeekend ? ['8598', '8831'] : ['8598', '8656'];
             if (rosterSize === 7) return ['8795', '7415'];
             return ['8656', '8598'];
         }
@@ -582,52 +657,53 @@
             if (user) {
                 isDbReady = true;
                 listenToCloudData();
-                listenToMasterRoster(rosterDate);
             }
         });
 
-        // Exact Path Connection to the Master Roster
-        function listenToMasterRoster(targetDateStr) {
-            if (!targetDateStr || !db) return;
-            const [y, m, d] = targetDateStr.split('-');
-            const currDate = new Date(y, m - 1, d);
-            
-            // Fetch current month, and the adjacent months to safely check "Yesterday" and "Tomorrow"
-            const prev = new Date(currDate.getFullYear(), currDate.getMonth() - 1, 1);
-            const next = new Date(currDate.getFullYear(), currDate.getMonth() + 1, 1);
-
-            const neededMonths = [
-                `${prev.getFullYear()}_${String(prev.getMonth()+1).padStart(2, '0')}`,
-                `${currDate.getFullYear()}_${String(currDate.getMonth()+1).padStart(2, '0')}`,
-                `${next.getFullYear()}_${String(next.getMonth()+1).padStart(2, '0')}`
-            ];
-
-            // Avoid reconnecting if dates haven't crossed a month boundary
-            if (neededMonths.join() === currentMasterMonths.join()) return;
-            currentMasterMonths = neededMonths;
-
-            // Cleanup old listeners
-            unsubMaster.forEach(u => u());
-            unsubMaster = [];
-
-            neededMonths.forEach(monthKey => {
-                // Connect to the exact path your MRoster uses:
-                const mRef = doc(db, 'artifacts', mRosterAppId, 'public', 'data', 'monthly_schedule', `schedule_${monthKey}`);
-                const unsub = onSnapshot(mRef, (snap) => {
-                    if (snap.exists()) {
-                        isMRosterConnected = true;
-                        masterSchedule[monthKey] = snap.data().data || {};
-                        updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
-                        renderControls();
-                    } else {
-                        // Document doesn't exist yet for this month. Mark as empty to prevent falls positives.
-                        masterSchedule[monthKey] = {};
+        // The Omni-Link aggressively queries multiple potential databases to ensure
+        // it locks onto the Master Roster regardless of App ID or Collection naming differences.
+        async function listenToMRosterOmniLink() {
+            // 1. Try LocalStorage Bridging (Fastest & most reliable for Github Pages sharing same domain)
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    let key = localStorage.key(i);
+                    if (key.toLowerCase().includes('mroster') || key.toLowerCase().includes('master')) {
+                        let data = localStorage.getItem(key);
+                        let parsed = JSON.parse(data);
+                        if (parsed && (parsed.rosterData || parsed.staffRecords || parsed.gridData || Array.isArray(parsed))) {
+                            isMRosterConnected = true;
+                            processMRosterData(parsed);
+                            updateCloudStatus("MRoster Linked (Local)", "text-blue-600");
+                            renderControls();
+                            return; // Stop here if we found it locally!
+                        }
                     }
-                }, (err) => {
-                    console.log(`Silent fail for MRoster month ${monthKey}:`, err);
-                });
-                unsubMaster.push(unsub);
-            });
+                }
+            } catch(e) {}
+
+            // 2. Try Firebase Discovery (Scans multiple possible Firebase app paths)
+            const possibleAppIds = ['custom_roster_app', 'po_mroster_app', 'mroster_app', 'master_roster_app', 'alplanner', 'pcc_planner', 'default-app-id'];
+            const possibleColls = ['mroster_v1', 'po_mroster_v1', 'master_roster_v1', 'master_roster', 'live_state', 'data', 'roster_data'];
+
+            for (let aId of possibleAppIds) {
+                for (let coll of possibleColls) {
+                    try {
+                        const mRosterRef = doc(db, 'artifacts', aId, 'public', 'data', coll, 'live_state');
+                        const snap = await getDoc(mRosterRef);
+                        if (snap.exists()) {
+                            onSnapshot(mRosterRef, (docSnap) => {
+                                if (docSnap.exists()) {
+                                    isMRosterConnected = true;
+                                    processMRosterData(docSnap.data());
+                                    updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
+                                    renderControls(); // Re-render to show updated statuses
+                                }
+                            });
+                            return; // Found the active cloud link, stop searching!
+                        }
+                    } catch(e) { } // Silently skip missed paths
+                }
+            }
         }
 
         function listenToCloudData() {
@@ -665,7 +741,7 @@
                     }
                     
                     updateRosterSizeUI();
-                    listenToMasterRoster(rosterDate); // Update Master Connection based on latest date
+                    listenToMRosterOmniLink(); // Update Master Connection
                     
                     if(currentTab === 'attendance') renderAttendance();
                     if(currentTab === 'roster') { 
@@ -868,7 +944,6 @@
         
         window.updateDate = function(val) {
             rosterDate = val;
-            listenToMasterRoster(rosterDate); // Boot up sync for the newly selected date
             renderControls();
             renderTables();
             window.saveToDatabase();
@@ -1349,13 +1424,16 @@
                 </select>`;
             }
 
+            const dayName = getDayName(rosterDate);
+            const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
+
             // Use deep copies so we do not mutate the base templates during weekend overwrites
             let t1Data, t2Data, t3Data;
             
             if (rosterSize === 8) {
-                t1Data = JSON.parse(JSON.stringify(table1Data_8));
-                t2Data = JSON.parse(JSON.stringify(table2Data_8));
-                t3Data = JSON.parse(JSON.stringify(table3Data_8));
+                t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_8_Weekend : table1Data_8_Weekday));
+                t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_8_Weekend : table2Data_8_Weekday));
+                t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_8_Weekend : table3Data_8_Weekday));
             } else if (rosterSize === 7) {
                 t1Data = JSON.parse(JSON.stringify(table1Data_7));
                 t2Data = JSON.parse(JSON.stringify(table2Data_7));
@@ -1366,11 +1444,9 @@
                 t3Data = JSON.parse(JSON.stringify(table3Data_6));
             }
 
-            const dayName = getDayName(rosterDate);
-            const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
-
             // Weekend Logic: Blank out REPORT ROOM (BME) & move its first staff to CID/FOYER at 2000-2030
-            if (isWeekend) {
+            // Note: 8-Man mode has explicit weekend arrays, so it does NOT use this hack.
+            if (isWeekend && rosterSize !== 8) {
                 const bmeFirstStaff = t2Data[0][1]; 
                 
                 t2Data[0][1] = "******";
@@ -1401,9 +1477,9 @@
             const container = document.getElementById('tables-container');
             let html = '';
             
-            // Dynamic TP Assignment based on Roster Size
+            // Dynamic TP Assignment based on Roster Size and Day
             let dynamicTPPlaceholder;
-            if (rosterSize === 8) dynamicTPPlaceholder = '8656';
+            if (rosterSize === 8) dynamicTPPlaceholder = isWeekend ? '8663' : '4270';
             else if (rosterSize === 7) dynamicTPPlaceholder = '4511';
             else dynamicTPPlaceholder = '4270';
             
