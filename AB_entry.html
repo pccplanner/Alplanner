@@ -623,7 +623,7 @@
                 
                 <div class="autocomplete-wrap">
                     <label class="form-label">Vehicle Number</label>
-                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. QX1520S" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
+                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. QX 1520 S" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
                     <div id="vehicle_no_dropdown" class="autocomplete-list uppercase-input" style="font-size:15px;"></div>
                 </div>
                 
@@ -869,6 +869,37 @@
         }
     };
 
+    // ── VEHICLE FORMATTER ──
+    const formatVehicleNumber = (val) => {
+        // Strip out any non-alphanumeric characters (removes existing spaces)
+        let clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // RegEx matches: [Letters] [Digits] [Letters]
+        let match = clean.match(/^([A-Z]+)(\d+)?([A-Z]+)?$/);
+        if (match) {
+            let res = match[1];
+            if (match[2]) res += ' ' + match[2];
+            if (match[3]) res += ' ' + match[3];
+            return res;
+        }
+        return val.toUpperCase();
+    };
+
+    // Apply auto-formatter dynamically as user types
+    $('vehicle_no').addEventListener('input', function(e) {
+        let oldVal = this.value;
+        let start = this.selectionStart;
+        let formatted = formatVehicleNumber(oldVal);
+        
+        if (oldVal !== formatted) {
+            this.value = formatted;
+            // Best effort to maintain cursor position
+            let diff = formatted.length - oldVal.length;
+            if (start !== null) {
+                this.setSelectionRange(start + diff, start + diff);
+            }
+        }
+    });
+
     // ── CUSTOM AUTOCOMPLETE ──
     let suggestionData = {
         vehicle_no: [],
@@ -885,8 +916,8 @@
         return fullName.trim();
     };
 
-    // Predefined data (Vehicle includes letters and digits as requested)
-    const PREDEFINED_VEHICLES = ['QX1222S', 'QX1233K', 'QX1234H', 'QX1242J', 'QX1243G', 'QX1295G', 'QX1520G', 'QX1520S', 'QX1674X', 'QX1683U', 'QX1702Z', 'QX1945L', 'QX2074X', 'QX2097E', 'QX2137Z', 'QX2194H', 'QX2197Z', 'QX2433C', 'QX2439C', 'QX2495P', 'QX2538A', 'QX2539Y', 'QX2591U', 'QX2658L'];
+    // Seeded data parsed exactly from your Data.txt (Formatted with spaces)
+    const PREDEFINED_VEHICLES = ['QX 1222 S', 'QX 1233 K', 'QX 1234 H', 'QX 1242 J', 'QX 1243 G', 'QX 1295 G', 'QX 1520 G', 'QX 1520 S', 'QX 1674 X', 'QX 1683 U', 'QX 1702 Z', 'QX 1945 L', 'QX 2074 X', 'QX 2097 E', 'QX 2137 Z', 'QX 2194 H', 'QX 2197 Z', 'QX 2433 C', 'QX 2439 C', 'QX 2495 P', 'QX 2538 A', 'QX 2539 Y', 'QX 2591 U', 'QX 2658 L'];
     const PREDEFINED_CALLSIGNS = ['111', '112', '113', '114', '115', '121', '122', '123', '124', '171', '172'];
 
     const updateSuggestions = () => {
@@ -900,7 +931,7 @@
 
         vehicles.forEach(v => {
             if (v.vehicleNo) {
-                vNos.add(v.vehicleNo.trim().toUpperCase()); // Store full string for vehicle
+                vNos.add(formatVehicleNumber(v.vehicleNo)); 
             }
             if (v.callsign) {
                 let c = extractName(v.callsign, callsignTypes);
@@ -939,13 +970,18 @@
                 const searchQ = q.replace(/[^0-9]/g, ''); 
                 if (searchQ) {
                     matches = suggestionData[inputId].filter(item => item.includes(searchQ));
-                } else if (q) {
+                } else {
                     matches = suggestionData[inputId];
+                }
+            } else if (inputId === 'vehicle_no') {
+                // For vehicle, ignore gaps when searching so "QX1" matches "QX 1"
+                const searchQ = q.replace(/\s+/g, '');
+                if (searchQ) {
+                    matches = suggestionData[inputId].filter(item => item.replace(/\s+/g, '').includes(searchQ));
                 } else {
                     matches = suggestionData[inputId];
                 }
             } else {
-                // For vehicle, paramedics, and escorts, match EXACTLY what they type (including "QX" letters)
                 if (q) {
                     matches = suggestionData[inputId].filter(item => item.toUpperCase().includes(q));
                 } else {
@@ -1193,8 +1229,8 @@
         // Strip out non-digits ONLY for Callsign
         const callsignDigits = $('callsign_val').value.replace(/[^0-9]/g, '');
 
-        // Maintain full input with alphabet for Vehicle Number
-        const vehicleFull = $('vehicle_no').value.trim().toUpperCase();
+        // Force rigorous formatting on submit just to be perfectly safe
+        const vehicleFull = formatVehicleNumber($('vehicle_no').value.trim());
 
         const entry={
             status:'ACTIVE', timestamp:Date.now(),
