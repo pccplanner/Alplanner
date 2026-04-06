@@ -182,6 +182,25 @@
             background-size: 1.15em; padding-right: 2.4rem; cursor: pointer;
         }
 
+        /* ── CUSTOM AUTOCOMPLETE DROPDOWN ── */
+        .autocomplete-wrap { position: relative; }
+        .autocomplete-list {
+            position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+            background: var(--white); border: 1.5px solid var(--border-strong);
+            border-radius: 11px; box-shadow: var(--sh-md);
+            max-height: 180px; overflow-y: auto; z-index: 9999;
+            display: none; flex-direction: column; padding: 4px;
+        }
+        .autocomplete-list.show { display: flex; }
+        .autocomplete-item {
+            padding: 10px 14px; font-size: 14px; font-weight: 600;
+            color: var(--t700); cursor: pointer; border-radius: 7px;
+            transition: background 0.12s;
+        }
+        .autocomplete-item:hover, .autocomplete-item:active {
+            background: var(--cobalt-light); color: var(--cobalt);
+        }
+
         /* ── BUTTONS ── */
         .btn {
             display: flex; align-items: center; justify-content: center; gap: 7px;
@@ -466,12 +485,6 @@
 
 <body class="h-[100dvh] flex flex-col overflow-hidden relative">
 
-<!-- ── AUTOCOMPLETE DATALISTS ── -->
-<datalist id="vehicle_list"></datalist>
-<datalist id="callsign_list"></datalist>
-<datalist id="paramedic_list"></datalist>
-<datalist id="escort_list"></datalist>
-
 <!-- ── HEADER ─────────────────────────────────── -->
 <header class="app-header z-30 shrink-0 sticky top-0 relative">
     <div class="max-w-5xl mx-auto px-5 py-3.5 flex justify-between items-center">
@@ -595,7 +608,7 @@
             </button>
         </div>
 
-        <div class="overflow-y-auto p-6 sm:p-8 no-scrollbar" style="background:var(--white);">
+        <div class="overflow-y-auto p-6 sm:p-8 pb-32 no-scrollbar" style="background:var(--white);">
             <form id="entryForm" class="space-y-5">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -607,10 +620,13 @@
                         <input type="time" id="entry_time" class="form-input" required>
                     </div>
                 </div>
-                <div>
+                
+                <div class="autocomplete-wrap">
                     <label class="form-label">Vehicle Number</label>
-                    <input type="text" id="vehicle_no" list="vehicle_list" class="form-input uppercase-input" placeholder="e.g. SXXXXX" oninput="this.value = this.value.toUpperCase()" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
+                    <input type="text" id="vehicle_no" class="form-input uppercase-input" placeholder="e.g. SXXXXX" autocomplete="off" required style="font-size:18px;letter-spacing:0.1em;font-weight:700;">
+                    <div id="vehicle_no_dropdown" class="autocomplete-list uppercase-input" style="font-size:15px;"></div>
                 </div>
+                
                 <div>
                     <label class="form-label">Callsign</label>
                     <div class="flex gap-3">
@@ -620,9 +636,13 @@
                             <option value="PL">PL</option>
                             <option value="A/PA">A/PA</option>
                         </select>
-                        <input type="text" id="callsign_val" list="callsign_list" class="form-input uppercase-input flex-1" oninput="this.value = this.value.toUpperCase()" placeholder="Enter ID" required>
+                        <div class="flex-1 autocomplete-wrap">
+                            <input type="text" id="callsign_val" class="form-input uppercase-input" autocomplete="off" placeholder="Enter ID" required>
+                            <div id="callsign_val_dropdown" class="autocomplete-list uppercase-input"></div>
+                        </div>
                     </div>
                 </div>
+                
                 <div>
                     <label class="form-label">Paramedic (Rank & Name)</label>
                     <div class="flex gap-3">
@@ -635,7 +655,10 @@
                             <option value="WO2">WO2</option>
                             <option value="LTA">LTA</option>
                         </select>
-                        <input type="text" id="paramedic_name" list="paramedic_list" class="form-input flex-1" placeholder="Full Name" required>
+                        <div class="flex-1 autocomplete-wrap">
+                            <input type="text" id="paramedic_name" class="form-input" autocomplete="off" placeholder="Full Name" required>
+                            <div id="paramedic_name_dropdown" class="autocomplete-list"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-divider"></div>
@@ -666,7 +689,7 @@
             </button>
         </div>
 
-        <div class="overflow-y-auto p-6 sm:p-8 no-scrollbar" style="background:var(--white);">
+        <div class="overflow-y-auto p-6 sm:p-8 pb-32 no-scrollbar" style="background:var(--white);">
             <form id="exitForm" class="space-y-5">
                 <input type="hidden" id="exit_id">
                 <div class="grid grid-cols-2 gap-4">
@@ -703,7 +726,10 @@
                             <option value="SI">SI</option>
                             <option value="INSP">INSP</option>
                         </select>
-                        <input type="text" id="escort_name" list="escort_list" class="form-input flex-1" placeholder="Name (if applicable)">
+                        <div class="flex-1 autocomplete-wrap">
+                            <input type="text" id="escort_name" class="form-input" autocomplete="off" placeholder="Name (if applicable)">
+                            <div id="escort_name_dropdown" class="autocomplete-list"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="sub-panel">
@@ -843,7 +869,14 @@
         }
     };
 
-    // ── AUTOCOMPLETE SUGGESTIONS
+    // ── CUSTOM AUTOCOMPLETE ──
+    let suggestionData = {
+        vehicle_no: [],
+        callsign_val: [],
+        paramedic_name: [],
+        escort_name: []
+    };
+
     const extractName = (fullName, rankArray) => {
         if (!fullName) return null;
         for (let r of rankArray) {
@@ -853,32 +886,68 @@
     };
 
     const updateSuggestions = () => {
-        const paramedicNames = new Set(), escortNames = new Set(), vehicleNos = new Set(), callsignVals = new Set();
+        const pNames = new Set(), eNames = new Set(), vNos = new Set(), cVals = new Set();
         const paramRanks = ['SGT 1', 'SGT 2', 'SGT 3', 'SSGT', 'WO1', 'WO2', 'LTA'];
         const escortRanks = ['CPL', 'SGT', 'SSGT', 'SI', 'INSP'];
         const callsignTypes = ['FB', 'LF', 'PL', 'A/PA'];
 
         vehicles.forEach(v => {
-            if (v.vehicleNo) vehicleNos.add(v.vehicleNo);
+            if (v.vehicleNo) vNos.add(v.vehicleNo);
             if (v.callsign) {
                 let c = extractName(v.callsign, callsignTypes);
-                if (c) callsignVals.add(c);
+                if (c) cVals.add(c);
             }
             if (v.paramedic) {
                 let p = extractName(v.paramedic, paramRanks);
-                if (p) paramedicNames.add(p);
+                if (p) pNames.add(p);
             }
             if (v.escort && v.escort !== 'None') {
                 let e = extractName(v.escort, escortRanks);
-                if (e) escortNames.add(e);
+                if (e) eNames.add(e);
             }
         });
 
-        $('vehicle_list').innerHTML = [...vehicleNos].sort().map(n => `<option value="${n}">`).join('');
-        $('callsign_list').innerHTML = [...callsignVals].sort().map(n => `<option value="${n}">`).join('');
-        $('paramedic_list').innerHTML = [...paramedicNames].sort().map(n => `<option value="${n}">`).join('');
-        $('escort_list').innerHTML = [...escortNames].sort().map(n => `<option value="${n}">`).join('');
+        suggestionData.vehicle_no = [...vNos].sort();
+        suggestionData.callsign_val = [...cVals].sort();
+        suggestionData.paramedic_name = [...pNames].sort();
+        suggestionData.escort_name = [...eNames].sort();
     };
+
+    const setupAutocomplete = (inputId) => {
+        const input = $(inputId);
+        const dropdown = $(inputId + '_dropdown');
+        if (!input || !dropdown) return;
+
+        const render = () => {
+            const q = input.value.trim().toLowerCase();
+            const matches = suggestionData[inputId].filter(item => item.toLowerCase().includes(q));
+
+            if (matches.length === 0 || (matches.length === 1 && matches[0].toLowerCase() === q)) {
+                dropdown.classList.remove('show');
+                return;
+            }
+
+            dropdown.innerHTML = matches.map(m => `<div class="autocomplete-item">${m}</div>`).join('');
+            dropdown.classList.add('show');
+        };
+
+        input.addEventListener('input', render);
+        input.addEventListener('focus', render);
+        input.addEventListener('blur', () => { setTimeout(() => dropdown.classList.remove('show'), 200); });
+
+        dropdown.addEventListener('click', (e) => {
+            if(e.target.classList.contains('autocomplete-item')) {
+                input.value = e.target.textContent;
+                dropdown.classList.remove('show');
+            }
+        });
+    };
+
+    // Attach custom autocomplete directly
+    setupAutocomplete('vehicle_no');
+    setupAutocomplete('callsign_val');
+    setupAutocomplete('paramedic_name');
+    setupAutocomplete('escort_name');
 
     onAuthStateChanged(auth, user => {
         dbUser = user;
@@ -889,7 +958,7 @@
                 snap.forEach(d => vehicles.push({ id: d.id, ...d.data() }));
                 vehicles.sort((a,b) => b.timestamp - a.timestamp);
                 
-                // Update Auto-suggestions silently based on DB records
+                // Keep suggestions updated instantly behind the scenes
                 updateSuggestions();
                 
                 currentTab === 'live' ? renderLive() : (renderCal(), renderArchive());
@@ -1092,8 +1161,8 @@
             status:'ACTIVE', timestamp:Date.now(),
             date:$('entry_date').value,
             entryTime:$('entry_time').value,
-            vehicleNo:$('vehicle_no').value.trim(),
-            callsign:`${$('callsign_type').value} ${$('callsign_val').value.trim()}`,
+            vehicleNo:$('vehicle_no').value.trim().toUpperCase(),
+            callsign:`${$('callsign_type').value} ${$('callsign_val').value.trim().toUpperCase()}`,
             paramedic:`${$('paramedic_rank').value} ${$('paramedic_name').value.trim()}`
         };
         try {
