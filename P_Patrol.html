@@ -214,8 +214,13 @@
 
         function updateClock() {
             const now = new Date();
-            document.getElementById('clock-display').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('date-display').innerText = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            // Force 24-hour time for the UI clock
+            document.getElementById('clock-display').innerText = now.toLocaleTimeString('en-GB', { 
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+            });
+            document.getElementById('date-display').innerText = now.toLocaleDateString([], { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+            });
         }
 
         // Initialize UI
@@ -291,7 +296,6 @@
                 btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed";
             } else {
                 btnExport.disabled = false;
-                // Changed the active state to have a slightly green WhatsApp color scheme for hover
                 btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-700/50 border-slate-600 text-[#25D366] hover:bg-[#25D366]/10 hover:border-[#25D366]/50";
             }
         }
@@ -343,10 +347,12 @@
                     </span>
                 ` : '';
 
-                // Timestamp display
+                // Timestamp display (24 hour format)
                 let timestampHtml = '';
                 if (isCompleted && logRecord) {
-                    const timeStr = logRecord.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const timeStr = logRecord.timestamp.toLocaleTimeString('en-GB', { 
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+                    });
                     timestampHtml = `
                         <div class="text-sm font-mono text-emerald-400 flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
                             <i data-lucide="clock" class="w-3.5 h-3.5"></i>
@@ -384,21 +390,23 @@
         function shareToWhatsApp() {
             if (logs.length === 0) return;
 
-            const reportDate = logs[0].timestamp.toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
+            // Extract exact dd/mm/yyyy
+            const firstLogTime = logs[0].timestamp;
+            const dd = String(firstLogTime.getDate()).padStart(2, '0');
+            const mm = String(firstLogTime.getMonth() + 1).padStart(2, '0');
+            const yyyy = firstLogTime.getFullYear();
+            
+            const reportDate = `${dd}/${mm}/${yyyy}`;
 
-            // I added standard WhatsApp bolding (*) around Date to make it look nicer in the chat
             let textContent = `*Date:* ${reportDate}\n\n`;
 
             logs.forEach((log) => {
-                const timeStr = log.timestamp.toLocaleTimeString('en-US', {
+                // Extract exact 24-hour time HH:MM:SS (no AM/PM)
+                const timeStr = log.timestamp.toLocaleTimeString('en-GB', {
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit',
-                    hour12: true
+                    hour12: false
                 });
                 textContent += `${log.location} - ${timeStr}\n`;
             });
@@ -409,7 +417,7 @@
             // Create the WhatsApp universal link
             const whatsappUrl = `https://wa.me/?text=${encodedText}`;
             
-            // Open WhatsApp (works on Mobile App and Desktop Web)
+            // Open WhatsApp
             window.open(whatsappUrl, '_blank');
         }
 
@@ -433,5 +441,4 @@
     </script>
 </body>
 </html>
-
 
