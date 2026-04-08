@@ -1,384 +1,431 @@
-```react
-import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, 
-  MapPin, 
-  Clock, 
-  Download, 
-  RefreshCw, 
-  Route, 
-  PlayCircle,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patrol Route System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-// The exact sequence of locations provided by the user
-const ROUTE_POINTS = [
-  "BME",
-  "TG/OC DR",
-  "CY",
-  "E1/HTTC",
-  "FC",
-  "N1",
-  "S2",
-  "S1/S8",
-  "TG / OC DR",
-  "CY",
-  "BME",
-  "S1/S8",
-  "S2",
-  "N1",
-  "FC",
-  "HTCC / E1",
-  "OC DR",
-  "TG",
-  "BME"
-];
+    <style>
+        /* Custom animations to mimic the React version */
+        @keyframes fade-in-zoom {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-modal {
+            animation: fade-in-zoom 0.2s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-blue-500 selection:text-white">
 
-export default function App() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [logs, setLogs] = useState([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [isFinished, setIsFinished] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
-
-  // Update live clock every second
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleClockIn = () => {
-    if (isFinished) return;
-
-    const newLog = {
-      point: currentIndex + 1,
-      location: ROUTE_POINTS[currentIndex],
-      timestamp: new Date()
-    };
-
-    const updatedLogs = [...logs, newLog];
-    setLogs(updatedLogs);
-
-    if (currentIndex + 1 >= ROUTE_POINTS.length) {
-      setIsFinished(true);
-    } else {
-      setCurrentIndex(prev => prev + 1);
-    }
-  };
-
-  const handleExport = () => {
-    if (logs.length === 0) return;
-
-    // Get the date of the first log formatted as DD/MM/YYYY
-    const reportDate = logs[0].timestamp.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-
-    let textContent = `Date: ${reportDate}\n\n`;
-
-    logs.forEach((log) => {
-      // Format time as HH:MM:SS AM/PM
-      const timeStr = log.timestamp.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
-      textContent += `${log.location} - ${timeStr}\n`;
-    });
-
-    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Patrol_Log_${new Date().getTime()}.txt`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleResetClick = () => {
-    setShowResetModal(true);
-  };
-
-  const confirmReset = () => {
-    setCurrentIndex(0);
-    setLogs([]);
-    setIsFinished(false);
-    setShowResetModal(false);
-  };
-
-  const cancelReset = () => {
-    setShowResetModal(false);
-  };
-
-  const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  const formatDate = (date) => {
-    return date.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-blue-500 selection:text-white">
-      
-      {/* Custom Reset Modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-sm w-full animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-3 text-red-400 mb-4">
-              <AlertCircle size={28} />
-              <h3 className="text-xl font-bold">Reset Route?</h3>
+    <!-- Reset Modal (Hidden by default) -->
+    <div id="reset-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+        <div class="bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-sm w-full animate-modal">
+            <div class="flex items-center gap-3 text-red-400 mb-4">
+                <i data-lucide="alert-circle" class="w-7 h-7"></i>
+                <h3 class="text-xl font-bold">Reset Route?</h3>
             </div>
-            <p className="text-slate-300 mb-6 leading-relaxed">
-              Are you sure you want to reset the route? All your current logs will be permanently lost and cannot be recovered.
+            <p class="text-slate-300 mb-6 leading-relaxed">
+                Are you sure you want to reset the route? All your current logs will be permanently lost and cannot be recovered.
             </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={cancelReset}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={confirmReset}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-red-500/20 active:scale-[0.98]"
-              >
-                Yes, Reset
-              </button>
+            <div class="flex gap-3">
+                <button onclick="cancelReset()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors">
+                    Cancel
+                </button>
+                <button onclick="confirmReset()" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-red-500/20 active:scale-[0.98]">
+                    Yes, Reset
+                </button>
             </div>
-          </div>
         </div>
-      )}
-
-      {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 p-4 shadow-md sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <Route className="text-blue-400" size={28} />
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Patrol Route System</h1>
-          </div>
-          <div className="flex flex-col items-center sm:items-end">
-            <div className="text-lg font-mono text-blue-300 font-semibold flex items-center gap-2">
-              <Clock size={18} />
-              {formatTime(currentTime)}
-            </div>
-            <div className="text-sm text-slate-400">{formatDate(currentTime)}</div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        
-        {/* Left Column: Action Panel */}
-        <div className="lg:col-span-1 space-y-6">
-          
-          {/* Main Action Card */}
-          <div className="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 relative overflow-hidden">
-            {/* Background Decoration */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
-            
-            <div className="relative">
-              <h2 className="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Status</h2>
-              {isFinished ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-20 h-20 text-emerald-400 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-white mb-2">Route Complete</h3>
-                  <p className="text-slate-400 mb-6">All {ROUTE_POINTS.length} locations have been logged successfully.</p>
-                  <button 
-                    onClick={handleExport}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
-                  >
-                    <Download size={20} />
-                    Export Final Log (TXT)
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Smart Direction Visualizer */}
-                  <div className="mb-6">
-                    <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 relative">
-                      
-                      {/* Vertical Connecting Line */}
-                      <div className="absolute left-[27px] top-6 bottom-6 w-0.5 bg-slate-700"></div>
-
-                      {/* Previous Point */}
-                      {currentIndex > 0 && (
-                        <div className="flex items-start gap-4 mb-4 relative z-10 opacity-60">
-                          <div className="w-6 h-6 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
-                            <CheckCircle2 size={12} className="text-emerald-500" />
-                          </div>
-                          <div>
-                            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Just Cleared</div>
-                            <div className="text-sm font-medium text-slate-300 line-through">{ROUTE_POINTS[currentIndex - 1]}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Current Target Point */}
-                      <div className="flex items-start gap-4 mb-4 relative z-10">
-                        <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-blue-400 flex items-center justify-center shrink-0 mt-2 shadow-[0_0_12px_rgba(59,130,246,0.6)]">
-                          <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-                        </div>
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex-1 -mt-1 backdrop-blur-sm">
-                          <div className="text-xs text-blue-400 font-bold mb-1 tracking-wider flex items-center gap-1">
-                            <MapPin size={12} />
-                            CURRENT TARGET (PT {currentIndex + 1})
-                          </div>
-                          <div className="text-xl font-bold text-white leading-tight">{ROUTE_POINTS[currentIndex]}</div>
-                        </div>
-                      </div>
-
-                      {/* Next Upcoming Point */}
-                      {currentIndex < ROUTE_POINTS.length - 1 && (
-                        <div className="flex items-start gap-4 relative z-10 opacity-60">
-                          <div className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shrink-0 mt-0.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Up Next</div>
-                            <div className="text-sm font-medium text-slate-300">{ROUTE_POINTS[currentIndex + 1]}</div>
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleClockIn}
-                    className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] text-lg"
-                  >
-                    <PlayCircle size={24} />
-                    CLOCK IN NOW
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Stats / Actions */}
-          <div className="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 grid grid-cols-2 gap-4">
-            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
-              <div className="text-3xl font-bold text-white mb-1">{logs.length}</div>
-              <div className="text-xs text-slate-400 uppercase tracking-wide">Points Cleared</div>
-            </div>
-            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
-              <div className="text-3xl font-bold text-white mb-1">{ROUTE_POINTS.length - logs.length}</div>
-              <div className="text-xs text-slate-400 uppercase tracking-wide">Remaining</div>
-            </div>
-            
-            <button 
-              onClick={handleExport}
-              disabled={logs.length === 0}
-              className={`col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all ${
-                logs.length === 0 
-                  ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
-                  : 'bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white'
-              }`}
-            >
-              <Download size={18} />
-              <span className="text-xs font-semibold">Export Log</span>
-            </button>
-            
-            <button 
-              onClick={handleResetClick}
-              className="col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-slate-200 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 transition-all"
-            >
-              <RefreshCw size={18} />
-              <span className="text-xs font-semibold">Reset Route</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Column: Route Timeline (Static, no auto-scroll) */}
-        <div className="lg:col-span-2 bg-slate-800 rounded-2xl shadow-xl border border-slate-700 flex flex-col lg:h-[700px] overflow-hidden">
-          <div className="p-5 border-b border-slate-700 bg-slate-800 z-10 flex justify-between items-center">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Route size={20} className="text-slate-400" />
-              Full Itinerary Log
-            </h2>
-            <span className="text-xs text-slate-500 uppercase tracking-wide">Scroll to review</span>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="relative">
-              {/* Timeline continuous line */}
-              <div className="absolute left-6 top-4 bottom-8 w-0.5 bg-slate-700"></div>
-
-              <div className="space-y-6">
-                {ROUTE_POINTS.map((location, index) => {
-                  const isCompleted = index < currentIndex;
-                  const isCurrent = index === currentIndex && !isFinished;
-                  const logRecord = logs.find(log => log.point === index + 1);
-
-                  return (
-                    <div 
-                      key={index} 
-                      className={`relative flex items-start gap-4 transition-all duration-300 ${
-                        isCurrent ? 'scale-100 opacity-100' : 'scale-95 opacity-70'
-                      }`}
-                    >
-                      {/* Timeline Node */}
-                      <div className="relative z-10 flex flex-col items-center mt-1">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center border-4 ${
-                          isCompleted 
-                            ? 'bg-emerald-500 border-emerald-900 text-white' 
-                            : isCurrent
-                              ? 'bg-blue-500 border-blue-900 text-white'
-                              : 'bg-slate-800 border-slate-600 text-slate-500'
-                        }`}>
-                          {isCompleted ? <CheckCircle2 size={20} /> : <span className="font-bold text-sm">{index + 1}</span>}
-                        </div>
-                      </div>
-
-                      {/* Content Card */}
-                      <div className={`flex-1 rounded-xl p-4 border transition-colors ${
-                        isCurrent 
-                          ? 'bg-blue-500/10 border-blue-500/30' 
-                          : isCompleted
-                            ? 'bg-slate-900/50 border-slate-700/50'
-                            : 'bg-slate-800/50 border-transparent'
-                      }`}>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <h4 className={`text-lg font-bold ${
-                              isCompleted ? 'text-slate-300' : isCurrent ? 'text-white' : 'text-slate-500'
-                            }`}>
-                              {location}
-                            </h4>
-                            {isCurrent && (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md mt-1">
-                                <AlertCircle size={12} /> ACTION REQUIRED
-                              </span>
-                            )}
-                          </div>
-                          
-                          {/* Timestamp Display */}
-                          {isCompleted && logRecord && (
-                            <div className="text-sm font-mono text-emerald-400 flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                              <Clock size={14} />
-                              {formatTime(logRecord.timestamp)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </main>
     </div>
-  );
-}
 
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <i data-lucide="route" class="text-blue-400 w-7 h-7"></i>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Patrol Route System</h1>
+            </div>
+            <div class="flex flex-col items-center sm:items-end">
+                <div class="text-lg font-mono text-blue-300 font-semibold flex items-center gap-2">
+                    <i data-lucide="clock" class="w-[18px] h-[18px]"></i>
+                    <span id="clock-display">--:--:--</span>
+                </div>
+                <div id="date-display" class="text-sm text-slate-400">Loading Date...</div>
+            </div>
+        </div>
+    </header>
 
-```
+    <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+        
+        <!-- Left Column: Action Panel -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Main Action Card -->
+            <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 relative overflow-hidden">
+                <!-- Background Decoration -->
+                <div class="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
+                
+                <div class="relative">
+                    <h2 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Status</h2>
+                    
+                    <!-- Route Complete View (Hidden initially) -->
+                    <div id="completed-route-view" class="hidden text-center py-8">
+                        <i data-lucide="check-circle" class="w-20 h-20 text-emerald-400 mx-auto mb-4"></i>
+                        <h3 class="text-2xl font-bold text-white mb-2">Route Complete</h3>
+                        <p class="text-slate-400 mb-6">All locations have been logged successfully.</p>
+                        <button onclick="exportLog()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]">
+                            <i data-lucide="download" class="w-5 h-5"></i>
+                            Export Final Log (TXT)
+                        </button>
+                    </div>
+
+                    <!-- Active Route View -->
+                    <div id="active-route-view">
+                        <!-- Smart Direction Visualizer -->
+                        <div class="mb-6">
+                            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 relative">
+                                
+                                <!-- Vertical Connecting Line -->
+                                <div class="absolute left-[27px] top-6 bottom-6 w-0.5 bg-slate-700"></div>
+
+                                <!-- Previous Point -->
+                                <div id="prev-point-container" class="flex items-start gap-4 mb-4 relative z-10 opacity-60 hidden">
+                                    <div class="w-6 h-6 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                                        <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-500"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Just Cleared</div>
+                                        <div id="prev-point-name" class="text-sm font-medium text-slate-300 line-through"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Current Target Point -->
+                                <div class="flex items-start gap-4 mb-4 relative z-10">
+                                    <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-blue-400 flex items-center justify-center shrink-0 mt-2 shadow-[0_0_12px_rgba(59,130,246,0.6)]">
+                                        <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                                    </div>
+                                    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex-1 -mt-1 backdrop-blur-sm">
+                                        <div class="text-xs text-blue-400 font-bold mb-1 tracking-wider flex items-center gap-1">
+                                            <i data-lucide="map-pin" class="w-3 h-3"></i>
+                                            <span id="curr-point-label">CURRENT TARGET</span>
+                                        </div>
+                                        <div id="curr-point-name" class="text-xl font-bold text-white leading-tight"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Next Upcoming Point -->
+                                <div id="next-point-container" class="flex items-start gap-4 relative z-10 opacity-60">
+                                    <div class="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shrink-0 mt-0.5">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Up Next</div>
+                                        <div id="next-point-name" class="text-sm font-medium text-slate-300"></div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <button onclick="clockIn()" class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] text-lg">
+                            <i data-lucide="play-circle" class="w-6 h-6"></i>
+                            CLOCK IN NOW
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats / Actions -->
+            <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 grid grid-cols-2 gap-4">
+                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
+                    <div id="points-cleared-count" class="text-3xl font-bold text-white mb-1">0</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wide">Points Cleared</div>
+                </div>
+                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
+                    <div id="points-remaining-count" class="text-3xl font-bold text-white mb-1">0</div>
+                    <div class="text-xs text-slate-400 uppercase tracking-wide">Remaining</div>
+                </div>
+                
+                <button id="btn-export" onclick="exportLog()" class="col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" disabled>
+                    <i data-lucide="download" class="w-[18px] h-[18px]"></i>
+                    <span class="text-xs font-semibold">Export Log</span>
+                </button>
+                
+                <button onclick="showResetModal()" class="col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-slate-200 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 transition-all">
+                    <i data-lucide="refresh-cw" class="w-[18px] h-[18px]"></i>
+                    <span class="text-xs font-semibold">Reset Route</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Route Timeline -->
+        <div class="lg:col-span-2 bg-slate-800 rounded-2xl shadow-xl border border-slate-700 flex flex-col lg:h-[700px] overflow-hidden">
+            <div class="p-5 border-b border-slate-700 bg-slate-800 z-10 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i data-lucide="route" class="text-slate-400 w-5 h-5"></i>
+                    Full Itinerary Log
+                </h2>
+                <span class="text-xs text-slate-500 uppercase tracking-wide">Scroll to review</span>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="relative">
+                    <!-- Timeline continuous line -->
+                    <div class="absolute left-6 top-4 bottom-8 w-0.5 bg-slate-700"></div>
+
+                    <!-- Dynamic Timeline List -->
+                    <div id="timeline-list" class="space-y-6">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // Initialization of Lucide Icons
+        lucide.createIcons();
+
+        // State Variables
+        const ROUTE_POINTS = [
+            "BME", "TG/OC DR", "CY", "E1/HTTC", "FC", "N1", "S2", "S1/S8", 
+            "TG / OC DR", "CY", "BME", "S1/S8", "S2", "N1", "FC", "HTCC / E1", 
+            "OC DR", "TG", "BME"
+        ];
+        
+        let currentIndex = 0;
+        let logs = [];
+        let isFinished = false;
+
+        // Start Live Clock
+        setInterval(updateClock, 1000);
+        updateClock(); // Initial call
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock-display').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('date-display').innerText = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        // Initialize UI
+        updateUI();
+
+        function clockIn() {
+            if (isFinished) return;
+
+            logs.push({
+                point: currentIndex + 1,
+                location: ROUTE_POINTS[currentIndex],
+                timestamp: new Date()
+            });
+
+            if (currentIndex + 1 >= ROUTE_POINTS.length) {
+                isFinished = true;
+            } else {
+                currentIndex++;
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            updateSmartDirection();
+            updateStats();
+            renderTimeline();
+        }
+
+        function updateSmartDirection() {
+            const activeView = document.getElementById('active-route-view');
+            const completedView = document.getElementById('completed-route-view');
+            
+            if (isFinished) {
+                activeView.classList.add('hidden');
+                completedView.classList.remove('hidden');
+                return;
+            } else {
+                activeView.classList.remove('hidden');
+                completedView.classList.add('hidden');
+            }
+
+            // Previous Point
+            const prevContainer = document.getElementById('prev-point-container');
+            if (currentIndex > 0) {
+                prevContainer.classList.remove('hidden');
+                document.getElementById('prev-point-name').innerText = ROUTE_POINTS[currentIndex - 1];
+            } else {
+                prevContainer.classList.add('hidden');
+            }
+
+            // Current Point
+            document.getElementById('curr-point-label').innerText = `CURRENT TARGET (PT ${currentIndex + 1})`;
+            document.getElementById('curr-point-name').innerText = ROUTE_POINTS[currentIndex];
+
+            // Next Point
+            const nextContainer = document.getElementById('next-point-container');
+            if (currentIndex < ROUTE_POINTS.length - 1) {
+                nextContainer.classList.remove('hidden');
+                document.getElementById('next-point-name').innerText = ROUTE_POINTS[currentIndex + 1];
+            } else {
+                nextContainer.classList.add('hidden');
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('points-cleared-count').innerText = logs.length;
+            document.getElementById('points-remaining-count').innerText = ROUTE_POINTS.length - logs.length;
+
+            const btnExport = document.getElementById('btn-export');
+            if (logs.length === 0) {
+                btnExport.disabled = true;
+                btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed";
+            } else {
+                btnExport.disabled = false;
+                btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white";
+            }
+        }
+
+        function renderTimeline() {
+            const timelineList = document.getElementById('timeline-list');
+            let htmlContent = '';
+
+            ROUTE_POINTS.forEach((location, index) => {
+                const isCompleted = index < currentIndex;
+                const isCurrent = index === currentIndex && !isFinished;
+                const logRecord = logs.find(log => log.point === index + 1);
+
+                // Container styling
+                const containerScaleClass = isCurrent ? 'scale-100 opacity-100' : 'scale-95 opacity-70';
+                
+                // Node styling
+                let nodeClass = '';
+                let nodeContent = '';
+                if (isCompleted) {
+                    nodeClass = 'bg-emerald-500 border-emerald-900 text-white';
+                    nodeContent = `<i data-lucide="check-circle-2" class="w-5 h-5"></i>`;
+                } else if (isCurrent) {
+                    nodeClass = 'bg-blue-500 border-blue-900 text-white';
+                    nodeContent = `<span class="font-bold text-sm">${index + 1}</span>`;
+                } else {
+                    nodeClass = 'bg-slate-800 border-slate-600 text-slate-500';
+                    nodeContent = `<span class="font-bold text-sm">${index + 1}</span>`;
+                }
+
+                // Card styling
+                let cardClass = '';
+                let textClass = '';
+                if (isCurrent) {
+                    cardClass = 'bg-blue-500/10 border-blue-500/30';
+                    textClass = 'text-white';
+                } else if (isCompleted) {
+                    cardClass = 'bg-slate-900/50 border-slate-700/50';
+                    textClass = 'text-slate-300';
+                } else {
+                    cardClass = 'bg-slate-800/50 border-transparent';
+                    textClass = 'text-slate-500';
+                }
+
+                // Action Required badge
+                const actionRequiredHtml = isCurrent ? `
+                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md mt-1">
+                        <i data-lucide="alert-circle" class="w-3 h-3"></i> ACTION REQUIRED
+                    </span>
+                ` : '';
+
+                // Timestamp display
+                let timestampHtml = '';
+                if (isCompleted && logRecord) {
+                    const timeStr = logRecord.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    timestampHtml = `
+                        <div class="text-sm font-mono text-emerald-400 flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+                            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                            ${timeStr}
+                        </div>
+                    `;
+                }
+
+                htmlContent += `
+                    <div class="relative flex items-start gap-4 transition-all duration-300 ${containerScaleClass}">
+                        <div class="relative z-10 flex flex-col items-center mt-1">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center border-4 ${nodeClass}">
+                                ${nodeContent}
+                            </div>
+                        </div>
+                        <div class="flex-1 rounded-xl p-4 border transition-colors ${cardClass}">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <h4 class="text-lg font-bold ${textClass}">${location}</h4>
+                                    ${actionRequiredHtml}
+                                </div>
+                                ${timestampHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            timelineList.innerHTML = htmlContent;
+            // Re-initialize icons for newly injected HTML
+            lucide.createIcons();
+        }
+
+        // Export Function
+        function exportLog() {
+            if (logs.length === 0) return;
+
+            const reportDate = logs[0].timestamp.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+
+            let textContent = `Date: ${reportDate}\n\n`;
+
+            logs.forEach((log) => {
+                const timeStr = log.timestamp.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                });
+                textContent += `${log.location} - ${timeStr}\n`;
+            });
+
+            const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Patrol_Log_${new Date().getTime()}.txt`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Modal Functions
+        function showResetModal() {
+            document.getElementById('reset-modal').classList.remove('hidden');
+        }
+
+        function cancelReset() {
+            document.getElementById('reset-modal').classList.add('hidden');
+        }
+
+        function confirmReset() {
+            currentIndex = 0;
+            logs = [];
+            isFinished = false;
+            
+            updateUI();
+            cancelReset();
+        }
+    </script>
+</body>
+</html>
+
