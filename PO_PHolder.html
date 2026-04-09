@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1138,12 +1139,30 @@
             const placeholders = getPlaceholders();
             const activeAssignments = getActiveAssignments();
             const currentStaffIds = placeholders.map(p => activeAssignments[p]);
-            
+
+            /*
+             * Build a de-duplicated list of staff IDs.  If the same staff member
+             * appears more than once in the current assignments (for example,
+             * after manual edits), only keep the first occurrence and mark the
+             * remaining slots as "VACANT".  This prevents a single ID from
+             * being assigned to multiple posts after shuffling.
+             */
+            const uniqueStaff = [];
+            currentStaffIds.forEach(id => {
+                if (!uniqueStaff.includes(id)) {
+                    uniqueStaff.push(id);
+                }
+            });
+            // Pad out the array with VACANT entries to match the number of placeholders
+            while (uniqueStaff.length < placeholders.length) {
+                uniqueStaff.push("VACANT");
+            }
+
             let hhmdCapable = [];
             let nonHhmd = [];
 
-            // Partition Staff
-            currentStaffIds.forEach(id => {
+            // Partition the de-duplicated staff list into HHMD-capable and non-HHMD
+            uniqueStaff.forEach(id => {
                 const staffNode = masterStaffList.find(s => s.id === id);
                 // "VACANT" is treated as capable so it can fill empty slots if we are short on men
                 if (id === "VACANT" || (staffNode && staffNode.hhmd !== false)) {
