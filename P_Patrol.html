@@ -1,444 +1,1282 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patrol Route System</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
-    <style>
-        /* Custom animations */
-        @keyframes fade-in-zoom {
-            0% { opacity: 0; transform: scale(0.95); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-        .animate-modal {
-            animation: fade-in-zoom 0.2s ease-out forwards;
-        }
-    </style>
+<style>
+    :root {
+        --bg:        #0a0e1a;
+        --surface:   #0f1425;
+        --card:      #141929;
+        --border:    #1e2a40;
+        --blue:      #2d7eff;
+        --blue-glow: rgba(45,126,255,0.35);
+        --green:     #00e676;
+        --green-glow:rgba(0,230,118,0.3);
+        --amber:     #ffb300;
+        --red:       #ff4444;
+        --text:      #e8edf8;
+        --muted:     #5a6a88;
+        --mono:      'JetBrains Mono', monospace;
+        --sans:      'DM Sans', sans-serif;
+        --display:   'Syne', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-stretch: normal; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        min-height: 100vh;
+        overflow-x: hidden;
+    }
+
+    /* ── BACKGROUND GRID ── */
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(45,126,255,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(45,126,255,0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(10,14,26,0.92);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        padding: 0 24px;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .header-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 18px;
+        letter-spacing: -0.3px;
+    }
+
+    .brand-icon {
+        width: 36px; height: 36px;
+        background: linear-gradient(135deg, var(--blue), #5b9fff);
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 16px var(--blue-glow);
+    }
+
+    .brand-icon svg { width: 20px; height: 20px; stroke: white; fill: none; }
+
+    /* ── LIVE CLOCK in header ── */
+    .header-clock {
+        text-align: right;
+    }
+
+    .clock-time {
+        font-family: var(--mono);
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--blue);
+        letter-spacing: 2px;
+        line-height: 1;
+    }
+
+    .clock-date {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+        font-family: var(--sans);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+        position: relative;
+        z-index: 1;
+        max-width: 1140px;
+        margin: 0 auto;
+        padding: 28px 20px;
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+        main { grid-template-columns: 1fr; }
+    }
+
+    /* ── CARD ── */
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 18px 22px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .card-title {
+        font-family: var(--display);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+
+    /* ── PROGRESS RING ── */
+    .progress-ring-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 28px 22px 20px;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .ring-container {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        aspect-ratio: 1 / 1;
+        flex-shrink: 0;
+    }
+
+    #progress-svg {
+        transform: rotate(-90deg);
+        width: 140px;
+        height: 140px;
+        aspect-ratio: 1 / 1;
+        display: block;
+        overflow: visible;
+    }
+
+    .ring-bg { fill: none; stroke: var(--border); stroke-width: 8; }
+    .ring-fill {
+        fill: none;
+        stroke: url(#ringGrad);
+        stroke-width: 8;
+        stroke-linecap: round;
+        stroke-dasharray: 351;
+        stroke-dashoffset: 351;
+        transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1);
+        filter: drop-shadow(0 0 6px var(--blue-glow));
+    }
+
+    .ring-label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .ring-pct {
+        font-family: var(--display);
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        transition: all 0.4s;
+    }
+
+    .ring-sub {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 2px;
+    }
+
+    /* ── STATS STRIP ── */
+    .stats-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        padding: 0 22px 22px;
+    }
+
+    .stat-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-box::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--blue), transparent);
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .stat-box.updated::after { opacity: 1; animation: barFlash 0.6s forwards; }
+
+    @keyframes barFlash {
+        0%   { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    .stat-num {
+        font-family: var(--display);
+        font-size: 32px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1;
+        transition: transform 0.2s, color 0.3s;
+    }
+
+    .stat-num.bump { animation: numBump 0.35s ease; }
+
+    @keyframes numBump {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.25); color: var(--blue); }
+        100% { transform: scale(1); }
+    }
+
+    .stat-label {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 4px;
+    }
+
+    /* ── TARGET / DIRECTION PANEL ── */
+    .target-panel {
+        padding: 20px 22px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    /* RADAR SCAN around current target */
+    .radar-wrap {
+        position: relative;
+        margin-bottom: 16px;
+    }
+
+    .radar-ring {
+        position: absolute;
+        inset: -8px;
+        border-radius: 18px;
+        border: 1.5px solid var(--blue);
+        opacity: 0;
+        animation: radarPulse 2.2s ease-out infinite;
+    }
+
+    .radar-ring:nth-child(2) { animation-delay: 0.7s; }
+    .radar-ring:nth-child(3) { animation-delay: 1.4s; }
+
+    @keyframes radarPulse {
+        0%   { opacity: 0.7; transform: scale(1); }
+        100% { opacity: 0;   transform: scale(1.12); }
+    }
+
+    .target-box {
+        background: linear-gradient(135deg, rgba(45,126,255,0.12), rgba(45,126,255,0.04));
+        border: 1px solid rgba(45,126,255,0.35);
+        border-radius: 14px;
+        padding: 16px 18px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Scanning line */
+    .target-box::before {
+        content: '';
+        position: absolute;
+        left: 0; right: 0;
+        height: 1.5px;
+        background: linear-gradient(90deg, transparent, var(--blue), transparent);
+        opacity: 0.6;
+        animation: scanLine 2.5s linear infinite;
+    }
+
+    @keyframes scanLine {
+        0%   { top: 0%; opacity: 0.8; }
+        50%  { opacity: 0.4; }
+        100% { top: 100%; opacity: 0; }
+    }
+
+    .target-label {
+        font-size: 10px;
+        font-family: var(--mono);
+        color: var(--blue);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .dot-pulse {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--blue);
+        box-shadow: 0 0 6px var(--blue);
+        animation: dotPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    .target-name {
+        font-family: var(--display);
+        font-size: 26px;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.5px;
+        transition: opacity 0.2s;
+    }
+
+    /* direction breadcrumb */
+    .direction-crumbs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+        overflow: hidden;
+    }
+
+    .crumb-done {
+        color: var(--green);
+        text-decoration: line-through;
+        opacity: 0.7;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 90px;
+    }
+
+    .crumb-arrow { color: var(--border); flex-shrink: 0; }
+
+    .crumb-current {
+        color: var(--blue);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .crumb-next {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 90px;
+    }
+
+    /* ── CLOCK IN BUTTON ── */
+    .clockin-wrap {
+        padding: 0 22px 22px;
+        position: relative;
+    }
+
+    .btn-clockin {
+        width: 100%;
+        background: linear-gradient(135deg, var(--blue), #1a5fd4);
+        border: none;
+        border-radius: 16px;
+        color: white;
+        font-family: var(--display);
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        padding: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 8px 32px rgba(45,126,255,0.35);
+        transition: transform 0.15s, box-shadow 0.15s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-clockin:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(45,126,255,0.5);
+    }
+
+    .btn-clockin:active { transform: scale(0.97); }
+
+    /* Ripple */
+    .btn-clockin .ripple {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.25);
+        transform: scale(0);
+        animation: rippleAnim 0.6s linear forwards;
+        pointer-events: none;
+    }
+
+    @keyframes rippleAnim {
+        to { transform: scale(4); opacity: 0; }
+    }
+
+    /* Shimmer sweep */
+    .btn-clockin::after {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%; width: 60%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0%   { left: -100%; }
+        60%  { left: 150%; }
+        100% { left: 150%; }
+    }
+
+    .btn-clockin svg { width: 22px; height: 22px; fill: white; flex-shrink: 0; }
+
+    /* ── COMPLETED VIEW ── */
+    .completed-view {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        padding: 32px 22px;
+        text-align: center;
+    }
+
+    .completed-view.show { display: flex; }
+
+    .complete-icon {
+        width: 80px; height: 80px;
+        background: rgba(0,230,118,0.1);
+        border: 2px solid var(--green);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 32px var(--green-glow);
+        animation: completePop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        margin-bottom: 16px;
+    }
+
+    @keyframes completePop {
+        0% { transform: scale(0.5); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+
+    .complete-icon svg { width: 40px; height: 40px; stroke: var(--green); fill: none; }
+
+    .complete-title {
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 6px;
+    }
+
+    .complete-sub {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 20px;
+    }
+
+    /* ── ACTION BUTTONS ── */
+    .btn-wa {
+        width: 100%;
+        background: linear-gradient(135deg, #25D366, #128C7E);
+        border: none;
+        border-radius: 14px;
+        color: white;
+        font-family: var(--display);
+        font-size: 15px;
+        font-weight: 700;
+        padding: 15px;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        box-shadow: 0 6px 20px rgba(37,211,102,0.3);
+        transition: transform 0.15s, box-shadow 0.15s;
+        margin-bottom: 10px;
+    }
+
+    .btn-wa:hover { transform: translateY(-2px); }
+
+    .btn-secondary {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 500;
+        padding: 12px;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255,68,68,0.1);
+        color: var(--red);
+        border-color: rgba(255,68,68,0.4);
+    }
+
+    .btn-secondary svg { width: 16px; height: 16px; }
+
+    /* ── TIMELINE PANEL ── */
+    .timeline-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 820px;
+    }
+
+    .timeline-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+    }
+
+    .timeline-scroll::-webkit-scrollbar { width: 4px; }
+    .timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+    .timeline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Timeline items */
+    .tl-list { position: relative; display: flex; flex-direction: column; gap: 8px; }
+
+    .tl-list::before {
+        content: '';
+        position: absolute;
+        left: 19px; top: 24px; bottom: 24px;
+        width: 1px;
+        background: linear-gradient(to bottom, var(--blue), var(--border) 60%, transparent);
+    }
+
+    .tl-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 16px 14px 0;
+        border-radius: 14px;
+        transition: all 0.3s;
+        position: relative;
+        z-index: 1;
+    }
+
+    .tl-item.entering {
+        animation: slideInLeft 0.4s cubic-bezier(0.34,1.3,0.64,1) forwards;
+    }
+
+    @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-20px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .tl-item.flash-green .tl-node {
+        animation: nodeFlash 0.6s ease forwards;
+    }
+
+    @keyframes nodeFlash {
+        0%   { box-shadow: 0 0 0 0 var(--green-glow); background: var(--green); }
+        50%  { box-shadow: 0 0 0 14px transparent; }
+        100% { box-shadow: 0 0 4px var(--green-glow); }
+    }
+
+    /* Node */
+    .tl-node {
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 700;
+        border: 2px solid transparent;
+        transition: all 0.4s;
+        z-index: 2;
+    }
+
+    .tl-node.done {
+        background: rgba(0,230,118,0.12);
+        border-color: var(--green);
+        color: var(--green);
+        box-shadow: 0 0 12px rgba(0,230,118,0.2);
+    }
+
+    .tl-node.current {
+        background: rgba(45,126,255,0.2);
+        border-color: var(--blue);
+        color: var(--blue);
+        box-shadow: 0 0 16px var(--blue-glow);
+        animation: currentGlow 1.8s ease-in-out infinite;
+    }
+
+    @keyframes currentGlow {
+        0%, 100% { box-shadow: 0 0 12px var(--blue-glow); }
+        50%       { box-shadow: 0 0 24px rgba(45,126,255,0.6); }
+    }
+
+    .tl-node.pending {
+        background: var(--surface);
+        border-color: var(--border);
+        color: var(--muted);
+    }
+
+    /* Node check icon */
+    .tl-node .check-svg { width: 16px; height: 16px; stroke: var(--green); fill: none; stroke-width: 2.5; }
+
+    /* Card body */
+    .tl-body {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        transition: border-color 0.3s, background 0.3s;
+    }
+
+    .tl-item.done-item .tl-body {
+        border-color: rgba(0,230,118,0.2);
+    }
+
+    .tl-item.current-item .tl-body {
+        background: rgba(45,126,255,0.06);
+        border-color: rgba(45,126,255,0.3);
+    }
+
+    .tl-item.pending-item .tl-body {
+        opacity: 0.45;
+    }
+
+    .tl-name {
+        font-family: var(--display);
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .tl-name.strikethrough { text-decoration: line-through; color: var(--muted); }
+
+    .tl-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-family: var(--mono);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .badge-action {
+        background: rgba(45,126,255,0.15);
+        border: 1px solid rgba(45,126,255,0.4);
+        color: var(--blue);
+    }
+
+    .badge-time {
+        background: rgba(0,230,118,0.1);
+        border: 1px solid rgba(0,230,118,0.3);
+        color: var(--green);
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .badge-pending {
+        background: rgba(90,106,136,0.15);
+        border: 1px solid var(--border);
+        color: var(--muted);
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+        display: none;
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,0,0,0.65);
+        backdrop-filter: blur(8px);
+        align-items: center; justify-content: center;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px;
+        max-width: 360px;
+        width: calc(100% - 40px);
+        animation: fadeZoom 0.2s ease-out forwards;
+    }
+
+    @keyframes fadeZoom {
+        from { opacity: 0; transform: scale(0.94); }
+        to   { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-icon {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        background: rgba(255,68,68,0.12);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 16px;
+    }
+
+    .modal-icon svg { width: 24px; height: 24px; stroke: var(--red); fill: none; }
+
+    .modal-title {
+        font-family: var(--display);
+        font-size: 20px;
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+
+    .modal-body {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-bottom: 24px;
+    }
+
+    .modal-actions {
+        display: flex; gap: 12px;
+    }
+
+    .modal-cancel {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 600;
+        padding: 13px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .modal-cancel:hover { background: rgba(255,255,255,0.05); }
+
+    .modal-confirm {
+        flex: 1;
+        background: var(--red);
+        border: none;
+        border-radius: 12px;
+        color: white;
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 700;
+        padding: 13px;
+        cursor: pointer;
+        box-shadow: 0 4px 16px rgba(255,68,68,0.3);
+        transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .modal-confirm:hover { opacity: 0.9; }
+    .modal-confirm:active { transform: scale(0.97); }
+
+    /* ── CONFETTI CANVAS ── */
+    #confetti-canvas {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 300;
+    }
+
+    /* ── PROGRESS BAR TOP ── */
+    .progress-bar-track {
+        position: fixed;
+        top: 64px;
+        left: 0; right: 0;
+        height: 3px;
+        background: rgba(255,255,255,0.05);
+        z-index: 99;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--blue), #7eb8ff);
+        transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+        width: 0%;
+        box-shadow: 0 0 8px var(--blue-glow);
+    }
+
+    /* ── SVG DEFS for gradient ── */
+    svg.defs-only {
+        position: absolute; width: 0; height: 0; overflow: hidden;
+    }
+</style>
+
 </head>
-<body class="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-blue-500 selection:text-white">
+<body>
 
-    <!-- Reset Modal (Hidden by default) -->
-    <div id="reset-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-        <div class="bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-sm w-full animate-modal">
-            <div class="flex items-center gap-3 text-red-400 mb-4">
-                <i data-lucide="alert-circle" class="w-7 h-7"></i>
-                <h3 class="text-xl font-bold">Reset Route?</h3>
-            </div>
-            <p class="text-slate-300 mb-6 leading-relaxed">
-                Are you sure you want to reset the route? All your current logs will be permanently lost and cannot be recovered.
-            </p>
-            <div class="flex gap-3">
-                <button onclick="cancelReset()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors">
-                    Cancel
-                </button>
-                <button onclick="confirmReset()" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-red-500/20 active:scale-[0.98]">
-                    Yes, Reset
-                </button>
-            </div>
+<!-- SVG Gradient Defs -->
+
+<svg class="defs-only">
+    <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#2d7eff"/>
+            <stop offset="100%" stop-color="#7eb8ff"/>
+        </linearGradient>
+    </defs>
+</svg>
+
+<!-- Confetti Canvas -->
+
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Progress bar (top edge) -->
+
+<div class="progress-bar-track">
+    <div class="progress-bar-fill" id="top-progress"></div>
+</div>
+
+<!-- Reset Modal -->
+
+<div class="modal-overlay" id="reset-modal">
+    <div class="modal-box">
+        <div class="modal-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="modal-title">Reset Route?</div>
+        <div class="modal-body">All current logs will be permanently lost and cannot be recovered.</div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="cancelReset()">Cancel</button>
+            <button class="modal-confirm" onclick="confirmReset()">Yes, Reset</button>
         </div>
     </div>
+</div>
 
-    <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md sticky top-0 z-20">
-        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <i data-lucide="route" class="text-blue-400 w-7 h-7"></i>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Patrol Route System</h1>
-            </div>
-            <div class="flex flex-col items-center sm:items-end">
-                <div class="text-lg font-mono text-blue-300 font-semibold flex items-center gap-2">
-                    <i data-lucide="clock" class="w-[18px] h-[18px]"></i>
-                    <span id="clock-display">--:--:--</span>
+<!-- Header -->
+
+<header>
+    <div class="header-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v4l2.5 2.5"/>
+            </svg>
+        </div>
+        Patrol Route System
+    </div>
+    <div class="header-clock">
+        <div class="clock-time" id="clock-display">--:--:--</div>
+        <div class="clock-date" id="date-display">Loading...</div>
+    </div>
+</header>
+
+<main>
+    <!-- LEFT COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+```
+    <!-- Status Card -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Patrol Status</span>
+            <span id="route-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;">IN PROGRESS</span>
+        </div>
+
+        <!-- Progress Ring -->
+        <div class="progress-ring-wrap">
+            <div class="ring-container">
+                <svg id="progress-svg" viewBox="0 0 120 120">
+                    <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                    <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="52"/>
+                </svg>
+                <div class="ring-label">
+                    <div class="ring-pct" id="ring-pct">0%</div>
+                    <div class="ring-sub">Complete</div>
                 </div>
-                <div id="date-display" class="text-sm text-slate-400">Loading Date...</div>
             </div>
         </div>
-    </header>
 
-    <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        
-        <!-- Left Column: Action Panel -->
-        <div class="lg:col-span-1 space-y-6">
-            
-            <!-- Main Action Card -->
-            <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 relative overflow-hidden">
-                <!-- Background Decoration -->
-                <div class="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
-                
-                <div class="relative">
-                    <h2 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Status</h2>
-                    
-                    <!-- Route Complete View (Hidden initially) -->
-                    <div id="completed-route-view" class="hidden text-center py-8">
-                        <i data-lucide="check-circle" class="w-20 h-20 text-emerald-400 mx-auto mb-4"></i>
-                        <h3 class="text-2xl font-bold text-white mb-2">Route Complete</h3>
-                        <p class="text-slate-400 mb-6">All locations have been logged successfully.</p>
-                        
-                        <!-- WhatsApp Export Button -->
-                        <button onclick="shareToWhatsApp()" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#25D366]/20 active:scale-[0.98]">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                            Share to WhatsApp
-                        </button>
-                    </div>
+        <!-- Stats -->
+        <div class="stats-strip">
+            <div class="stat-box" id="stat-cleared">
+                <div class="stat-num" id="stat-cleared-num">0</div>
+                <div class="stat-label">Cleared</div>
+            </div>
+            <div class="stat-box" id="stat-remain">
+                <div class="stat-num" id="stat-remain-num">19</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+        </div>
 
-                    <!-- Active Route View -->
-                    <div id="active-route-view">
-                        <!-- Smart Direction Visualizer -->
-                        <div class="mb-6">
-                            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 relative">
-                                
-                                <!-- Vertical Connecting Line -->
-                                <div class="absolute left-[27px] top-6 bottom-6 w-0.5 bg-slate-700"></div>
-
-                                <!-- Previous Point -->
-                                <div id="prev-point-container" class="flex items-start gap-4 mb-4 relative z-10 opacity-60 hidden">
-                                    <div class="w-6 h-6 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
-                                        <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-500"></i>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Just Cleared</div>
-                                        <div id="prev-point-name" class="text-sm font-medium text-slate-300 line-through"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Current Target Point -->
-                                <div class="flex items-start gap-4 mb-4 relative z-10">
-                                    <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-blue-400 flex items-center justify-center shrink-0 mt-2 shadow-[0_0_12px_rgba(59,130,246,0.6)]">
-                                        <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-                                    </div>
-                                    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex-1 -mt-1 backdrop-blur-sm">
-                                        <div class="text-xs text-blue-400 font-bold mb-1 tracking-wider flex items-center gap-1">
-                                            <i data-lucide="map-pin" class="w-3 h-3"></i>
-                                            <span id="curr-point-label">CURRENT TARGET</span>
-                                        </div>
-                                        <div id="curr-point-name" class="text-xl font-bold text-white leading-tight"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Next Upcoming Point -->
-                                <div id="next-point-container" class="flex items-start gap-4 relative z-10 opacity-60">
-                                    <div class="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shrink-0 mt-0.5">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Up Next</div>
-                                        <div id="next-point-name" class="text-sm font-medium text-slate-300"></div>
-                                    </div>
-                                </div>
-
-                            </div>
+        <!-- ACTIVE VIEW: Target + Clock In -->
+        <div id="active-view">
+            <div class="target-panel">
+                <div class="radar-wrap">
+                    <div class="radar-ring"></div>
+                    <div class="radar-ring"></div>
+                    <div class="radar-ring"></div>
+                    <div class="target-box">
+                        <div class="target-label">
+                            <div class="dot-pulse"></div>
+                            <span id="target-label-text">CURRENT TARGET · PT 1</span>
                         </div>
-
-                        <button onclick="clockIn()" class="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] text-lg">
-                            <i data-lucide="play-circle" class="w-6 h-6"></i>
-                            CLOCK IN NOW
-                        </button>
+                        <div class="target-name" id="target-name">BME</div>
                     </div>
+                </div>
+                <!-- Breadcrumb nav -->
+                <div class="direction-crumbs" id="direction-crumbs">
+                    <!-- Populated by JS -->
                 </div>
             </div>
 
-            <!-- Quick Stats / Actions -->
-            <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 grid grid-cols-2 gap-4">
-                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
-                    <div id="points-cleared-count" class="text-3xl font-bold text-white mb-1">0</div>
-                    <div class="text-xs text-slate-400 uppercase tracking-wide">Points Cleared</div>
-                </div>
-                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 text-center">
-                    <div id="points-remaining-count" class="text-3xl font-bold text-white mb-1">0</div>
-                    <div class="text-xs text-slate-400 uppercase tracking-wide">Remaining</div>
-                </div>
-                
-                <!-- WhatsApp Export Button (Mini) -->
-                <button id="btn-export" onclick="shareToWhatsApp()" class="col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                    <span class="text-xs font-semibold">Share to WA</span>
-                </button>
-                
-                <button onclick="showResetModal()" class="col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-slate-200 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 transition-all">
-                    <i data-lucide="refresh-cw" class="w-[18px] h-[18px]"></i>
-                    <span class="text-xs font-semibold">Reset Route</span>
+            <div class="clockin-wrap">
+                <button class="btn-clockin" id="btn-clockin" onclick="clockIn(event)">
+                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    CLOCK IN NOW
                 </button>
             </div>
         </div>
 
-        <!-- Right Column: Route Timeline -->
-        <div class="lg:col-span-2 bg-slate-800 rounded-2xl shadow-xl border border-slate-700 flex flex-col lg:h-[700px] overflow-hidden">
-            <div class="p-5 border-b border-slate-700 bg-slate-800 z-10 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <i data-lucide="route" class="text-slate-400 w-5 h-5"></i>
-                    Full Itinerary Log
-                </h2>
-                <span class="text-xs text-slate-500 uppercase tracking-wide">Scroll to review</span>
+        <!-- COMPLETED VIEW -->
+        <div class="completed-view" id="completed-view">
+            <div class="complete-icon">
+                <svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-6">
-                <div class="relative">
-                    <!-- Timeline continuous line -->
-                    <div class="absolute left-6 top-4 bottom-8 w-0.5 bg-slate-700"></div>
-
-                    <!-- Dynamic Timeline List -->
-                    <div id="timeline-list" class="space-y-6">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
+            <div class="complete-title">Route Complete!</div>
+            <div class="complete-sub">All 19 checkpoints logged.</div>
+            <div style="width:100%;padding:0 22px 8px;">
+                <button class="btn-wa" onclick="shareToWhatsApp()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.552 4.1 1.516 5.82L0 24l6.335-1.652A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.814 9.814 0 0 1-5.003-1.368l-.36-.213-3.757.979.999-3.648-.235-.374A9.818 9.818 0 0 1 2.182 12C2.182 6.579 6.579 2.182 12 2.182S21.818 6.579 21.818 12 17.421 21.818 12 21.818z"/></svg>
+                    Share to WhatsApp
+                </button>
+                <button class="btn-secondary" onclick="showResetModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+                    </svg>
+                    Reset Route
+                </button>
             </div>
         </div>
 
-    </main>
+        <!-- Reset button when active -->
+        <div id="reset-btn-area" style="padding:0 22px 22px;">
+            <button class="btn-secondary" onclick="showResetModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+                </svg>
+                Reset Route
+            </button>
+        </div>
+    </div>
+</div>
 
-    <script>
-        // Initialization of Lucide Icons
-        lucide.createIcons();
+<!-- RIGHT COLUMN: Timeline -->
+<div class="card timeline-panel">
+    <div class="card-header">
+        <span class="card-title">Full Itinerary Log</span>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono);" id="tl-progress-label">0 / 19</span>
+    </div>
+    <div class="timeline-scroll">
+        <div class="tl-list" id="tl-list">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+```
 
-        // State Variables
-        const ROUTE_POINTS = [
-            "BME", "TG/OC DR", "CY", "E1/HTTC", "FC", "N1", "S2", "S1/S8", 
-            "TG / OC DR", "CY", "BME", "S1/S8", "S2", "N1", "FC", "HTCC / E1", 
-            "OC DR", "TG", "BME"
-        ];
-        
-        let currentIndex = 0;
-        let logs = [];
-        let isFinished = false;
+</main>
 
-        // Start Live Clock
-        setInterval(updateClock, 1000);
-        updateClock(); // Initial call
+<script>
+/* ─────────── STATE ─────────── */
+const ROUTE_POINTS = [
+    "BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8",
+    "TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1",
+    "OC DR","TG","BME"
+];
+const TOTAL = ROUTE_POINTS.length;
+let currentIndex = 0;
+let logs = [];
+let isFinished = false;
 
-        function updateClock() {
-            const now = new Date();
-            // Force 24-hour time for the UI clock
-            document.getElementById('clock-display').innerText = now.toLocaleTimeString('en-GB', { 
-                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
-            });
-            document.getElementById('date-display').innerText = now.toLocaleDateString([], { 
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-            });
+/* ─────────── CLOCK ─────────── */
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock-display').textContent =
+        now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+    document.getElementById('date-display').textContent =
+        now.toLocaleDateString([], { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ─────────── CLOCK IN ─────────── */
+function clockIn(event) {
+    if (isFinished) return;
+
+    // Ripple effect
+    const btn = document.getElementById('btn-clockin');
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const rect = btn.getBoundingClientRect();
+    const x = (event ? event.clientX - rect.left : rect.width/2) - 30;
+    const y = (event ? event.clientY - rect.top  : rect.height/2) - 30;
+    ripple.style.cssText = `width:60px;height:60px;left:${x}px;top:${y}px;`;
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 700);
+
+    // Log entry
+    logs.push({ point: currentIndex+1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
+
+    if (currentIndex + 1 >= TOTAL) {
+        isFinished = true;
+    } else {
+        currentIndex++;
+    }
+
+    updateUI(true); // true = new entry animation
+}
+
+/* ─────────── UPDATE UI ─────────── */
+function updateUI(newEntry) {
+    updateProgressRing();
+    updateStats(newEntry);
+    updateTarget();
+    renderTimeline(newEntry);
+    updateTopBar();
+
+    if (isFinished) {
+        document.getElementById('active-view').style.display = 'none';
+        document.getElementById('reset-btn-area').style.display = 'none';
+        document.getElementById('completed-view').classList.add('show');
+        document.getElementById('route-status-badge').textContent = 'COMPLETE';
+        document.getElementById('route-status-badge').style.cssText =
+            'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
+        launchConfetti();
+    }
+}
+
+/* ─────────── PROGRESS RING ─────────── */
+function updateProgressRing() {
+    const pct = logs.length / TOTAL;
+    const circumference = 2 * Math.PI * 52; // 326.7
+    const offset = circumference * (1 - pct);
+    document.getElementById('ring-fill').style.strokeDashoffset = offset;
+    document.getElementById('ring-fill').style.strokeDasharray = circumference;
+    document.getElementById('ring-pct').textContent = Math.round(pct * 100) + '%';
+}
+
+/* ─────────── TOP BAR ─────────── */
+function updateTopBar() {
+    document.getElementById('top-progress').style.width = (logs.length / TOTAL * 100) + '%';
+}
+
+/* ─────────── STATS ─────────── */
+function updateStats(animate) {
+    const cleared = logs.length;
+    const remaining = TOTAL - cleared;
+
+    const cEl = document.getElementById('stat-cleared-num');
+    const rEl = document.getElementById('stat-remain-num');
+
+    if (animate) {
+        cEl.classList.remove('bump');
+        rEl.classList.remove('bump');
+        void cEl.offsetWidth; void rEl.offsetWidth;
+        cEl.classList.add('bump');
+        rEl.classList.add('bump');
+        document.getElementById('stat-cleared').classList.add('updated');
+        document.getElementById('stat-remain').classList.add('updated');
+        setTimeout(() => {
+            document.getElementById('stat-cleared').classList.remove('updated');
+            document.getElementById('stat-remain').classList.remove('updated');
+        }, 700);
+    }
+
+    cEl.textContent = cleared;
+    rEl.textContent = remaining;
+    document.getElementById('tl-progress-label').textContent = cleared + ' / ' + TOTAL;
+}
+
+/* ─────────── TARGET PANEL ─────────── */
+function updateTarget() {
+    if (isFinished) return;
+    document.getElementById('target-label-text').textContent =
+        'CURRENT TARGET · PT ' + (currentIndex + 1);
+    document.getElementById('target-name').textContent = ROUTE_POINTS[currentIndex];
+
+    // Breadcrumbs
+    const crumb = document.getElementById('direction-crumbs');
+    let html = '';
+    if (currentIndex > 0) {
+        html += `<span class="crumb-done">${ROUTE_POINTS[currentIndex-1]}</span>`;
+        html += `<span class="crumb-arrow">›</span>`;
+    }
+    html += `<span class="crumb-current">${ROUTE_POINTS[currentIndex]}</span>`;
+    if (currentIndex < TOTAL - 1) {
+        html += `<span class="crumb-arrow">›</span>`;
+        html += `<span class="crumb-next">${ROUTE_POINTS[currentIndex+1]}</span>`;
+    }
+    crumb.innerHTML = html;
+}
+
+/* ─────────── TIMELINE ─────────── */
+function renderTimeline(newEntry) {
+    const list = document.getElementById('tl-list');
+    let html = '';
+
+    ROUTE_POINTS.forEach((loc, i) => {
+        const isDone    = i < logs.length;
+        const isCurrent = i === currentIndex && !isFinished;
+        const log       = logs.find(l => l.point === i+1);
+
+        let nodeClass = 'pending';
+        let nodeInner = `<span>${i+1}</span>`;
+        if (isDone)    { nodeClass='done'; nodeInner=`<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`; }
+        if (isCurrent) nodeClass='current';
+
+        let itemClass = 'tl-item';
+        if (isDone)    itemClass += ' done-item';
+        if (isCurrent) itemClass += ' current-item';
+        if (!isDone && !isCurrent) itemClass += ' pending-item';
+
+        // Flash animation on the most recently completed entry
+        if (newEntry && i === currentIndex - 1) itemClass += ' flash-green';
+
+        let badgeHtml = '';
+        if (isDone && log) {
+            const t = log.timestamp.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+            badgeHtml = `<span class="tl-badge badge-time">${t}</span>`;
+        } else if (isCurrent) {
+            badgeHtml = `<span class="tl-badge badge-action">▶ NOW</span>`;
+        } else {
+            badgeHtml = `<span class="tl-badge badge-pending">PT ${i+1}</span>`;
         }
 
-        // Initialize UI
-        updateUI();
+        const nameClass = isDone ? 'tl-name strikethrough' : 'tl-name';
 
-        function clockIn() {
-            if (isFinished) return;
+        html += `
+        <div class="${itemClass}" id="tl-${i}">
+            <div class="tl-node ${nodeClass}">${nodeInner}</div>
+            <div class="tl-body">
+                <span class="${nameClass}">${loc}</span>
+                ${badgeHtml}
+            </div>
+        </div>`;
+    });
 
-            logs.push({
-                point: currentIndex + 1,
-                location: ROUTE_POINTS[currentIndex],
-                timestamp: new Date()
-            });
+    list.innerHTML = html;
+}
 
-            if (currentIndex + 1 >= ROUTE_POINTS.length) {
-                isFinished = true;
-            } else {
-                currentIndex++;
-            }
+/* ─────────── WHATSAPP ─────────── */
+function shareToWhatsApp() {
+    if (!logs.length) return;
+    const d = logs[0].timestamp;
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    let text = `*Date:* ${dd}/${mm}/${yyyy}\n\n`;
+    logs.forEach(l => {
+        const t = l.timestamp.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+        text += `${l.location} - ${t}\n`;
+    });
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
 
-            updateUI();
-        }
+/* ─────────── MODAL ─────────── */
+function showResetModal() {
+    document.getElementById('reset-modal').classList.add('show');
+}
+function cancelReset() {
+    document.getElementById('reset-modal').classList.remove('show');
+}
+function confirmReset() {
+    currentIndex = 0; logs = []; isFinished = false;
+    document.getElementById('active-view').style.display = '';
+    document.getElementById('reset-btn-area').style.display = '';
+    document.getElementById('completed-view').classList.remove('show');
+    document.getElementById('route-status-badge').textContent = 'IN PROGRESS';
+    document.getElementById('route-status-badge').style.cssText =
+        'font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;';
+    cancelReset();
+    updateUI(false);
+}
 
-        function updateUI() {
-            updateSmartDirection();
-            updateStats();
-            renderTimeline();
-        }
+/* ─────────── CONFETTI ─────────── */
+function launchConfetti() {
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx    = canvas.getContext('2d');
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-        function updateSmartDirection() {
-            const activeView = document.getElementById('active-route-view');
-            const completedView = document.getElementById('completed-route-view');
-            
-            if (isFinished) {
-                activeView.classList.add('hidden');
-                completedView.classList.remove('hidden');
-                return;
-            } else {
-                activeView.classList.remove('hidden');
-                completedView.classList.add('hidden');
-            }
+    const colors = ['#2d7eff','#00e676','#ffb300','#ff4081','#7eb8ff','#ffffff'];
+    const particles = Array.from({length:140}, () => ({
+        x: Math.random() * canvas.width,
+        y: -10 - Math.random() * 200,
+        r: 3 + Math.random() * 5,
+        d: 2 + Math.random() * 3,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        tilt: Math.random() * 10 - 10,
+        tiltAngle: 0,
+        tiltSpeed: 0.05 + Math.random() * 0.05,
+        alpha: 1,
+    }));
 
-            // Previous Point
-            const prevContainer = document.getElementById('prev-point-container');
-            if (currentIndex > 0) {
-                prevContainer.classList.remove('hidden');
-                document.getElementById('prev-point-name').innerText = ROUTE_POINTS[currentIndex - 1];
-            } else {
-                prevContainer.classList.add('hidden');
-            }
+    let frame = 0;
+    function draw() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        particles.forEach(p => {
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.ellipse(p.x, p.y, p.r, p.r*0.4, p.tiltAngle, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+            p.y += p.d;
+            p.tiltAngle += p.tiltSpeed;
+            p.x += Math.sin(p.tiltAngle) * 1.5;
+            if (p.y > canvas.height * 0.7) p.alpha -= 0.012;
+        });
+        frame++;
+        if (frame < 220) requestAnimationFrame(draw);
+        else ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    draw();
+}
 
-            // Current Point
-            document.getElementById('curr-point-label').innerText = `CURRENT TARGET (PT ${currentIndex + 1})`;
-            document.getElementById('curr-point-name').innerText = ROUTE_POINTS[currentIndex];
+/* ─────────── INIT ─────────── */
+updateUI(false);
+</script>
 
-            // Next Point
-            const nextContainer = document.getElementById('next-point-container');
-            if (currentIndex < ROUTE_POINTS.length - 1) {
-                nextContainer.classList.remove('hidden');
-                document.getElementById('next-point-name').innerText = ROUTE_POINTS[currentIndex + 1];
-            } else {
-                nextContainer.classList.add('hidden');
-            }
-        }
-
-        function updateStats() {
-            document.getElementById('points-cleared-count').innerText = logs.length;
-            document.getElementById('points-remaining-count').innerText = ROUTE_POINTS.length - logs.length;
-
-            const btnExport = document.getElementById('btn-export');
-            if (logs.length === 0) {
-                btnExport.disabled = true;
-                btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed";
-            } else {
-                btnExport.disabled = false;
-                btnExport.className = "col-span-1 flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all bg-slate-700/50 border-slate-600 text-[#25D366] hover:bg-[#25D366]/10 hover:border-[#25D366]/50";
-            }
-        }
-
-        function renderTimeline() {
-            const timelineList = document.getElementById('timeline-list');
-            let htmlContent = '';
-
-            ROUTE_POINTS.forEach((location, index) => {
-                const isCompleted = index < currentIndex;
-                const isCurrent = index === currentIndex && !isFinished;
-                const logRecord = logs.find(log => log.point === index + 1);
-
-                // Container styling
-                const containerScaleClass = isCurrent ? 'scale-100 opacity-100' : 'scale-95 opacity-70';
-                
-                // Node styling
-                let nodeClass = '';
-                let nodeContent = '';
-                if (isCompleted) {
-                    nodeClass = 'bg-emerald-500 border-emerald-900 text-white';
-                    nodeContent = `<i data-lucide="check-circle-2" class="w-5 h-5"></i>`;
-                } else if (isCurrent) {
-                    nodeClass = 'bg-blue-500 border-blue-900 text-white';
-                    nodeContent = `<span class="font-bold text-sm">${index + 1}</span>`;
-                } else {
-                    nodeClass = 'bg-slate-800 border-slate-600 text-slate-500';
-                    nodeContent = `<span class="font-bold text-sm">${index + 1}</span>`;
-                }
-
-                // Card styling
-                let cardClass = '';
-                let textClass = '';
-                if (isCurrent) {
-                    cardClass = 'bg-blue-500/10 border-blue-500/30';
-                    textClass = 'text-white';
-                } else if (isCompleted) {
-                    cardClass = 'bg-slate-900/50 border-slate-700/50';
-                    textClass = 'text-slate-300';
-                } else {
-                    cardClass = 'bg-slate-800/50 border-transparent';
-                    textClass = 'text-slate-500';
-                }
-
-                // Action Required badge
-                const actionRequiredHtml = isCurrent ? `
-                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md mt-1">
-                        <i data-lucide="alert-circle" class="w-3 h-3"></i> ACTION REQUIRED
-                    </span>
-                ` : '';
-
-                // Timestamp display (24 hour format)
-                let timestampHtml = '';
-                if (isCompleted && logRecord) {
-                    const timeStr = logRecord.timestamp.toLocaleTimeString('en-GB', { 
-                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
-                    });
-                    timestampHtml = `
-                        <div class="text-sm font-mono text-emerald-400 flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
-                            ${timeStr}
-                        </div>
-                    `;
-                }
-
-                htmlContent += `
-                    <div class="relative flex items-start gap-4 transition-all duration-300 ${containerScaleClass}">
-                        <div class="relative z-10 flex flex-col items-center mt-1">
-                            <div class="w-12 h-12 rounded-full flex items-center justify-center border-4 ${nodeClass}">
-                                ${nodeContent}
-                            </div>
-                        </div>
-                        <div class="flex-1 rounded-xl p-4 border transition-colors ${cardClass}">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div>
-                                    <h4 class="text-lg font-bold ${textClass}">${location}</h4>
-                                    ${actionRequiredHtml}
-                                </div>
-                                ${timestampHtml}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            timelineList.innerHTML = htmlContent;
-            // Re-initialize icons for newly injected HTML
-            lucide.createIcons();
-        }
-
-        // WhatsApp Export Function
-        function shareToWhatsApp() {
-            if (logs.length === 0) return;
-
-            // Extract exact dd/mm/yyyy
-            const firstLogTime = logs[0].timestamp;
-            const dd = String(firstLogTime.getDate()).padStart(2, '0');
-            const mm = String(firstLogTime.getMonth() + 1).padStart(2, '0');
-            const yyyy = firstLogTime.getFullYear();
-            
-            const reportDate = `${dd}/${mm}/${yyyy}`;
-
-            let textContent = `*Date:* ${reportDate}\n\n`;
-
-            logs.forEach((log) => {
-                // Extract exact 24-hour time HH:MM:SS (no AM/PM)
-                const timeStr = log.timestamp.toLocaleTimeString('en-GB', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                });
-                textContent += `${log.location} - ${timeStr}\n`;
-            });
-
-            // Encode the text string for the URL
-            const encodedText = encodeURIComponent(textContent);
-            
-            // Create the WhatsApp universal link
-            const whatsappUrl = `https://wa.me/?text=${encodedText}`;
-            
-            // Open WhatsApp
-            window.open(whatsappUrl, '_blank');
-        }
-
-        // Modal Functions
-        function showResetModal() {
-            document.getElementById('reset-modal').classList.remove('hidden');
-        }
-
-        function cancelReset() {
-            document.getElementById('reset-modal').classList.add('hidden');
-        }
-
-        function confirmReset() {
-            currentIndex = 0;
-            logs = [];
-            isFinished = false;
-            
-            updateUI();
-            cancelReset();
-        }
-    </script>
 </body>
 </html>
-
