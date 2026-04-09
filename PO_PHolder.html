@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1140,20 +1139,23 @@
             const activeAssignments = getActiveAssignments();
             const currentStaffIds = placeholders.map(p => activeAssignments[p]);
 
+            // Determine which staff are currently marked as present
+            const selectedStaffIds = masterStaffList.filter(s => s.present).map(s => s.id);
+
             /*
-             * Build a de-duplicated list of staff IDs.  If the same staff member
-             * appears more than once in the current assignments (for example,
-             * after manual edits), only keep the first occurrence and mark the
-             * remaining slots as "VACANT".  This prevents a single ID from
-             * being assigned to multiple posts after shuffling.
+             * Combine both the current assignments and the selected staff list
+             * into one unified list and remove duplicates.  This way, a staff
+             * member can never be scheduled into more than one slot after
+             * shuffling.  Any shortfall in staff is padded with "VACANT"
+             * entries so the roster always contains exactly one entry per
+             * placeholder.
              */
             const uniqueStaff = [];
-            currentStaffIds.forEach(id => {
+            [...currentStaffIds, ...selectedStaffIds].forEach(id => {
                 if (!uniqueStaff.includes(id)) {
                     uniqueStaff.push(id);
                 }
             });
-            // Pad out the array with VACANT entries to match the number of placeholders
             while (uniqueStaff.length < placeholders.length) {
                 uniqueStaff.push("VACANT");
             }
@@ -1161,7 +1163,7 @@
             let hhmdCapable = [];
             let nonHhmd = [];
 
-            // Partition the de-duplicated staff list into HHMD-capable and non-HHMD
+            // Partition the de-duplicated staff list into HHMD-capable and non-HHMD buckets
             uniqueStaff.forEach(id => {
                 const staffNode = masterStaffList.find(s => s.id === id);
                 // "VACANT" is treated as capable so it can fill empty slots if we are short on men
@@ -1813,3 +1815,4 @@
     </script>
 </body>
 </html>
+
