@@ -954,15 +954,15 @@
 
             <!-- New Push Notification Instructions Section -->
             <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
-                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">2. Receive Status on Watch</div>
+                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">2. Detailed Output on Watch</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <div style="display:flex;gap:10px;align-items:flex-start;">
-                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
-                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Install the free <b style="color:var(--text);">ntfy</b> app from the App Store.</div>
+                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--red);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">!</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">If you are getting a blank "triggered" message, open the ntfy app and <b style="color:var(--red);">Unsubscribe</b> from your main topic.</div>
                     </div>
                     <div style="display:flex;gap:10px;align-items:flex-start;">
-                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">2</div>
-                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Open it and <b style="color:var(--text);">Subscribe</b> to:<br>
+                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Instead, <b style="color:var(--text);">Subscribe</b> to this exact Output Topic:<br>
                             <span id="feedback-topic-display" style="font-family:var(--mono);font-size:11px;color:var(--green);word-break:break-all;background:rgba(61,220,132,0.1);padding:4px 6px;border-radius:6px;display:inline-block;margin-top:4px;">YOUR-TOPIC-status</span>
                         </div>
                     </div>
@@ -1158,14 +1158,13 @@ function sendWatchFeedback(title, message) {
         body: message,
         headers: {
             'Title': title,
-            'Tags': 'rotating_light,watch', // Adds fun emojis in the notification
+            'Tags': 'white_check_mark,round_pushpin',
             'Priority': 'default'
         }
     }).catch(function(e){});
 }
 
 /* ── CLOCK IN ── */
-// Added parameters to track if the trigger came from the watch remote.
 function clockIn(event, customDate, viaWatch) {
     if (isFinished) return;
     try {
@@ -1204,10 +1203,10 @@ function clockIn(event, customDate, viaWatch) {
     var isNowFinished = (currentIndex + 1 >= TOTAL);
     if (isNowFinished) { isFinished = true; } else { currentIndex++; }
     
-    // If triggered by Apple Watch, send a push notification back to the device!
+    // Send feedback push to output topic if triggered by the watch
     if (viaWatch) {
         var title = isNowFinished ? "Route Complete! ✅" : "Checkpoint Cleared";
-        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged." : "Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
+        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
         sendWatchFeedback(title, msg);
     }
     
@@ -1521,12 +1520,7 @@ document.addEventListener("visibilitychange", function() {
 function pollWatch(topic, isFirst) {
     try {
         var fetchStartMs = Date.now();
-        
-        // Dynamic lookback time calculates how many seconds we missed while asleep
-        // +3 seconds ensures overlapping buffer so no requests are missed.
         var elapsedSecs = Math.floor((fetchStartMs - lastWatchPollTimeMs) / 1000) + 3;
-        
-        // Limit lookback to 12 hours (43200s) to prevent oversized requests
         if (elapsedSecs > 43200) elapsedSecs = 43200; 
 
         var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + elapsedSecs + 's';
@@ -1535,35 +1529,25 @@ function pollWatch(topic, isFirst) {
             .then(function(res) {
                 if (!res.ok) { if (isFirst) setWatchBarState('off'); return null; }
                 setWatchBarState('connected');
-                
-                // Only advance the tracked time if successful. If phone was offline while asleep,
-                // this ensures the next loop will still try to fetch the missing history window.
                 lastWatchPollTimeMs = fetchStartMs;
                 return res.text();
             })
             .then(function(body) {
                 if (!body) return;
-                
                 var lines = body.trim().split('\n');
                 
                 for (var i = 0; i < lines.length; i++) {
                     if (!lines[i]) continue;
                     try {
                         var msg = JSON.parse(lines[i]);
-                        
-                        // Deduplicate: Make sure we only process new messages we haven't seen before
                         if (msg && msg.event === 'message' && msg.id && processedWatchMsgs.indexOf(msg.id) === -1) {
                             
                             processedWatchMsgs.push(msg.id);
-                            if (processedWatchMsgs.length > 100) processedWatchMsgs.shift(); // keep array memory lean
+                            if (processedWatchMsgs.length > 100) processedWatchMsgs.shift();
                             
                             if (!isFirst && !isFinished) {
-                                // Extract the EXACT server timestamp for pinpoint accuracy even if delayed
                                 var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
-                                
-                                // Pass 'true' to indicate this came from the watch, which will trigger the push notification back!
                                 clockIn(null, msgTimestamp, true); 
-                                
                                 showWatchToast();
                             }
                         }
@@ -1615,7 +1599,6 @@ function updateShortcutUrlDisplay(topic) {
         var el1 = document.getElementById('url-topic-part'); 
         if (el1) el1.textContent = topic; 
         
-        // Also update the feedback topic display
         var el2 = document.getElementById('feedback-topic-display');
         if (el2) el2.textContent = topic + '-status';
     } catch(e) {}
