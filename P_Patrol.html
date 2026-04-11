@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1345,6 +1344,7 @@ function shareToWhatsApp() {
     var mm   = padTwo(d.getMonth() + 1);
     var yyyy = d.getFullYear();
     
+    // We use an array instead of physical line breaks so it NEVER breaks when copy-pasting
     var msgLines = [];
     msgLines.push('*Date:* ' + dd + '/' + mm + '/' + yyyy);
     msgLines.push('');
@@ -1554,7 +1554,15 @@ function pollWatch(topic, isFirst) {
                             
                             if (!isFirst && !isFinished) {
                                 var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
-                                clockIn(null, msgTimestamp, true); 
+                                
+                                // If the message is more than 60 seconds old, it's a catch-up sync from the background. 
+                                // We don't want to buzz the watch again since the shortcut already confirmed it!
+                                var isCatchupSync = false;
+                                if (msgTimestamp && (Date.now() - msgTimestamp.getTime() > 60000)) {
+                                    isCatchupSync = true;
+                                }
+                                
+                                clockIn(null, msgTimestamp, !isCatchupSync); 
                                 showWatchToast();
                             }
                         }
@@ -1634,6 +1642,3 @@ startWatchPoller(watchTopic);
 
 </body>
 </html>
-
-
-```
