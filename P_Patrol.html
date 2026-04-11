@@ -1102,8 +1102,6 @@
 </main>
 
 <script>
-/* ── IMPORTANT FIX: Removed DOMContentLoaded wrapper so inline onclick events can find these functions globally ── */
-
 /* ── STATE ── */
 var ROUTE_POINTS = [
     "BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8",
@@ -1134,7 +1132,8 @@ setInterval(updateClock, 1000);
 updateClock();
 
 /* ── CLOCK IN ── */
-function clockIn(event) {
+// Added support for custom Date object (vital for background sync accuracy)
+function clockIn(event, customDate) {
     if (isFinished) return;
     try {
         var btn = document.getElementById('btn-clockin');
@@ -1143,7 +1142,6 @@ function clockIn(event) {
             ripple.className = 'ripple';
             var rect = btn.getBoundingClientRect();
             
-            // Fixed for Touch events on mobile (stops silent NaN errors during the ripple effect computation)
             var cX = rect.width / 2;
             var cY = rect.height / 2;
             if (event) {
@@ -1165,7 +1163,10 @@ function clockIn(event) {
         }
     } catch(e) {}
     
-    logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
+    // Assign real timestamp of the event, or current time
+    var stamp = customDate ? customDate : new Date();
+    
+    logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: stamp });
     if (currentIndex + 1 >= TOTAL) { isFinished = true; } else { currentIndex++; }
     updateUI(true);
 }
@@ -1401,10 +1402,11 @@ function showCompleteBanner() {
     }, 3500);
 }
 
-/* ── WATCH TRIGGER (polling via fetch) ── */
+/* ── WATCH TRIGGER (Upgraded: Background Catch-up Sync) ── */
 var watchTopic   = 'patrol-xib0nj29';
 var watchPollInt = null;
-var watchLastMsg = '';
+var processedWatchMsgs = [];
+var lastWatchPollTimeMs = Date.now();
 
 try {
     var _s = localStorage.getItem('patrolWatchTopic');
@@ -1454,7 +1456,10 @@ function startWatchPoller(topic) {
     stopWatchPoller();
     if (!topic) { setWatchBarState('off'); return; }
     setWatchBarState('connecting');
-    watchLastMsg = '';
+    
+    // Initial fetch looks back just 5 seconds
+    lastWatchPollTimeMs = Date.now() - 5000; 
+    
     pollWatch(topic, true);
     watchPollInt = setInterval(function() { pollWatch(topic, false); }, 3000);
 }
@@ -1463,13 +1468,34 @@ function stopWatchPoller() {
     if (watchPollInt) { clearInterval(watchPollInt); watchPollInt = null; }
 }
 
+// ── NEW: Wake up listener to trigger a fetch immediately upon unlocking the phone ──
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === 'visible' && watchTopic && !isFinished) {
+        pollWatch(watchTopic, false);
+    }
+});
+
 function pollWatch(topic, isFirst) {
     try {
-        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=6s';
+        var fetchStartMs = Date.now();
+        
+        // Dynamic lookback time calculates how many seconds we missed while asleep
+        // +3 seconds ensures overlapping buffer so no requests are missed.
+        var elapsedSecs = Math.floor((fetchStartMs - lastWatchPollTimeMs) / 1000) + 3;
+        
+        // Limit lookback to 12 hours (43200s) to prevent oversized requests
+        if (elapsedSecs > 43200) elapsedSecs = 43200; 
+
+        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + elapsedSecs + 's';
+        
         fetch(url)
             .then(function(res) {
-                if (!res.ok) { if (isFirst) setWatchBarState('off'); return; }
+                if (!res.ok) { if (isFirst) setWatchBarState('off'); return null; }
                 setWatchBarState('connected');
+                
+                // Only advance the tracked time if successful. If phone was offline while asleep,
+                // this ensures the next loop will still try to fetch the missing history window.
+                lastWatchPollTimeMs = fetchStartMs;
                 return res.text();
             })
             .then(function(body) {
@@ -1478,12 +1504,20 @@ function pollWatch(topic, isFirst) {
                 var lines = body.trim().split('\n');
                 
                 for (var i = 0; i < lines.length; i++) {
+                    if (!lines[i]) continue;
                     try {
                         var msg = JSON.parse(lines[i]);
-                        if (msg && msg.id && msg.id !== watchLastMsg) {
-                            watchLastMsg = msg.id;
+                        
+                        // Deduplicate: Make sure we only process new messages we haven't seen before
+                        if (msg && msg.event === 'message' && msg.id && processedWatchMsgs.indexOf(msg.id) === -1) {
+                            
+                            processedWatchMsgs.push(msg.id);
+                            if (processedWatchMsgs.length > 100) processedWatchMsgs.shift(); // keep array memory lean
+                            
                             if (!isFirst && !isFinished) {
-                                clockIn(null);
+                                // Extract the EXACT server timestamp for pinpoint accuracy even if delayed
+                                var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
+                                clockIn(null, msgTimestamp);
                                 showWatchToast();
                             }
                         }
@@ -1560,4 +1594,3 @@ startWatchPoller(watchTopic);
 
 </body>
 </html>
-
