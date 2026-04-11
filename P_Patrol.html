@@ -892,11 +892,69 @@
         </div>
         Patrol Route System
     </div>
-    <div class="header-clock">
-        <div class="clock-time" id="clock-display">--:--:--</div>
-        <div class="clock-date" id="date-display">Loading...</div>
+    <div style="display:flex;align-items:center;gap:14px;">
+        <div id="watch-status-pill" onclick="showWatchSetup()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;transition:all 0.2s;" title="Apple Watch trigger">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
+            <span id="watch-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background 0.3s;box-shadow:none;"></span>
+            <span id="watch-txt" style="font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;letter-spacing:0.5px;">WATCH OFF</span>
+        </div>
+        <div class="header-clock">
+            <div class="clock-time" id="clock-display">--:--:--</div>
+            <div class="clock-date" id="date-display">Loading...</div>
+        </div>
     </div>
 </header>
+
+<!-- Watch Setup Modal -->
+
+<div id="watch-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);align-items:center;justify-content:center;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:400px;width:calc(100% - 40px);animation:fadeZoom 0.2s ease-out forwards;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
+            </div>
+            <div>
+                <div style="font-family:var(--display);font-size:17px;font-weight:800;">Apple Watch Trigger</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Remote clock-in via Shortcuts</div>
+            </div>
+        </div>
+        <label style="font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Your Unique Topic ID</label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <input id="watch-topic-input" type="text" placeholder="e.g. patrol-abc123" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;"/>
+            <button onclick="generateTopic()" style="background:rgba(95,163,255,0.15);border:1px solid rgba(95,163,255,0.3);border-radius:10px;padding:0 14px;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Generate</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:20px;">Keep this private. Anyone with this ID can trigger your clock-in.</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">iPhone / Watch Setup</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Open <b style="color:var(--text);">Shortcuts</b> app on iPhone, tap <b style="color:var(--text);">+</b> to create a new shortcut</div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">2</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Add action: <b style="color:var(--text);">Get Contents of URL</b></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">3</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Set URL to:<br><span id="shortcut-url-display" style="font-family:var(--mono);font-size:11px;color:var(--blue);word-break:break-all;background:rgba(95,163,255,0.08);padding:4px 6px;border-radius:6px;display:inline-block;margin-top:4px;">https://ntfy.sh/<b id="url-topic-part">YOUR-TOPIC</b></span></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">4</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Set <b style="color:var(--text);">Method</b> to <b style="color:var(--text);">POST</b></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">5</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Name it <b style="color:var(--text);">"Clock In"</b>, then add to Watch face or say <i style="color:var(--text);">"Hey Siri, Clock In"</i></div>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Cancel</button>
+            <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Connect</button>
+        </div>
+    </div>
+</div>
 
 <main>
     <!-- LEFT COLUMN -->
@@ -1276,6 +1334,114 @@ function launchConfetti() {
         else ctx.clearRect(0,0,canvas.width,canvas.height);
     }
     draw();
+}
+
+/* ─────────── WATCH TRIGGER (ntfy.sh SSE) ─────────── */
+var watchTopic = localStorage.getItem('patrolWatchTopic') || '';
+var watchSSE   = null;
+
+function setWatchPillState(state) {
+    var dot = document.getElementById('watch-dot');
+    var txt = document.getElementById('watch-txt');
+    var pill = document.getElementById('watch-status-pill');
+    if (state === 'connected') {
+        dot.style.background = '#3ddc84';
+        dot.style.boxShadow  = '0 0 6px #3ddc84';
+        txt.style.color = '#3ddc84';
+        txt.textContent = 'WATCH ON';
+        pill.style.borderColor = 'rgba(61,220,132,0.4)';
+    } else if (state === 'connecting') {
+        dot.style.background = '#ffbb33';
+        dot.style.boxShadow  = '0 0 6px #ffbb33';
+        txt.style.color = '#ffbb33';
+        txt.textContent = 'CONNECTING';
+        pill.style.borderColor = 'rgba(255,187,51,0.4)';
+    } else {
+        dot.style.background = 'var(--muted)';
+        dot.style.boxShadow  = 'none';
+        txt.style.color = 'var(--muted)';
+        txt.textContent = 'WATCH OFF';
+        pill.style.borderColor = 'var(--border)';
+    }
+}
+
+function startWatchListener(topic) {
+    if (watchSSE) { watchSSE.close(); watchSSE = null; }
+    if (!topic) { setWatchPillState('off'); return; }
+    setWatchPillState('connecting');
+    watchSSE = new EventSource('https://ntfy.sh/' + topic + '/sse');
+    watchSSE.onopen = function() {
+        setWatchPillState('connected');
+    };
+    watchSSE.onmessage = function(e) {
+        // Any message = clock-in trigger from Watch
+        if (!isFinished) {
+            clockIn(null);
+            // Flash the pill briefly
+            var dot = document.getElementById('watch-dot');
+            dot.style.background = '#fff';
+            dot.style.boxShadow = '0 0 12px #fff';
+            setTimeout(function() { setWatchPillState('connected'); }, 400);
+        }
+    };
+    watchSSE.onerror = function() {
+        setWatchPillState('off');
+        // Retry after 5s
+        setTimeout(function() {
+            if (watchTopic) startWatchListener(watchTopic);
+        }, 5000);
+    };
+}
+
+function showWatchSetup() {
+    var modal = document.getElementById('watch-modal');
+    modal.style.display = 'flex';
+    document.getElementById('watch-topic-input').value = watchTopic;
+    updateShortcutUrlDisplay(watchTopic || 'YOUR-TOPIC');
+}
+
+function closeWatchSetup() {
+    document.getElementById('watch-modal').style.display = 'none';
+}
+
+function generateTopic() {
+    var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var rand = 'patrol-';
+    for (var i = 0; i < 8; i++) {
+        rand += chars[Math.floor(Math.random() * chars.length)];
+    }
+    document.getElementById('watch-topic-input').value = rand;
+    updateShortcutUrlDisplay(rand);
+}
+
+function updateShortcutUrlDisplay(topic) {
+    var el = document.getElementById('url-topic-part');
+    if (el) el.textContent = topic;
+}
+
+document.getElementById('watch-topic-input').addEventListener('input', function() {
+    updateShortcutUrlDisplay(this.value || 'YOUR-TOPIC');
+});
+
+function saveWatchTopic() {
+    var input = document.getElementById('watch-topic-input').value.trim();
+    if (!input) { alert('Please enter or generate a topic ID.'); return; }
+    watchTopic = input;
+    localStorage.setItem('patrolWatchTopic', watchTopic);
+    closeWatchSetup();
+    startWatchListener(watchTopic);
+}
+
+function disconnectWatch() {
+    watchTopic = '';
+    localStorage.removeItem('patrolWatchTopic');
+    if (watchSSE) { watchSSE.close(); watchSSE = null; }
+    setWatchPillState('off');
+}
+
+// Auto-connect on load if topic saved
+if (watchTopic) {
+    startWatchListener(watchTopic);
 }
 
 /* ─────────── INIT ─────────── */
