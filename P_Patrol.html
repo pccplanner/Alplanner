@@ -912,7 +912,8 @@
 <!-- Watch Setup Modal -->
 
 <div id="watch-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);align-items:center;justify-content:center;">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:400px;width:calc(100% - 40px);animation:fadeZoom 0.2s ease-out forwards;">
+    <!-- Scrollable container for modal body -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:400px;width:calc(100% - 40px);max-height:85vh;overflow-y:auto;animation:fadeZoom 0.2s ease-out forwards;scrollbar-width:none;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
             <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
@@ -928,8 +929,10 @@
             <button onclick="generateTopic()" style="background:rgba(95,163,255,0.15);border:1px solid rgba(95,163,255,0.3);border-radius:10px;padding:0 14px;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Generate</button>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:20px;">Keep this private. Anyone with this ID can trigger your clock-in.</div>
+        
+        <!-- Setup Instructions Section -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;">
-            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">iPhone / Watch Setup</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">1. Trigger from Watch (Shortcut)</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <div style="display:flex;gap:10px;align-items:flex-start;">
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
@@ -947,12 +950,26 @@
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">4</div>
                     <div style="font-size:12px;color:var(--muted);line-height:1.5;">Set <b style="color:var(--text);">Method</b> to <b style="color:var(--text);">POST</b></div>
                 </div>
-                <div style="display:flex;gap:10px;align-items:flex-start;">
-                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">5</div>
-                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">Name it <b style="color:var(--text);">"Clock In"</b>, then add to Watch face or say <i style="color:var(--text);">"Hey Siri, Clock In"</i></div>
+            </div>
+
+            <!-- New Push Notification Instructions Section -->
+            <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
+                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">2. Receive Status on Watch</div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;gap:10px;align-items:flex-start;">
+                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Install the free <b style="color:var(--text);">ntfy</b> app from the App Store.</div>
+                    </div>
+                    <div style="display:flex;gap:10px;align-items:flex-start;">
+                        <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">2</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Open it and <b style="color:var(--text);">Subscribe</b> to:<br>
+                            <span id="feedback-topic-display" style="font-family:var(--mono);font-size:11px;color:var(--green);word-break:break-all;background:rgba(61,220,132,0.1);padding:4px 6px;border-radius:6px;display:inline-block;margin-top:4px;">YOUR-TOPIC-status</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+        
         <div style="display:flex;gap:10px;">
             <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Cancel</button>
             <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Connect</button>
@@ -1131,9 +1148,25 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+/* ── SEND WATCH NOTIFICATION FEEDBACK ── */
+function sendWatchFeedback(title, message) {
+    if (!watchTopic) return;
+    
+    var url = 'https://ntfy.sh/' + watchTopic + '-status';
+    fetch(url, {
+        method: 'POST',
+        body: message,
+        headers: {
+            'Title': title,
+            'Tags': 'rotating_light,watch', // Adds fun emojis in the notification
+            'Priority': 'default'
+        }
+    }).catch(function(e){});
+}
+
 /* ── CLOCK IN ── */
-// Added support for custom Date object (vital for background sync accuracy)
-function clockIn(event, customDate) {
+// Added parameters to track if the trigger came from the watch remote.
+function clockIn(event, customDate, viaWatch) {
     if (isFinished) return;
     try {
         var btn = document.getElementById('btn-clockin');
@@ -1163,11 +1196,21 @@ function clockIn(event, customDate) {
         }
     } catch(e) {}
     
-    // Assign real timestamp of the event, or current time
     var stamp = customDate ? customDate : new Date();
+    var justCleared = ROUTE_POINTS[currentIndex];
     
-    logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: stamp });
-    if (currentIndex + 1 >= TOTAL) { isFinished = true; } else { currentIndex++; }
+    logs.push({ point: currentIndex + 1, location: justCleared, timestamp: stamp });
+    
+    var isNowFinished = (currentIndex + 1 >= TOTAL);
+    if (isNowFinished) { isFinished = true; } else { currentIndex++; }
+    
+    // If triggered by Apple Watch, send a push notification back to the device!
+    if (viaWatch) {
+        var title = isNowFinished ? "Route Complete! ✅" : "Checkpoint Cleared";
+        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged." : "Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
+        sendWatchFeedback(title, msg);
+    }
+    
     updateUI(true);
 }
 
@@ -1468,7 +1511,7 @@ function stopWatchPoller() {
     if (watchPollInt) { clearInterval(watchPollInt); watchPollInt = null; }
 }
 
-// ── NEW: Wake up listener to trigger a fetch immediately upon unlocking the phone ──
+// Wake up listener to trigger a fetch immediately upon unlocking the phone
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && watchTopic && !isFinished) {
         pollWatch(watchTopic, false);
@@ -1517,7 +1560,10 @@ function pollWatch(topic, isFirst) {
                             if (!isFirst && !isFinished) {
                                 // Extract the EXACT server timestamp for pinpoint accuracy even if delayed
                                 var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
-                                clockIn(null, msgTimestamp);
+                                
+                                // Pass 'true' to indicate this came from the watch, which will trigger the push notification back!
+                                clockIn(null, msgTimestamp, true); 
+                                
                                 showWatchToast();
                             }
                         }
@@ -1565,7 +1611,14 @@ function generateTopic() {
 }
 
 function updateShortcutUrlDisplay(topic) {
-    try { var el = document.getElementById('url-topic-part'); if (el) el.textContent = topic; } catch(e) {}
+    try { 
+        var el1 = document.getElementById('url-topic-part'); 
+        if (el1) el1.textContent = topic; 
+        
+        // Also update the feedback topic display
+        var el2 = document.getElementById('feedback-topic-display');
+        if (el2) el2.textContent = topic + '-status';
+    } catch(e) {}
 }
 
 function saveWatchTopic() {
