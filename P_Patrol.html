@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -964,8 +963,6 @@
 <main>
     <!-- LEFT COLUMN -->
     <div style="display:flex;flex-direction:column;gap:16px;">
-
-```
     <!-- Status Card -->
     <div class="card">
         <div class="card-header">
@@ -1101,441 +1098,466 @@
         </div>
     </div>
 </div>
-```
 
 </main>
 
 <script>
-/* ─────────── STATE ─────────── */
-const ROUTE_POINTS = [
+/* ── IMPORTANT FIX: Removed DOMContentLoaded wrapper so inline onclick events can find these functions globally ── */
+
+/* ── STATE ── */
+var ROUTE_POINTS = [
     "BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8",
     "TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1",
     "OC DR","TG","BME"
 ];
-const TOTAL = ROUTE_POINTS.length;
-let currentIndex = 0;
-let logs = [];
-let isFinished = false;
+var TOTAL        = ROUTE_POINTS.length;
+var currentIndex = 0;
+var logs         = [];
+var isFinished   = false;
 
-/* ─────────── CLOCK ─────────── */
+/* ── CLOCK ── */
+var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function padTwo(n) { return (n < 10 ? '0' : '') + n; }
+
 function updateClock() {
-    const now = new Date();
-    document.getElementById('clock-display').textContent =
-        now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
-    document.getElementById('date-display').textContent =
-        now.toLocaleDateString([], { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    try {
+        var now = new Date();
+        var el1 = document.getElementById('clock-display');
+        var el2 = document.getElementById('date-display');
+        if (el1) el1.textContent = padTwo(now.getHours()) + ':' + padTwo(now.getMinutes()) + ':' + padTwo(now.getSeconds());
+        if (el2) el2.textContent = DAYS[now.getDay()] + ', ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+    } catch(e) {}
 }
 setInterval(updateClock, 1000);
 updateClock();
 
-/* ─────────── CLOCK IN ─────────── */
+/* ── CLOCK IN ── */
 function clockIn(event) {
     if (isFinished) return;
-
-    // Ripple effect
-    const btn = document.getElementById('btn-clockin');
-    const ripple = document.createElement('span');
-    ripple.className = 'ripple';
-    const rect = btn.getBoundingClientRect();
-    const x = (event ? event.clientX - rect.left : rect.width/2) - 30;
-    const y = (event ? event.clientY - rect.top  : rect.height/2) - 30;
-    ripple.style.cssText = `width:60px;height:60px;left:${x}px;top:${y}px;`;
-    btn.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 700);
-
-    // Log entry
-    logs.push({ point: currentIndex+1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
-
-    if (currentIndex + 1 >= TOTAL) {
-        isFinished = true;
-    } else {
-        currentIndex++;
-    }
-
-    updateUI(true); // true = new entry animation
+    try {
+        var btn = document.getElementById('btn-clockin');
+        if (btn) {
+            var ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            var rect = btn.getBoundingClientRect();
+            
+            // Fixed for Touch events on mobile (stops silent NaN errors during the ripple effect computation)
+            var cX = rect.width / 2;
+            var cY = rect.height / 2;
+            if (event) {
+                if (event.touches && event.touches.length > 0) {
+                    cX = event.touches[0].clientX - rect.left;
+                    cY = event.touches[0].clientY - rect.top;
+                } else if (event.clientX !== undefined) {
+                    cX = event.clientX - rect.left;
+                    cY = event.clientY - rect.top;
+                }
+            }
+            
+            var rx = cX - 30;
+            var ry = cY - 30;
+            
+            ripple.style.cssText = 'width:60px;height:60px;left:' + rx + 'px;top:' + ry + 'px;';
+            btn.appendChild(ripple);
+            setTimeout(function() { try { ripple.parentNode.removeChild(ripple); } catch(e2) {} }, 700);
+        }
+    } catch(e) {}
+    
+    logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
+    if (currentIndex + 1 >= TOTAL) { isFinished = true; } else { currentIndex++; }
+    updateUI(true);
 }
 
-/* ─────────── UPDATE UI ─────────── */
+/* ── UPDATE UI ── */
 function updateUI(newEntry) {
-    updateProgressRing();
-    updateStats(newEntry);
-    updateTarget();
-    renderTimeline(newEntry);
-    updateTopBar();
-
+    try { updateProgressRing(); } catch(e) {}
+    try { updateStats(newEntry); } catch(e) {}
+    try { updateTarget();        } catch(e) {}
+    try { renderTimeline(newEntry); } catch(e) {}
+    try { updateTopBar();        } catch(e) {}
     if (isFinished) {
-        document.getElementById('active-view').style.display = 'none';
-        document.getElementById('reset-btn-area').style.display = 'none';
-        document.getElementById('completed-view').classList.add('show');
-        document.getElementById('route-status-badge').textContent = 'COMPLETE';
-        document.getElementById('route-status-badge').style.cssText =
-            'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
-        document.getElementById('watch-toast').style.display = 'none';
-        launchConfetti();
-        showCompleteBanner();
+        try {
+            document.getElementById('active-view').style.display    = 'none';
+            document.getElementById('reset-btn-area').style.display = 'none';
+            document.getElementById('completed-view').classList.add('show');
+            document.getElementById('route-status-badge').textContent = 'COMPLETE';
+            document.getElementById('route-status-badge').style.cssText =
+                'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
+            var toast = document.getElementById('watch-toast');
+            if (toast) toast.style.display = 'none';
+        } catch(e) {}
+        try { launchConfetti();     } catch(e) {}
+        try { showCompleteBanner(); } catch(e) {}
     }
 }
 
-/* ─────────── PROGRESS RING ─────────── */
+/* ── PROGRESS RING ── */
 function updateProgressRing() {
-    const pct = logs.length / TOTAL;
-    const circumference = 2 * Math.PI * 52; // 326.7
-    const offset = circumference * (1 - pct);
-    document.getElementById('ring-fill').style.strokeDashoffset = offset;
-    document.getElementById('ring-fill').style.strokeDasharray = circumference;
-    document.getElementById('ring-pct').textContent = Math.round(pct * 100) + '%';
+    var pct  = logs.length / TOTAL;
+    var circ = 2 * Math.PI * 52;
+    var el   = document.getElementById('ring-fill');
+    if (el) { el.style.strokeDashoffset = circ * (1 - pct); el.style.strokeDasharray = circ; }
+    var rp = document.getElementById('ring-pct');
+    if (rp) rp.textContent = Math.round(pct * 100) + '%';
 }
 
-/* ─────────── TOP BAR ─────────── */
+/* ── TOP BAR ── */
 function updateTopBar() {
-    document.getElementById('top-progress').style.width = (logs.length / TOTAL * 100) + '%';
+    var el = document.getElementById('top-progress');
+    if (el) el.style.width = (logs.length / TOTAL * 100) + '%';
 }
 
-/* ─────────── STATS ─────────── */
+/* ── STATS ── */
 function updateStats(animate) {
-    const cleared = logs.length;
-    const remaining = TOTAL - cleared;
-
-    const cEl = document.getElementById('stat-cleared-num');
-    const rEl = document.getElementById('stat-remain-num');
-
-    if (animate) {
-        cEl.classList.remove('bump');
-        rEl.classList.remove('bump');
-        void cEl.offsetWidth; void rEl.offsetWidth;
-        cEl.classList.add('bump');
-        rEl.classList.add('bump');
-        document.getElementById('stat-cleared').classList.add('updated');
-        document.getElementById('stat-remain').classList.add('updated');
-        setTimeout(() => {
-            document.getElementById('stat-cleared').classList.remove('updated');
-            document.getElementById('stat-remain').classList.remove('updated');
+    var cleared   = logs.length;
+    var remaining = TOTAL - cleared;
+    var cEl = document.getElementById('stat-cleared-num');
+    var rEl = document.getElementById('stat-remain-num');
+    if (animate && cEl && rEl) {
+        cEl.classList.remove('bump'); rEl.classList.remove('bump');
+        void cEl.offsetWidth;
+        cEl.classList.add('bump'); rEl.classList.add('bump');
+        var sc = document.getElementById('stat-cleared');
+        var sr = document.getElementById('stat-remain');
+        if (sc) sc.classList.add('updated');
+        if (sr) sr.classList.add('updated');
+        setTimeout(function() {
+            try {
+                if (sc) sc.classList.remove('updated');
+                if (sr) sr.classList.remove('updated');
+            } catch(e) {}
         }, 700);
     }
-
-    cEl.textContent = cleared;
-    rEl.textContent = remaining;
-    document.getElementById('tl-progress-label').textContent = cleared + ' / ' + TOTAL;
+    if (cEl) cEl.textContent = cleared;
+    if (rEl) rEl.textContent = remaining;
+    var tp = document.getElementById('tl-progress-label');
+    if (tp) tp.textContent = cleared + ' / ' + TOTAL;
 }
 
-/* ─────────── TARGET PANEL ─────────── */
+/* ── TARGET PANEL ── */
 function updateTarget() {
     if (isFinished) return;
-    document.getElementById('target-label-text').textContent =
-        'CURRENT TARGET · PT ' + (currentIndex + 1);
-    document.getElementById('target-name').textContent = ROUTE_POINTS[currentIndex];
-
-    // Breadcrumbs
-    const crumb = document.getElementById('direction-crumbs');
-    let html = '';
+    var el1 = document.getElementById('target-label-text');
+    var el2 = document.getElementById('target-name');
+    if (el1) el1.textContent = 'CURRENT TARGET · PT ' + (currentIndex + 1);
+    if (el2) el2.textContent = ROUTE_POINTS[currentIndex];
+    var crumb = document.getElementById('direction-crumbs');
+    if (!crumb) return;
+    var html = '';
     if (currentIndex > 0) {
-        html += `<span class="crumb-done">${ROUTE_POINTS[currentIndex-1]}</span>`;
-        html += `<span class="crumb-arrow">›</span>`;
+        html += '<span class="crumb-done">' + ROUTE_POINTS[currentIndex - 1] + '</span>';
+        html += '<span class="crumb-arrow">&rsaquo;</span>';
     }
-    html += `<span class="crumb-current">${ROUTE_POINTS[currentIndex]}</span>`;
+    html += '<span class="crumb-current">' + ROUTE_POINTS[currentIndex] + '</span>';
     if (currentIndex < TOTAL - 1) {
-        html += `<span class="crumb-arrow">›</span>`;
-        html += `<span class="crumb-next">${ROUTE_POINTS[currentIndex+1]}</span>`;
+        html += '<span class="crumb-arrow">&rsaquo;</span>';
+        html += '<span class="crumb-next">' + ROUTE_POINTS[currentIndex + 1] + '</span>';
     }
     crumb.innerHTML = html;
 }
 
-/* ─────────── TIMELINE ─────────── */
+/* ── TIMELINE ── */
 function renderTimeline(newEntry) {
-    const list = document.getElementById('tl-list');
-    let html = '';
-
-    ROUTE_POINTS.forEach((loc, i) => {
-        const isDone    = i < logs.length;
-        const isCurrent = i === currentIndex && !isFinished;
-        const log       = logs.find(l => l.point === i+1);
-
-        let nodeClass = 'pending';
-        let nodeInner = `<span>${i+1}</span>`;
-        if (isDone)    { nodeClass='done'; nodeInner=`<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`; }
-        if (isCurrent) nodeClass='current';
-
-        let itemClass = 'tl-item';
-        if (isDone)    itemClass += ' done-item';
-        if (isCurrent) itemClass += ' current-item';
-        if (!isDone && !isCurrent) itemClass += ' pending-item';
-
-        // Flash animation on the most recently completed entry
-        if (newEntry && i === currentIndex - 1) itemClass += ' flash-green';
-
-        let badgeHtml = '';
-        if (isDone && log) {
-            const t = log.timestamp.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-            badgeHtml = `<span class="tl-badge badge-time">${t}</span>`;
-        } else if (isCurrent) {
-            badgeHtml = `<span class="tl-badge badge-action">▶ NOW</span>`;
-        } else {
-            badgeHtml = `<span class="tl-badge badge-pending">PT ${i+1}</span>`;
+    var list = document.getElementById('tl-list');
+    if (!list) return;
+    var html = '';
+    for (var i = 0; i < ROUTE_POINTS.length; i++) {
+        var loc       = ROUTE_POINTS[i];
+        var isDone    = (i < logs.length);
+        var isCurrent = (i === currentIndex) && !isFinished;
+        var logEntry  = null;
+        for (var j = 0; j < logs.length; j++) {
+            if (logs[j].point === i + 1) { logEntry = logs[j]; break; }
         }
-
-        const nameClass = isDone ? 'tl-name strikethrough' : 'tl-name';
-
-        html += `
-        <div class="${itemClass}" id="tl-${i}">
-            <div class="tl-node ${nodeClass}">${nodeInner}</div>
-            <div class="tl-body">
-                <span class="${nameClass}">${loc}</span>
-                ${badgeHtml}
-            </div>
-        </div>`;
-    });
-
+        var nodeClass = isDone ? 'done' : (isCurrent ? 'current' : 'pending');
+        var nodeInner = isDone
+            ? '<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+            : '<span>' + (i + 1) + '</span>';
+        var itemClass = 'tl-item'
+            + (isDone    ? ' done-item'    : '')
+            + (isCurrent ? ' current-item' : '')
+            + (!isDone && !isCurrent ? ' pending-item' : '')
+            + (newEntry && i === currentIndex - 1 ? ' flash-green' : '');
+        var badgeHtml;
+        if (isDone && logEntry) {
+            var lts = logEntry.timestamp;
+            var t = padTwo(lts.getHours()) + ':' + padTwo(lts.getMinutes()) + ':' + padTwo(lts.getSeconds());
+            badgeHtml = '<span class="tl-badge badge-time">' + t + '</span>';
+        } else if (isCurrent) {
+            badgeHtml = '<span class="tl-badge badge-action">NOW</span>';
+        } else {
+            badgeHtml = '<span class="tl-badge badge-pending">PT ' + (i + 1) + '</span>';
+        }
+        html += '<div class="' + itemClass + '" id="tl-' + i + '">'
+            + '<div class="tl-node ' + nodeClass + '">' + nodeInner + '</div>'
+            + '<div class="tl-body"><span class="' + (isDone ? 'tl-name strikethrough' : 'tl-name') + '">' + loc + '</span>' + badgeHtml + '</div>'
+            + '</div>';
+    }
     list.innerHTML = html;
 }
 
-/* ─────────── WHATSAPP ─────────── */
+/* ── WHATSAPP ── */
 function shareToWhatsApp() {
     if (!logs.length) return;
-    var d = logs[0].timestamp;
-    var dd = String(d.getDate()).padStart(2,'0');
-    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var d    = logs[0].timestamp;
+    var dd   = padTwo(d.getDate());
+    var mm   = padTwo(d.getMonth() + 1);
     var yyyy = d.getFullYear();
+    
     var text = '*Date:* ' + dd + '/' + mm + '/' + yyyy + '\n\n';
-    logs.forEach(function(l) {
+    
+    for (var i = 0; i < logs.length; i++) {
+        var l   = logs[i];
         var loc = (l.point === 19) ? 'FOYER' : l.location;
-        var t = l.timestamp.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-        if (l.point === 1)  { text += '1st HALF:\n'; }
-        if (l.point === 11) { text += '\n2nd HALF:\n'; }
+        var lt  = l.timestamp;
+        var t   = padTwo(lt.getHours()) + ':' + padTwo(lt.getMinutes()) + ':' + padTwo(lt.getSeconds());
+        if (l.point === 1)  text += '1st HALF:\n';
+        if (l.point === 11) text += '\n2nd HALF:\n';
         text += loc + ' - ' + t + '\n';
-    });
+    }
     text += '\nAll in order & S/Normal';
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
-/* ─────────── MODAL ─────────── */
-function showResetModal() {
-    document.getElementById('reset-modal').classList.add('show');
-}
-function cancelReset() {
-    document.getElementById('reset-modal').classList.remove('show');
-}
+/* ── RESET MODAL ── */
+function showResetModal() { document.getElementById('reset-modal').classList.add('show'); }
+function cancelReset()    { document.getElementById('reset-modal').classList.remove('show'); }
 function confirmReset() {
     currentIndex = 0; logs = []; isFinished = false;
-    document.getElementById('active-view').style.display = '';
-    document.getElementById('reset-btn-area').style.display = '';
-    document.getElementById('completed-view').classList.remove('show');
-    document.getElementById('route-status-badge').textContent = 'IN PROGRESS';
-    document.getElementById('route-status-badge').style.cssText =
-        'font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;';
+    try {
+        document.getElementById('active-view').style.display    = '';
+        document.getElementById('reset-btn-area').style.display = '';
+        document.getElementById('completed-view').classList.remove('show');
+        document.getElementById('route-status-badge').textContent = 'IN PROGRESS';
+        document.getElementById('route-status-badge').style.cssText =
+            'font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;';
+    } catch(e) {}
     cancelReset();
     updateUI(false);
 }
 
-/* ─────────── CONFETTI ─────────── */
+/* ── CONFETTI ── */
 function launchConfetti() {
-    const canvas = document.getElementById('confetti-canvas');
-    const ctx    = canvas.getContext('2d');
+    var canvas = document.getElementById('confetti-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-
-    const colors = ['#2d7eff','#00e676','#ffb300','#ff4081','#7eb8ff','#ffffff'];
-    const particles = Array.from({length:140}, () => ({
-        x: Math.random() * canvas.width,
-        y: -10 - Math.random() * 200,
-        r: 3 + Math.random() * 5,
-        d: 2 + Math.random() * 3,
-        color: colors[Math.floor(Math.random()*colors.length)],
-        tilt: Math.random() * 10 - 10,
-        tiltAngle: 0,
-        tiltSpeed: 0.05 + Math.random() * 0.05,
-        alpha: 1,
-    }));
-
-    let frame = 0;
+    var colors = ['#5fa3ff','#3ddc84','#ffbb33','#ff6b9d','#a0c8ff','#ffffff'];
+    var particles = [];
+    for (var k = 0; k < 120; k++) {
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: -10 - Math.random() * 200,
+            r: 3 + Math.random() * 5,
+            d: 2 + Math.random() * 3,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            tiltAngle: 0,
+            tiltSpeed: 0.05 + Math.random() * 0.05,
+            alpha: 1
+        });
+    }
+    var frame = 0;
     function draw() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        particles.forEach(p => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (var n = 0; n < particles.length; n++) {
+            var p = particles[n];
             ctx.save();
             ctx.globalAlpha = p.alpha;
-            ctx.fillStyle = p.color;
+            ctx.fillStyle   = p.color;
             ctx.beginPath();
-            ctx.ellipse(p.x, p.y, p.r, p.r*0.4, p.tiltAngle, 0, Math.PI*2);
+            ctx.ellipse(p.x, p.y, p.r, p.r * 0.4, p.tiltAngle, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
             p.y += p.d;
             p.tiltAngle += p.tiltSpeed;
             p.x += Math.sin(p.tiltAngle) * 1.5;
             if (p.y > canvas.height * 0.7) p.alpha -= 0.012;
-        });
+        }
         frame++;
         if (frame < 220) requestAnimationFrame(draw);
-        else ctx.clearRect(0,0,canvas.width,canvas.height);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     draw();
 }
 
-/* ─────────── WATCH TRIGGER (ntfy.sh SSE) ─────────── */
-var watchTopic = localStorage.getItem('patrolWatchTopic') || '';
-var watchSSE   = null;
-
-function setWatchPillState(state) {
-    var dot      = document.getElementById('watch-dot');
-    var dotLbl   = document.getElementById('watch-dot-label');
-    var txt      = document.getElementById('watch-txt');
-    var sub      = document.getElementById('watch-sub');
-    var bar      = document.getElementById('watch-bar');
-    var iconWrap = document.getElementById('watch-icon-wrap');
-    var iconSvg  = document.getElementById('watch-icon-svg');
-
-    if (state === 'connected') {
-        dot.style.background      = '#3ddc84';
-        dot.style.boxShadow       = '0 0 8px #3ddc84';
-        dotLbl.style.color        = '#3ddc84';
-        dotLbl.textContent        = 'LIVE';
-        txt.style.color           = '#f2f4f8';
-        txt.textContent           = 'Apple Watch';
-        sub.style.color           = '#3ddc84';
-        sub.textContent           = 'Connected · tap to configure';
-        bar.style.borderColor     = 'rgba(61,220,132,0.5)';
-        bar.style.background      = 'rgba(61,220,132,0.07)';
-        iconWrap.style.background = 'rgba(61,220,132,0.15)';
-        iconWrap.style.borderColor= 'rgba(61,220,132,0.4)';
-        iconSvg.style.stroke      = '#3ddc84';
-    } else if (state === 'connecting') {
-        dot.style.background      = '#ffbb33';
-        dot.style.boxShadow       = '0 0 8px #ffbb33';
-        dotLbl.style.color        = '#ffbb33';
-        dotLbl.textContent        = 'WAIT';
-        txt.style.color           = '#f2f4f8';
-        txt.textContent           = 'Apple Watch';
-        sub.style.color           = '#ffbb33';
-        sub.textContent           = 'Connecting to ntfy.sh…';
-        bar.style.borderColor     = 'rgba(255,187,51,0.5)';
-        bar.style.background      = 'rgba(255,187,51,0.07)';
-        iconWrap.style.background = 'rgba(255,187,51,0.15)';
-        iconWrap.style.borderColor= 'rgba(255,187,51,0.4)';
-        iconSvg.style.stroke      = '#ffbb33';
-    } else {
-        dot.style.background      = 'var(--muted)';
-        dot.style.boxShadow       = 'none';
-        dotLbl.style.color        = 'var(--muted)';
-        dotLbl.textContent        = 'OFF';
-        txt.style.color           = 'var(--muted)';
-        txt.textContent           = 'Apple Watch';
-        sub.style.color           = 'var(--muted)';
-        sub.textContent           = 'Not connected — tap to set up';
-        bar.style.borderColor     = 'var(--border)';
-        bar.style.background      = 'var(--surface)';
-        iconWrap.style.background = 'rgba(255,255,255,0.05)';
-        iconWrap.style.borderColor= 'var(--border)';
-        iconSvg.style.stroke      = 'var(--muted)';
-    }
+/* ── COMPLETE BANNER ── */
+function showCompleteBanner() {
+    var wrap = document.getElementById('complete-banner');
+    var box  = document.getElementById('complete-banner-box');
+    if (!wrap || !box) return;
+    wrap.style.display = 'flex';
+    setTimeout(function() {
+        try { box.style.transform = 'translateY(0)'; box.style.opacity = '1'; } catch(e) {}
+    }, 50);
+    setTimeout(function() {
+        try {
+            box.style.transform = 'translateY(-80px)';
+            box.style.opacity   = '0';
+            setTimeout(function() { try { wrap.style.display = 'none'; } catch(e) {} }, 400);
+        } catch(e) {}
+    }, 3500);
 }
 
-function startWatchListener(topic) {
-    if (watchSSE) { watchSSE.close(); watchSSE = null; }
-    if (!topic) { setWatchPillState('off'); return; }
-    setWatchPillState('connecting');
-    watchSSE = new EventSource('https://ntfy.sh/' + topic + '/sse');
-    watchSSE.onopen = function() {
-        setWatchPillState('connected');
-    };
-    watchSSE.onmessage = function(e) {
-        if (!isFinished) {
-            clockIn(null);
-            showWatchToast();
+/* ── WATCH TRIGGER (polling via fetch) ── */
+var watchTopic   = 'patrol-xib0nj29';
+var watchPollInt = null;
+var watchLastMsg = '';
+
+try {
+    var _s = localStorage.getItem('patrolWatchTopic');
+    if (_s) watchTopic = _s;
+    else localStorage.setItem('patrolWatchTopic', watchTopic);
+} catch(e) {}
+
+function setWatchBarState(state) {
+    try {
+        var dot      = document.getElementById('watch-dot');
+        var dotLbl   = document.getElementById('watch-dot-label');
+        var txt      = document.getElementById('watch-txt');
+        var sub      = document.getElementById('watch-sub');
+        var bar      = document.getElementById('watch-bar');
+        var iconWrap = document.getElementById('watch-icon-wrap');
+        var iconSvg  = document.getElementById('watch-icon-svg');
+        if (!dot || !dotLbl || !txt || !sub || !bar || !iconWrap || !iconSvg) return;
+        if (state === 'connected') {
+            dot.style.background = '#3ddc84'; dot.style.boxShadow = '0 0 8px #3ddc84';
+            dotLbl.style.color = '#3ddc84'; dotLbl.textContent = 'LIVE';
+            txt.style.color = '#f2f4f8'; txt.textContent = 'Apple Watch';
+            sub.style.color = '#3ddc84'; sub.textContent = 'Connected - tap to configure';
+            bar.style.borderColor = 'rgba(61,220,132,0.5)'; bar.style.background = 'rgba(61,220,132,0.07)';
+            iconWrap.style.background = 'rgba(61,220,132,0.15)'; iconWrap.style.borderColor = 'rgba(61,220,132,0.4)';
+            iconSvg.style.stroke = '#3ddc84';
+        } else if (state === 'connecting') {
+            dot.style.background = '#ffbb33'; dot.style.boxShadow = '0 0 8px #ffbb33';
+            dotLbl.style.color = '#ffbb33'; dotLbl.textContent = 'WAIT';
+            txt.style.color = '#f2f4f8'; txt.textContent = 'Apple Watch';
+            sub.style.color = '#ffbb33'; sub.textContent = 'Connecting...';
+            bar.style.borderColor = 'rgba(255,187,51,0.5)'; bar.style.background = 'rgba(255,187,51,0.07)';
+            iconWrap.style.background = 'rgba(255,187,51,0.15)'; iconWrap.style.borderColor = 'rgba(255,187,51,0.4)';
+            iconSvg.style.stroke = '#ffbb33';
+        } else {
+            dot.style.background = '#b0b5c0'; dot.style.boxShadow = 'none';
+            dotLbl.style.color = '#b0b5c0'; dotLbl.textContent = 'OFF';
+            txt.style.color = '#b0b5c0'; txt.textContent = 'Apple Watch';
+            sub.style.color = '#b0b5c0'; sub.textContent = 'Not connected - tap to set up';
+            bar.style.borderColor = '#52565e'; bar.style.background = '#34363b';
+            iconWrap.style.background = 'rgba(255,255,255,0.05)'; iconWrap.style.borderColor = '#52565e';
+            iconSvg.style.stroke = '#b0b5c0';
         }
-    };
-    watchSSE.onerror = function() {
-        setWatchPillState('off');
-        // Retry after 5s
-        setTimeout(function() {
-            if (watchTopic) startWatchListener(watchTopic);
-        }, 5000);
-    };
+    } catch(e) {}
+}
+
+function startWatchPoller(topic) {
+    stopWatchPoller();
+    if (!topic) { setWatchBarState('off'); return; }
+    setWatchBarState('connecting');
+    watchLastMsg = '';
+    pollWatch(topic, true);
+    watchPollInt = setInterval(function() { pollWatch(topic, false); }, 3000);
+}
+
+function stopWatchPoller() {
+    if (watchPollInt) { clearInterval(watchPollInt); watchPollInt = null; }
+}
+
+function pollWatch(topic, isFirst) {
+    try {
+        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=6s';
+        fetch(url)
+            .then(function(res) {
+                if (!res.ok) { if (isFirst) setWatchBarState('off'); return; }
+                setWatchBarState('connected');
+                return res.text();
+            })
+            .then(function(body) {
+                if (!body) return;
+                
+                var lines = body.trim().split('\n');
+                
+                for (var i = 0; i < lines.length; i++) {
+                    try {
+                        var msg = JSON.parse(lines[i]);
+                        if (msg && msg.id && msg.id !== watchLastMsg) {
+                            watchLastMsg = msg.id;
+                            if (!isFirst && !isFinished) {
+                                clockIn(null);
+                                showWatchToast();
+                            }
+                        }
+                    } catch(pe) {}
+                }
+            })
+            .catch(function() { if (isFirst) setWatchBarState('off'); });
+    } catch(e) { if (isFirst) setWatchBarState('off'); }
+}
+
+function showWatchToast() {
+    try {
+        var toast = document.getElementById('watch-toast');
+        var sub   = document.getElementById('watch-toast-sub');
+        if (!toast || !sub) return;
+        var now = new Date();
+        sub.textContent     = 'Clocked in at ' + padTwo(now.getHours()) + ':' + padTwo(now.getMinutes()) + ':' + padTwo(now.getSeconds()) + ' via Watch';
+        toast.style.display = 'flex';
+        clearTimeout(window._toastTimer);
+        window._toastTimer  = setTimeout(function() { try { toast.style.display = 'none'; } catch(e) {} }, 4000);
+    } catch(e) {}
 }
 
 function showWatchSetup() {
-    var modal = document.getElementById('watch-modal');
-    modal.style.display = 'flex';
-    document.getElementById('watch-topic-input').value = watchTopic;
-    updateShortcutUrlDisplay(watchTopic || 'YOUR-TOPIC');
+    try {
+        var modal = document.getElementById('watch-modal');
+        var input = document.getElementById('watch-topic-input');
+        if (!modal || !input) return;
+        input.value = watchTopic;
+        updateShortcutUrlDisplay(watchTopic || 'YOUR-TOPIC');
+        modal.style.display = 'flex';
+    } catch(e) {}
 }
 
 function closeWatchSetup() {
-    document.getElementById('watch-modal').style.display = 'none';
+    try { document.getElementById('watch-modal').style.display = 'none'; } catch(e) {}
 }
 
 function generateTopic() {
     var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    var rand = 'patrol-';
-    for (var i = 0; i < 8; i++) {
-        rand += chars[Math.floor(Math.random() * chars.length)];
-    }
-    document.getElementById('watch-topic-input').value = rand;
+    var rand  = 'patrol-';
+    for (var i = 0; i < 8; i++) rand += chars[Math.floor(Math.random() * chars.length)];
+    try { document.getElementById('watch-topic-input').value = rand; } catch(e) {}
     updateShortcutUrlDisplay(rand);
 }
 
 function updateShortcutUrlDisplay(topic) {
-    var el = document.getElementById('url-topic-part');
-    if (el) el.textContent = topic;
-}
-
-document.getElementById('watch-topic-input').addEventListener('input', function() {
-    updateShortcutUrlDisplay(this.value || 'YOUR-TOPIC');
-});
-
-function showWatchToast() {
-    var toast = document.getElementById('watch-toast');
-    var sub   = document.getElementById('watch-toast-sub');
-    var now   = new Date();
-    var t     = now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-    sub.textContent = 'Clocked in at ' + t + ' via Watch';
-    toast.style.display = 'flex';
-    clearTimeout(window._toastTimer);
-    window._toastTimer = setTimeout(function() {
-        toast.style.display = 'none';
-    }, 4000);
-}
-
-function showCompleteBanner() {
-    var wrap = document.getElementById('complete-banner');
-    var box  = document.getElementById('complete-banner-box');
-    wrap.style.display = 'flex';
-    wrap.style.pointerEvents = 'none';
-    setTimeout(function() {
-        box.style.transform = 'translateY(0)';
-        box.style.opacity   = '1';
-    }, 50);
-    setTimeout(function() {
-        box.style.transform = 'translateY(-80px)';
-        box.style.opacity   = '0';
-        setTimeout(function() { wrap.style.display = 'none'; }, 400);
-    }, 3500);
+    try { var el = document.getElementById('url-topic-part'); if (el) el.textContent = topic; } catch(e) {}
 }
 
 function saveWatchTopic() {
-    var input = document.getElementById('watch-topic-input').value.trim();
-    if (!input) { alert('Please enter or generate a topic ID.'); return; }
-    watchTopic = input;
-    localStorage.setItem('patrolWatchTopic', watchTopic);
-    closeWatchSetup();
-    startWatchListener(watchTopic);
+    try {
+        var input = document.getElementById('watch-topic-input');
+        if (!input || !input.value.trim()) { alert('Please enter or generate a topic ID.'); return; }
+        watchTopic = input.value.trim();
+        try { localStorage.setItem('patrolWatchTopic', watchTopic); } catch(e2) {}
+        closeWatchSetup();
+        startWatchPoller(watchTopic);
+    } catch(e) {}
 }
 
-function disconnectWatch() {
-    watchTopic = '';
-    localStorage.removeItem('patrolWatchTopic');
-    if (watchSSE) { watchSSE.close(); watchSSE = null; }
-    setWatchPillState('off');
+var _wi = document.getElementById('watch-topic-input');
+if (_wi) {
+    _wi.addEventListener('input', function() {
+        updateShortcutUrlDisplay(this.value || 'YOUR-TOPIC');
+    });
 }
 
-// Default topic if none saved
-if (!watchTopic) {
-    watchTopic = 'patrol-xib0nj29';
-    localStorage.setItem('patrolWatchTopic', watchTopic);
-}
-// Auto-connect on load
-startWatchListener(watchTopic);
-
-/* ─────────── INIT ─────────── */
+/* ── INIT ── */
 updateUI(false);
+startWatchPoller(watchTopic);
+
 </script>
 
 </body>
 </html>
+
