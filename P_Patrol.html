@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,10 +6,6 @@
     <title>Patrol Route System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-
-    <!-- Firebase Compat SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
 <style>
     :root {
@@ -1022,7 +1017,6 @@
                         • <b style="color:var(--text);">topic</b> &rarr; <span id="url-topic-part" style="color:var(--blue);">YOUR-TOPIC</span><br>
                         • <b style="color:var(--text);">title</b> &rarr; ✅ Checkpoint Logged<br>
                         • <b style="color:var(--text);">message</b> &rarr; Location saved. Open app to sync.<br>
-                        <i style="color:var(--red); font-size: 11px;">(Do NOT add a 'tags' field here)</i>
                     </div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;">
@@ -1048,6 +1042,7 @@
             <span class="card-title">Patrol Status</span>
             
             <div style="display:flex; align-items:center; gap:12px;">
+                <!-- Gear Icon -->
                 <button onclick="showSettingsModal()" style="background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0.7; transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" title="Location Manager">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -1206,7 +1201,7 @@
 <script>
 /* ── ALL SCRIPT FUNCTIONS ARE NOW IN GLOBAL SCOPE TO FIX MOBILE ERRORS ── */
 
-/* ── 1. STATE & LOCAL STORAGE INIT (Guaranteed to load even if Firebase fails) ── */
+/* ── 1. STATE & LOCAL STORAGE INIT (Ultra Stable Version) ── */
 var ROUTE_POINTS = [
     "BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8",
     "TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1",
@@ -1236,56 +1231,9 @@ try {
     else localStorage.setItem('patrolWatchTopic', watchTopic);
 } catch(e) {}
 
-/* ── 2. FIREBASE SETUP (Wrapped in fail-safe shield) ── */
-var db = null;
-var gpsDocRef = null;
-
-try {
-    var firebaseConfig = {
-      apiKey: "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
-      authDomain: "pccso-7bad0.firebaseapp.com",
-      projectId: "pccso-7bad0",
-      storageBucket: "pccso-7bad0.firebasestorage.app",
-      messagingSenderId: "363298065770",
-      appId: "1:363298065770:web:a66de6aeb5e3902cca6913"
-    };
-
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-    
-    db = firebase.firestore();
-    // Force Long Polling to completely bypass Apple's about:blank iframe blocking!
-    db.settings({ experimentalForceLongPolling: true });
-    
-    gpsDocRef = db.collection('patrol_settings').doc('gps_locations');
-
-    gpsDocRef.get().then(function(doc) {
-        if (doc.exists) {
-            var cloudData = doc.data();
-            if (cloudData) {
-                gpsData = cloudData;
-                localStorage.setItem('patrolGpsData', JSON.stringify(gpsData));
-                var modal = document.getElementById('settings-modal');
-                if (modal && modal.style.display === 'flex') {
-                    renderGpsSettingsList();
-                }
-                updateTarget();
-            }
-        }
-    }).catch(function(error) {
-        console.error("Firebase read blocked by iOS, falling back to local storage.", error);
-    });
-} catch(err) {
-    console.error("Firebase completely failed to start, falling back to local storage.", err);
-}
-
-function syncGpsToFirebase() {
-    if (gpsDocRef) {
-        gpsDocRef.set(gpsData).catch(function(error) {
-            console.error("Firebase sync error: ", error);
-        });
-    }
+// Save function runs completely locally, no external blocking possible
+function saveGpsData() {
+    try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
 }
 
 
@@ -1625,16 +1573,14 @@ function updateSpecificRadius(loc, val) {
     var r = parseInt(val);
     if (!isNaN(r) && r > 0 && gpsData[loc]) {
         gpsData[loc].radius = r;
-        try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
-        syncGpsToFirebase(); // Sync to Cloud
+        saveGpsData();
     }
 }
 
 function clearSpecificGps(loc) {
     if (gpsData[loc]) {
         delete gpsData[loc];
-        try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
-        syncGpsToFirebase(); // Sync to Cloud
+        saveGpsData();
         renderGpsSettingsList();
         updateUI(false); 
     }
@@ -1655,8 +1601,7 @@ function bindSpecificGps(loc, btn) {
                 lng: position.coords.longitude,
                 radius: currentRadius
             };
-            try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
-            syncGpsToFirebase(); // Sync to Cloud
+            saveGpsData();
             renderGpsSettingsList();
             updateUI(false);
         },
@@ -1673,8 +1618,7 @@ function clearAllGpsData() {
     var confirmClear = confirm("Clear ALL mapped locations?");
     if (confirmClear) {
         gpsData = {};
-        try { localStorage.removeItem('patrolGpsData'); } catch(e) {}
-        syncGpsToFirebase(); // Sync to Cloud
+        saveGpsData();
         renderGpsSettingsList();
         updateUI(false); 
     }
@@ -1776,8 +1720,7 @@ function bindGpsToTarget() {
                 lng: position.coords.longitude,
                 radius: currentRadius
             };
-            localStorage.setItem('patrolGpsData', JSON.stringify(gpsData));
-            syncGpsToFirebase(); // Sync to Cloud
+            saveGpsData();
             
             btn.innerHTML = "<span>✅ GPS Bound!</span>";
             btn.style.color = "var(--green)";
@@ -2019,4 +1962,3 @@ startWatchPoller(watchTopic);
 
 </body>
 </html>
-
