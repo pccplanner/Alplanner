@@ -746,7 +746,7 @@
         color: var(--muted);
     }
 
-    /* ── MODAL ── */
+    /* ── MODALS ── */
     .modal-overlay {
         display: none;
         position: fixed; inset: 0; z-index: 200;
@@ -762,7 +762,7 @@
         border: 1px solid var(--border);
         border-radius: 20px;
         padding: 28px;
-        max-width: 360px;
+        max-width: 440px; /* Made slightly wider for lists */
         width: calc(100% - 40px);
         animation: fadeZoom 0.2s ease-out forwards;
     }
@@ -833,6 +833,11 @@
 
     .modal-confirm:hover { opacity: 0.9; }
     .modal-confirm:active { transform: scale(0.97); }
+
+    /* Custom Scrollbar for inner lists */
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
     /* ── CONFETTI CANVAS ── */
     #confetti-canvas {
@@ -918,6 +923,43 @@
     </div>
 </div>
 
+<!-- New Location Manager Modal -->
+
+<div class="modal-overlay" id="settings-modal">
+    <div class="modal-box">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+                <div style="font-family:var(--display);font-size:17px;font-weight:800;">Location Manager</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Manage bindings and radiuses</div>
+            </div>
+        </div>
+        
+        <!-- Headers -->
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
+            <span>Target Name</span>
+            <span style="margin-right:20px;">Radius &amp; Actions</span>
+        </div>
+
+        <!-- Dynamic List Container -->
+        <div id="gps-settings-list" class="custom-scroll" style="max-height: 35vh; overflow-y: auto; padding-right: 4px; margin-bottom: 20px;">
+            <!-- Populated by JS -->
+        </div>
+        
+        <div style="display:flex;gap:10px;margin-bottom:16px;">
+            <button onclick="closeSettingsModal()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Done</button>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); padding-top: 16px;">
+            <button onclick="clearAllGpsData()" style="width:100%;background:rgba(255,68,68,0.1);border:1px dashed rgba(255,68,68,0.4);border-radius:12px;color:var(--red);font-size:12px;font-weight:600;padding:10px;cursor:pointer; transition:all 0.2s;">
+                🗑️ Clear All Saved GPS Maps
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Header -->
 
 <header>
@@ -939,14 +981,14 @@
 
 <div id="watch-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);align-items:center;justify-content:center;">
     <!-- Scrollable container for modal body -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:400px;width:calc(100% - 40px);max-height:85vh;overflow-y:auto;animation:fadeZoom 0.2s ease-out forwards;scrollbar-width:none;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:400px;width:calc(100% - 40px);max-height:85vh;overflow-y:auto;animation:fadeZoom 0.2s ease-out forwards;scrollbar-width:none;" class="custom-scroll">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
             <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
             </div>
             <div>
                 <div style="font-family:var(--display);font-size:17px;font-weight:800;">Apple Watch Setup</div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Background Notification Fix</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Autonomous Tracking Fix</div>
             </div>
         </div>
         <label style="font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Your Unique Topic ID</label>
@@ -957,36 +999,42 @@
         
         <!-- Setup Instructions Section -->
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:20px;margin-bottom:20px;">
-            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">Add a Counter to your Shortcut</div>
-            <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:14px;">Because iOS freezes web apps while the screen is locked, your <b>Apple Shortcut</b> must count to 19 to alert you! Add these blocks:</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:var(--display);">The Bulletproof "JSON" Shortcut</div>
             
             <div style="display:flex;flex-direction:column;gap:12px;">
                 <div style="display:flex;gap:10px;align-items:flex-start;">
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">1</div>
-                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Action: <b>Get File</b><br>Path: <span style="font-family:var(--mono);color:var(--blue);">patrol.txt</span> (Show Picker OFF)</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Change URL to exactly:<br><span style="font-family:var(--mono);font-size:11px;color:var(--blue);word-break:break-all;background:rgba(95,163,255,0.08);padding:4px 6px;border-radius:6px;display:inline-block;margin-top:4px;">https://ntfy.sh/</span></div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;">
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">2</div>
-                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Action: <b>Calculate</b><br>Equation: <span style="font-family:var(--mono);color:var(--blue);">File + 1</span></div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Method: <b style="color:var(--text);">POST</b></div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;">
-                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">3</div>
-                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Action: <b>Save File</b><br>Save <span style="font-family:var(--mono);color:var(--blue);">Calculation Result</span> to <span style="font-family:var(--mono);color:var(--blue);">patrol.txt</span> (Overwrite ON)</div>
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">3</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Request Body: <b style="color:var(--green);">JSON</b></div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;">
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--green);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">4</div>
-                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Action: <b>If</b> Calculation is <b>19</b>:<br>
-                        • <b>Show Notification:</b> 🏁 Route Complete!<br>
-                        • <b>Save File:</b> Text "0" to patrol.txt<br>
-                        <b>Otherwise:</b><br>
-                        • <b>Show Notification:</b> ✅ Logged!
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;">Add 3 Text fields exactly like this:<br><br>
+                        • <b style="color:var(--text);">topic</b> &rarr; <span id="url-topic-part" style="color:var(--blue);">YOUR-TOPIC</span><br>
+                        • <b style="color:var(--text);">title</b> &rarr; ✅ Checkpoint Logged<br>
+                        • <b style="color:var(--text);">message</b> &rarr; Location saved. Open app to sync.<br>
                     </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--amber);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">5</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;">At the very bottom of the shortcut, add a <b>Show Notification</b> action and type: <b style="color:var(--amber);">✅ Logged!</b></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--red);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">!</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;"><b>You do NOT need the ntfy app installed!</b> If you have it, turn off its notifications to avoid duplicate alerts.</div>
                 </div>
             </div>
         </div>
         
         <div style="display:flex;gap:10px;">
-            <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Close</button>
+            <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Cancel</button>
             <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Save ID</button>
         </div>
     </div>
@@ -999,7 +1047,17 @@
     <div class="card">
         <div class="card-header">
             <span class="card-title">Patrol Status</span>
-            <span id="route-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;">IN PROGRESS</span>
+            
+            <div style="display:flex; align-items:center; gap:12px;">
+                <!-- Gear Icon added here -->
+                <button onclick="showSettingsModal()" style="background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0.7; transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" title="Location Manager">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+                <span id="route-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;">IN PROGRESS</span>
+            </div>
         </div>
 
         <!-- System Controls Row -->
@@ -1179,10 +1237,27 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+/* ── SEND WATCH NOTIFICATION FEEDBACK ── */
+function sendWatchFeedback(title, message, isDone) {
+    if (!watchTopic) return;
+    var url = 'https://ntfy.sh/' + watchTopic + '-status';
+    var tags = isDone ? 'checkered_flag,tada' : 'white_check_mark,round_pushpin';
+    fetch(url, {
+        method: 'POST',
+        body: message,
+        headers: {
+            'Title': title,
+            'Tags': tags,
+            'Priority': isDone ? 'high' : 'default'
+        }
+    }).catch(function(e){});
+}
 
 /* ── CLOCK IN ── */
 function clockIn(event, customDate, triggerSource) {
+    var wasFinished = isFinished;
     if (isFinished) return;
+    
     try {
         var btn = document.getElementById('btn-clockin');
         if (btn) {
@@ -1219,7 +1294,12 @@ function clockIn(event, customDate, triggerSource) {
     var isNowFinished = (currentIndex + 1 >= TOTAL);
     if (isNowFinished) { isFinished = true; } else { currentIndex++; }
     
-    // UI update for Watch OR GPS
+    if (triggerSource === "Watch" || (isNowFinished && !wasFinished)) {
+        var title = isNowFinished ? "Route Complete! 🏁" : "Checkpoint Cleared";
+        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged. Open app to Share." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
+        sendWatchFeedback(title, msg, isNowFinished);
+    }
+    
     if (triggerSource) {
         showWatchToast(triggerSource, stamp);
     }
@@ -1301,13 +1381,13 @@ function updateTarget() {
     if (el1) el1.textContent = 'CURRENT TARGET · PT ' + (currentIndex + 1);
     if (el2) el2.textContent = ROUTE_POINTS[currentIndex];
     
-    // Handle GPS Binding UI
+    // Handle GPS Binding UI Main Button
     var bindBtn = document.getElementById('btn-bind-gps');
     if (bindBtn) {
         if (gpsData[ROUTE_POINTS[currentIndex]]) {
-            bindBtn.style.display = 'none'; // Hide if already mapped
+            bindBtn.style.display = 'none';
         } else {
-            bindBtn.style.display = 'flex'; // Show if we need coordinates
+            bindBtn.style.display = 'flex';
         }
     }
     
@@ -1375,7 +1455,6 @@ function shareToWhatsApp() {
     var mm   = padTwo(d.getMonth() + 1);
     var yyyy = d.getFullYear();
     
-    // We use an array instead of physical line breaks so it NEVER breaks when copy-pasting
     var msgLines = [];
     msgLines.push('*Date:* ' + dd + '/' + mm + '/' + yyyy);
     msgLines.push('');
@@ -1397,7 +1476,6 @@ function shareToWhatsApp() {
     msgLines.push('');
     msgLines.push('All in order & S/Normal');
     
-    // Safely joins the array using javascript newline, immune to editor corruption
     var finalString = msgLines.join('\n');
     window.open('https://wa.me/?text=' + encodeURIComponent(finalString), '_blank');
 }
@@ -1417,6 +1495,115 @@ function confirmReset() {
     } catch(e) {}
     cancelReset();
     updateUI(false);
+}
+
+/* ── SETTINGS MODAL (LOCATION MANAGER) ── */
+function renderGpsSettingsList() {
+    var container = document.getElementById('gps-settings-list');
+    if (!container) return;
+    
+    var uniqueLocations = [];
+    for (var i = 0; i < ROUTE_POINTS.length; i++) {
+        if (uniqueLocations.indexOf(ROUTE_POINTS[i]) === -1) {
+            uniqueLocations.push(ROUTE_POINTS[i]);
+        }
+    }
+    
+    var html = '';
+    for (var i = 0; i < uniqueLocations.length; i++) {
+        var loc = uniqueLocations[i];
+        var isBound = !!gpsData[loc];
+        var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 10;
+        
+        var statusHtml = isBound 
+            ? '<span style="color:var(--green);font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Bound</span>' 
+            : '<span style="color:var(--muted);font-size:10px;">Not bound</span>';
+            
+        var btnHtml = isBound
+            ? '<button onclick="clearSpecificGps(\'' + loc + '\')" style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);color:var(--red);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">Clear</button>'
+            : '<button onclick="bindSpecificGps(\'' + loc + '\', this)" style="background:rgba(95,163,255,0.1);border:1px solid rgba(95,163,255,0.3);color:var(--blue);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">Bind</button>';
+
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
+        html += '  <div style="flex:1;">';
+        html += '    <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);">' + loc + '</div>';
+        html += '    <div style="margin-top:4px;">' + statusHtml + '</div>';
+        html += '  </div>';
+        html += '  <div style="display:flex;align-items:center;gap:12px;">';
+        html += '    <div style="display:flex;align-items:center;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:6px;padding:3px 6px;">';
+        html += '      <input type="number" value="' + radius + '" min="1" max="100" onchange="updateSpecificRadius(\'' + loc + '\', this.value)" style="width:34px;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:center;" ' + (isBound ? '' : 'disabled') + '/>';
+        html += '      <span style="color:var(--muted);font-size:10px;font-family:var(--mono);">m</span>';
+        html += '    </div>';
+        html += '    <div style="width:50px;text-align:right;">' + btnHtml + '</div>';
+        html += '  </div>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
+
+function showSettingsModal() {
+    renderGpsSettingsList();
+    var modal = document.getElementById('settings-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeSettingsModal() {
+    var modal = document.getElementById('settings-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function updateSpecificRadius(loc, val) {
+    var r = parseInt(val);
+    if (!isNaN(r) && r > 0 && gpsData[loc]) {
+        gpsData[loc].radius = r;
+        try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+    }
+}
+
+function clearSpecificGps(loc) {
+    if (gpsData[loc]) {
+        delete gpsData[loc];
+        try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+        renderGpsSettingsList();
+        updateUI(false); 
+    }
+}
+
+function bindSpecificGps(loc, btn) {
+    if (!navigator.geolocation) { alert("GPS not supported."); return; }
+    
+    var origText = btn.innerText;
+    btn.innerText = "...";
+    btn.disabled = true;
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            var currentRadius = (gpsData[loc] && gpsData[loc].radius) ? gpsData[loc].radius : 10;
+            gpsData[loc] = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                radius: currentRadius
+            };
+            try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+            renderGpsSettingsList();
+            updateUI(false);
+        },
+        function(error) { 
+            alert("Error: " + error.message); 
+            btn.innerText = origText;
+            btn.disabled = false;
+        },
+        { enableHighAccuracy: true }
+    );
+}
+
+function clearAllGpsData() {
+    var confirmClear = confirm("Clear ALL mapped locations?");
+    if (confirmClear) {
+        gpsData = {};
+        try { localStorage.removeItem('patrolGpsData'); } catch(e) {}
+        renderGpsSettingsList();
+        updateUI(false); 
+    }
 }
 
 /* ── CONFETTI ── */
@@ -1493,7 +1680,7 @@ try {
 } catch(e) {}
 
 function getDistanceInMeters(lat1, lon1, lat2, lon2) {
-    var R = 6371e3; // Earth radius in meters
+    var R = 6371e3; 
     var rad = Math.PI / 180;
     var dLat = (lat2 - lat1) * rad;
     var dLon = (lon2 - lon1) * rad;
@@ -1517,9 +1704,12 @@ function bindGpsToTarget() {
     navigator.geolocation.getCurrentPosition(
         function(position) {
             var targetName = ROUTE_POINTS[currentIndex];
+            var currentRadius = (gpsData[targetName] && gpsData[targetName].radius) ? gpsData[targetName].radius : 10;
+            
             gpsData[targetName] = {
                 lat: position.coords.latitude,
-                lng: position.coords.longitude
+                lng: position.coords.longitude,
+                radius: currentRadius
             };
             localStorage.setItem('patrolGpsData', JSON.stringify(gpsData));
             
@@ -1563,7 +1753,7 @@ function toggleGpsAuto() {
         
         watchPositionId = navigator.geolocation.watchPosition(
             function(position) {
-                // Change UI to Green (Active Tracking)
+                // Change UI to Green
                 dot.style.background = '#3ddc84'; dot.style.boxShadow = '0 0 8px #3ddc84';
                 lbl.style.color = '#3ddc84'; lbl.textContent = 'AUTOPILOT';
                 bar.style.borderColor = 'rgba(61,220,132,0.5)'; bar.style.background = 'rgba(61,220,132,0.07)';
@@ -1574,21 +1764,21 @@ function toggleGpsAuto() {
                 var targetName = ROUTE_POINTS[currentIndex];
                 var targetCoords = gpsData[targetName];
                 
-                // If we have coordinates for this target, check distance
                 if (targetCoords) {
                     var dist = getDistanceInMeters(
                         position.coords.latitude, position.coords.longitude,
                         targetCoords.lat, targetCoords.lng
                     );
                     
-                    // If within 20 meters, automatically clock in
-                    if (dist < 20) {
+                    var targetRadius = targetCoords.radius ? targetCoords.radius : 10;
+                    
+                    if (dist <= targetRadius) {
                         clockIn(null, new Date(), "Auto-GPS");
                     }
                 }
             },
             function(error) {
-                toggleGpsAuto(); // Turn off on error
+                toggleGpsAuto(); 
                 alert("GPS Error: Ensure location services are enabled.");
             },
             { enableHighAccuracy: true, maximumAge: 0 }
@@ -1597,7 +1787,7 @@ function toggleGpsAuto() {
 }
 
 
-/* ── WATCH TRIGGER (Upgraded: Background Catch-up Sync) ── */
+/* ── WATCH TRIGGER ── */
 var watchTopic   = 'patrol-xib0nj29';
 var watchPollInt = null;
 var processedWatchMsgs = [];
@@ -1623,17 +1813,17 @@ function setWatchBarState(state) {
             dot.style.background = '#3ddc84'; dot.style.boxShadow = '0 0 8px #3ddc84';
             dotLbl.style.color = '#3ddc84'; dotLbl.textContent = 'LIVE';
             bar.style.borderColor = 'rgba(61,220,132,0.5)'; bar.style.background = 'rgba(61,220,132,0.07)';
-            svg.style.stroke = '#3ddc84';
+            iconSvg.style.stroke = '#3ddc84';
         } else if (state === 'connecting') {
             dot.style.background = '#ffbb33'; dot.style.boxShadow = '0 0 8px #ffbb33';
             dotLbl.style.color = '#ffbb33'; dotLbl.textContent = 'WAIT';
             bar.style.borderColor = 'rgba(255,187,51,0.5)'; bar.style.background = 'rgba(255,187,51,0.07)';
-            svg.style.stroke = '#ffbb33';
+            iconSvg.style.stroke = '#ffbb33';
         } else {
             dot.style.background = '#b0b5c0'; dot.style.boxShadow = 'none';
             dotLbl.style.color = '#b0b5c0'; dotLbl.textContent = 'OFF';
             bar.style.borderColor = 'var(--border)'; bar.style.background = 'var(--surface)';
-            svg.style.stroke = '#b0b5c0';
+            iconSvg.style.stroke = '#b0b5c0';
         }
     } catch(e) {}
 }
@@ -1642,10 +1832,7 @@ function startWatchPoller(topic) {
     stopWatchPoller();
     if (!topic) { setWatchBarState('off'); return; }
     setWatchBarState('connecting');
-    
-    // Initial fetch looks back just 5 seconds
     lastWatchPollTimeMs = Date.now() - 5000; 
-    
     pollWatch(topic, true);
     watchPollInt = setInterval(function() { pollWatch(topic, false); }, 3000);
 }
@@ -1654,7 +1841,6 @@ function stopWatchPoller() {
     if (watchPollInt) { clearInterval(watchPollInt); watchPollInt = null; }
 }
 
-// Wake up listener to trigger a fetch immediately upon unlocking the phone
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && watchTopic && !isFinished) {
         pollWatch(watchTopic, false);
@@ -1691,13 +1877,10 @@ function pollWatch(topic, isFirst) {
                             
                             if (!isFirst && !isFinished) {
                                 var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
-                                
-                                // Show on-screen toast only if catching up recently
                                 var isCatchupSync = false;
                                 if (msgTimestamp && (Date.now() - msgTimestamp.getTime() > 60000)) {
                                     isCatchupSync = true;
                                 }
-                                
                                 clockIn(null, msgTimestamp, isCatchupSync ? null : "Watch"); 
                             }
                         }
