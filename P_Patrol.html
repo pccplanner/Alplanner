@@ -859,6 +859,18 @@
 
 <canvas id="confetti-canvas"></canvas>
 
+<!-- 100% Completion Banner -->
+
+<div id="complete-banner" style="display:none;position:fixed;inset:0;z-index:250;pointer-events:none;align-items:flex-start;justify-content:center;padding-top:80px;">
+    <div id="complete-banner-box" style="background:linear-gradient(135deg,rgba(61,220,132,0.95),rgba(30,180,100,0.95));border-radius:20px;padding:20px 36px;display:flex;align-items:center;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,0.4);transform:translateY(-80px);opacity:0;transition:transform 0.5s cubic-bezier(0.34,1.4,0.64,1),opacity 0.3s;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div>
+            <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:white;line-height:1;">ROUTE COMPLETE</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;">All 19 checkpoints cleared · 100%</div>
+        </div>
+    </div>
+</div>
+
 <!-- Progress bar (top edge) -->
 
 <div class="progress-bar-track">
@@ -892,16 +904,9 @@
         </div>
         Patrol Route System
     </div>
-    <div style="display:flex;align-items:center;gap:14px;">
-        <div id="watch-status-pill" onclick="showWatchSetup()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;transition:all 0.2s;" title="Apple Watch trigger">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
-            <span id="watch-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background 0.3s;box-shadow:none;"></span>
-            <span id="watch-txt" style="font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;letter-spacing:0.5px;">WATCH OFF</span>
-        </div>
-        <div class="header-clock">
-            <div class="clock-time" id="clock-display">--:--:--</div>
-            <div class="clock-date" id="date-display">Loading...</div>
-        </div>
+    <div class="header-clock">
+        <div class="clock-time" id="clock-display">--:--:--</div>
+        <div class="clock-date" id="date-display">Loading...</div>
     </div>
 </header>
 
@@ -966,6 +971,32 @@
         <div class="card-header">
             <span class="card-title">Patrol Status</span>
             <span id="route-status-badge" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;">IN PROGRESS</span>
+        </div>
+
+        <!-- Watch Status Bar -->
+        <div id="watch-bar" onclick="showWatchSetup()" style="cursor:pointer;margin:14px 20px 0;border-radius:14px;border:1.5px solid var(--border);background:var(--surface);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;transition:border-color 0.3s,background 0.3s;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div id="watch-icon-wrap" style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.3s;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="watch-icon-svg"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
+                </div>
+                <div>
+                    <div id="watch-txt" style="font-family:var(--display);font-size:13px;font-weight:700;color:var(--muted);transition:color 0.3s;">Apple Watch</div>
+                    <div id="watch-sub" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px;transition:color 0.3s;">Not connected — tap to set up</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="watch-dot" style="width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></span>
+                <span id="watch-dot-label" style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.5px;transition:color 0.3s;">OFF</span>
+            </div>
+        </div>
+
+        <!-- Watch Trigger Toast -->
+        <div id="watch-toast" style="display:none;margin:10px 20px 0;border-radius:12px;background:rgba(61,220,132,0.12);border:1.5px solid rgba(61,220,132,0.4);padding:10px 14px;align-items:center;gap:10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3ddc84" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+                <div style="font-family:var(--display);font-size:12px;font-weight:700;color:#3ddc84;">Watch Triggered!</div>
+                <div id="watch-toast-sub" style="font-family:var(--mono);font-size:10px;color:rgba(61,220,132,0.7);margin-top:1px;">—</div>
+            </div>
         </div>
 
         <!-- Progress Ring -->
@@ -1139,7 +1170,9 @@ function updateUI(newEntry) {
         document.getElementById('route-status-badge').textContent = 'COMPLETE';
         document.getElementById('route-status-badge').style.cssText =
             'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
+        document.getElementById('watch-toast').style.display = 'none';
         launchConfetti();
+        showCompleteBanner();
     }
 }
 
@@ -1341,27 +1374,56 @@ var watchTopic = localStorage.getItem('patrolWatchTopic') || '';
 var watchSSE   = null;
 
 function setWatchPillState(state) {
-    var dot = document.getElementById('watch-dot');
-    var txt = document.getElementById('watch-txt');
-    var pill = document.getElementById('watch-status-pill');
+    var dot      = document.getElementById('watch-dot');
+    var dotLbl   = document.getElementById('watch-dot-label');
+    var txt      = document.getElementById('watch-txt');
+    var sub      = document.getElementById('watch-sub');
+    var bar      = document.getElementById('watch-bar');
+    var iconWrap = document.getElementById('watch-icon-wrap');
+    var iconSvg  = document.getElementById('watch-icon-svg');
+
     if (state === 'connected') {
-        dot.style.background = '#3ddc84';
-        dot.style.boxShadow  = '0 0 6px #3ddc84';
-        txt.style.color = '#3ddc84';
-        txt.textContent = 'WATCH ON';
-        pill.style.borderColor = 'rgba(61,220,132,0.4)';
+        dot.style.background      = '#3ddc84';
+        dot.style.boxShadow       = '0 0 8px #3ddc84';
+        dotLbl.style.color        = '#3ddc84';
+        dotLbl.textContent        = 'LIVE';
+        txt.style.color           = '#f2f4f8';
+        txt.textContent           = 'Apple Watch';
+        sub.style.color           = '#3ddc84';
+        sub.textContent           = 'Connected · tap to configure';
+        bar.style.borderColor     = 'rgba(61,220,132,0.5)';
+        bar.style.background      = 'rgba(61,220,132,0.07)';
+        iconWrap.style.background = 'rgba(61,220,132,0.15)';
+        iconWrap.style.borderColor= 'rgba(61,220,132,0.4)';
+        iconSvg.style.stroke      = '#3ddc84';
     } else if (state === 'connecting') {
-        dot.style.background = '#ffbb33';
-        dot.style.boxShadow  = '0 0 6px #ffbb33';
-        txt.style.color = '#ffbb33';
-        txt.textContent = 'CONNECTING';
-        pill.style.borderColor = 'rgba(255,187,51,0.4)';
+        dot.style.background      = '#ffbb33';
+        dot.style.boxShadow       = '0 0 8px #ffbb33';
+        dotLbl.style.color        = '#ffbb33';
+        dotLbl.textContent        = 'WAIT';
+        txt.style.color           = '#f2f4f8';
+        txt.textContent           = 'Apple Watch';
+        sub.style.color           = '#ffbb33';
+        sub.textContent           = 'Connecting to ntfy.sh…';
+        bar.style.borderColor     = 'rgba(255,187,51,0.5)';
+        bar.style.background      = 'rgba(255,187,51,0.07)';
+        iconWrap.style.background = 'rgba(255,187,51,0.15)';
+        iconWrap.style.borderColor= 'rgba(255,187,51,0.4)';
+        iconSvg.style.stroke      = '#ffbb33';
     } else {
-        dot.style.background = 'var(--muted)';
-        dot.style.boxShadow  = 'none';
-        txt.style.color = 'var(--muted)';
-        txt.textContent = 'WATCH OFF';
-        pill.style.borderColor = 'var(--border)';
+        dot.style.background      = 'var(--muted)';
+        dot.style.boxShadow       = 'none';
+        dotLbl.style.color        = 'var(--muted)';
+        dotLbl.textContent        = 'OFF';
+        txt.style.color           = 'var(--muted)';
+        txt.textContent           = 'Apple Watch';
+        sub.style.color           = 'var(--muted)';
+        sub.textContent           = 'Not connected — tap to set up';
+        bar.style.borderColor     = 'var(--border)';
+        bar.style.background      = 'var(--surface)';
+        iconWrap.style.background = 'rgba(255,255,255,0.05)';
+        iconWrap.style.borderColor= 'var(--border)';
+        iconSvg.style.stroke      = 'var(--muted)';
     }
 }
 
@@ -1374,14 +1436,9 @@ function startWatchListener(topic) {
         setWatchPillState('connected');
     };
     watchSSE.onmessage = function(e) {
-        // Any message = clock-in trigger from Watch
         if (!isFinished) {
             clockIn(null);
-            // Flash the pill briefly
-            var dot = document.getElementById('watch-dot');
-            dot.style.background = '#fff';
-            dot.style.boxShadow = '0 0 12px #fff';
-            setTimeout(function() { setWatchPillState('connected'); }, 400);
+            showWatchToast();
         }
     };
     watchSSE.onerror = function() {
@@ -1423,6 +1480,35 @@ document.getElementById('watch-topic-input').addEventListener('input', function(
     updateShortcutUrlDisplay(this.value || 'YOUR-TOPIC');
 });
 
+function showWatchToast() {
+    var toast = document.getElementById('watch-toast');
+    var sub   = document.getElementById('watch-toast-sub');
+    var now   = new Date();
+    var t     = now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    sub.textContent = 'Clocked in at ' + t + ' via Watch';
+    toast.style.display = 'flex';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(function() {
+        toast.style.display = 'none';
+    }, 4000);
+}
+
+function showCompleteBanner() {
+    var wrap = document.getElementById('complete-banner');
+    var box  = document.getElementById('complete-banner-box');
+    wrap.style.display = 'flex';
+    wrap.style.pointerEvents = 'none';
+    setTimeout(function() {
+        box.style.transform = 'translateY(0)';
+        box.style.opacity   = '1';
+    }, 50);
+    setTimeout(function() {
+        box.style.transform = 'translateY(-80px)';
+        box.style.opacity   = '0';
+        setTimeout(function() { wrap.style.display = 'none'; }, 400);
+    }, 3500);
+}
+
 function saveWatchTopic() {
     var input = document.getElementById('watch-topic-input').value.trim();
     if (!input) { alert('Please enter or generate a topic ID.'); return; }
@@ -1439,10 +1525,13 @@ function disconnectWatch() {
     setWatchPillState('off');
 }
 
-// Auto-connect on load if topic saved
-if (watchTopic) {
-    startWatchListener(watchTopic);
+// Default topic if none saved
+if (!watchTopic) {
+    watchTopic = 'patrol-xib0nj29';
+    localStorage.setItem('patrolWatchTopic', watchTopic);
 }
+// Auto-connect on load
+startWatchListener(watchTopic);
 
 /* ─────────── INIT ─────────── */
 updateUI(false);
