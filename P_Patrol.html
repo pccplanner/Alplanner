@@ -7,6 +7,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
+    <!-- Firebase Compat SDKs (Auth module removed to fix iOS Shortcut crashing) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
 <style>
     :root {
         --bg:        #2c2e32;
@@ -987,7 +991,7 @@
             </div>
             <div>
                 <div style="font-family:var(--display);font-size:17px;font-weight:800;">Apple Watch Setup</div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Autonomous Tracking Fix</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Reverted to stable setup</div>
             </div>
         </div>
         <label style="font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Your Unique Topic ID</label>
@@ -1019,6 +1023,7 @@
                         • <b style="color:var(--text);">topic</b> &rarr; <span id="url-topic-part" style="color:var(--blue);">YOUR-TOPIC</span><br>
                         • <b style="color:var(--text);">title</b> &rarr; ✅ Checkpoint Logged<br>
                         • <b style="color:var(--text);">message</b> &rarr; Location saved. Open app to sync.<br>
+                        <i style="color:var(--red); font-size: 11px;">(Do NOT add a 'tags' field here)</i>
                     </div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:flex-start;">
@@ -1207,6 +1212,47 @@
 <script>
 /* ── ALL SCRIPT FUNCTIONS ARE NOW IN GLOBAL SCOPE TO FIX MOBILE ERRORS ── */
 
+/* ── FIREBASE SETUP (Firestore Sync) ── */
+var firebaseConfig = {
+  apiKey: "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
+  authDomain: "pccso-7bad0.firebaseapp.com",
+  projectId: "pccso-7bad0",
+  storageBucket: "pccso-7bad0.firebasestorage.app",
+  messagingSenderId: "363298065770",
+  appId: "1:363298065770:web:a66de6aeb5e3902cca6913",
+  measurementId: "G-7YLKD6QF3Z"
+};
+
+// Initialize Firebase securely (avoiding duplicate init errors)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+var db = firebase.firestore();
+var gpsDocRef = db.collection('patrol_settings').doc('gps_locations');
+
+// Fetch instantly without auth (Auth removed due to iOS about:blank origin issues)
+gpsDocRef.get().then(function(doc) {
+    if (doc.exists) {
+        gpsData = doc.data();
+        localStorage.setItem('patrolGpsData', JSON.stringify(gpsData));
+        
+        var modal = document.getElementById('settings-modal');
+        if (modal && modal.style.display === 'flex') {
+            renderGpsSettingsList();
+        }
+        updateTarget();
+    }
+}).catch(function(error) {
+    console.error("Error fetching GPS data from Firebase:", error);
+});
+
+// Function to upload settings changes to Firebase
+function syncGpsToFirebase() {
+    gpsDocRef.set(gpsData).catch(function(error) {
+        console.error("Firebase sync error: ", error);
+    });
+}
+
 /* ── STATE ── */
 var ROUTE_POINTS = [
     "BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8",
@@ -1384,9 +1430,9 @@ function updateTarget() {
     var bindBtn = document.getElementById('btn-bind-gps');
     if (bindBtn) {
         if (gpsData[ROUTE_POINTS[currentIndex]]) {
-            bindBtn.style.display = 'none';
+            bindBtn.style.display = 'none'; // Hide if already mapped
         } else {
-            bindBtn.style.display = 'flex';
+            bindBtn.style.display = 'flex'; // Show if we need coordinates
         }
     }
     
@@ -1555,6 +1601,7 @@ function updateSpecificRadius(loc, val) {
     if (!isNaN(r) && r > 0 && gpsData[loc]) {
         gpsData[loc].radius = r;
         try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+        syncGpsToFirebase(); // Sync to Cloud
     }
 }
 
@@ -1562,6 +1609,7 @@ function clearSpecificGps(loc) {
     if (gpsData[loc]) {
         delete gpsData[loc];
         try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+        syncGpsToFirebase(); // Sync to Cloud
         renderGpsSettingsList();
         updateUI(false); 
     }
@@ -1583,6 +1631,7 @@ function bindSpecificGps(loc, btn) {
                 radius: currentRadius
             };
             try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
+            syncGpsToFirebase(); // Sync to Cloud
             renderGpsSettingsList();
             updateUI(false);
         },
@@ -1600,6 +1649,7 @@ function clearAllGpsData() {
     if (confirmClear) {
         gpsData = {};
         try { localStorage.removeItem('patrolGpsData'); } catch(e) {}
+        syncGpsToFirebase(); // Sync to Cloud
         renderGpsSettingsList();
         updateUI(false); 
     }
@@ -1671,12 +1721,6 @@ function showCompleteBanner() {
 /* ── GPS GEOFENCING SYSTEM (AUTOPILOT) ── */
 var isGpsActive = false;
 var watchPositionId = null;
-var gpsData = {}; 
-
-try {
-    var _g = localStorage.getItem('patrolGpsData');
-    if (_g) gpsData = JSON.parse(_g);
-} catch(e) {}
 
 function getDistanceInMeters(lat1, lon1, lat2, lon2) {
     var R = 6371e3; 
@@ -1711,6 +1755,7 @@ function bindGpsToTarget() {
                 radius: currentRadius
             };
             localStorage.setItem('patrolGpsData', JSON.stringify(gpsData));
+            syncGpsToFirebase(); // Sync to Cloud
             
             btn.innerHTML = "<span>✅ GPS Bound!</span>";
             btn.style.color = "var(--green)";
