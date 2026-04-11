@@ -958,6 +958,10 @@
                     <div style="min-width:22px;height:22px;border-radius:50%;background:var(--amber);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">5</div>
                     <div style="font-size:12px;color:var(--text);line-height:1.5;">At the very bottom of the shortcut, add a <b>Show Notification</b> action and type: <b style="color:var(--amber);">✅ Logged!</b></div>
                 </div>
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <div style="min-width:22px;height:22px;border-radius:50%;background:var(--red);color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;">!</div>
+                    <div style="font-size:12px;color:var(--text);line-height:1.5;"><b>You do NOT need the ntfy app installed!</b> If you have it, turn off its notifications to avoid duplicate alerts.</div>
+                </div>
             </div>
         </div>
         
@@ -1141,25 +1145,9 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-/* ── SEND WATCH NOTIFICATION FEEDBACK ── */
-function sendWatchFeedback(title, message) {
-    if (!watchTopic) return;
-    
-    // We only send dynamic feedback when app is open and processing live. 
-    var url = 'https://ntfy.sh/' + watchTopic + '-status';
-    fetch(url, {
-        method: 'POST',
-        body: message,
-        headers: {
-            'Title': title,
-            'Tags': 'white_check_mark,round_pushpin',
-            'Priority': 'default'
-        }
-    }).catch(function(e){});
-}
 
 /* ── CLOCK IN ── */
-function clockIn(event, customDate, viaWatch) {
+function clockIn(event, customDate) {
     if (isFinished) return;
     try {
         var btn = document.getElementById('btn-clockin');
@@ -1196,13 +1184,6 @@ function clockIn(event, customDate, viaWatch) {
     
     var isNowFinished = (currentIndex + 1 >= TOTAL);
     if (isNowFinished) { isFinished = true; } else { currentIndex++; }
-    
-    // Send feedback push to output topic if triggered by the watch while app is open
-    if (viaWatch) {
-        var title = isNowFinished ? "Route Complete! ✅" : "Checkpoint Cleared";
-        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
-        sendWatchFeedback(title, msg);
-    }
     
     updateUI(true);
 }
@@ -1554,16 +1535,14 @@ function pollWatch(topic, isFirst) {
                             
                             if (!isFirst && !isFinished) {
                                 var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
+                                clockIn(null, msgTimestamp); 
                                 
-                                // If the message is more than 60 seconds old, it's a catch-up sync from the background. 
-                                // We don't want to buzz the watch again since the shortcut already confirmed it!
+                                // Show on-screen toast only if catching up recently
                                 var isCatchupSync = false;
                                 if (msgTimestamp && (Date.now() - msgTimestamp.getTime() > 60000)) {
                                     isCatchupSync = true;
                                 }
-                                
-                                clockIn(null, msgTimestamp, !isCatchupSync); 
-                                showWatchToast();
+                                if (!isCatchupSync) showWatchToast();
                             }
                         }
                     } catch(pe) {}
