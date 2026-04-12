@@ -1074,6 +1074,8 @@
                         <span id="gps-dot" style="width:6px;height:6px;border-radius:50%;background:var(--muted);transition:all 0.3s;"></span>
                         <span id="gps-dot-label" style="font-family:var(--mono);font-size:10px;color:var(--muted);transition:color 0.3s;">GPS OFF</span>
                     </div>
+                    <!-- New Distance Display Label -->
+                    <div id="gps-distance-info" style="font-family:var(--mono);font-size:9px;color:var(--muted);display:none;margin-top:2px;">--</div>
                 </div>
             </div>
         </div>
@@ -1342,6 +1344,8 @@ function updateUI(newEntry) {
                 'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
             var toast = document.getElementById('watch-toast');
             if (toast) toast.style.display = 'none';
+            var distInfo = document.getElementById('gps-distance-info');
+            if(distInfo) distInfo.style.display = 'none';
         } catch(e) {}
         try { launchConfetti();     } catch(e) {}
         try { showCompleteBanner(); } catch(e) {}
@@ -1531,7 +1535,8 @@ function renderGpsSettingsList() {
     for (var i = 0; i < uniqueLocations.length; i++) {
         var loc = uniqueLocations[i];
         var isBound = !!gpsData[loc];
-        var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 10;
+        // DEFAULTING TO 15 NOW for better reliability
+        var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 15;
         
         var statusHtml = isBound 
             ? '<span style="color:var(--green);font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Bound</span>' 
@@ -1595,7 +1600,7 @@ function bindSpecificGps(loc, btn) {
     
     navigator.geolocation.getCurrentPosition(
         function(position) {
-            var currentRadius = (gpsData[loc] && gpsData[loc].radius) ? gpsData[loc].radius : 10;
+            var currentRadius = (gpsData[loc] && gpsData[loc].radius) ? gpsData[loc].radius : 15;
             gpsData[loc] = {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
@@ -1713,7 +1718,7 @@ function bindGpsToTarget() {
     navigator.geolocation.getCurrentPosition(
         function(position) {
             var targetName = ROUTE_POINTS[currentIndex];
-            var currentRadius = (gpsData[targetName] && gpsData[targetName].radius) ? gpsData[targetName].radius : 10;
+            var currentRadius = (gpsData[targetName] && gpsData[targetName].radius) ? gpsData[targetName].radius : 15;
             
             gpsData[targetName] = {
                 lat: position.coords.latitude,
@@ -1740,6 +1745,7 @@ function toggleGpsAuto() {
     var lbl = document.getElementById('gps-dot-label');
     var svg = document.getElementById('gps-icon-svg');
     var bar = document.getElementById('gps-bar');
+    var distInfo = document.getElementById('gps-distance-info');
     
     if (isGpsActive) {
         // Turn OFF
@@ -1750,6 +1756,7 @@ function toggleGpsAuto() {
         lbl.style.color = 'var(--muted)'; lbl.textContent = 'GPS OFF';
         bar.style.borderColor = 'var(--border)'; bar.style.background = 'var(--surface)';
         svg.style.stroke = 'var(--muted)';
+        if(distInfo) distInfo.style.display = 'none';
     } else {
         // Turn ON
         if (!navigator.geolocation) { alert("GPS not supported."); return; }
@@ -1760,6 +1767,11 @@ function toggleGpsAuto() {
         bar.style.borderColor = 'rgba(255,187,51,0.5)'; bar.style.background = 'rgba(255,187,51,0.07)';
         svg.style.stroke = '#ffbb33';
         
+        if (distInfo) {
+            distInfo.style.display = 'block';
+            distInfo.textContent = 'Searching...';
+        }
+        
         watchPositionId = navigator.geolocation.watchPosition(
             function(position) {
                 // Change UI to Green
@@ -1768,7 +1780,10 @@ function toggleGpsAuto() {
                 bar.style.borderColor = 'rgba(61,220,132,0.5)'; bar.style.background = 'rgba(61,220,132,0.07)';
                 svg.style.stroke = '#3ddc84';
                 
-                if (isFinished) return;
+                if (isFinished) {
+                    if (distInfo) distInfo.style.display = 'none';
+                    return;
+                }
                 
                 var targetName = ROUTE_POINTS[currentIndex];
                 var targetCoords = gpsData[targetName];
@@ -1779,10 +1794,19 @@ function toggleGpsAuto() {
                         targetCoords.lat, targetCoords.lng
                     );
                     
-                    var targetRadius = targetCoords.radius ? targetCoords.radius : 10;
+                    var targetRadius = targetCoords.radius ? targetCoords.radius : 15;
+                    
+                    // Display current distance directly in the UI!
+                    if (distInfo) {
+                        distInfo.textContent = Math.round(dist) + 'm away (Rad: ' + targetRadius + 'm)';
+                    }
                     
                     if (dist <= targetRadius) {
                         clockIn(null, new Date(), "Auto-GPS");
+                    }
+                } else {
+                    if (distInfo) {
+                        distInfo.textContent = 'Target not bound';
                     }
                 }
             },
