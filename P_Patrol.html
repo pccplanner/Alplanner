@@ -972,7 +972,7 @@
         
         <button onclick="fillCurrentGps(this)" style="width:100%; background:rgba(61,220,132,0.1); border:1px dashed rgba(61,220,132,0.4); border-radius:12px; color:var(--green); font-family:var(--sans); font-size:13px; font-weight:600; padding:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px; transition:all 0.2s;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>
-            <span>📍 Get Current Location</span>
+            <span id="btn-fill-gps-text">📍 Get Current Location</span>
         </button>
 
         <div style="display:flex; gap:12px; margin-bottom:20px;">
@@ -1572,7 +1572,8 @@ function renderGpsSettingsList() {
     for (var i = 0; i < uniqueLocations.length; i++) {
         var loc = uniqueLocations[i];
         var isBound = !!gpsData[loc];
-        var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 15;
+        // Bumping default UI radius up slightly to be more forgiving out of the box
+        var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 20;
         
         var latLngStr = isBound ? (gpsData[loc].lat.toFixed(5) + ', ' + gpsData[loc].lng.toFixed(5)) : '';
 
@@ -1592,7 +1593,7 @@ function renderGpsSettingsList() {
         html += '  </div>';
         html += '  <div style="display:flex;align-items:center;gap:8px;">';
         html += '    <div style="display:flex;align-items:center;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:6px;padding:3px 6px;">';
-        html += '      <input type="number" value="' + radius + '" min="1" max="100" onchange="updateSpecificRadius(\'' + loc + '\', this.value)" style="width:30px;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:center;" ' + (isBound ? '' : 'disabled') + '/>';
+        html += '      <input type="number" value="' + radius + '" min="1" max="200" onchange="updateSpecificRadius(\'' + loc + '\', this.value)" style="width:30px;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:center;" ' + (isBound ? '' : 'disabled') + '/>';
         html += '      <span style="color:var(--muted);font-size:10px;font-family:var(--mono);">m</span>';
         html += '    </div>';
         html += '    <div style="text-align:right;">' + btnHtml + '</div>';
@@ -1648,6 +1649,8 @@ function openEditGpsModal(loc) {
     
     var latInput = document.getElementById('edit-gps-lat');
     var lngInput = document.getElementById('edit-gps-lng');
+    var btnText = document.getElementById('btn-fill-gps-text');
+    if (btnText) btnText.innerText = "📍 Get Current Location";
     
     if (gpsData[loc]) {
         latInput.value = gpsData[loc].lat;
@@ -1667,19 +1670,23 @@ function closeEditGpsModal() {
 function fillCurrentGps(btn) {
     if (!navigator.geolocation) { alert("GPS not supported."); return; }
     var origText = btn.innerHTML;
-    btn.innerHTML = "<span>Locating...</span>";
+    var btnText = document.getElementById('btn-fill-gps-text');
+    if(btnText) btnText.innerHTML = "Locating...";
+    
     navigator.geolocation.getCurrentPosition(
         function(position) {
             document.getElementById('edit-gps-lat').value = position.coords.latitude;
             document.getElementById('edit-gps-lng').value = position.coords.longitude;
-            btn.innerHTML = "<span>✅ Location Found!</span>";
-            setTimeout(function() { btn.innerHTML = origText; }, 2000);
+            var accStr = Math.round(position.coords.accuracy);
+            
+            if(btnText) btnText.innerHTML = "✅ Found (Acc: ±" + accStr + "m)";
+            // Don't auto-reset the text so the user can see the accuracy they just polled
         },
         function(error) {
             alert("Error: " + error.message);
-            btn.innerHTML = origText;
+            if(btnText) btnText.innerHTML = "📍 Get Current Location";
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, maximumAge: 0 }
     );
 }
 
@@ -1692,7 +1699,7 @@ function saveEditedGps() {
         return;
     }
     
-    var currentRadius = (gpsData[currentEditLoc] && gpsData[currentEditLoc].radius) ? gpsData[currentEditLoc].radius : 15;
+    var currentRadius = (gpsData[currentEditLoc] && gpsData[currentEditLoc].radius) ? gpsData[currentEditLoc].radius : 20;
     
     gpsData[currentEditLoc] = {
         lat: latVal,
@@ -1775,7 +1782,7 @@ function showCompleteBanner() {
     }, 3500);
 }
 
-/* ── GPS GEOFENCING SYSTEM (AUTOPILOT) ── */
+/* ── GPS GEOFENCING SYSTEM (ADVANCED ADAPTIVE AUTOPILOT) ── */
 function getDistanceInMeters(lat1, lon1, lat2, lon2) {
     var R = 6371e3; 
     var rad = Math.PI / 180;
@@ -1837,19 +1844,30 @@ function toggleGpsAuto() {
                 var targetCoords = gpsData[targetName];
                 
                 if (targetCoords) {
+                    var acc = position.coords.accuracy || 0; // GPS margin of error
                     var dist = getDistanceInMeters(
                         position.coords.latitude, position.coords.longitude,
                         targetCoords.lat, targetCoords.lng
                     );
                     
-                    var targetRadius = targetCoords.radius ? targetCoords.radius : 15;
+                    var baseRadius = targetCoords.radius ? targetCoords.radius : 20;
                     
-                    // Display current distance directly in the UI!
+                    // --- ADVANCED APPROACH: ACCURACY COMPENSATION ---
+                    // If the phone says "I am accurate to 18 meters", a 10m radius will never fire.
+                    // We dynamically expand the target radius by 75% of the accuracy margin 
+                    // to "catch" the phone in a bouncy signal environment.
+                    var effectiveRadius = baseRadius + (acc * 0.75); 
+                    
                     if (distInfo) {
-                        distInfo.textContent = Math.round(dist) + 'm away (Rad: ' + targetRadius + 'm)';
+                        // Let the guard see WHY it's not triggering
+                        distInfo.textContent = Math.round(dist) + 'm away (Acc: ±' + Math.round(acc) + 'm)';
                     }
                     
-                    if (dist <= targetRadius) {
+                    // JUNK FILTER: Ignore wild jumps where accuracy is worse than 100m
+                    if (acc > 100) return; 
+
+                    // TRIGGER: Compare distance against our new, forgiving effective radius
+                    if (dist <= effectiveRadius) {
                         clockIn(null, new Date(), "Auto-GPS");
                     }
                 } else {
