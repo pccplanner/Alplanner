@@ -761,7 +761,7 @@
         border: 1px solid var(--border);
         border-radius: 20px;
         padding: 28px;
-        max-width: 440px; /* Made slightly wider for lists */
+        max-width: 440px; 
         width: calc(100% - 40px);
         animation: fadeZoom 0.2s ease-out forwards;
     }
@@ -953,6 +953,42 @@
             <button onclick="clearAllGpsData()" style="width:100%;background:rgba(255,68,68,0.1);border:1px dashed rgba(255,68,68,0.4);border-radius:12px;color:var(--red);font-size:12px;font-weight:600;padding:10px;cursor:pointer; transition:all 0.2s;">
                 🗑️ Clear All Saved GPS Maps
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Edit GPS Modal (Sits above Location Manager) -->
+<div class="modal-overlay" id="edit-gps-modal" style="z-index: 210;">
+    <div class="modal-box">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+                <div style="font-family:var(--display);font-size:17px;font-weight:800;" id="edit-gps-title">Set GPS</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Manual Entry or Auto-Locate</div>
+            </div>
+        </div>
+        
+        <button onclick="fillCurrentGps(this)" style="width:100%; background:rgba(61,220,132,0.1); border:1px dashed rgba(61,220,132,0.4); border-radius:12px; color:var(--green); font-family:var(--sans); font-size:13px; font-weight:600; padding:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:16px; transition:all 0.2s;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>
+            <span>📍 Get Current Location</span>
+        </button>
+
+        <div style="display:flex; gap:12px; margin-bottom:20px;">
+            <div style="flex:1;">
+                <label style="font-size:10px; font-family:var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:block;">Latitude</label>
+                <input type="number" id="edit-gps-lat" step="any" placeholder="1.234567" style="width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:11px 14px; color:var(--text); font-family:var(--mono); font-size:14px; outline:none;"/>
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px; font-family:var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:block;">Longitude</label>
+                <input type="number" id="edit-gps-lng" step="any" placeholder="103.123456" style="width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:11px 14px; color:var(--text); font-family:var(--mono); font-size:14px; outline:none;"/>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeEditGpsModal()">Cancel</button>
+            <button class="modal-confirm" style="background:var(--blue); box-shadow: 0 4px 16px rgba(95,163,255,0.3);" onclick="saveEditedGps()">Save Map</button>
         </div>
     </div>
 </div>
@@ -1221,6 +1257,7 @@ var watchPositionId = null;
 var watchPollInt = null;
 var processedWatchMsgs = [];
 var lastWatchPollTimeMs = Date.now();
+var currentEditLoc = null; // New state for manual edit
 
 try {
     var _g = localStorage.getItem('patrolGpsData');
@@ -1519,7 +1556,7 @@ function confirmReset() {
     updateUI(false);
 }
 
-/* ── SETTINGS MODAL (LOCATION MANAGER) ── */
+/* ── LOCATION MANAGER (MANUAL EDIT SUPPORT) ── */
 function renderGpsSettingsList() {
     var container = document.getElementById('gps-settings-list');
     if (!container) return;
@@ -1535,28 +1572,30 @@ function renderGpsSettingsList() {
     for (var i = 0; i < uniqueLocations.length; i++) {
         var loc = uniqueLocations[i];
         var isBound = !!gpsData[loc];
-        // DEFAULTING TO 15 NOW for better reliability
         var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 15;
         
+        var latLngStr = isBound ? (gpsData[loc].lat.toFixed(5) + ', ' + gpsData[loc].lng.toFixed(5)) : '';
+
         var statusHtml = isBound 
-            ? '<span style="color:var(--green);font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Bound</span>' 
-            : '<span style="color:var(--muted);font-size:10px;">Not bound</span>';
+            ? '<div style="color:var(--green);font-size:10px;font-weight:700;display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Bound</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">' + latLngStr + '</div>' 
+            : '<div style="color:var(--muted);font-size:10px;">Not bound</div>';
             
         var btnHtml = isBound
-            ? '<button onclick="clearSpecificGps(\'' + loc + '\')" style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);color:var(--red);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">Clear</button>'
-            : '<button onclick="bindSpecificGps(\'' + loc + '\', this)" style="background:rgba(95,163,255,0.1);border:1px solid rgba(95,163,255,0.3);color:var(--blue);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">Bind</button>';
+            ? '<div style="display:flex; gap:4px;"><button onclick="openEditGpsModal(\'' + loc + '\')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">Edit</button>' +
+              '<button onclick="clearSpecificGps(\'' + loc + '\')" style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);color:var(--red);border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">X</button></div>'
+            : '<button onclick="openEditGpsModal(\'' + loc + '\')" style="background:rgba(95,163,255,0.1);border:1px solid rgba(95,163,255,0.3);color:var(--blue);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;">Set GPS</button>';
 
         html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
-        html += '  <div style="flex:1;">';
+        html += '  <div style="flex:1; padding-right:10px;">';
         html += '    <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);">' + loc + '</div>';
         html += '    <div style="margin-top:4px;">' + statusHtml + '</div>';
         html += '  </div>';
-        html += '  <div style="display:flex;align-items:center;gap:12px;">';
+        html += '  <div style="display:flex;align-items:center;gap:8px;">';
         html += '    <div style="display:flex;align-items:center;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:6px;padding:3px 6px;">';
-        html += '      <input type="number" value="' + radius + '" min="1" max="100" onchange="updateSpecificRadius(\'' + loc + '\', this.value)" style="width:34px;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:center;" ' + (isBound ? '' : 'disabled') + '/>';
+        html += '      <input type="number" value="' + radius + '" min="1" max="100" onchange="updateSpecificRadius(\'' + loc + '\', this.value)" style="width:30px;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;text-align:center;" ' + (isBound ? '' : 'disabled') + '/>';
         html += '      <span style="color:var(--muted);font-size:10px;font-family:var(--mono);">m</span>';
         html += '    </div>';
-        html += '    <div style="width:50px;text-align:right;">' + btnHtml + '</div>';
+        html += '    <div style="text-align:right;">' + btnHtml + '</div>';
         html += '  </div>';
         html += '</div>';
     }
@@ -1591,34 +1630,6 @@ function clearSpecificGps(loc) {
     }
 }
 
-function bindSpecificGps(loc, btn) {
-    if (!navigator.geolocation) { alert("GPS not supported."); return; }
-    
-    var origText = btn.innerText;
-    btn.innerText = "...";
-    btn.disabled = true;
-    
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            var currentRadius = (gpsData[loc] && gpsData[loc].radius) ? gpsData[loc].radius : 15;
-            gpsData[loc] = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                radius: currentRadius
-            };
-            saveGpsData();
-            renderGpsSettingsList();
-            updateUI(false);
-        },
-        function(error) { 
-            alert("Error: " + error.message); 
-            btn.innerText = origText;
-            btn.disabled = false;
-        },
-        { enableHighAccuracy: true }
-    );
-}
-
 function clearAllGpsData() {
     var confirmClear = confirm("Clear ALL mapped locations?");
     if (confirmClear) {
@@ -1628,6 +1639,78 @@ function clearAllGpsData() {
         updateUI(false); 
     }
 }
+
+/* ── NEW: MANUAL GPS EDIT MODAL LOGIC ── */
+function openEditGpsModal(loc) {
+    currentEditLoc = loc;
+    var titleEl = document.getElementById('edit-gps-title');
+    if (titleEl) titleEl.textContent = loc;
+    
+    var latInput = document.getElementById('edit-gps-lat');
+    var lngInput = document.getElementById('edit-gps-lng');
+    
+    if (gpsData[loc]) {
+        latInput.value = gpsData[loc].lat;
+        lngInput.value = gpsData[loc].lng;
+    } else {
+        latInput.value = '';
+        lngInput.value = '';
+    }
+    
+    document.getElementById('edit-gps-modal').style.display = 'flex';
+}
+
+function closeEditGpsModal() {
+    document.getElementById('edit-gps-modal').style.display = 'none';
+}
+
+function fillCurrentGps(btn) {
+    if (!navigator.geolocation) { alert("GPS not supported."); return; }
+    var origText = btn.innerHTML;
+    btn.innerHTML = "<span>Locating...</span>";
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            document.getElementById('edit-gps-lat').value = position.coords.latitude;
+            document.getElementById('edit-gps-lng').value = position.coords.longitude;
+            btn.innerHTML = "<span>✅ Location Found!</span>";
+            setTimeout(function() { btn.innerHTML = origText; }, 2000);
+        },
+        function(error) {
+            alert("Error: " + error.message);
+            btn.innerHTML = origText;
+        },
+        { enableHighAccuracy: true }
+    );
+}
+
+function saveEditedGps() {
+    var latVal = parseFloat(document.getElementById('edit-gps-lat').value);
+    var lngVal = parseFloat(document.getElementById('edit-gps-lng').value);
+    
+    if (isNaN(latVal) || isNaN(lngVal)) {
+        alert("Please enter valid numeric coordinates.");
+        return;
+    }
+    
+    var currentRadius = (gpsData[currentEditLoc] && gpsData[currentEditLoc].radius) ? gpsData[currentEditLoc].radius : 15;
+    
+    gpsData[currentEditLoc] = {
+        lat: latVal,
+        lng: lngVal,
+        radius: currentRadius
+    };
+    
+    saveGpsData();
+    closeEditGpsModal();
+    renderGpsSettingsList(); // Update the settings list visually
+    updateUI(false);         // Update main screen (hides bind button if needed)
+}
+
+function bindGpsToTarget() {
+    // Open the manual edit modal for the current target instead of blind binding
+    openEditGpsModal(ROUTE_POINTS[currentIndex]);
+}
+
 
 /* ── CONFETTI ── */
 function launchConfetti() {
@@ -1703,41 +1786,6 @@ function getDistanceInMeters(lat1, lon1, lat2, lon2) {
             Math.sin(dLon/2) * Math.sin(dLon/2);
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
-}
-
-function bindGpsToTarget() {
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-    }
-    
-    var btn = document.getElementById('btn-bind-gps');
-    var originalText = btn.innerHTML;
-    btn.innerHTML = "<span>Mapping coordinates...</span>";
-    
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            var targetName = ROUTE_POINTS[currentIndex];
-            var currentRadius = (gpsData[targetName] && gpsData[targetName].radius) ? gpsData[targetName].radius : 15;
-            
-            gpsData[targetName] = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                radius: currentRadius
-            };
-            saveGpsData();
-            
-            btn.innerHTML = "<span>✅ GPS Bound!</span>";
-            btn.style.color = "var(--green)";
-            btn.style.borderColor = "var(--green)";
-            setTimeout(function() { updateUI(false); }, 1500);
-        },
-        function(error) {
-            alert("Error getting location: " + error.message);
-            btn.innerHTML = originalText;
-        },
-        { enableHighAccuracy: true }
-    );
 }
 
 function toggleGpsAuto() {
