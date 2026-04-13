@@ -708,7 +708,7 @@
     }
 
     .tl-item.skipped-item {
-        opacity: 0.35;
+        opacity: 0.45;
     }
 
     .tl-name {
@@ -1596,7 +1596,6 @@ function renderTimeline(newEntry) {
             
         var nodeInner;
         if (isDone) nodeInner = '<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
-        else if (isSkipped) nodeInner = '<span style="opacity:0.4">-</span>';
         else nodeInner = '<span>' + (i + 1) + '</span>';
         
         var badgeHtml;
@@ -1607,7 +1606,8 @@ function renderTimeline(newEntry) {
         } else if (isCurrent) {
             badgeHtml = '<span class="tl-badge badge-action">NOW</span>';
         } else if (isSkipped) {
-            badgeHtml = '<span class="tl-badge badge-pending" style="opacity:0.4;">SKIPPED</span>';
+            // Replaced 'SKIPPED' with muted '00:00:00'
+            badgeHtml = '<span class="tl-badge badge-time" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--muted);">00:00:00</span>';
         } else {
             badgeHtml = '<span class="tl-badge badge-pending">PT ' + (i + 1) + '</span>';
         }
@@ -1619,11 +1619,9 @@ function renderTimeline(newEntry) {
     list.innerHTML = html;
 }
 
-/* ── WHATSAPP (BULLETPROOF TEXT FORMATTING) ── */
+/* ── WHATSAPP (ALL POINTS INCLUDED WITH 00:00:00 FOR SKIPPED) ── */
 function shareToWhatsApp() {
-    if (!logs.length) return;
-    
-    var d    = logs[0].timestamp;
+    var d = logs.length > 0 ? logs[0].timestamp : new Date();
     var dd   = padTwo(d.getDate());
     var mm   = padTwo(d.getMonth() + 1);
     var yyyy = d.getFullYear();
@@ -1637,17 +1635,36 @@ function shareToWhatsApp() {
         msgLines.push('');
     }
     
-    for (var i = 0; i < logs.length; i++) {
-        var l   = logs[i];
-        var loc = (l.point === 19) ? 'FOYER' : l.location;
-        var lt  = l.timestamp;
-        var t   = padTwo(lt.getHours()) + ':' + padTwo(lt.getMinutes()) + ':' + padTwo(lt.getSeconds());
+    // Loop through ALL 19 points exactly
+    for (var i = 0; i < TOTAL; i++) {
+        var loc = (i === 18) ? 'FOYER' : ROUTE_POINTS[i];
+        var t = "";
         
-        if (l.point === 1)  msgLines.push('1st HALF:');
-        if (l.point === 11) {
-            if(msgLines.length > 2 && startIndex !== 10) msgLines.push('');
+        if (i === 0)  msgLines.push('1st HALF:');
+        if (i === 10) {
+            msgLines.push('');
             msgLines.push('2nd HALF:');
         }
+        
+        if (i < startIndex) {
+            // The location was skipped by starting further down the list
+            t = "00:00:00";
+        } else {
+            // Find if this specific point has been logged yet
+            var logEntry = null;
+            for (var j = 0; j < logs.length; j++) {
+                if (logs[j].point === i + 1) { logEntry = logs[j]; break; }
+            }
+            
+            if (logEntry) {
+                var lt = logEntry.timestamp;
+                t = padTwo(lt.getHours()) + ':' + padTwo(lt.getMinutes()) + ':' + padTwo(lt.getSeconds());
+            } else {
+                // If it hasn't been reached yet (in case they export early)
+                t = "--:--:--";
+            }
+        }
+        
         msgLines.push(loc + ' - ' + t);
     }
     
