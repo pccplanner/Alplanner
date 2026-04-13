@@ -707,6 +707,10 @@
         opacity: 0.45;
     }
 
+    .tl-item.skipped-item {
+        opacity: 0.35;
+    }
+
     .tl-name {
         font-family: var(--display);
         font-size: 15px;
@@ -743,6 +747,35 @@
         background: rgba(90,106,136,0.15);
         border: 1px solid var(--border);
         color: var(--muted);
+    }
+
+    /* ── START OPTION BUTTONS (NEW) ── */
+    .start-opt {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--surface);
+    }
+    .start-opt.active {
+        border-color: var(--blue);
+        background: rgba(45,126,255,0.08);
+        box-shadow: 0 0 0 1px var(--blue);
+    }
+    .opt-title { font-family: var(--display); font-size: 14px; font-weight: 700; color: var(--text); }
+    .opt-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .custom-select {
+        margin-top: 10px;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: var(--mono);
+        font-size: 13px;
+        width: 100%;
+        outline: none;
     }
 
     /* ── MODALS ── */
@@ -817,7 +850,7 @@
 
     .modal-confirm {
         flex: 1;
-        background: var(--red);
+        background: var(--blue);
         border: none;
         border-radius: 12px;
         color: white;
@@ -826,7 +859,7 @@
         font-weight: 700;
         padding: 13px;
         cursor: pointer;
-        box-shadow: 0 4px 16px rgba(255,68,68,0.3);
+        box-shadow: 0 4px 16px rgba(95,163,255,0.3);
         transition: opacity 0.15s, transform 0.1s;
     }
 
@@ -895,7 +928,7 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <div>
             <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:white;line-height:1;">ROUTE COMPLETE</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;">All 19 checkpoints cleared · 100%</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;" id="banner-sub-text">All 19 checkpoints cleared · 100%</div>
         </div>
     </div>
 </div>
@@ -906,18 +939,36 @@
     <div class="progress-bar-fill" id="top-progress"></div>
 </div>
 
-<!-- Reset Modal -->
+<!-- Config / Reset Modal (UPDATED) -->
 
 <div class="modal-overlay" id="reset-modal">
-    <div class="modal-box">
-        <div class="modal-icon">
-            <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div class="modal-box" style="max-height: 85vh; overflow-y: auto;">
+        <div class="modal-icon" style="background:rgba(95,163,255,0.12);">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke="var(--blue)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
-        <div class="modal-title">Reset Route?</div>
-        <div class="modal-body">All current logs will be permanently lost and cannot be recovered.</div>
+        <div class="modal-title">Route Settings</div>
+        <div class="modal-body" style="margin-bottom:16px;">Select where to start your patrol. <b style="color:var(--red);">This will clear all current logs.</b></div>
+        
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:24px;" id="start-opt-container">
+            <div class="start-opt active" id="opt-0" onclick="selectStartOpt(0)">
+                <div class="opt-title">1st Half (Default)</div>
+                <div class="opt-sub">Full Route · Starts at Pt 1</div>
+            </div>
+            <div class="start-opt" id="opt-10" onclick="selectStartOpt(10)">
+                <div class="opt-title">2nd Half Only</div>
+                <div class="opt-sub">Half Route · Starts at Pt 11</div>
+            </div>
+            <div class="start-opt" id="opt-custom" onclick="selectStartOpt('custom')">
+                <div class="opt-title">Custom Start Point</div>
+                <select id="custom-start-select" class="custom-select" onchange="selectStartOpt('custom')">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+        </div>
+
         <div class="modal-actions">
             <button class="modal-cancel" onclick="cancelReset()">Cancel</button>
-            <button class="modal-confirm" onclick="confirmReset()">Yes, Reset</button>
+            <button class="modal-confirm" onclick="confirmReset()">Start Route</button>
         </div>
     </div>
 </div>
@@ -1194,7 +1245,7 @@
                 </svg>
             </div>
             <div class="complete-title">Route Complete!</div>
-            <div class="complete-sub">All 19 checkpoints logged.</div>
+            <div class="complete-sub" id="complete-sub-text">All checkpoints logged.</div>
             <div style="width:100%;padding:0 22px 8px;">
                 <button class="btn-wa" onclick="shareToWhatsApp()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.552 4.1 1.516 5.82L0 24l6.335-1.652A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.814 9.814 0 0 1-5.003-1.368l-.36-.213-3.757.979.999-3.648-.235-.374A9.818 9.818 0 0 1 2.182 12C2.182 6.579 6.579 2.182 12 2.182S21.818 6.579 21.818 12 17.421 21.818 12 21.818z"/></svg>
@@ -1204,7 +1255,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
                     </svg>
-                    Reset Route
+                    Setup / Reset Route
                 </button>
             </div>
         </div>
@@ -1215,7 +1266,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
                 </svg>
-                Reset Route
+                Setup / Reset Route
             </button>
         </div>
     </div>
@@ -1246,6 +1297,7 @@ var ROUTE_POINTS = [
     "OC DR","TG","BME"
 ];
 var TOTAL        = ROUTE_POINTS.length;
+var startIndex   = 0;
 var currentIndex = 0;
 var logs         = [];
 var isFinished   = false;
@@ -1257,8 +1309,9 @@ var watchPositionId = null;
 var watchPollInt = null;
 var processedWatchMsgs = [];
 var lastWatchPollTimeMs = Date.now();
-var currentEditLoc = null; // New state for manual edit
+var currentEditLoc = null; 
 
+// Load Base Settings
 try {
     var _g = localStorage.getItem('patrolGpsData');
     if (_g) gpsData = JSON.parse(_g);
@@ -1270,11 +1323,38 @@ try {
     else localStorage.setItem('patrolWatchTopic', watchTopic);
 } catch(e) {}
 
-// Save function runs completely locally, no external blocking possible
+// Load Session State (Persistence)
+try {
+    var _si = localStorage.getItem('patrolStartIndex');
+    if (_si) startIndex = parseInt(_si, 10);
+    
+    var _ci = localStorage.getItem('patrolCurrentIndex');
+    if (_ci) currentIndex = parseInt(_ci, 10);
+    else currentIndex = startIndex;
+    
+    var _logs = localStorage.getItem('patrolLogs');
+    if (_logs) {
+        logs = JSON.parse(_logs);
+        // rehydrate date objects
+        for(var i=0; i<logs.length; i++) logs[i].timestamp = new Date(logs[i].timestamp);
+    }
+    
+    var _fin = localStorage.getItem('patrolIsFinished');
+    if (_fin === 'true') isFinished = true;
+} catch(e) {}
+
 function saveGpsData() {
     try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
 }
 
+function saveRouteState() {
+    try {
+        localStorage.setItem('patrolStartIndex', startIndex);
+        localStorage.setItem('patrolCurrentIndex', currentIndex);
+        localStorage.setItem('patrolLogs', JSON.stringify(logs));
+        localStorage.setItem('patrolIsFinished', isFinished);
+    } catch(e) {}
+}
 
 /* ── CLOCK ── */
 var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1351,9 +1431,11 @@ function clockIn(event, customDate, triggerSource) {
     var isNowFinished = (currentIndex + 1 >= TOTAL);
     if (isNowFinished) { isFinished = true; } else { currentIndex++; }
     
+    saveRouteState(); // Persistent Memory Save
+    
     if (triggerSource === "Watch" || (isNowFinished && !wasFinished)) {
         var title = isNowFinished ? "Route Complete! 🏁" : "Checkpoint Cleared";
-        var msg = isNowFinished ? "All " + TOTAL + " checkpoints logged. Open app to Share." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
+        var msg = isNowFinished ? "All checkpoints logged. Open app to Share." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
         sendWatchFeedback(title, msg, isNowFinished);
     }
     
@@ -1372,6 +1454,7 @@ function updateUI(newEntry) {
     try { renderTimeline(newEntry); } catch(e) {}
     try { updateTopBar();        } catch(e) {}
     if (isFinished) {
+        var activeTotal = TOTAL - startIndex;
         try {
             document.getElementById('active-view').style.display    = 'none';
             document.getElementById('reset-btn-area').style.display = 'none';
@@ -1379,6 +1462,13 @@ function updateUI(newEntry) {
             document.getElementById('route-status-badge').textContent = 'COMPLETE';
             document.getElementById('route-status-badge').style.cssText =
                 'font-family:var(--mono);font-size:11px;color:var(--green);background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.25);padding:4px 10px;border-radius:20px;';
+            
+            var subText = document.getElementById('complete-sub-text');
+            if(subText) subText.textContent = "All " + activeTotal + " active checkpoints logged.";
+            
+            var bannerText = document.getElementById('banner-sub-text');
+            if(bannerText) bannerText.textContent = "All " + activeTotal + " checkpoints cleared · 100%";
+                
             var toast = document.getElementById('watch-toast');
             if (toast) toast.style.display = 'none';
             var distInfo = document.getElementById('gps-distance-info');
@@ -1391,7 +1481,9 @@ function updateUI(newEntry) {
 
 /* ── PROGRESS RING ── */
 function updateProgressRing() {
-    var pct  = logs.length / TOTAL;
+    var activeTotal = TOTAL - startIndex;
+    var pct  = logs.length / activeTotal;
+    if (activeTotal === 0) pct = 1;
     var circ = 2 * Math.PI * 52;
     var el   = document.getElementById('ring-fill');
     if (el) { el.style.strokeDashoffset = circ * (1 - pct); el.style.strokeDasharray = circ; }
@@ -1401,14 +1493,16 @@ function updateProgressRing() {
 
 /* ── TOP BAR ── */
 function updateTopBar() {
+    var activeTotal = TOTAL - startIndex;
     var el = document.getElementById('top-progress');
-    if (el) el.style.width = (logs.length / TOTAL * 100) + '%';
+    if (el) el.style.width = (logs.length / activeTotal * 100) + '%';
 }
 
 /* ── STATS ── */
 function updateStats(animate) {
+    var activeTotal = TOTAL - startIndex;
     var cleared   = logs.length;
-    var remaining = TOTAL - cleared;
+    var remaining = TOTAL - currentIndex;
     var cEl = document.getElementById('stat-cleared-num');
     var rEl = document.getElementById('stat-remain-num');
     if (animate && cEl && rEl) {
@@ -1429,7 +1523,7 @@ function updateStats(animate) {
     if (cEl) cEl.textContent = cleared;
     if (rEl) rEl.textContent = remaining;
     var tp = document.getElementById('tl-progress-label');
-    if (tp) tp.textContent = cleared + ' / ' + TOTAL;
+    if (tp) tp.textContent = cleared + ' / ' + activeTotal;
 }
 
 /* ── TARGET PANEL ── */
@@ -1453,11 +1547,19 @@ function updateTarget() {
     var crumb = document.getElementById('direction-crumbs');
     if (!crumb) return;
     var html = '';
-    if (currentIndex > 0) {
+    
+    // Previous Point
+    if (currentIndex > startIndex) {
         html += '<span class="crumb-done">' + ROUTE_POINTS[currentIndex - 1] + '</span>';
         html += '<span class="crumb-arrow">&rsaquo;</span>';
+    } else if (startIndex > 0) {
+        // If we are at the very beginning of a custom start
+        html += '<span class="crumb-done" style="opacity:0.4;">[Started at Pt ' + (startIndex+1) + ']</span>';
+        html += '<span class="crumb-arrow">&rsaquo;</span>';
     }
+    
     html += '<span class="crumb-current">' + ROUTE_POINTS[currentIndex] + '</span>';
+    
     if (currentIndex < TOTAL - 1) {
         html += '<span class="crumb-arrow">&rsaquo;</span>';
         html += '<span class="crumb-next">' + ROUTE_POINTS[currentIndex + 1] + '</span>';
@@ -1472,21 +1574,31 @@ function renderTimeline(newEntry) {
     var html = '';
     for (var i = 0; i < ROUTE_POINTS.length; i++) {
         var loc       = ROUTE_POINTS[i];
-        var isDone    = (i < logs.length);
+        
+        var isSkipped = (i < startIndex);
         var isCurrent = (i === currentIndex) && !isFinished;
+        
+        var isDone = false;
         var logEntry  = null;
-        for (var j = 0; j < logs.length; j++) {
-            if (logs[j].point === i + 1) { logEntry = logs[j]; break; }
+        if (!isSkipped) {
+            for (var j = 0; j < logs.length; j++) {
+                if (logs[j].point === i + 1) { logEntry = logs[j]; isDone = true; break; }
+            }
         }
-        var nodeClass = isDone ? 'done' : (isCurrent ? 'current' : 'pending');
-        var nodeInner = isDone
-            ? '<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
-            : '<span>' + (i + 1) + '</span>';
+        
+        var nodeClass = isSkipped ? 'pending' : (isDone ? 'done' : (isCurrent ? 'current' : 'pending'));
         var itemClass = 'tl-item'
+            + (isSkipped ? ' skipped-item' : '')
             + (isDone    ? ' done-item'    : '')
             + (isCurrent ? ' current-item' : '')
-            + (!isDone && !isCurrent ? ' pending-item' : '')
-            + (newEntry && i === currentIndex - 1 ? ' flash-green' : '');
+            + (!isSkipped && !isDone && !isCurrent ? ' pending-item' : '')
+            + (newEntry && i === currentIndex - 1 && !isSkipped ? ' flash-green' : '');
+            
+        var nodeInner;
+        if (isDone) nodeInner = '<svg class="check-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+        else if (isSkipped) nodeInner = '<span style="opacity:0.4">-</span>';
+        else nodeInner = '<span>' + (i + 1) + '</span>';
+        
         var badgeHtml;
         if (isDone && logEntry) {
             var lts = logEntry.timestamp;
@@ -1494,12 +1606,14 @@ function renderTimeline(newEntry) {
             badgeHtml = '<span class="tl-badge badge-time">' + t + '</span>';
         } else if (isCurrent) {
             badgeHtml = '<span class="tl-badge badge-action">NOW</span>';
+        } else if (isSkipped) {
+            badgeHtml = '<span class="tl-badge badge-pending" style="opacity:0.4;">SKIPPED</span>';
         } else {
             badgeHtml = '<span class="tl-badge badge-pending">PT ' + (i + 1) + '</span>';
         }
         html += '<div class="' + itemClass + '" id="tl-' + i + '">'
             + '<div class="tl-node ' + nodeClass + '">' + nodeInner + '</div>'
-            + '<div class="tl-body"><span class="' + (isDone ? 'tl-name strikethrough' : 'tl-name') + '">' + loc + '</span>' + badgeHtml + '</div>'
+            + '<div class="tl-body"><span class="' + (isDone || isSkipped ? 'tl-name strikethrough' : 'tl-name') + '">' + loc + '</span>' + badgeHtml + '</div>'
             + '</div>';
     }
     list.innerHTML = html;
@@ -1518,6 +1632,11 @@ function shareToWhatsApp() {
     msgLines.push('*Date:* ' + dd + '/' + mm + '/' + yyyy);
     msgLines.push('');
     
+    if (startIndex > 0 && startIndex !== 10) {
+        msgLines.push('(Route started from Point ' + (startIndex + 1) + ')');
+        msgLines.push('');
+    }
+    
     for (var i = 0; i < logs.length; i++) {
         var l   = logs[i];
         var loc = (l.point === 19) ? 'FOYER' : l.location;
@@ -1526,7 +1645,7 @@ function shareToWhatsApp() {
         
         if (l.point === 1)  msgLines.push('1st HALF:');
         if (l.point === 11) {
-            msgLines.push('');
+            if(msgLines.length > 2 && startIndex !== 10) msgLines.push('');
             msgLines.push('2nd HALF:');
         }
         msgLines.push(loc + ' - ' + t);
@@ -1539,11 +1658,59 @@ function shareToWhatsApp() {
     window.open('https://wa.me/?text=' + encodeURIComponent(finalString), '_blank');
 }
 
-/* ── RESET MODAL ── */
-function showResetModal() { document.getElementById('reset-modal').classList.add('show'); }
-function cancelReset()    { document.getElementById('reset-modal').classList.remove('show'); }
+/* ── RESET / ROUTE START CONFIGURATION (NEW) ── */
+var selectedStartIdx = 0;
+
+function showResetModal() {
+    // Populate custom dropdown
+    var select = document.getElementById('custom-start-select');
+    var html = '';
+    for (var i=0; i<ROUTE_POINTS.length; i++) {
+        html += '<option value="'+i+'">Pt '+(i+1)+': '+ROUTE_POINTS[i]+'</option>';
+    }
+    if (select) select.innerHTML = html;
+    
+    selectedStartIdx = startIndex;
+    
+    if (selectedStartIdx !== 0 && selectedStartIdx !== 10) {
+        if(select) select.value = selectedStartIdx;
+        selectStartOpt('custom');
+    } else {
+        selectStartOpt(selectedStartIdx);
+    }
+    
+    document.getElementById('reset-modal').classList.add('show');
+}
+
+function cancelReset() { 
+    document.getElementById('reset-modal').classList.remove('show'); 
+}
+
+function selectStartOpt(val) {
+    selectedStartIdx = val;
+    document.getElementById('opt-0').classList.remove('active');
+    document.getElementById('opt-10').classList.remove('active');
+    document.getElementById('opt-custom').classList.remove('active');
+    
+    if (val === 0) document.getElementById('opt-0').classList.add('active');
+    else if (val === 10) document.getElementById('opt-10').classList.add('active');
+    else document.getElementById('opt-custom').classList.add('active');
+}
+
 function confirmReset() {
-    currentIndex = 0; logs = []; isFinished = false;
+    if (selectedStartIdx === 'custom') {
+        var select = document.getElementById('custom-start-select');
+        startIndex = parseInt(select.value, 10);
+    } else {
+        startIndex = parseInt(selectedStartIdx, 10);
+    }
+    
+    currentIndex = startIndex; 
+    logs = []; 
+    isFinished = false;
+    
+    saveRouteState();
+    
     try {
         document.getElementById('active-view').style.display    = '';
         document.getElementById('reset-btn-area').style.display = '';
@@ -1572,7 +1739,6 @@ function renderGpsSettingsList() {
     for (var i = 0; i < uniqueLocations.length; i++) {
         var loc = uniqueLocations[i];
         var isBound = !!gpsData[loc];
-        // Bumping default UI radius up slightly to be more forgiving out of the box
         var radius = isBound && gpsData[loc].radius ? gpsData[loc].radius : 20;
         
         var latLngStr = isBound ? (gpsData[loc].lat.toFixed(5) + ', ' + gpsData[loc].lng.toFixed(5)) : '';
