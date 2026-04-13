@@ -708,7 +708,7 @@
     }
 
     .tl-item.skipped-item {
-        opacity: 0.45;
+        opacity: 0.35;
     }
 
     .tl-name {
@@ -1299,6 +1299,7 @@ var ROUTE_POINTS = [
 var TOTAL        = ROUTE_POINTS.length;
 var startIndex   = 0;
 var currentIndex = 0;
+var startMode    = 'default'; // 'default', 'second_half', 'custom'
 var logs         = [];
 var isFinished   = false;
 
@@ -1325,6 +1326,9 @@ try {
 
 // Load Session State (Persistence)
 try {
+    var _smode = localStorage.getItem('patrolStartMode');
+    if (_smode) startMode = _smode;
+
     var _si = localStorage.getItem('patrolStartIndex');
     if (_si) startIndex = parseInt(_si, 10);
     
@@ -1349,6 +1353,7 @@ function saveGpsData() {
 
 function saveRouteState() {
     try {
+        localStorage.setItem('patrolStartMode', startMode);
         localStorage.setItem('patrolStartIndex', startIndex);
         localStorage.setItem('patrolCurrentIndex', currentIndex);
         localStorage.setItem('patrolLogs', JSON.stringify(logs));
@@ -1606,11 +1611,17 @@ function renderTimeline(newEntry) {
         } else if (isCurrent) {
             badgeHtml = '<span class="tl-badge badge-action">NOW</span>';
         } else if (isSkipped) {
-            // Replaced 'SKIPPED' with muted '00:00:00'
-            badgeHtml = '<span class="tl-badge badge-time" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--muted);">00:00:00</span>';
+            if (startMode === 'custom') {
+                // Custom Start -> Requires explicit 00:00:00
+                badgeHtml = '<span class="tl-badge badge-time" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--muted);">00:00:00</span>';
+            } else {
+                // 2nd Half preset -> Just mark skipped
+                badgeHtml = '<span class="tl-badge badge-pending" style="opacity:0.4;">SKIPPED</span>';
+            }
         } else {
             badgeHtml = '<span class="tl-badge badge-pending">PT ' + (i + 1) + '</span>';
         }
+        
         html += '<div class="' + itemClass + '" id="tl-' + i + '">'
             + '<div class="tl-node ' + nodeClass + '">' + nodeInner + '</div>'
             + '<div class="tl-body"><span class="' + (isDone || isSkipped ? 'tl-name strikethrough' : 'tl-name') + '">' + loc + '</span>' + badgeHtml + '</div>'
@@ -1619,7 +1630,7 @@ function renderTimeline(newEntry) {
     list.innerHTML = html;
 }
 
-/* ── WHATSAPP (ALL POINTS INCLUDED WITH 00:00:00 FOR SKIPPED) ── */
+/* ── WHATSAPP (DYNAMIC EXPORT LOGIC) ── */
 function shareToWhatsApp() {
     var d = logs.length > 0 ? logs[0].timestamp : new Date();
     var dd   = padTwo(d.getDate());
@@ -1630,27 +1641,36 @@ function shareToWhatsApp() {
     msgLines.push('*Date:* ' + dd + '/' + mm + '/' + yyyy);
     msgLines.push('');
     
-    if (startIndex > 0 && startIndex !== 10) {
+    if (startMode === 'custom' && startIndex > 0) {
         msgLines.push('(Route started from Point ' + (startIndex + 1) + ')');
         msgLines.push('');
     }
     
-    // Loop through ALL 19 points exactly
-    for (var i = 0; i < TOTAL; i++) {
+    // Determine where our string building actually loops
+    // If it's strictly "2nd Half", we skip printing checkpoints 0 through 9 entirely
+    var loopStart = (startMode === 'second_half') ? 10 : 0;
+    
+    for (var i = loopStart; i < TOTAL; i++) {
         var loc = (i === 18) ? 'FOYER' : ROUTE_POINTS[i];
         var t = "";
         
-        if (i === 0)  msgLines.push('1st HALF:');
+        // Print Header 1
+        if (i === 0) {
+            msgLines.push('1st HALF:');
+        }
+        
+        // Print Header 2
         if (i === 10) {
-            msgLines.push('');
+            if (startMode !== 'second_half' && msgLines.length > 2) {
+                msgLines.push(''); // spacing if 1st half exists
+            }
             msgLines.push('2nd HALF:');
         }
         
+        // Determine Timestamp string
         if (i < startIndex) {
-            // The location was skipped by starting further down the list
-            t = "00:00:00";
+            t = "00:00:00"; // Only happens if custom start was used
         } else {
-            // Find if this specific point has been logged yet
             var logEntry = null;
             for (var j = 0; j < logs.length; j++) {
                 if (logs[j].point === i + 1) { logEntry = logs[j]; break; }
@@ -1660,7 +1680,6 @@ function shareToWhatsApp() {
                 var lt = logEntry.timestamp;
                 t = padTwo(lt.getHours()) + ':' + padTwo(lt.getMinutes()) + ':' + padTwo(lt.getSeconds());
             } else {
-                // If it hasn't been reached yet (in case they export early)
                 t = "--:--:--";
             }
         }
@@ -1687,13 +1706,16 @@ function showResetModal() {
     }
     if (select) select.innerHTML = html;
     
+    // Default selection to current start point
     selectedStartIdx = startIndex;
     
-    if (selectedStartIdx !== 0 && selectedStartIdx !== 10) {
+    if (startMode === 'custom') {
         if(select) select.value = selectedStartIdx;
         selectStartOpt('custom');
+    } else if (startMode === 'second_half') {
+        selectStartOpt(10);
     } else {
-        selectStartOpt(selectedStartIdx);
+        selectStartOpt(0);
     }
     
     document.getElementById('reset-modal').classList.add('show');
@@ -1718,8 +1740,10 @@ function confirmReset() {
     if (selectedStartIdx === 'custom') {
         var select = document.getElementById('custom-start-select');
         startIndex = parseInt(select.value, 10);
+        startMode = 'custom';
     } else {
         startIndex = parseInt(selectedStartIdx, 10);
+        startMode = (startIndex === 10) ? 'second_half' : 'default';
     }
     
     currentIndex = startIndex; 
