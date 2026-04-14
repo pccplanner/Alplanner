@@ -237,45 +237,90 @@
             }
         }
 
-        // TRUE SYNC: FETCH THE EXACT STATE DIRECTLY FROM THE PHONE
-        function fetchPhoneState() {
+
+        // -----------------------------------------------------
+        // TRUE SYNC: CACHE-BUSTED LIVE SSE RECEIVER
+        // -----------------------------------------------------
+        var watchStateEventSource = null;
+
+        function updateStateFromPhone(s) {
+            if (typeof s.ci !== 'undefined') {
+                if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
+                    currentIndex = s.ci;
+                    startIndex = s.si;
+                    isFinished = s.f;
+                    try { 
+                        localStorage.setItem('wPatrolStart', startIndex); 
+                        localStorage.setItem('wPatrolCurrent', currentIndex); 
+                        localStorage.setItem('wPatrolFinished', isFinished); 
+                    } catch(e){}
+                    renderUI();
+                    
+                    // Show a quick visual indication that sync happened
+                    var sb = document.getElementById('sync-banner');
+                    if(sb) {
+                        sb.innerText = "SYNCED WITH PHONE";
+                        sb.style.color = "#5fa3ff";
+                        sb.style.opacity = "1";
+                        setTimeout(function(){
+                            sb.innerText = "SYNC ACTIVE";
+                            sb.style.color = "#3ddc84";
+                            sb.style.opacity = "0.5";
+                        }, 2000);
+                    }
+                }
+            }
+        }
+
+        function startStateSync() {
+            if (watchStateEventSource) { watchStateEventSource.close(); watchStateEventSource = null; }
             if (!syncTopic) return;
-            fetch('https://ntfy.sh/' + syncTopic.trim() + '-state/json?poll=1&last=1')
+            
+            var topicClean = syncTopic.trim() + '-state';
+            
+            // 1. Initial catch-up with CACHE-BUSTER (Kills Safari Cache bug)
+            var cb = Date.now();
+            fetch('https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + cb, { cache: 'no-store' })
                 .then(function(res){ return res.text(); })
                 .then(function(body){
-                    if (!body) return;
-                    var lines = body.trim().split('\n');
-                    var msg = JSON.parse(lines[lines.length-1]); // grab the latest message
-                    
-                    if (msg && msg.message) {
-                        var s = JSON.parse(msg.message);
-                        if (typeof s.ci !== 'undefined') {
-                            // Update Watch State to match Phone exactly!
-                            currentIndex = s.ci;
-                            startIndex = s.si;
-                            isFinished = s.f;
-                            
-                            try { 
-                                localStorage.setItem('wPatrolStart', startIndex); 
-                                localStorage.setItem('wPatrolCurrent', currentIndex); 
-                                localStorage.setItem('wPatrolFinished', isFinished); 
-                            } catch(e){}
-                            
-                            renderUI();
+                    if (body) {
+                        var lines = body.trim().split('\n');
+                        var validLines = lines.filter(function(l) { return l.length > 0; });
+                        if (validLines.length > 0) {
+                            try {
+                                var msg = JSON.parse(validLines[validLines.length-1]);
+                                if (msg && msg.message) {
+                                    var s = JSON.parse(msg.message);
+                                    updateStateFromPhone(s);
+                                }
+                            } catch(e) {}
                         }
                     }
+                    
+                    // 2. Open Live Connection (SSE) for instant pushes
+                    watchStateEventSource = new EventSource('https://ntfy.sh/' + topicClean + '/sse');
+                    watchStateEventSource.onmessage = function(e) {
+                        try {
+                            var msg = JSON.parse(e.data);
+                            if (msg && msg.event === 'message' && msg.message) {
+                                var s = JSON.parse(msg.message);
+                                updateStateFromPhone(s);
+                            }
+                        } catch(err) {}
+                    };
                 }).catch(function(){});
         }
 
-        // FETCH SYNC ON WAKE / LOAD
-        fetchPhoneState();
-        setInterval(fetchPhoneState, 15000); // Poll every 15s to stay perfect
+        // Initialize sync on load and whenever Watch Screen wakes up
+        startStateSync();
         document.addEventListener("visibilitychange", function() {
-            if (document.visibilityState === 'visible') fetchPhoneState();
+            if (document.visibilityState === 'visible') startStateSync();
         });
 
 
+        // -----------------------------------------------------
         // CLOCK IN LOGIC (CORS BYPASS TO PHONE)
+        // -----------------------------------------------------
         function clockIn() {
             var btn = document.getElementById('btn-log');
             btn.innerText = "SENDING...";
@@ -306,8 +351,6 @@
                     btn.style.background = "#5fa3ff";
                 }, 1500);
 
-                // Check with phone 2 seconds later to verify it was received
-                setTimeout(fetchPhoneState, 2000);
             }).catch(function(err) {
                 btn.innerText = "❌ FAILED";
                 btn.style.background = "#ff453a";
@@ -319,7 +362,9 @@
             });
         }
 
+        // -----------------------------------------------------
         // NAVIGATION & SETTINGS
+        // -----------------------------------------------------
         function showSettings() {
             document.getElementById('topic-input').value = syncTopic;
             document.getElementById('reset-select').value = startIndex;
@@ -348,7 +393,8 @@
                 btn.style.background = "#2c2c2e";
                 btn.style.color = "#fff";
             }, 1000);
-            fetchPhoneState();
+            
+            startStateSync(); // Restart sync to the new topic
         }
 
         // COMMAND PHONE TO RESET
@@ -383,13 +429,16 @@
                     hideSettings();
                 }, 800);
                 
-                // Check back with phone in 2.5 seconds to confirm sync
-                setTimeout(fetchPhoneState, 2500);
             }).catch(function(){
                 btn.innerText = "❌ FAILED";
                 setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
             });
         }
+
+        // INIT
+        renderUI();
     </script>
 </body>
 </html>
+
+
