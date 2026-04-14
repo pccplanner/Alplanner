@@ -1123,7 +1123,7 @@
         
         <div style="display:flex;gap:10px;">
             <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Cancel</button>
-            <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Save ID & Enable</button>
+            <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Save ID</button>
         </div>
     </div>
 </div>
@@ -1449,6 +1449,20 @@ function clockIn(event, customDate, triggerSource) {
     updateUI(true);
 }
 
+/* ── BROADCAST STATE TO WATCH ── */
+var broadcastTimer = null;
+function broadcastStateToWatch() {
+    clearTimeout(broadcastTimer);
+    broadcastTimer = setTimeout(function() {
+        if (!watchTopic) return;
+        var stateObj = { ci: currentIndex, si: startIndex, f: isFinished };
+        fetch('https://ntfy.sh/' + watchTopic + '-state', {
+            method: 'POST',
+            body: JSON.stringify(stateObj)
+        }).catch(function(){});
+    }, 500);
+}
+
 /* ── UPDATE UI ── */
 function updateUI(newEntry) {
     try { updateProgressRing(); } catch(e) {}
@@ -1480,6 +1494,9 @@ function updateUI(newEntry) {
         try { launchConfetti();     } catch(e) {}
         try { showCompleteBanner(); } catch(e) {}
     }
+    
+    // Automatically broadcast our state to the Watch so it stays perfectly synced!
+    broadcastStateToWatch();
 }
 
 /* ── PROGRESS RING ── */
@@ -1888,7 +1905,6 @@ function fillCurrentGps(btn) {
             var accStr = Math.round(position.coords.accuracy);
             
             if(btnText) btnText.innerHTML = "✅ Found (Acc: ±" + accStr + "m)";
-            // Don't auto-reset the text so the user can see the accuracy they just polled
         },
         function(error) {
             alert("Error: " + error.message);
@@ -2060,11 +2076,9 @@ function toggleGpsAuto() {
                     
                     var baseRadius = targetCoords.radius ? targetCoords.radius : 20;
                     
-                    // --- ADVANCED APPROACH: ACCURACY COMPENSATION ---
                     var effectiveRadius = baseRadius + (acc * 0.75); 
                     
                     if (distInfo) {
-                        // Let the guard see WHY it's not triggering
                         distInfo.textContent = Math.round(dist) + 'm away (Acc: ±' + Math.round(acc) + 'm)';
                     }
                     
@@ -2143,7 +2157,7 @@ function toggleWatchAuto() {
 
 // Processes incoming Watch messages reliably
 function handleIncomingWatchMsg(msg) {
-    if (msg && msg.event === 'message' && msg.id) {
+    if (msg && msg.event === 'message' && msg.message) {
         if (processedWatchMsgs.indexOf(msg.id) === -1) {
             processedWatchMsgs.push(msg.id);
             
@@ -2151,10 +2165,44 @@ function handleIncomingWatchMsg(msg) {
             if (processedWatchMsgs.length > 200) processedWatchMsgs.shift();
             saveProcessedMsgs();
             
-            // Only clock in if the message is from the last 24 hours (ignore ancient debug data)
+            var payload;
+            try {
+                payload = JSON.parse(msg.message);
+            } catch(e) {
+                // Fallback for old simple triggers if any
+                if (msg.message.indexOf('trigger') !== -1) {
+                    payload = { trigger: true };
+                }
+            }
+            
+            if (!payload) return;
+
             var msgTimeMs = msg.time ? (msg.time * 1000) : Date.now();
-            if (!isFinished && (Date.now() - msgTimeMs < 86400000)) {
-                clockIn(null, new Date(msgTimeMs), "Watch");
+            
+            if (payload.reset) {
+                // Apple Watch sent a Reset command! Follow it.
+                startIndex = payload.startIdx || 0;
+                startMode = (startIndex === 10) ? 'second_half' : (startIndex > 0 ? 'custom' : 'default');
+                currentIndex = startIndex;
+                logs = [];
+                isFinished = false;
+                saveRouteState();
+                
+                // Fix UI states back to active
+                document.getElementById('active-view').style.display = '';
+                document.getElementById('reset-btn-area').style.display = '';
+                document.getElementById('completed-view').classList.remove('show');
+                document.getElementById('route-status-badge').textContent = 'IN PROGRESS';
+                document.getElementById('route-status-badge').style.cssText =
+                    'font-family:var(--mono);font-size:11px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;';
+                
+                updateUI(false);
+                
+            } else if (payload.trigger) {
+                // Normal Apple Watch Clock In
+                if (!isFinished && (Date.now() - msgTimeMs < 86400000)) {
+                    clockIn(null, new Date(msgTimeMs), "Watch");
+                }
             }
         }
     }
@@ -2168,8 +2216,8 @@ function startWatchPoller(topic) {
     var cleanTopic = topic.trim();
     
     // 1. Fetch catchup (in case phone was asleep and missed a tap)
-    // Looks back 6 hours.
-    var sinceSecs = Math.floor(Date.now() / 1000) - 21600;
+    // Looks back 12 hours.
+    var sinceSecs = Math.floor(Date.now() / 1000) - 43200;
     
     fetch('https://ntfy.sh/' + cleanTopic + '/json?poll=1&since=' + sinceSecs)
         .then(function(res) { return res.text(); })
