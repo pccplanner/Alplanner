@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Watch Patrol</title>
+    <style>
+        /* OLED Optimized Apple Watch Theme */
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px 12px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        /* Views */
+        .view { display: none; flex-direction: column; height: 100%; width: 100%; }
+        .view.active { display: flex; }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .clock { font-size: 16px; font-weight: 700; color: #5fa3ff; }
+        .prog { font-size: 14px; font-weight: 600; color: #8e8e93; }
+        .gear-btn {
+            background: none; border: none; color: #8e8e93; font-size: 18px; padding: 5px; cursor: pointer;
+        }
+
+        /* Target Card */
+        .target-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #1c1c1e;
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 2px solid #2c2c2e;
+            text-align: center;
+        }
+        .target-card.done { background: rgba(61,220,132,0.15); border-color: #3ddc84; }
+
+        .label { font-size: 12px; font-weight: 600; color: #5fa3ff; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+        .target-name { font-size: 32px; font-weight: 800; margin: 0; line-height: 1.1; color: #fff; }
+        .next-target { font-size: 14px; color: #8e8e93; margin-top: 10px; }
+
+        /* Massive Buttons */
+        .btn {
+            background: #5fa3ff;
+            color: #fff;
+            border: none;
+            border-radius: 24px;
+            font-size: 20px;
+            font-weight: 800;
+            padding: 20px 0;
+            width: 100%;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn:active { background: #408bf0; transform: scale(0.96); }
+        
+        .btn-secondary { background: #2c2c2e; color: #fff; font-size: 16px; padding: 16px 0; margin-bottom: 10px; }
+        .btn-danger { background: #ff453a; color: #fff; }
+
+        /* Settings View Elements */
+        .settings-title { font-size: 18px; font-weight: 700; margin-bottom: 15px; text-align: center; }
+        input[type="text"] {
+            width: 100%; box-sizing: border-box; padding: 14px; border-radius: 12px;
+            background: #1c1c1e; border: 1px solid #3a3a3c; color: #fff; font-size: 16px;
+            margin-bottom: 15px; text-align: center;
+        }
+        .scrollable { overflow-y: auto; flex: 1; padding-bottom: 20px; }
+        .scrollable::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. ACTIVE PATROL VIEW -->
+    <div id="view-active" class="view active">
+        <div class="header">
+            <div class="clock" id="clock">00:00</div>
+            <div class="prog" id="prog-text">1/19</div>
+            <button class="gear-btn" onclick="showSettings()">⚙️</button>
+        </div>
+
+        <div class="target-card" id="target-card">
+            <div class="label" id="target-label">Current Target</div>
+            <div class="target-name" id="target-name">BME</div>
+            <div class="next-target" id="next-target">Then: TG/OC DR</div>
+        </div>
+
+        <button class="btn" onclick="clockIn()">LOG NOW</button>
+    </div>
+
+    <!-- 2. SETTINGS VIEW -->
+    <div id="view-settings" class="view">
+        <div class="scrollable">
+            <div class="settings-title">Setup / Sync</div>
+            
+            <div style="font-size: 12px; color: #8e8e93; margin-bottom: 5px; text-align: center;">Phone Topic ID (For Sync)</div>
+            <input type="text" id="topic-input" placeholder="e.g. patrol-abc123" autocorrect="off" autocapitalize="none">
+            
+            <div style="font-size: 12px; color: #8e8e93; margin-bottom: 5px; margin-top: 10px; text-align: center;">Starting Point</div>
+            <button class="btn btn-secondary" onclick="resetRoute(0)">Start 1st Half</button>
+            <button class="btn btn-secondary" onclick="resetRoute(10)">Start 2nd Half</button>
+            
+            <div style="height: 10px;"></div>
+            <button class="btn btn-secondary" onclick="hideSettings()">← Back</button>
+        </div>
+    </div>
+
+    <!-- 3. COMPLETE VIEW -->
+    <div id="view-complete" class="view" style="justify-content: center;">
+        <div class="target-card done">
+            <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+            <div class="target-name">Complete</div>
+            <div class="next-target" style="color:#fff;">Route Finished!</div>
+        </div>
+        <button class="btn btn-secondary" onclick="showSettings()">Reset Route</button>
+    </div>
+
+    <script>
+        // ROUTE DATA
+        var ROUTE_POINTS = ["BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8","TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1","OC DR","TG","BME"];
+        
+        // STATE
+        var currentIndex = 0;
+        var startIndex = 0;
+        var syncTopic = "";
+
+        // LOAD STATE
+        try {
+            var _ci = localStorage.getItem('wPatrolCurrent');
+            if (_ci) currentIndex = parseInt(_ci, 10);
+            
+            var _si = localStorage.getItem('wPatrolStart');
+            if (_si) startIndex = parseInt(_si, 10);
+            
+            var _topic = localStorage.getItem('wPatrolTopic');
+            if (_topic) syncTopic = _topic;
+        } catch(e) {}
+
+        // LIVE CLOCK
+        function updateClock() {
+            var d = new Date();
+            document.getElementById('clock').innerText = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        // UPDATE UI
+        function renderUI() {
+            var totalActive = ROUTE_POINTS.length - startIndex;
+            var cleared = currentIndex - startIndex;
+            
+            if (currentIndex >= ROUTE_POINTS.length) {
+                document.getElementById('view-active').classList.remove('active');
+                document.getElementById('view-settings').classList.remove('active');
+                document.getElementById('view-complete').classList.add('active');
+            } else {
+                document.getElementById('view-complete').classList.remove('active');
+                document.getElementById('view-settings').classList.remove('active');
+                document.getElementById('view-active').classList.add('active');
+                
+                document.getElementById('target-name').innerText = ROUTE_POINTS[currentIndex];
+                document.getElementById('prog-text').innerText = cleared + '/' + totalActive;
+                
+                if (currentIndex + 1 < ROUTE_POINTS.length) {
+                    document.getElementById('next-target').innerText = 'Then: ' + ROUTE_POINTS[currentIndex+1];
+                } else {
+                    document.getElementById('next-target').innerText = 'Final Point!';
+                }
+            }
+        }
+
+        // CLOCK IN LOGIC
+        function clockIn() {
+            // Watch Taptic Feedback
+            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+            
+            // Send sync pulse to Phone App via NTFY
+            if (syncTopic) {
+                fetch('https://ntfy.sh/' + syncTopic, {
+                    method: 'POST',
+                    headers: { 'Title': '✅ Logged from Watch' },
+                    body: '{"event":"message","id":"watch-' + Date.now() + '","time":' + Math.floor(Date.now()/1000) + '}'
+                }).catch(function(){});
+            }
+
+            currentIndex++;
+            try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
+            renderUI();
+        }
+
+        // NAVIGATION & SETTINGS
+        function showSettings() {
+            document.getElementById('topic-input').value = syncTopic;
+            document.getElementById('view-active').classList.remove('active');
+            document.getElementById('view-complete').classList.remove('active');
+            document.getElementById('view-settings').classList.add('active');
+        }
+
+        function hideSettings() {
+            var inputTopic = document.getElementById('topic-input').value.trim();
+            syncTopic = inputTopic;
+            try { localStorage.setItem('wPatrolTopic', syncTopic); } catch(e){}
+            renderUI();
+        }
+
+        function resetRoute(startAt) {
+            if (confirm("Reset and clear logs?")) {
+                startIndex = startAt;
+                currentIndex = startAt;
+                try { 
+                    localStorage.setItem('wPatrolStart', startIndex); 
+                    localStorage.setItem('wPatrolCurrent', currentIndex); 
+                } catch(e){}
+                hideSettings();
+            }
+        }
+
+        // INIT
+        renderUI();
+    </script>
+</body>
+</html>
