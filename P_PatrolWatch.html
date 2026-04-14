@@ -33,7 +33,8 @@
         .clock { font-size: 16px; font-weight: 700; color: #5fa3ff; }
         .prog { font-size: 14px; font-weight: 600; color: #8e8e93; }
         .gear-btn {
-            background: none; border: none; color: #8e8e93; font-size: 18px; padding: 5px; cursor: pointer;
+            background: #1c1c1e; border: 1px solid #3a3a3c; border-radius: 50%; color: #fff; 
+            font-size: 16px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
 
         /* Target Card */
@@ -68,21 +69,40 @@
             width: 100%;
             cursor: pointer;
             text-transform: uppercase;
+            transition: transform 0.1s, background 0.2s;
         }
-        .btn:active { background: #408bf0; transform: scale(0.96); }
+        .btn:active { transform: scale(0.96); }
         
-        .btn-secondary { background: #2c2c2e; color: #fff; font-size: 16px; padding: 16px 0; margin-bottom: 10px; }
-        .btn-danger { background: #ff453a; color: #fff; }
+        .btn-secondary { background: #2c2c2e; color: #fff; font-size: 16px; padding: 16px 0; border-radius: 16px; text-transform: none;}
+        .btn-danger { background: #ff453a; color: #fff; border-radius: 16px; text-transform: none; font-size: 16px;}
+        
+        /* Watch specific Select Input */
+        .watch-select {
+            background: #2c2c2e;
+            color: #fff;
+            border: 1px solid #3a3a3c;
+            border-radius: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 14px 10px;
+            width: 100%;
+            margin-bottom: 10px;
+            text-align: center;
+            appearance: none;
+            -webkit-appearance: none;
+        }
 
         /* Settings View Elements */
         .settings-title { font-size: 18px; font-weight: 700; margin-bottom: 15px; text-align: center; }
         input[type="text"] {
-            width: 100%; box-sizing: border-box; padding: 14px; border-radius: 12px;
+            width: 100%; box-sizing: border-box; padding: 14px; border-radius: 16px;
             background: #1c1c1e; border: 1px solid #3a3a3c; color: #fff; font-size: 16px;
-            margin-bottom: 15px; text-align: center;
+            margin-bottom: 10px; text-align: center;
         }
-        .scrollable { overflow-y: auto; flex: 1; padding-bottom: 20px; }
+        .scrollable { overflow-y: auto; flex: 1; padding-bottom: 30px; }
         .scrollable::-webkit-scrollbar { display: none; }
+        
+        .divider { height: 1px; background: #2c2c2e; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -107,17 +127,25 @@
     <!-- 2. SETTINGS VIEW -->
     <div id="view-settings" class="view">
         <div class="scrollable">
-            <div class="settings-title">Setup / Sync</div>
+            <div class="settings-title">Preferences</div>
             
-            <div style="font-size: 12px; color: #8e8e93; margin-bottom: 5px; text-align: center;">Phone Topic ID (For Sync)</div>
+            <div style="font-size: 12px; color: #8e8e93; margin-bottom: 6px; text-align: center; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Sync Topic ID</div>
             <input type="text" id="topic-input" placeholder="e.g. patrol-abc123" autocorrect="off" autocapitalize="none">
+            <button class="btn btn-secondary" id="btn-save-topic" style="padding: 12px 0; font-size: 14px;" onclick="saveWatchTopic()">Save Topic</button>
             
-            <div style="font-size: 12px; color: #8e8e93; margin-bottom: 5px; margin-top: 10px; text-align: center;">Starting Point</div>
-            <button class="btn btn-secondary" onclick="resetRoute(0)">Start 1st Half</button>
-            <button class="btn btn-secondary" onclick="resetRoute(10)">Start 2nd Half</button>
+            <div class="divider"></div>
             
-            <div style="height: 10px;"></div>
-            <button class="btn btn-secondary" onclick="hideSettings()">← Back</button>
+            <!-- Apple Watch Safe Reset Controls -->
+            <div style="font-size: 12px; color: #ff453a; margin-bottom: 6px; text-align: center; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Reset Patrol Route</div>
+            
+            <select id="reset-select" class="watch-select">
+                <!-- Javascript will inject all options here -->
+            </select>
+            
+            <button class="btn btn-danger" id="btn-reset" style="padding: 14px 0;" onclick="executeReset()">Confirm Reset</button>
+            
+            <div style="height: 25px;"></div>
+            <button class="btn btn-secondary" onclick="hideSettings()">← Back to Patrol</button>
         </div>
     </div>
 
@@ -158,6 +186,20 @@
             document.getElementById('clock').innerText = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
         }
         setInterval(updateClock, 1000); updateClock();
+
+        // INIT SELECT DROPDOWN
+        function initSelect() {
+            var sel = document.getElementById('reset-select');
+            var html = '<option value="0">1st Half (Default)</option>';
+            html += '<option value="10">2nd Half Only</option>';
+            
+            for(var i = 0; i < ROUTE_POINTS.length; i++) {
+                html += '<option value="' + i + '">Custom: Pt ' + (i+1) + ' (' + ROUTE_POINTS[i] + ')</option>';
+            }
+            
+            sel.innerHTML = html;
+        }
+        initSelect();
 
         // UPDATE UI
         function renderUI() {
@@ -206,28 +248,59 @@
         // NAVIGATION & SETTINGS
         function showSettings() {
             document.getElementById('topic-input').value = syncTopic;
+            document.getElementById('reset-select').value = startIndex;
+            
             document.getElementById('view-active').classList.remove('active');
             document.getElementById('view-complete').classList.remove('active');
             document.getElementById('view-settings').classList.add('active');
         }
 
         function hideSettings() {
-            var inputTopic = document.getElementById('topic-input').value.trim();
-            syncTopic = inputTopic;
-            try { localStorage.setItem('wPatrolTopic', syncTopic); } catch(e){}
             renderUI();
         }
 
-        function resetRoute(startAt) {
-            if (confirm("Reset and clear logs?")) {
-                startIndex = startAt;
-                currentIndex = startAt;
-                try { 
-                    localStorage.setItem('wPatrolStart', startIndex); 
-                    localStorage.setItem('wPatrolCurrent', currentIndex); 
-                } catch(e){}
+        // SAFE WATCH SAVING AND RESETTING
+        function saveWatchTopic() {
+            var inputTopic = document.getElementById('topic-input').value.trim();
+            syncTopic = inputTopic;
+            try { localStorage.setItem('wPatrolTopic', syncTopic); } catch(e){}
+            
+            var btn = document.getElementById('btn-save-topic');
+            var oldTxt = btn.innerText;
+            btn.innerText = "✅ Saved";
+            btn.style.background = "rgba(61,220,132,0.2)";
+            btn.style.color = "#3ddc84";
+            
+            setTimeout(function(){
+                btn.innerText = oldTxt;
+                btn.style.background = "#2c2c2e";
+                btn.style.color = "#fff";
+            }, 1000);
+        }
+
+        function executeReset() {
+            var val = document.getElementById('reset-select').value;
+            startIndex = parseInt(val, 10);
+            currentIndex = startIndex;
+            
+            try { 
+                localStorage.setItem('wPatrolStart', startIndex); 
+                localStorage.setItem('wPatrolCurrent', currentIndex); 
+            } catch(e){}
+            
+            var btn = document.getElementById('btn-reset');
+            var oldTxt = btn.innerText;
+            btn.innerText = "✅ Reset Done!";
+            btn.style.background = "#3ddc84";
+            
+            // Taptic feedback
+            if (navigator.vibrate) navigator.vibrate(50);
+
+            setTimeout(function(){
+                btn.innerText = oldTxt;
+                btn.style.background = "#ff453a";
                 hideSettings();
-            }
+            }, 800);
         }
 
         // INIT
