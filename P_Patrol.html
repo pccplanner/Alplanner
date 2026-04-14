@@ -1123,7 +1123,7 @@
         
         <div style="display:flex;gap:10px;">
             <button onclick="closeWatchSetup()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;padding:13px;cursor:pointer;">Cancel</button>
-            <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Save ID</button>
+            <button onclick="saveWatchTopic()" style="flex:1;background:var(--blue);border:none;border-radius:12px;color:white;font-size:14px;font-weight:700;padding:13px;cursor:pointer;box-shadow:0 4px 16px rgba(95,163,255,0.35);">Save ID & Enable</button>
         </div>
     </div>
 </div>
@@ -1320,15 +1320,18 @@ var isWatchActive = true; // Auto-Start
 
 var isGpsActive = false;
 var watchPositionId = null;
-var watchPollInt = null;
+
+// New SSE EventSource for zero-latency watch triggers
+var watchEventSource = null;
 var processedWatchMsgs = [];
-var lastWatchPollTimeMs = Date.now();
-var currentEditLoc = null; 
 
 // Load Base Settings
 try {
     var _g = localStorage.getItem('patrolGpsData');
     if (_g) gpsData = JSON.parse(_g);
+    
+    var _p = localStorage.getItem('patrolProcessedMsgs');
+    if (_p) processedWatchMsgs = JSON.parse(_p);
 } catch(e) {}
 
 try {
@@ -1364,6 +1367,10 @@ function saveGpsData() {
     try { localStorage.setItem('patrolGpsData', JSON.stringify(gpsData)); } catch(e) {}
 }
 
+function saveProcessedMsgs() {
+    try { localStorage.setItem('patrolProcessedMsgs', JSON.stringify(processedWatchMsgs)); } catch(e) {}
+}
+
 function saveRouteState() {
     try {
         localStorage.setItem('patrolStartMode', startMode);
@@ -1391,22 +1398,6 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 updateClock();
-
-/* ── SEND WATCH NOTIFICATION FEEDBACK ── */
-function sendWatchFeedback(title, message, isDone) {
-    if (!watchTopic) return;
-    var url = 'https://ntfy.sh/' + watchTopic + '-status';
-    var tags = isDone ? 'checkered_flag,tada' : 'white_check_mark,round_pushpin';
-    fetch(url, {
-        method: 'POST',
-        body: message,
-        headers: {
-            'Title': title,
-            'Tags': tags,
-            'Priority': isDone ? 'high' : 'default'
-        }
-    }).catch(function(e){});
-}
 
 /* ── CLOCK IN ── */
 function clockIn(event, customDate, triggerSource) {
@@ -1450,12 +1441,6 @@ function clockIn(event, customDate, triggerSource) {
     if (isNowFinished) { isFinished = true; } else { currentIndex++; }
     
     saveRouteState(); // Persistent Memory Save
-    
-    if (triggerSource === "Watch" || (isNowFinished && !wasFinished)) {
-        var title = isNowFinished ? "Route Complete! 🏁" : "Checkpoint Cleared";
-        var msg = isNowFinished ? "All checkpoints logged. Open app to Share." : "📍 Logged: " + justCleared + "\nNext: " + ROUTE_POINTS[currentIndex] + " (" + (currentIndex + 1) + "/" + TOTAL + ")";
-        sendWatchFeedback(title, msg, isNowFinished);
-    }
     
     if (triggerSource) {
         showWatchToast(triggerSource, stamp);
@@ -1903,6 +1888,7 @@ function fillCurrentGps(btn) {
             var accStr = Math.round(position.coords.accuracy);
             
             if(btnText) btnText.innerHTML = "✅ Found (Acc: ±" + accStr + "m)";
+            // Don't auto-reset the text so the user can see the accuracy they just polled
         },
         function(error) {
             alert("Error: " + error.message);
@@ -2074,9 +2060,11 @@ function toggleGpsAuto() {
                     
                     var baseRadius = targetCoords.radius ? targetCoords.radius : 20;
                     
+                    // --- ADVANCED APPROACH: ACCURACY COMPENSATION ---
                     var effectiveRadius = baseRadius + (acc * 0.75); 
                     
                     if (distInfo) {
+                        // Let the guard see WHY it's not triggering
                         distInfo.textContent = Math.round(dist) + 'm away (Acc: ±' + Math.round(acc) + 'm)';
                     }
                     
@@ -2103,7 +2091,7 @@ function toggleGpsAuto() {
 }
 
 
-/* ── WATCH TRIGGER (UPDATED ROBUST TOGGLE & ERROR HANDLING) ── */
+/* ── WATCH TRIGGER (BULLETPROOF SSE & CATCH-UP) ── */
 function setWatchBarState(state) {
     try {
         var dot      = document.getElementById('watch-dot');
@@ -2140,7 +2128,7 @@ function toggleWatchAuto() {
     if (isWatchActive) {
         // Turn OFF manually
         isWatchActive = false;
-        stopWatchPoller();
+        if (watchEventSource) { watchEventSource.close(); watchEventSource = null; }
         setWatchBarState('off');
     } else {
         // Turn ON manually
@@ -2153,76 +2141,81 @@ function toggleWatchAuto() {
     }
 }
 
-function startWatchPoller(topic) {
-    stopWatchPoller();
-    if (!topic) { setWatchBarState('off'); return; }
-    setWatchBarState('connecting');
-    lastWatchPollTimeMs = Date.now() - 5000; 
-    pollWatch(topic, true);
-    watchPollInt = setInterval(function() { pollWatch(topic, false); }, 3000);
-}
-
-function stopWatchPoller() {
-    if (watchPollInt) { clearInterval(watchPollInt); watchPollInt = null; }
-}
-
-document.addEventListener("visibilitychange", function() {
-    if (document.visibilityState === 'visible' && isWatchActive && watchTopic && !isFinished) {
-        pollWatch(watchTopic, false);
+// Processes incoming Watch messages reliably
+function handleIncomingWatchMsg(msg) {
+    if (msg && msg.event === 'message' && msg.id) {
+        if (processedWatchMsgs.indexOf(msg.id) === -1) {
+            processedWatchMsgs.push(msg.id);
+            
+            // Prevent memory leak
+            if (processedWatchMsgs.length > 200) processedWatchMsgs.shift();
+            saveProcessedMsgs();
+            
+            // Only clock in if the message is from the last 24 hours (ignore ancient debug data)
+            var msgTimeMs = msg.time ? (msg.time * 1000) : Date.now();
+            if (!isFinished && (Date.now() - msgTimeMs < 86400000)) {
+                clockIn(null, new Date(msgTimeMs), "Watch");
+            }
+        }
     }
-});
+}
 
-function pollWatch(topic, isFirst) {
-    try {
-        if (!isWatchActive) return; // Escape if turned off
-        
-        var fetchStartMs = Date.now();
-        var sinceTime = Math.floor(lastWatchPollTimeMs / 1000) - 3;
-
-        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + sinceTime;
-        
-        fetch(url)
-            .then(function(res) {
-                if (!res.ok) { 
-                    setWatchBarState('error'); 
-                    return null; 
-                }
-                setWatchBarState('connected');
-                lastWatchPollTimeMs = fetchStartMs;
-                return res.text();
-            })
-            .then(function(body) {
-                if (!body) return;
+function startWatchPoller(topic) {
+    if (watchEventSource) { watchEventSource.close(); watchEventSource = null; }
+    if (!topic) { setWatchBarState('off'); return; }
+    
+    setWatchBarState('connecting');
+    var cleanTopic = topic.trim();
+    
+    // 1. Fetch catchup (in case phone was asleep and missed a tap)
+    // Looks back 6 hours.
+    var sinceSecs = Math.floor(Date.now() / 1000) - 21600;
+    
+    fetch('https://ntfy.sh/' + cleanTopic + '/json?poll=1&since=' + sinceSecs)
+        .then(function(res) { return res.text(); })
+        .then(function(body) {
+            if (body) {
                 var lines = body.trim().split('\n');
-                
                 for (var i = 0; i < lines.length; i++) {
                     if (!lines[i]) continue;
                     try {
                         var msg = JSON.parse(lines[i]);
-                        if (msg && msg.event === 'message' && msg.id && processedWatchMsgs.indexOf(msg.id) === -1) {
-                            
-                            processedWatchMsgs.push(msg.id);
-                            if (processedWatchMsgs.length > 100) processedWatchMsgs.shift();
-                            
-                            if (!isFirst && !isFinished) {
-                                var msgTimestamp = msg.time ? new Date(msg.time * 1000) : null;
-                                var isCatchupSync = false;
-                                if (msgTimestamp && (Date.now() - msgTimestamp.getTime() > 60000)) {
-                                    isCatchupSync = true;
-                                }
-                                clockIn(null, msgTimestamp, isCatchupSync ? null : "Watch"); 
-                            }
-                        }
-                    } catch(pe) {}
+                        handleIncomingWatchMsg(msg);
+                    } catch(e) {}
                 }
-            })
-            .catch(function() { 
-                setWatchBarState('error'); // Network blip, stay active but show Retrying
-            });
-    } catch(e) { 
-        setWatchBarState('error'); 
-    }
+            }
+            
+            // 2. Open Zero-Latency SSE connection for live taps
+            watchEventSource = new EventSource('https://ntfy.sh/' + cleanTopic + '/sse');
+            
+            watchEventSource.onopen = function() {
+                setWatchBarState('connected');
+            };
+            
+            watchEventSource.onmessage = function(e) {
+                try {
+                    var msg = JSON.parse(e.data);
+                    handleIncomingWatchMsg(msg);
+                } catch(err) {}
+            };
+
+            watchEventSource.onerror = function() {
+                setWatchBarState('error'); // Will auto-retry
+            };
+        })
+        .catch(function() {
+            setWatchBarState('error');
+        });
 }
+
+// Ensure connection stays alive when waking phone from sleep
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === 'visible' && isWatchActive && watchTopic && !isFinished) {
+        if (!watchEventSource || watchEventSource.readyState === EventSource.CLOSED) {
+            startWatchPoller(watchTopic);
+        }
+    }
+});
 
 function showWatchToast(source, stamp) {
     try {
@@ -2304,4 +2297,3 @@ if (isWatchActive) {
 
 </body>
 </html>
-
