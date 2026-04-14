@@ -987,6 +987,14 @@
             </div>
         </div>
         
+        <!-- NEW: Watch Sync Setup Button Moved Here -->
+        <div style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 16px;">
+            <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Watch Integration</div>
+            <button onclick="closeSettingsModal(); showWatchSetup();" style="width:100%; background:rgba(95,163,255,0.1); border:1px dashed rgba(95,163,255,0.4); border-radius:12px; color:var(--blue); font-size:12px; font-weight:600; padding:10px; cursor:pointer;">
+                ⌚ Configure Apple Watch ID
+            </button>
+        </div>
+
         <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
             <span>Target Name</span>
             <span style="margin-right:20px;">Radius &amp; Actions</span>
@@ -1142,8 +1150,9 @@
 
         <!-- System Controls Row -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 20px 0;">
-            <!-- Watch Status Box -->
-            <div id="watch-bar" onclick="showWatchSetup()" style="cursor:pointer; border-radius:14px;border:1.5px solid var(--border);background:var(--surface);padding:12px;display:flex;align-items:center;justify-content:center;gap:10px;transition:border-color 0.3s,background 0.3s;">
+            
+            <!-- NEW: Watch Toggle Box -->
+            <div id="watch-bar" onclick="toggleWatchAuto()" style="cursor:pointer; border-radius:14px;border:1.5px solid var(--border);background:var(--surface);padding:12px;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.3s;">
                 <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="watch-icon-svg"><rect x="5" y="2" width="14" height="20" rx="7"/><path d="M9 1h6M9 23h6M12 6v6l3 2"/></svg>
                     <div style="display:flex;align-items:center;gap:6px;">
@@ -1304,7 +1313,11 @@ var logs         = [];
 var isFinished   = false;
 
 var gpsData = {}; 
+
+// WATCH CONFIG - DEFAULT HARDCODED TO YOUR ID!
 var watchTopic = 'patrol-xib0nj29';
+var isWatchActive = true; // Auto-Start
+
 var isGpsActive = false;
 var watchPositionId = null;
 var watchPollInt = null;
@@ -1507,7 +1520,7 @@ function updateTopBar() {
 function updateStats(animate) {
     var activeTotal = TOTAL - startIndex;
     var cleared   = logs.length;
-    var remaining = activeTotal - cleared; // Fixed the remaining counter math
+    var remaining = activeTotal - cleared; 
     
     var cEl = document.getElementById('stat-cleared-num');
     var rEl = document.getElementById('stat-remain-num');
@@ -1890,7 +1903,6 @@ function fillCurrentGps(btn) {
             var accStr = Math.round(position.coords.accuracy);
             
             if(btnText) btnText.innerHTML = "✅ Found (Acc: ±" + accStr + "m)";
-            // Don't auto-reset the text so the user can see the accuracy they just polled
         },
         function(error) {
             alert("Error: " + error.message);
@@ -2062,21 +2074,16 @@ function toggleGpsAuto() {
                     
                     var baseRadius = targetCoords.radius ? targetCoords.radius : 20;
                     
-                    // --- ADVANCED APPROACH: ACCURACY COMPENSATION ---
-                    // If the phone says "I am accurate to 18 meters", a 10m radius will never fire.
-                    // We dynamically expand the target radius by 75% of the accuracy margin 
-                    // to "catch" the phone in a bouncy signal environment.
                     var effectiveRadius = baseRadius + (acc * 0.75); 
                     
                     if (distInfo) {
-                        // Let the guard see WHY it's not triggering
                         distInfo.textContent = Math.round(dist) + 'm away (Acc: ±' + Math.round(acc) + 'm)';
                     }
                     
                     // JUNK FILTER: Ignore wild jumps where accuracy is worse than 100m
                     if (acc > 100) return; 
 
-                    // TRIGGER: Compare distance against our new, forgiving effective radius
+                    // TRIGGER
                     if (dist <= effectiveRadius) {
                         clockIn(null, new Date(), "Auto-GPS");
                     }
@@ -2096,17 +2103,15 @@ function toggleGpsAuto() {
 }
 
 
-/* ── WATCH TRIGGER ── */
+/* ── WATCH TRIGGER (UPDATED ROBUST TOGGLE & ERROR HANDLING) ── */
 function setWatchBarState(state) {
     try {
         var dot      = document.getElementById('watch-dot');
         var dotLbl   = document.getElementById('watch-dot-label');
-        var txt      = document.getElementById('watch-txt');
-        var sub      = document.getElementById('watch-sub');
         var bar      = document.getElementById('watch-bar');
-        var iconWrap = document.getElementById('watch-icon-wrap');
         var iconSvg  = document.getElementById('watch-icon-svg');
-        if (!dot || !dotLbl || !txt || !sub || !bar || !iconWrap || !iconSvg) return;
+        if (!dot || !dotLbl || !bar || !iconSvg) return;
+        
         if (state === 'connected') {
             dot.style.background = '#3ddc84'; dot.style.boxShadow = '0 0 8px #3ddc84';
             dotLbl.style.color = '#3ddc84'; dotLbl.textContent = 'LIVE';
@@ -2117,6 +2122,11 @@ function setWatchBarState(state) {
             dotLbl.style.color = '#ffbb33'; dotLbl.textContent = 'WAIT';
             bar.style.borderColor = 'rgba(255,187,51,0.5)'; bar.style.background = 'rgba(255,187,51,0.07)';
             iconSvg.style.stroke = '#ffbb33';
+        } else if (state === 'error') {
+            dot.style.background = '#ffbb33'; dot.style.boxShadow = '0 0 8px #ffbb33';
+            dotLbl.style.color = '#ffbb33'; dotLbl.textContent = 'RETRYING';
+            bar.style.borderColor = 'rgba(255,187,51,0.5)'; bar.style.background = 'rgba(255,187,51,0.07)';
+            iconSvg.style.stroke = '#ffbb33';
         } else {
             dot.style.background = '#b0b5c0'; dot.style.boxShadow = 'none';
             dotLbl.style.color = '#b0b5c0'; dotLbl.textContent = 'OFF';
@@ -2124,6 +2134,23 @@ function setWatchBarState(state) {
             iconSvg.style.stroke = '#b0b5c0';
         }
     } catch(e) {}
+}
+
+function toggleWatchAuto() {
+    if (isWatchActive) {
+        // Turn OFF manually
+        isWatchActive = false;
+        stopWatchPoller();
+        setWatchBarState('off');
+    } else {
+        // Turn ON manually
+        if (!watchTopic) {
+            showWatchSetup();
+        } else {
+            isWatchActive = true;
+            startWatchPoller(watchTopic);
+        }
+    }
 }
 
 function startWatchPoller(topic) {
@@ -2140,22 +2167,26 @@ function stopWatchPoller() {
 }
 
 document.addEventListener("visibilitychange", function() {
-    if (document.visibilityState === 'visible' && watchTopic && !isFinished) {
+    if (document.visibilityState === 'visible' && isWatchActive && watchTopic && !isFinished) {
         pollWatch(watchTopic, false);
     }
 });
 
 function pollWatch(topic, isFirst) {
     try {
+        if (!isWatchActive) return; // Escape if turned off
+        
         var fetchStartMs = Date.now();
-        var elapsedSecs = Math.floor((fetchStartMs - lastWatchPollTimeMs) / 1000) + 3;
-        if (elapsedSecs > 43200) elapsedSecs = 43200; 
+        var sinceTime = Math.floor(lastWatchPollTimeMs / 1000) - 3;
 
-        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + elapsedSecs + 's';
+        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + sinceTime;
         
         fetch(url)
             .then(function(res) {
-                if (!res.ok) { if (isFirst) setWatchBarState('off'); return null; }
+                if (!res.ok) { 
+                    setWatchBarState('error'); 
+                    return null; 
+                }
                 setWatchBarState('connected');
                 lastWatchPollTimeMs = fetchStartMs;
                 return res.text();
@@ -2185,8 +2216,12 @@ function pollWatch(topic, isFirst) {
                     } catch(pe) {}
                 }
             })
-            .catch(function() { if (isFirst) setWatchBarState('off'); });
-    } catch(e) { if (isFirst) setWatchBarState('off'); }
+            .catch(function() { 
+                setWatchBarState('error'); // Network blip, stay active but show Retrying
+            });
+    } catch(e) { 
+        setWatchBarState('error'); 
+    }
 }
 
 function showWatchToast(source, stamp) {
@@ -2242,6 +2277,9 @@ function saveWatchTopic() {
         if (!input || !input.value.trim()) { alert('Please enter or generate a topic ID.'); return; }
         watchTopic = input.value.trim();
         try { localStorage.setItem('patrolWatchTopic', watchTopic); } catch(e2) {}
+        
+        // When saved, automatically force it ON
+        isWatchActive = true;
         closeWatchSetup();
         startWatchPoller(watchTopic);
     } catch(e) {}
@@ -2256,7 +2294,11 @@ if (_wi) {
 
 /* ── INIT ── */
 updateUI(false);
-startWatchPoller(watchTopic);
+if (isWatchActive) {
+    startWatchPoller(watchTopic);
+} else {
+    setWatchBarState('off');
+}
 
 </script>
 
