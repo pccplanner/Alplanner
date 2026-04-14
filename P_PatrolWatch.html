@@ -166,7 +166,7 @@
             letter-spacing: 1.5px;
             text-transform: uppercase;
         }
-        /* Elapsed chip (new) */
+        /* Elapsed chip */
         .elapsed-chip {
             font-family: var(--mono);
             font-size: 9px;
@@ -373,8 +373,6 @@
 
     <!-- 1. ACTIVE PATROL VIEW -->
     <div id="view-active" class="view active">
-
-        <!-- Header: Time | Progress+Bar | ⚙ -->
         <div class="header">
             <div class="clock" id="clock">00:00</div>
             <div class="header-center">
@@ -388,10 +386,7 @@
             </button>
         </div>
 
-        <!-- Target Card -->
         <div class="target-card" id="target-card">
-
-            <!-- Top: label + elapsed timer -->
             <div class="card-toprow">
                 <div class="label-wrap">
                     <div class="dot-pulse"></div>
@@ -400,35 +395,27 @@
                 <div class="elapsed-chip" id="elapsed-chip">–m</div>
             </div>
 
-            <!-- Target Name -->
             <div class="target-name" id="target-name">BME</div>
 
-            <!-- Route Progress Bar -->
             <div class="route-progress-wrap">
                 <div class="route-progress-bar">
                     <div class="route-progress-fill" id="route-prog-fill"></div>
                 </div>
             </div>
 
-            <!-- Stats Row: Cleared | Left -->
             <div class="stats-row">
                 <div class="stat-chip">✓ <span class="stat-val" id="stat-cleared">0</span></div>
                 <div class="stat-sep">·</div>
                 <div class="stat-chip">⬤ <span class="stat-val" id="stat-left">19</span> left</div>
             </div>
 
-            <!-- Next Target -->
             <div class="next-target">
                 <span class="next-arrow">→</span>
                 <span id="next-target">TG/OC DR</span>
             </div>
-
         </div>
 
-        <!-- Log Button -->
         <button class="btn" id="btn-log" onclick="clockIn()">LOG NOW</button>
-
-        <!-- Sync Banner -->
         <div class="sync-banner" id="sync-banner">SYNC ACTIVE</div>
     </div>
 
@@ -461,57 +448,49 @@
     </div>
 
     <script>
-        // ── ERROR SUPPRESSION (Prevents wrapper from showing Uncaught Error popups on network failure) ──
-        window.onerror = function(message, source, lineno, colno, error) {
-            if (message === "Script error." || (typeof message === 'string' && message.indexOf("Script error") > -1)) {
-                return true; // Suppress harmless cross-origin/network script errors in WebViews
-            }
+        // ── ERROR SUPPRESSION ──
+        window.onerror = function(message) {
+            if (typeof message === 'string' && message.indexOf("Script error") > -1) return true;
             return false;
         };
-        window.addEventListener('unhandledrejection', function(event) {
-            event.preventDefault(); // Suppress promise rejection UI popups
-        });
+        window.addEventListener('unhandledrejection', function(event) { event.preventDefault(); });
 
-        // ROUTE DATA
         var ROUTE_POINTS = ["BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8","TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1","OC DR","TG","BME"];
+        var currentIndex = 0, startIndex = 0, isFinished = false, syncTopic = "patrol-xib0nj29";
 
-        // STATE
-        var currentIndex = 0;
-        var startIndex = 0;
-        var isFinished = false;
-
-        var syncTopic = "patrol-xib0nj29";
-
-        // LOAD STATE
         try {
-            var _ci = localStorage.getItem('wPatrolCurrent');
-            if (_ci) currentIndex = parseInt(_ci, 10);
-            var _si = localStorage.getItem('wPatrolStart');
-            if (_si) startIndex = parseInt(_si, 10);
-            var _f = localStorage.getItem('wPatrolFinished');
-            if (_f === 'true') isFinished = true;
-            var _topic = localStorage.getItem('wPatrolTopic');
-            if (_topic) syncTopic = _topic;
+            var _ci = localStorage.getItem('wPatrolCurrent'); if (_ci) currentIndex = parseInt(_ci, 10);
+            var _si = localStorage.getItem('wPatrolStart');   if (_si) startIndex = parseInt(_si, 10);
+            var _f = localStorage.getItem('wPatrolFinished'); if (_f === 'true') isFinished = true;
+            var _topic = localStorage.getItem('wPatrolTopic');if (_topic) syncTopic = _topic;
             else localStorage.setItem('wPatrolTopic', syncTopic);
         } catch(e) {}
 
-        // SAFE VIBRATE WRAPPER
-        function safeVibrate(ms) {
-            try { if (navigator && navigator.vibrate) navigator.vibrate(ms); } catch(e) {}
-        }
+        function safeVibrate(ms) { try { if (navigator && navigator.vibrate) navigator.vibrate(ms); } catch(e) {} }
 
-        // LIVE CLOCK (Custom pad function used to support older Safari versions without .padStart)
+        // ── LIVE CLOCK & SLEEP DETECTOR ──
         function pad(n) { return n < 10 ? '0' + n : n; }
+        
         function updateClock() {
             var d = new Date();
             var clockEl = document.getElementById('clock');
-            if (clockEl) {
-                clockEl.innerText = pad(d.getHours()) + ':' + pad(d.getMinutes());
-            }
+            if (clockEl) clockEl.innerText = pad(d.getHours()) + ':' + pad(d.getMinutes());
         }
-        setInterval(updateClock, 1000); updateClock();
 
-        // ELAPSED SINCE LAST LOG
+        var lastTickTime = Date.now();
+        function appTick() {
+            var now = Date.now();
+            // If more than 3 seconds have passed since the last 1-second tick,
+            // the device was locked/sleeping and just woke up.
+            if (now - lastTickTime > 3000) {
+                onWake(); // Force a full UI and network reset
+            }
+            lastTickTime = now;
+            updateClock();
+        }
+        setInterval(appTick, 1000); updateClock();
+
+        // ── UI HELPERS ──
         function updateElapsed() {
             var chip = document.getElementById('elapsed-chip');
             if (!chip) return;
@@ -519,22 +498,14 @@
                 var last = localStorage.getItem('wPatrolLastLog');
                 if (last) {
                     var mins = Math.floor((Date.now() - parseInt(last, 10)) / 60000);
-                    // Protect against NaN if storage got corrupted
                     if (isNaN(mins)) mins = 0; 
-                    
                     chip.innerText = mins + 'm';
                     if (mins < 15) {
-                        chip.style.color = 'var(--green)';
-                        chip.style.background = 'rgba(61,220,132,0.1)';
-                        chip.style.borderColor = 'rgba(61,220,132,0.25)';
+                        chip.style.color = 'var(--green)'; chip.style.background = 'rgba(61,220,132,0.1)'; chip.style.borderColor = 'rgba(61,220,132,0.25)';
                     } else if (mins < 30) {
-                        chip.style.color = 'var(--amber)';
-                        chip.style.background = 'rgba(255,179,64,0.1)';
-                        chip.style.borderColor = 'rgba(255,179,64,0.25)';
+                        chip.style.color = 'var(--amber)'; chip.style.background = 'rgba(255,179,64,0.1)'; chip.style.borderColor = 'rgba(255,179,64,0.25)';
                     } else {
-                        chip.style.color = 'var(--red)';
-                        chip.style.background = 'rgba(255,92,92,0.1)';
-                        chip.style.borderColor = 'rgba(255,92,92,0.25)';
+                        chip.style.color = 'var(--red)'; chip.style.background = 'rgba(255,92,92,0.1)'; chip.style.borderColor = 'rgba(255,92,92,0.25)';
                     }
                 } else {
                     chip.innerText = '–m';
@@ -543,20 +514,15 @@
         }
         setInterval(updateElapsed, 30000); updateElapsed();
 
-        // INIT SELECT
         function initSelect() {
             var sel = document.getElementById('reset-select');
             if (!sel) return;
-            var html = '<option value="0">1st Half (Default)</option>';
-            html += '<option value="10">2nd Half Only</option>';
-            for (var i = 0; i < ROUTE_POINTS.length; i++) {
-                html += '<option value="' + i + '">Custom: Pt ' + (i+1) + ' (' + ROUTE_POINTS[i] + ')</option>';
-            }
+            var html = '<option value="0">1st Half (Default)</option><option value="10">2nd Half Only</option>';
+            for (var i = 0; i < ROUTE_POINTS.length; i++) html += '<option value="' + i + '">Custom: Pt ' + (i+1) + ' (' + ROUTE_POINTS[i] + ')</option>';
             sel.innerHTML = html;
         }
         initSelect();
 
-        // UPDATE UI
         function renderUI() {
             var totalActive = ROUTE_POINTS.length - startIndex;
             var cleared = currentIndex - startIndex;
@@ -576,9 +542,8 @@
                 document.getElementById('stat-cleared').innerText = cleared;
                 document.getElementById('stat-left').innerText = totalActive - cleared;
 
-                var fillPct = pct + '%';
-                document.getElementById('route-prog-fill').style.width = fillPct;
-                document.getElementById('mini-prog-fill').style.width = fillPct;
+                document.getElementById('route-prog-fill').style.width = pct + '%';
+                document.getElementById('mini-prog-fill').style.width = pct + '%';
 
                 if (currentIndex + 1 < ROUTE_POINTS.length) {
                     document.getElementById('next-target').innerText = ROUTE_POINTS[currentIndex + 1];
@@ -589,14 +554,20 @@
             updateElapsed();
         }
 
-        // ════════════════════════════════════════════════════
-        // ROBUST 3-LAYER SYNC ENGINE (Wrapped safely for strict WebViews)
-        // ════════════════════════════════════════════════════
-        var watchStateEventSource = null;
-        var pollIntervalId = null;
-        var sseAlive = false;
-        var POLL_MS = 8000;
-        var SSE_RETRY_MS = 15000;
+        // Fixes the button getting stuck on "SENT" or "SENDING" if the screen locked mid-animation
+        function resetLogButtonUI() {
+            var btn = document.getElementById('btn-log');
+            if (btn && btn.innerText !== "LOG NOW") {
+                btn.innerText = "LOG NOW";
+                btn.style.opacity = "1";
+                btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
+                btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
+            }
+        }
+
+        // ── SYNC ENGINE ──
+        var watchStateEventSource = null, pollIntervalId = null, sseAlive = false;
+        var POLL_MS = 8000, SSE_RETRY_MS = 15000;
 
         function setSyncBanner(state) {
             var sb = document.getElementById('sync-banner');
@@ -609,25 +580,17 @@
                 synced:  { text: '✓ SYNCED',          color: 'var(--blue)',  opacity: '1.0'  }
             };
             var c = cfg[state] || cfg.polling;
-            sb.innerText   = c.text;
-            sb.style.color   = c.color;
-            sb.style.opacity = c.opacity;
-            if (state === 'synced') {
-                setTimeout(function() {
-                    setSyncBanner(sseAlive ? 'live' : 'polling');
-                }, 2000);
-            }
+            sb.innerText = c.text; sb.style.color = c.color; sb.style.opacity = c.opacity;
+            if (state === 'synced') setTimeout(function() { setSyncBanner(sseAlive ? 'live' : 'polling'); }, 2000);
         }
 
         function updateStateFromPhone(s) {
             if (typeof s.ci === 'undefined') return;
             if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
-                currentIndex = s.ci;
-                startIndex   = s.si;
-                isFinished   = s.f;
+                currentIndex = s.ci; startIndex = s.si; isFinished = s.f;
                 try {
-                    localStorage.setItem('wPatrolStart',    startIndex);
-                    localStorage.setItem('wPatrolCurrent',  currentIndex);
+                    localStorage.setItem('wPatrolStart', startIndex);
+                    localStorage.setItem('wPatrolCurrent', currentIndex);
                     localStorage.setItem('wPatrolFinished', isFinished);
                 } catch(e){}
                 renderUI();
@@ -637,12 +600,8 @@
 
         function pollOnce() {
             if (!syncTopic) return;
-            var topicClean = syncTopic.trim() + '-state';
-            var url = 'https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + Date.now();
-            
-            // Wrapped in try-catch to prevent "Script Error" on severe network blocks
             try {
-                fetch(url, { cache: 'no-store' })
+                fetch('https://ntfy.sh/' + syncTopic.trim() + '-state/json?poll=1&cb=' + Date.now(), { cache: 'no-store' })
                 .then(function(res) { 
                     if (!res.ok) throw new Error("HTTP " + res.status);
                     return res.text(); 
@@ -654,18 +613,11 @@
                     if (!lines.length) return;
                     try {
                         var msg = JSON.parse(lines[lines.length - 1]);
-                        if (msg && msg.message) {
-                            var payload = typeof msg.message === 'string' ? JSON.parse(msg.message) : msg.message;
-                            updateStateFromPhone(payload);
-                        }
+                        if (msg && msg.message) updateStateFromPhone(typeof msg.message === 'string' ? JSON.parse(msg.message) : msg.message);
                     } catch(e) {}
                 })
-                .catch(function() {
-                    if (!sseAlive) setSyncBanner('offline');
-                });
-            } catch (err) {
-                if (!sseAlive) setSyncBanner('offline');
-            }
+                .catch(function() { if (!sseAlive) setSyncBanner('offline'); });
+            } catch (err) { if (!sseAlive) setSyncBanner('offline'); }
         }
 
         function startPoll() {
@@ -675,33 +627,17 @@
         }
 
         function openSSE() {
-            if (watchStateEventSource) {
-                try { watchStateEventSource.close(); } catch(e){}
-                watchStateEventSource = null;
-            }
+            if (watchStateEventSource) { try { watchStateEventSource.close(); } catch(e){} watchStateEventSource = null; }
             sseAlive = false;
-            if (!syncTopic) return;
-            
-            if (typeof EventSource === 'undefined') {
-                setSyncBanner('polling');
-                return;
-            }
+            if (!syncTopic || typeof EventSource === 'undefined') { setSyncBanner('polling'); return; }
 
-            var topicClean = syncTopic.trim() + '-state';
             try {
-                var es = new EventSource('https://ntfy.sh/' + topicClean + '/sse');
-
-                es.onopen = function() {
-                    sseAlive = true;
-                    setSyncBanner('live');
-                };
+                var es = new EventSource('https://ntfy.sh/' + syncTopic.trim() + '-state/sse');
+                es.onopen = function() { sseAlive = true; setSyncBanner('live'); };
                 es.onmessage = function(e) {
                     try {
                         var msg = JSON.parse(e.data);
-                        if (msg && msg.event === 'message' && msg.message) {
-                            var payload = typeof msg.message === 'string' ? JSON.parse(msg.message) : msg.message;
-                            updateStateFromPhone(payload);
-                        }
+                        if (msg && msg.event === 'message' && msg.message) updateStateFromPhone(typeof msg.message === 'string' ? JSON.parse(msg.message) : msg.message);
                     } catch(err) {}
                 };
                 es.onerror = function() {
@@ -711,12 +647,8 @@
                     setSyncBanner('polling'); 
                     setTimeout(openSSE, SSE_RETRY_MS);
                 };
-
                 watchStateEventSource = es;
-            } catch (err) {
-                sseAlive = false;
-                setSyncBanner('polling');
-            }
+            } catch (err) { sseAlive = false; setSyncBanner('polling'); }
         }
 
         function startStateSync() {
@@ -727,19 +659,19 @@
 
         function onWake() {
             setSyncBanner('waking');
-            startPoll();
-            if (!watchStateEventSource) openSSE();
+            resetLogButtonUI(); // Un-stick the button if it froze
+            
+            startPoll(); // Try to poll immediately
+            setTimeout(pollOnce, 2000); // Try AGAIN in 2 seconds (Apple Watch Wi-Fi radio takes a second to wake up)
+
+            // Reopen SSE if it died during sleep
+            if (!watchStateEventSource || watchStateEventSource.readyState === 2) openSSE();
         }
 
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible') onWake();
-        });
+        document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') onWake(); });
         window.addEventListener('focus', onWake);
-        window.addEventListener('pageshow', function(e) {
-            onWake();
-        });
+        window.addEventListener('pageshow', onWake);
 
-        // ── Boot ──
         startStateSync();
 
         // ── CLOCK IN ──
@@ -748,10 +680,9 @@
             btn.innerText = "SENDING…";
             btn.style.opacity = "0.7";
             safeVibrate([50]);
-            var topicClean = syncTopic.trim();
 
             try {
-                fetch('https://ntfy.sh/' + topicClean, {
+                fetch('https://ntfy.sh/' + syncTopic.trim(), {
                     method: 'POST',
                     mode: 'no-cors',
                     body: JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) })
@@ -769,35 +700,21 @@
                     btn.style.background = "linear-gradient(135deg, #3ddc84, #1aab60)";
                     btn.style.boxShadow = "0 4px 16px rgba(61,220,132,0.3)";
 
-                    setTimeout(function(){
-                        btn.innerText = "LOG NOW";
-                        btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
-                        btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
-                    }, 1500);
-
+                    setTimeout(resetLogButtonUI, 1500);
                     setTimeout(startStateSync, 2000);
                 }).catch(function() {
                     btn.innerText = "❌ FAILED";
                     btn.style.opacity = "1";
                     btn.style.background = "var(--red)";
                     btn.style.boxShadow = "none";
-                    setTimeout(function(){
-                        btn.innerText = "LOG NOW";
-                        btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
-                        btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
-                    }, 2000);
+                    setTimeout(resetLogButtonUI, 2000);
                 });
             } catch (err) {
-                // Failsafe for environment fetch block
                 btn.innerText = "❌ FAILED";
                 btn.style.opacity = "1";
                 btn.style.background = "var(--red)";
                 btn.style.boxShadow = "none";
-                setTimeout(function(){
-                    btn.innerText = "LOG NOW";
-                    btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
-                    btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
-                }, 2000);
+                setTimeout(resetLogButtonUI, 2000);
             }
         }
 
@@ -813,8 +730,7 @@
         function hideSettings() { renderUI(); }
 
         function saveWatchTopic() {
-            var inputTopic = document.getElementById('topic-input').value.trim();
-            syncTopic = inputTopic;
+            syncTopic = document.getElementById('topic-input').value.trim();
             try { localStorage.setItem('wPatrolTopic', syncTopic); } catch(e){}
             var btn = document.getElementById('btn-save-topic');
             var oldTxt = btn.innerText;
@@ -832,8 +748,7 @@
         }
 
         function executeReset() {
-            var val = document.getElementById('reset-select').value;
-            var newStart = parseInt(val, 10);
+            var newStart = parseInt(document.getElementById('reset-select').value, 10);
             var btn = document.getElementById('btn-reset');
             var oldTxt = btn.innerText;
             btn.innerText = "SENDING…";
@@ -845,9 +760,7 @@
                     body: JSON.stringify({ trigger: false, reset: true, startIdx: newStart })
                 }).then(function() {
                     safeVibrate(50);
-                    startIndex = newStart;
-                    currentIndex = newStart;
-                    isFinished = false;
+                    startIndex = newStart; currentIndex = newStart; isFinished = false;
                     try { localStorage.removeItem('wPatrolLastLog'); } catch(e){}
                     renderUI();
                     btn.innerText = "✅ Reset Done!";
@@ -871,7 +784,6 @@
             }
         }
 
-        // INIT
         renderUI();
     </script>
 </body>
