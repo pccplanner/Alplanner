@@ -366,6 +366,7 @@
         box-shadow: 0 0 20px var(--green-glow);
     }
 </style>
+
 </head>
 <body>
 
@@ -567,21 +568,29 @@
         updateElapsed();
     }
 
-    // ── SYNC (ROBUST SSE + CACHE BUSTER POLLING) ──
+    // ── TRUE SYNC: CACHE-BUSTED LIVE SSE RECEIVER ──
     var watchStateEventSource = null;
     var syncInterval = null;
 
     function updateStateFromPhone(s) {
         if (typeof s.ci !== 'undefined') {
             if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
+                
+                // If phone advanced the checkpoint, reset the local elapsed timer
+                if (s.ci > currentIndex) {
+                    try { localStorage.setItem('wPatrolLastLog', Date.now()); } catch(e){}
+                }
+
                 currentIndex = s.ci;
                 startIndex = s.si;
                 isFinished = s.f;
+                
                 try {
                     localStorage.setItem('wPatrolStart', startIndex);
                     localStorage.setItem('wPatrolCurrent', currentIndex);
                     localStorage.setItem('wPatrolFinished', isFinished);
                 } catch(e){}
+                
                 renderUI();
                 
                 var sb = document.getElementById('sync-banner');
@@ -771,6 +780,8 @@
                 btn.style.borderColor = "rgba(255,92,92,0.28)";
                 hideSettings();
             }, 800);
+            
+            setTimeout(fetchLatestState, 2000);
         }).catch(function(){
             btn.innerText = "❌ FAILED";
             setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
