@@ -110,7 +110,8 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: flex-start;
+        gap: 5px;
         background: linear-gradient(150deg, rgba(45,126,255,0.12) 0%, rgba(45,126,255,0.03) 100%);
         border-radius: 16px;
         padding: 10px 12px 9px;
@@ -303,11 +304,12 @@
         color: var(--green);
         text-align: center;
         font-family: var(--mono);
-        letter-spacing: 1.5px;
-        opacity: 0.35;
-        transition: all 0.3s;
+        letter-spacing: 1.2px;
+        opacity: 0.45;
+        transition: color 0.3s, opacity 0.3s;
         flex-shrink: 0;
         padding: 0;
+        white-space: nowrap;
     }
 
     /* ── Settings View ── */
@@ -572,74 +574,156 @@
         updateElapsed();
     }
 
-    // ── SYNC ──
+    // ════════════════════════════════════════════════════
+    // ROBUST 3-LAYER SYNC ENGINE
+    //  Layer 1 — SSE live socket  (instant push from phone)
+    //  Layer 2 — 8s aggressive poll (defeats Apple Watch cache)
+    //  Layer 3 — Wake-up triggers  (visibilitychange / focus / pageshow)
+    // ════════════════════════════════════════════════════
     var watchStateEventSource = null;
+    var pollIntervalId = null;
+    var sseAlive = false;
+    var POLL_MS = 8000;           // 8-second heartbeat poll
+    var SSE_RETRY_MS = 15000;     // wait before SSE reconnect after error
 
-    function updateStateFromPhone(s) {
-        if (typeof s.ci !== 'undefined') {
-            if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
-                currentIndex = s.ci;
-                startIndex = s.si;
-                isFinished = s.f;
-                try {
-                    localStorage.setItem('wPatrolStart', startIndex);
-                    localStorage.setItem('wPatrolCurrent', currentIndex);
-                    localStorage.setItem('wPatrolFinished', isFinished);
-                } catch(e){}
-                renderUI();
-                var sb = document.getElementById('sync-banner');
-                if (sb) {
-                    sb.innerText = "SYNCED WITH PHONE";
-                    sb.style.color = "var(--blue)";
-                    sb.style.opacity = "0.9";
-                    setTimeout(function(){
-                        sb.innerText = "SYNC ACTIVE";
-                        sb.style.color = "var(--green)";
-                        sb.style.opacity = "0.35";
-                    }, 2000);
-                }
-            }
+    // ── Banner helper ──────────────────────────────────
+    // states: 'live' | 'polling' | 'offline' | 'waking' | 'synced'
+    function setSyncBanner(state) {
+        var sb = document.getElementById('sync-banner');
+        if (!sb) return;
+        var cfg = {
+            live:    { text: '⬤ LIVE SYNC',     color: 'var(--green)', opacity: '0.45' },
+            polling: { text: '⬤ POLLING',        color: 'var(--amber)', opacity: '0.55' },
+            offline: { text: '○ OFFLINE',         color: 'var(--red)',   opacity: '0.6'  },
+            waking:  { text: '↑ SYNCING...',      color: 'var(--blue)',  opacity: '0.8'  },
+            synced:  { text: '✓ SYNCED',          color: 'var(--blue)',  opacity: '1.0'  }
+        };
+        var c = cfg[state] || cfg.polling;
+        sb.innerText   = c.text;
+        sb.style.color   = c.color;
+        sb.style.opacity = c.opacity;
+        // After a 'synced' flash, revert to live/polling after 2s
+        if (state === 'synced') {
+            setTimeout(function() {
+                setSyncBanner(sseAlive ? 'live' : 'polling');
+            }, 2000);
         }
     }
 
-    function startStateSync() {
-        if (watchStateEventSource) { watchStateEventSource.close(); watchStateEventSource = null; }
-        if (!syncTopic) return;
-        var topicClean = syncTopic.trim() + '-state';
-        var cb = Date.now();
-        fetch('https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + cb, { cache: 'no-store' })
-            .then(function(res){ return res.text(); })
-            .then(function(body){
-                if (body) {
-                    var lines = body.trim().split('\n');
-                    var validLines = lines.filter(function(l){ return l.length > 0; });
-                    if (validLines.length > 0) {
-                        try {
-                            var msg = JSON.parse(validLines[validLines.length-1]);
-                            if (msg && msg.message) {
-                                var s = JSON.parse(msg.message);
-                                updateStateFromPhone(s);
-                            }
-                        } catch(e){}
-                    }
-                }
-                watchStateEventSource = new EventSource('https://ntfy.sh/' + topicClean + '/sse');
-                watchStateEventSource.onmessage = function(e) {
-                    try {
-                        var msg = JSON.parse(e.data);
-                        if (msg && msg.event === 'message' && msg.message) {
-                            var s = JSON.parse(msg.message);
-                            updateStateFromPhone(s);
-                        }
-                    } catch(err){}
-                };
-            }).catch(function(){});
+    // ── State processor (shared by poll + SSE) ─────────
+    function updateStateFromPhone(s) {
+        if (typeof s.ci === 'undefined') return;
+        if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
+            currentIndex = s.ci;
+            startIndex   = s.si;
+            isFinished   = s.f;
+            try {
+                localStorage.setItem('wPatrolStart',    startIndex);
+                localStorage.setItem('wPatrolCurrent',  currentIndex);
+                localStorage.setItem('wPatrolFinished', isFinished);
+            } catch(e){}
+            renderUI();
+            setSyncBanner('synced');
+        }
     }
 
-    startStateSync();
-    document.addEventListener("visibilitychange", function() {
-        if (document.visibilityState === 'visible') startStateSync();
+    // ── Layer 2: Aggressive poll (runs every POLL_MS) ──
+    // Unique cb= timestamp mathematically forces Watch Safari
+    // to bypass its internal HTTP cache and hit the network.
+    // NOTE: Do NOT set Cache-Control/Pragma headers — Safari iOS
+    // treats them as forbidden and throws a silent TypeError.
+    // The cb= query-string + cache:'no-store' is sufficient.
+    function pollOnce() {
+        if (!syncTopic) return;
+        var topicClean = syncTopic.trim() + '-state';
+        var url = 'https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + Date.now();
+        fetch(url, { cache: 'no-store' })
+        .then(function(res) { return res.text(); })
+        .then(function(body) {
+            if (!sseAlive) setSyncBanner('polling');
+            if (!body) return;
+            var lines = body.trim().split('\n').filter(function(l) { return l.length > 0; });
+            if (!lines.length) return;
+            try {
+                var msg = JSON.parse(lines[lines.length - 1]);
+                if (msg && msg.message) updateStateFromPhone(JSON.parse(msg.message));
+            } catch(e) {}
+        })
+        .catch(function() {
+            if (!sseAlive) setSyncBanner('offline');
+        });
+    }
+
+    function startPoll() {
+        if (pollIntervalId) clearInterval(pollIntervalId);
+        pollOnce();                                         // immediate first hit
+        pollIntervalId = setInterval(pollOnce, POLL_MS);   // then every 8s
+    }
+
+    // ── Layer 1: SSE live socket ───────────────────────
+    function openSSE() {
+        if (watchStateEventSource) {
+            watchStateEventSource.close();
+            watchStateEventSource = null;
+        }
+        sseAlive = false;
+        if (!syncTopic) return;
+        var topicClean = syncTopic.trim() + '-state';
+        var es = new EventSource('https://ntfy.sh/' + topicClean + '/sse');
+
+        es.onopen = function() {
+            sseAlive = true;
+            setSyncBanner('live');
+        };
+        es.onmessage = function(e) {
+            try {
+                var msg = JSON.parse(e.data);
+                if (msg && msg.event === 'message' && msg.message) {
+                    updateStateFromPhone(JSON.parse(msg.message));
+                }
+            } catch(err) {}
+        };
+        es.onerror = function() {
+            sseAlive = false;
+            es.close();
+            watchStateEventSource = null;
+            setSyncBanner('polling'); // poll keeps us covered
+            // Reconnect SSE after a back-off delay
+            setTimeout(openSSE, SSE_RETRY_MS);
+        };
+
+        watchStateEventSource = es;
+    }
+
+    // ── Full sync restart (called on init + topic change) ─
+    function startStateSync() {
+        setSyncBanner('waking');
+        startPoll();   // Layer 2 on immediately
+        openSSE();     // Layer 1 starts connecting
+    }
+
+    // ── Layer 3: Wake-up triggers ──────────────────────
+    // Every time the Watch screen wakes or the tab regains focus,
+    // fire a fresh sync so the display is never stale.
+    function onWake() {
+        setSyncBanner('waking');
+        // Restart poll immediately (don't wait 8s)
+        startPoll();
+        // If SSE died while screen was dark, reopen it
+        if (!watchStateEventSource) openSSE();
+    }
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') onWake();
     });
+    window.addEventListener('focus', onWake);
+    window.addEventListener('pageshow', function(e) {
+        // Fires on both normal load AND bfcache restore (back/forward nav)
+        onWake();
+    });
+
+    // ── Boot ──────────────────────────────────────────
+    startStateSync();
 
     // ── CLOCK IN ──
     function clockIn() {
@@ -715,7 +799,7 @@
             btn.style.color = "#fff";
             btn.style.border = "1px solid var(--border)";
         }, 1000);
-        startStateSync();
+        startStateSync(); // full restart on new topic
     }
 
     function executeReset() {
@@ -756,5 +840,6 @@
     // INIT
     renderUI();
 </script>
+
 </body>
 </html>
