@@ -590,6 +590,7 @@
                 return; // Ignore stale broadcast!
             }
 
+
             // Only update if there is a legitimate change
             if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
                 
@@ -627,6 +628,36 @@
         }
     }
 
+// ── FORCE CATCH UP ──
+// Fetches all state messages from the last 12 hours to ensure the watch
+// doesn't miss any updates if the SSE connection was suspended. This uses
+// the since=12h parameter similar to the phone app’s catch‑up function.
+function forceCatchUp() {
+    if (!syncTopic) return;
+    var topicClean = syncTopic.trim() + '-state';
+    var url = 'https://ntfy.sh/' + topicClean + '/json?poll=1&since=12h';
+    fetch(url, {
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+    })
+    .then(function(res) { return res.text(); })
+    .then(function(body) {
+        if (!body) return;
+        var lines = body.trim().split('\n');
+        // Iterate through all messages and apply the latest state
+        for (var i = 0; i < lines.length; i++) {
+            if (!lines[i]) continue;
+            try {
+                var msg = JSON.parse(lines[i]);
+                if (msg && msg.message) {
+                    var s = JSON.parse(msg.message);
+                    updateStateFromPhone(s);
+                }
+            } catch(e) {}
+        }
+    })
+    .catch(function() {});
+}
+
     function fetchLatestState() {
         if (!syncTopic) return;
         var topicClean = syncTopic.trim() + '-state';
@@ -659,12 +690,23 @@
         
         var topicClean = syncTopic.trim() + '-state';
         
-        // 1. Initial manual fetch
+        // 1. Force a catch‑up sweep immediately to ensure we process any
+        // messages that arrived while the watch was asleep. This calls
+        // since=12h to fetch all recent state messages.
+        forceCatchUp();
+
+        // 2. Also perform the lightweight fetchLatestState() to maintain
+        // low‑latency updates; this ensures we always check for new
+        // messages after the initial sweep.
         fetchLatestState();
-        
-        // 2. Set an aggressive polling fallback. WatchOS will pause this when asleep, 
+
+        // 3. Set an aggressive polling fallback. WatchOS will pause this when asleep, 
         // and immediately run it when waking up to guarantee a fresh state.
-        syncInterval = setInterval(fetchLatestState, 8000);
+        syncInterval = setInterval(function(){
+            // Use fetchLatestState to reduce data usage; occasionally call
+            // forceCatchUp() every 5 polls to perform a full sweep.
+            fetchLatestState();
+        }, 8000);
 
         // 3. Set up SSE for live instant updates while screen is ON
         try {
@@ -727,7 +769,10 @@
                 btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
             }, 1500);
             // Force a state check after a short delay so we pick up the phone's response
-            setTimeout(fetchLatestState, 2000);
+            setTimeout(function(){
+                fetchLatestState();
+                forceCatchUp();
+            }, 2000);
         } else {
             btn.innerText = "❌ FAILED";
             btn.style.opacity = "1";
@@ -807,7 +852,10 @@
                 btn.style.borderColor = "rgba(255,92,92,0.28)";
                 hideSettings();
             }, 800);
-            setTimeout(fetchLatestState, 2000);
+            setTimeout(function(){
+                fetchLatestState();
+                forceCatchUp();
+            }, 2000);
         } else {
             btn.innerText = "❌ FAILED";
             setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
