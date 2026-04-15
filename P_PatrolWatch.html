@@ -466,6 +466,7 @@
     var currentIndex = 0;
     var startIndex = 0;
     var isFinished = false;
+    var sessionId = 0;
 
     var syncTopic = "patrol-xib0nj29";
 
@@ -475,6 +476,8 @@
         if (_ci) currentIndex = parseInt(_ci, 10);
         var _si = localStorage.getItem('wPatrolStart');
         if (_si) startIndex = parseInt(_si, 10);
+        var _sid = localStorage.getItem('wPatrolSessionId');
+        if (_sid) sessionId = parseInt(_sid, 10);
         var _f = localStorage.getItem('wPatrolFinished');
         if (_f === 'true') isFinished = true;
         var _topic = localStorage.getItem('wPatrolTopic');
@@ -567,12 +570,26 @@
         updateElapsed();
     }
 
-    // ── TRUE SYNC: CACHE-BUSTED LIVE SSE RECEIVER + AGGRESSIVE POLLING ──
+    // ── TRUE SYNC: SESSION ID PROTECTED (Prevents self-downgrading when phone is asleep) ──
     var watchStateEventSource = null;
     var syncInterval = null;
 
     function updateStateFromPhone(s) {
         if (typeof s.ci !== 'undefined') {
+            
+            // Is this a completely new session broadcast by the phone?
+            var isNewSession = (s.sid && s.sid !== sessionId);
+            // Fallback for older states that don't have SID yet, but clearly represent a reset
+            var isFallbackReset = (!s.sid && s.ci === s.si && s.ci < currentIndex);
+
+            // If the phone is sending a state that is completely older than ours, and it is NOT a new session
+            // then it means the phone is currently "asleep" and sending stale state.
+            // We MUST ignore this stale state so the Watch doesn't rollback to 0!
+            if (!isNewSession && !isFallbackReset && s.ci < currentIndex) {
+                return; // Ignore stale broadcast!
+            }
+
+            // Only update if there is a legitimate change
             if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
                 
                 // If phone advanced the checkpoint, reset the local elapsed timer
@@ -583,11 +600,13 @@
                 currentIndex = s.ci;
                 startIndex = s.si;
                 isFinished = s.f;
+                if (s.sid) sessionId = s.sid; // Inherit phone's session ID
                 
                 try {
                     localStorage.setItem('wPatrolStart', startIndex);
                     localStorage.setItem('wPatrolCurrent', currentIndex);
                     localStorage.setItem('wPatrolFinished', isFinished);
+                    localStorage.setItem('wPatrolSessionId', sessionId);
                 } catch(e){}
                 
                 renderUI();
@@ -611,7 +630,7 @@
         if (!syncTopic) return;
         var topicClean = syncTopic.trim() + '-state';
         var cb = Date.now(); // Cache Buster guarantees fresh data from server
-        fetch('https://ntfy.sh/' + topicClean + '/json?poll=1&last=1&cb=' + cb, {
+        fetch('https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + cb, {
             headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
         })
         .then(function(res){ return res.text(); })
