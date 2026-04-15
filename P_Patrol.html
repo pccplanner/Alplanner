@@ -2183,8 +2183,8 @@ function handleIncomingWatchMsg(msg) {
             try {
                 payload = JSON.parse(msg.message);
             } catch(e) {
-                // Fallback for old simple triggers if any
-                if (msg.message.indexOf('trigger') !== -1) {
+                // Apple Shortcut fallback (Plain text "Location saved")
+                if (msg.message.indexOf('Location saved') !== -1 || msg.message.indexOf('trigger') !== -1 || msg.title === '✅ Checkpoint Logged') {
                     payload = { trigger: true };
                 }
             }
@@ -2227,14 +2227,14 @@ function handleIncomingWatchMsg(msg) {
 }
 
 // ── AGGRESSIVE CATCH UP ──
-// Safely bypasses caching completely and fetches ALL messages the second the phone screen turns on
+// Safely bypasses local caching and asks the server for the last 12 hours of logs cleanly.
 function forceCatchUp() {
     if (!isWatchActive || !watchTopic || isFinished) return;
     var cleanTopic = watchTopic.trim();
     
-    // Removed the "since" parameter completely to prevent clock-skew bugs.
-    // poll=1 will natively fetch all cached events. Our processedWatchMsgs array filters the duplicates!
-    var url = 'https://ntfy.sh/' + cleanTopic + '/json?poll=1&cb=' + Date.now();
+    // since=12h tells the server to hand us all events in the last 12 hours. 
+    // This entirely avoids bugs with the local iPhone clock being skewed.
+    var url = 'https://ntfy.sh/' + cleanTopic + '/json?poll=1&since=12h';
     
     fetch(url, {
         headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
@@ -2298,13 +2298,17 @@ document.addEventListener("visibilitychange", function() {
     }
 });
 
-// 2. Add a continuous safety net polling loop (every 5 seconds) 
+// Extra aggressive fallbacks just in case visibilitychange bugs out in Safari
+window.addEventListener("focus", forceCatchUp);
+window.addEventListener("pageshow", forceCatchUp);
+
+// 2. Add a continuous safety net polling loop (every 4 seconds) 
 // This catches everything even if visibility events fail or SSE drops randomly.
 setInterval(function() {
     if (isWatchActive && document.visibilityState === 'visible') {
         forceCatchUp();
     }
-}, 5000);
+}, 4000);
 
 
 function showWatchToast(source, stamp) {
