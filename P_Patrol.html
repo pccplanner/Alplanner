@@ -2191,7 +2191,8 @@ function handleIncomingWatchMsg(msg) {
             
             if (!payload) return;
 
-            var msgTimeMs = msg.time ? (msg.time * 1000) : Date.now();
+            // Prioritize the exact time the Watch submitted it, fallback to server time
+            var msgTimeMs = (payload.time) ? (payload.time * 1000) : (msg.time ? (msg.time * 1000) : Date.now());
             
             if (payload.reset) {
                 // Apple Watch sent a Reset command! Follow it.
@@ -2217,7 +2218,7 @@ function handleIncomingWatchMsg(msg) {
                 
             } else if (payload.trigger) {
                 // Normal Apple Watch Clock In
-                if (!isFinished && (Date.now() - msgTimeMs < 86400000)) {
+                if (!isFinished && (Date.now() - msgTimeMs < 86400000)) { // Verify it's not over 24h old
                     clockIn(null, new Date(msgTimeMs), "Watch");
                 }
             }
@@ -2225,16 +2226,12 @@ function handleIncomingWatchMsg(msg) {
     }
 }
 
-function startWatchPoller(topic) {
-    if (watchEventSource) { watchEventSource.close(); watchEventSource = null; }
-    if (!topic) { setWatchBarState('off'); return; }
-    
-    setWatchBarState('connecting');
-    var cleanTopic = topic.trim();
-    
-    // 1. Fetch catchup (in case phone was asleep and missed a tap)
-    // Looks back 12 hours.
-    var sinceSecs = Math.floor(Date.now() / 1000) - 43200;
+// ── AGGRESSIVE CATCH UP ──
+// Separated from the SSE setup so it can be blasted every time the phone wakes up.
+function forceCatchUp() {
+    if (!isWatchActive || !watchTopic || isFinished) return;
+    var cleanTopic = watchTopic.trim();
+    var sinceSecs = Math.floor(Date.now() / 1000) - 43200; // Look back up to 12 hours
     
     fetch('https://ntfy.sh/' + cleanTopic + '/json?poll=1&since=' + sinceSecs)
         .then(function(res) { return res.text(); })
@@ -2249,38 +2246,57 @@ function startWatchPoller(topic) {
                     } catch(e) {}
                 }
             }
-            
-            // 2. Open Zero-Latency SSE connection for live taps
-            watchEventSource = new EventSource('https://ntfy.sh/' + cleanTopic + '/sse');
-            
-            watchEventSource.onopen = function() {
-                setWatchBarState('connected');
-            };
-            
-            watchEventSource.onmessage = function(e) {
-                try {
-                    var msg = JSON.parse(e.data);
-                    handleIncomingWatchMsg(msg);
-                } catch(err) {}
-            };
-
-            watchEventSource.onerror = function() {
-                setWatchBarState('error'); // Will auto-retry
-            };
         })
-        .catch(function() {
-            setWatchBarState('error');
-        });
+        .catch(function(e) { console.log("Catchup fetch error", e); });
 }
 
-// Ensure connection stays alive when waking phone from sleep
+function startWatchPoller(topic) {
+    if (watchEventSource) { watchEventSource.close(); watchEventSource = null; }
+    if (!topic) { setWatchBarState('off'); return; }
+    
+    setWatchBarState('connecting');
+    var cleanTopic = topic.trim();
+    
+    // 1. Force a catchup sweep immediately
+    forceCatchUp();
+    
+    // 2. Open Zero-Latency SSE connection for live taps while screen is awake
+    watchEventSource = new EventSource('https://ntfy.sh/' + cleanTopic + '/sse');
+    
+    watchEventSource.onopen = function() {
+        setWatchBarState('connected');
+    };
+    
+    watchEventSource.onmessage = function(e) {
+        try {
+            var msg = JSON.parse(e.data);
+            handleIncomingWatchMsg(msg);
+        } catch(err) {}
+    };
+
+    watchEventSource.onerror = function() {
+        setWatchBarState('error'); // Will auto-retry
+    };
+}
+
+// Ensure the app forcefully sweeps the server for triggers the INSTANT the screen wakes up
 document.addEventListener("visibilitychange", function() {
-    if (document.visibilityState === 'visible' && isWatchActive && watchTopic && !isFinished) {
-        if (!watchEventSource || watchEventSource.readyState === EventSource.CLOSED) {
-            startWatchPoller(watchTopic);
+    if (document.visibilityState === 'visible') {
+        // ALWAYS run the catch-up sweep when the phone screen is turned on
+        forceCatchUp(); 
+        
+        // Check if the live connection died while the phone was asleep
+        if (isWatchActive && watchTopic && !isFinished) {
+            if (!watchEventSource || watchEventSource.readyState !== EventSource.OPEN) {
+                startWatchPoller(watchTopic);
+            }
         }
     }
 });
+
+// Extra aggressive fallbacks just in case visibilitychange bugs out in Safari
+window.addEventListener("focus", forceCatchUp);
+window.addEventListener("pageshow", forceCatchUp);
 
 function showWatchToast(source, stamp) {
     try {
