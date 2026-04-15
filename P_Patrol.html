@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1467,10 +1468,20 @@ function broadcastStateToWatch() {
         // Includes sid to ensure the Watch knows when a reset actually occurred
         var stateObj = { ci: currentIndex, si: startIndex, f: isFinished, sid: sessionId };
         
-        fetch('https://ntfy.sh/' + cleanTopic, {
-            method: 'POST',
-            body: JSON.stringify(stateObj)
-        }).catch(function(){});
+        // Use navigator.sendBeacon to reliably send the state object even if
+        // the page is hidden or about to unload. sendBeacon sends the body as
+        // text/plain, so we stringify the state object and POST it to the
+        // topic path. This is more reliable than fetch in backgroundhttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app.
+        try {
+            var payload = JSON.stringify(stateObj);
+            navigator.sendBeacon('https://ntfy.sh/' + cleanTopic, payload);
+        } catch (err) {
+            // Fallback to fetch if sendBeacon is unavailable or throws.
+            fetch('https://ntfy.sh/' + cleanTopic, {
+                method: 'POST',
+                body: JSON.stringify(stateObj)
+            }).catch(function(){});
+        }
     }, 500);
 }
 
@@ -2391,3 +2402,4 @@ if (isWatchActive) {
 
 </body>
 </html>
+
