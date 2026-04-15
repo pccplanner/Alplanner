@@ -2227,27 +2227,32 @@ function handleIncomingWatchMsg(msg) {
 }
 
 // ── AGGRESSIVE CATCH UP ──
-// Separated from the SSE setup so it can be blasted every time the phone wakes up.
+// Safely bypasses caching completely and fetches ALL messages the second the phone screen turns on
 function forceCatchUp() {
     if (!isWatchActive || !watchTopic || isFinished) return;
     var cleanTopic = watchTopic.trim();
-    var sinceSecs = Math.floor(Date.now() / 1000) - 43200; // Look back up to 12 hours
     
-    fetch('https://ntfy.sh/' + cleanTopic + '/json?poll=1&since=' + sinceSecs)
-        .then(function(res) { return res.text(); })
-        .then(function(body) {
-            if (body) {
-                var lines = body.trim().split('\n');
-                for (var i = 0; i < lines.length; i++) {
-                    if (!lines[i]) continue;
-                    try {
-                        var msg = JSON.parse(lines[i]);
-                        handleIncomingWatchMsg(msg);
-                    } catch(e) {}
-                }
+    // Removed the "since" parameter completely to prevent clock-skew bugs.
+    // poll=1 will natively fetch all cached events. Our processedWatchMsgs array filters the duplicates!
+    var url = 'https://ntfy.sh/' + cleanTopic + '/json?poll=1&cb=' + Date.now();
+    
+    fetch(url, {
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+    })
+    .then(function(res) { return res.text(); })
+    .then(function(body) {
+        if (body) {
+            var lines = body.trim().split('\n');
+            for (var i = 0; i < lines.length; i++) {
+                if (!lines[i]) continue;
+                try {
+                    var msg = JSON.parse(lines[i]);
+                    handleIncomingWatchMsg(msg);
+                } catch(e) {}
             }
-        })
-        .catch(function(e) { console.log("Catchup fetch error", e); });
+        }
+    })
+    .catch(function(e) { console.log("Catchup fetch error", e); });
 }
 
 function startWatchPoller(topic) {
@@ -2279,24 +2284,28 @@ function startWatchPoller(topic) {
     };
 }
 
-// Ensure the app forcefully sweeps the server for triggers the INSTANT the screen wakes up
+// ── FAILSAFE: Screen Wake & Background Heartbeat ──
+
+// 1. Ensure the app forcefully sweeps the server for triggers the INSTANT the screen wakes up
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible') {
-        // ALWAYS run the catch-up sweep when the phone screen is turned on
         forceCatchUp(); 
         
-        // Check if the live connection died while the phone was asleep
         if (isWatchActive && watchTopic && !isFinished) {
-            if (!watchEventSource || watchEventSource.readyState !== EventSource.OPEN) {
-                startWatchPoller(watchTopic);
-            }
+            // Forcefully reconstruct the SSE connection. Safari breaks existing ones silently on sleep.
+            startWatchPoller(watchTopic);
         }
     }
 });
 
-// Extra aggressive fallbacks just in case visibilitychange bugs out in Safari
-window.addEventListener("focus", forceCatchUp);
-window.addEventListener("pageshow", forceCatchUp);
+// 2. Add a continuous safety net polling loop (every 5 seconds) 
+// This catches everything even if visibility events fail or SSE drops randomly.
+setInterval(function() {
+    if (isWatchActive && document.visibilityState === 'visible') {
+        forceCatchUp();
+    }
+}, 5000);
+
 
 function showWatchToast(source, stamp) {
     try {
