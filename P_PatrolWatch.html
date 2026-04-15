@@ -701,12 +701,9 @@
         if (navigator.vibrate) navigator.vibrate([50]);
         var topicClean = syncTopic.trim();
 
-        // Use navigator.sendBeacon for reliable delivery when the page is
-        // backgrounded. sendBeacon sends the data as text/plain and returns
-        // a boolean synchronously. The fetch request used previously could
-        // be aborted when the watch face or phone is not visible. See the
-        // ntfy docs and background execution notes for why this improves
-        // reliabilityhttps://firt.dev/understanding-js-background/#:~:text=,often%20suspends%20the%20previous%20apphttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app.
+        // Send the trigger using navigator.sendBeacon to improve reliability when the
+        // watch face goes to the background. sendBeacon returns a boolean
+        // indicating whether the data was queued for sendinghttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app.
         var payload = JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) });
         var success = false;
         try {
@@ -714,30 +711,24 @@
         } catch (err) {
             success = false;
         }
-
         if (success) {
             if (navigator.vibrate) navigator.vibrate([100]);
-            // Record last log time
+            // Record last log time but let the phone update the index; do not increment
             try { localStorage.setItem('wPatrolLastLog', Date.now()); } catch(e){}
-            // Advance to next checkpoint and persist state
-            currentIndex++;
-            if (currentIndex >= ROUTE_POINTS.length) isFinished = true;
-            try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
-            renderUI();
             // Provide visual feedback
             btn.innerText = "✅ SENT!";
             btn.style.opacity = "1";
             btn.style.background = "linear-gradient(135deg, #3ddc84, #1aab60)";
             btn.style.boxShadow = "0 4px 16px rgba(61,220,132,0.3)";
+            // Restore button text after a moment
             setTimeout(function(){
                 btn.innerText = "LOG NOW";
                 btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
                 btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
             }, 1500);
-            // Give the phone a moment to process, then force a sync check
+            // Force a state check after a short delay so we pick up the phone's response
             setTimeout(fetchLatestState, 2000);
         } else {
-            // If sendBeacon fails, fall back to showing a failure message.
             btn.innerText = "❌ FAILED";
             btn.style.opacity = "1";
             btn.style.background = "var(--red)";
@@ -787,10 +778,8 @@
         var oldTxt = btn.innerText;
         btn.innerText = "SENDING…";
 
-        // Use navigator.sendBeacon to reliably send the reset payload when
-        // the watch face goes into the backgroundhttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app. The
-        // payload is a JSON string; sendBeacon will POST it with content-type
-        // text/plain.
+        // Use navigator.sendBeacon to send the reset command reliably even if the
+        // watch face goes into the backgroundhttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app.
         var payload = JSON.stringify({ trigger: false, reset: true, startIdx: newStart });
         var success = false;
         try {
@@ -798,9 +787,10 @@
         } catch (err) {
             success = false;
         }
-
         if (success) {
             if (navigator.vibrate) navigator.vibrate(50);
+            // Update local state immediately and clear last log, but rely on phone for
+            // subsequent state broadcasting.
             startIndex = newStart;
             currentIndex = newStart;
             isFinished = false;
