@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -700,34 +701,43 @@
         if (navigator.vibrate) navigator.vibrate([50]);
         var topicClean = syncTopic.trim();
 
-        fetch('https://ntfy.sh/' + topicClean, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) })
-        }).then(function() {
+        // Use navigator.sendBeacon for reliable delivery when the page is
+        // backgrounded. sendBeacon sends the data as text/plain and returns
+        // a boolean synchronously. The fetch request used previously could
+        // be aborted when the watch face or phone is not visible. See the
+        // ntfy docs and background execution notes for why this improves
+        // reliabilityhttps://firt.dev/understanding-js-background/#:~:text=,often%20suspends%20the%20previous%20apphttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app.
+        var payload = JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) });
+        var success = false;
+        try {
+            success = navigator.sendBeacon('https://ntfy.sh/' + topicClean, payload);
+        } catch (err) {
+            success = false;
+        }
+
+        if (success) {
             if (navigator.vibrate) navigator.vibrate([100]);
             // Record last log time
             try { localStorage.setItem('wPatrolLastLog', Date.now()); } catch(e){}
-
+            // Advance to next checkpoint and persist state
             currentIndex++;
             if (currentIndex >= ROUTE_POINTS.length) isFinished = true;
             try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
             renderUI();
-
+            // Provide visual feedback
             btn.innerText = "✅ SENT!";
             btn.style.opacity = "1";
             btn.style.background = "linear-gradient(135deg, #3ddc84, #1aab60)";
             btn.style.boxShadow = "0 4px 16px rgba(61,220,132,0.3)";
-
             setTimeout(function(){
                 btn.innerText = "LOG NOW";
                 btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
                 btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
             }, 1500);
-
             // Give the phone a moment to process, then force a sync check
             setTimeout(fetchLatestState, 2000);
-        }).catch(function() {
+        } else {
+            // If sendBeacon fails, fall back to showing a failure message.
             btn.innerText = "❌ FAILED";
             btn.style.opacity = "1";
             btn.style.background = "var(--red)";
@@ -737,7 +747,7 @@
                 btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
                 btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
             }, 2000);
-        });
+        }
     }
 
     // ── SETTINGS ──
@@ -777,11 +787,19 @@
         var oldTxt = btn.innerText;
         btn.innerText = "SENDING…";
 
-        fetch('https://ntfy.sh/' + syncTopic.trim(), {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ trigger: false, reset: true, startIdx: newStart })
-        }).then(function() {
+        // Use navigator.sendBeacon to reliably send the reset payload when
+        // the watch face goes into the backgroundhttps://firt.dev/understanding-js-background/#:~:text=,returns%20to%20the%20web%20app. The
+        // payload is a JSON string; sendBeacon will POST it with content-type
+        // text/plain.
+        var payload = JSON.stringify({ trigger: false, reset: true, startIdx: newStart });
+        var success = false;
+        try {
+            success = navigator.sendBeacon('https://ntfy.sh/' + syncTopic.trim(), payload);
+        } catch (err) {
+            success = false;
+        }
+
+        if (success) {
             if (navigator.vibrate) navigator.vibrate(50);
             startIndex = newStart;
             currentIndex = newStart;
@@ -799,12 +817,11 @@
                 btn.style.borderColor = "rgba(255,92,92,0.28)";
                 hideSettings();
             }, 800);
-            
             setTimeout(fetchLatestState, 2000);
-        }).catch(function(){
+        } else {
             btn.innerText = "❌ FAILED";
             setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
-        });
+        }
     }
 
     // INIT
