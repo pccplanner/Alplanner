@@ -121,7 +121,7 @@
             <div class="next-target" id="next-target">Then: TG/OC DR</div>
         </div>
 
-        <button class="btn" onclick="clockIn()">LOG NOW</button>
+        <button class="btn" id="btn-log" onclick="clockIn()">LOG NOW</button>
     </div>
 
     <!-- 2. SETTINGS VIEW -->
@@ -179,7 +179,7 @@
             if (_si) startIndex = parseInt(_si, 10);
             
             // We check local storage in case you ever want to change it later, 
-            // but if there is nothing saved, it defaults to patrol-xib0nj29
+            // but if there is nothing saved, it defaults to your hardcoded ID.
             var _topic = localStorage.getItem('wPatrolTopic');
             if (_topic) syncTopic = _topic;
             else localStorage.setItem('wPatrolTopic', syncTopic);
@@ -231,23 +231,45 @@
             }
         }
 
-        // CLOCK IN LOGIC
+        // CLOCK IN LOGIC (UPDATED FOR APPLE WATCH CORS OVERRIDE)
         function clockIn() {
-            // Watch Taptic Feedback
-            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+            var btn = document.getElementById('btn-log');
+            btn.innerText = "SENDING...";
+            btn.style.opacity = "0.7";
             
-            // Send sync pulse to Phone App via NTFY
-            if (syncTopic) {
-                fetch('https://ntfy.sh/' + syncTopic, {
-                    method: 'POST',
-                    headers: { 'Title': '✅ Logged from Watch' },
-                    body: '{"event":"message","id":"watch-' + Date.now() + '","time":' + Math.floor(Date.now()/1000) + '}'
-                }).catch(function(){});
-            }
-
-            currentIndex++;
-            try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
-            renderUI();
+            // Watch Taptic Feedback
+            if (navigator.vibrate) navigator.vibrate([50]);
+            
+            var topicClean = syncTopic.trim();
+            
+            // mode: 'no-cors' forces Apple Watch Safari to send the POST 
+            // without blocking it due to Cross-Origin security rules.
+            fetch('https://ntfy.sh/' + topicClean, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: '{"trigger":true, "time":' + Math.floor(Date.now() / 1000) + '}'
+            }).then(function() {
+                if (navigator.vibrate) navigator.vibrate([100]);
+                currentIndex++;
+                try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
+                renderUI();
+                
+                btn.innerText = "✅ SENT!";
+                btn.style.background = "#3ddc84";
+                setTimeout(function(){ 
+                    btn.innerText = "LOG NOW"; 
+                    btn.style.opacity = "1";
+                    btn.style.background = "#5fa3ff";
+                }, 1500);
+            }).catch(function(err) {
+                btn.innerText = "❌ FAILED";
+                btn.style.background = "#ff453a";
+                setTimeout(function(){ 
+                    btn.innerText = "LOG NOW"; 
+                    btn.style.opacity = "1";
+                    btn.style.background = "#5fa3ff";
+                }, 2000);
+            });
         }
 
         // NAVIGATION & SETTINGS
