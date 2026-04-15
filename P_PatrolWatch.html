@@ -695,18 +695,18 @@ function forceCatchUp() {
         // since=12h to fetch all recent state messages.
         forceCatchUp();
 
-        // 2. Also perform the lightweight fetchLatestState() to maintain
-        // low‑latency updates; this ensures we always check for new
-        // messages after the initial sweep.
+        // 2. Perform a lightweight state fetch after the initial catch‑up to pick up
+        // any new messages quickly.
         fetchLatestState();
 
-        // 3. Set an aggressive polling fallback. WatchOS will pause this when asleep, 
-        // and immediately run it when waking up to guarantee a fresh state.
+        // 3. Set a polling fallback. While the watch is asleep, timers are paused,
+        // and they resume when it wakes. Here we call forceCatchUp() regularly
+        // rather than the lightweight fetch. This ensures that if any state
+        // broadcasts were missed while the watch was suspended, we still fetch
+        // the entire 12‑hour history and update to the latest one.
         syncInterval = setInterval(function(){
-            // Use fetchLatestState to reduce data usage; occasionally call
-            // forceCatchUp() every 5 polls to perform a full sweep.
-            fetchLatestState();
-        }, 8000);
+            forceCatchUp();
+        }, 10000);
 
         // 3. Set up SSE for live instant updates while screen is ON
         try {
@@ -730,10 +730,13 @@ function forceCatchUp() {
     
     // Aggressively trigger fetch when watch screen wakes up or focuses
     document.addEventListener("visibilitychange", function() {
-        if (document.visibilityState === 'visible') fetchLatestState();
+        if (document.visibilityState === 'visible') {
+            // On wake, perform a full catch up to process any missed state broadcasts
+            forceCatchUp();
+        }
     });
-    window.addEventListener("focus", fetchLatestState);
-    window.addEventListener("pageshow", fetchLatestState);
+    window.addEventListener("focus", forceCatchUp);
+    window.addEventListener("pageshow", forceCatchUp);
 
     // ── CLOCK IN ──
     function clockIn() {
