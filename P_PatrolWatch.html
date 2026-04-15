@@ -103,6 +103,11 @@
         .scrollable::-webkit-scrollbar { display: none; }
         
         .divider { height: 1px; background: #2c2c2e; margin: 20px 0; }
+        
+        /* Status Banner */
+        .sync-banner {
+            font-size: 10px; color: #3ddc84; text-align: center; margin-top: 5px; font-family: monospace; letter-spacing: 1px; opacity: 0.5;
+        }
     </style>
 </head>
 <body>
@@ -121,7 +126,8 @@
             <div class="next-target" id="next-target">Then: TG/OC DR</div>
         </div>
 
-        <button class="btn" onclick="clockIn()">LOG NOW</button>
+        <button class="btn" id="btn-log" onclick="clockIn()">LOG NOW</button>
+        <div class="sync-banner" id="sync-banner">SYNC ACTIVE</div>
     </div>
 
     <!-- 2. SETTINGS VIEW -->
@@ -166,6 +172,7 @@
         // STATE
         var currentIndex = 0;
         var startIndex = 0;
+        var isFinished = false;
         
         // --- HARDCODED TOPIC ID ---
         var syncTopic = "patrol-xib0nj29";
@@ -178,8 +185,9 @@
             var _si = localStorage.getItem('wPatrolStart');
             if (_si) startIndex = parseInt(_si, 10);
             
-            // We check local storage in case you ever want to change it later, 
-            // but if there is nothing saved, it defaults to patrol-xib0nj29
+            var _f = localStorage.getItem('wPatrolFinished');
+            if (_f === 'true') isFinished = true;
+            
             var _topic = localStorage.getItem('wPatrolTopic');
             if (_topic) syncTopic = _topic;
             else localStorage.setItem('wPatrolTopic', syncTopic);
@@ -197,11 +205,9 @@
             var sel = document.getElementById('reset-select');
             var html = '<option value="0">1st Half (Default)</option>';
             html += '<option value="10">2nd Half Only</option>';
-            
             for(var i = 0; i < ROUTE_POINTS.length; i++) {
                 html += '<option value="' + i + '">Custom: Pt ' + (i+1) + ' (' + ROUTE_POINTS[i] + ')</option>';
             }
-            
             sel.innerHTML = html;
         }
         initSelect();
@@ -211,7 +217,7 @@
             var totalActive = ROUTE_POINTS.length - startIndex;
             var cleared = currentIndex - startIndex;
             
-            if (currentIndex >= ROUTE_POINTS.length) {
+            if (currentIndex >= ROUTE_POINTS.length || isFinished) {
                 document.getElementById('view-active').classList.remove('active');
                 document.getElementById('view-settings').classList.remove('active');
                 document.getElementById('view-complete').classList.add('active');
@@ -231,23 +237,86 @@
             }
         }
 
-        // CLOCK IN LOGIC
-        function clockIn() {
-            // Watch Taptic Feedback
-            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-            
-            // Send sync pulse to Phone App via NTFY
-            if (syncTopic) {
-                fetch('https://ntfy.sh/' + syncTopic, {
-                    method: 'POST',
-                    headers: { 'Title': '✅ Logged from Watch' },
-                    body: '{"event":"message","id":"watch-' + Date.now() + '","time":' + Math.floor(Date.now()/1000) + '}'
+        // TRUE SYNC: FETCH THE EXACT STATE DIRECTLY FROM THE PHONE
+        function fetchPhoneState() {
+            if (!syncTopic) return;
+            fetch('https://ntfy.sh/' + syncTopic.trim() + '-state/json?poll=1&last=1')
+                .then(function(res){ return res.text(); })
+                .then(function(body){
+                    if (!body) return;
+                    var lines = body.trim().split('\n');
+                    var msg = JSON.parse(lines[lines.length-1]); // grab the latest message
+                    
+                    if (msg && msg.message) {
+                        var s = JSON.parse(msg.message);
+                        if (typeof s.ci !== 'undefined') {
+                            // Update Watch State to match Phone exactly!
+                            currentIndex = s.ci;
+                            startIndex = s.si;
+                            isFinished = s.f;
+                            
+                            try { 
+                                localStorage.setItem('wPatrolStart', startIndex); 
+                                localStorage.setItem('wPatrolCurrent', currentIndex); 
+                                localStorage.setItem('wPatrolFinished', isFinished); 
+                            } catch(e){}
+                            
+                            renderUI();
+                        }
+                    }
                 }).catch(function(){});
-            }
+        }
 
-            currentIndex++;
-            try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
-            renderUI();
+        // FETCH SYNC ON WAKE / LOAD
+        fetchPhoneState();
+        setInterval(fetchPhoneState, 15000); // Poll every 15s to stay perfect
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === 'visible') fetchPhoneState();
+        });
+
+
+        // CLOCK IN LOGIC (CORS BYPASS TO PHONE)
+        function clockIn() {
+            var btn = document.getElementById('btn-log');
+            btn.innerText = "SENDING...";
+            btn.style.opacity = "0.7";
+            
+            if (navigator.vibrate) navigator.vibrate([50]);
+            var topicClean = syncTopic.trim();
+            
+            // mode: 'no-cors' allows this request to bypass security restrictions on Apple Watch Safari
+            fetch('https://ntfy.sh/' + topicClean, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) })
+            }).then(function() {
+                if (navigator.vibrate) navigator.vibrate([100]);
+                
+                // Optimistic visual update
+                currentIndex++;
+                if (currentIndex >= ROUTE_POINTS.length) isFinished = true;
+                try { localStorage.setItem('wPatrolCurrent', currentIndex); } catch(e){}
+                renderUI();
+                
+                btn.innerText = "✅ SENT!";
+                btn.style.background = "#3ddc84";
+                setTimeout(function(){ 
+                    btn.innerText = "LOG NOW"; 
+                    btn.style.opacity = "1";
+                    btn.style.background = "#5fa3ff";
+                }, 1500);
+
+                // Check with phone 2 seconds later to verify it was received
+                setTimeout(fetchPhoneState, 2000);
+            }).catch(function(err) {
+                btn.innerText = "❌ FAILED";
+                btn.style.background = "#ff453a";
+                setTimeout(function(){ 
+                    btn.innerText = "LOG NOW"; 
+                    btn.style.opacity = "1";
+                    btn.style.background = "#5fa3ff";
+                }, 2000);
+            });
         }
 
         // NAVIGATION & SETTINGS
@@ -264,7 +333,6 @@
             renderUI();
         }
 
-        // SAFE WATCH SAVING AND RESETTING
         function saveWatchTopic() {
             var inputTopic = document.getElementById('topic-input').value.trim();
             syncTopic = inputTopic;
@@ -275,41 +343,53 @@
             btn.innerText = "✅ Saved";
             btn.style.background = "rgba(61,220,132,0.2)";
             btn.style.color = "#3ddc84";
-            
             setTimeout(function(){
                 btn.innerText = oldTxt;
                 btn.style.background = "#2c2c2e";
                 btn.style.color = "#fff";
             }, 1000);
+            fetchPhoneState();
         }
 
+        // COMMAND PHONE TO RESET
         function executeReset() {
             var val = document.getElementById('reset-select').value;
-            startIndex = parseInt(val, 10);
-            currentIndex = startIndex;
-            
-            try { 
-                localStorage.setItem('wPatrolStart', startIndex); 
-                localStorage.setItem('wPatrolCurrent', currentIndex); 
-            } catch(e){}
+            var newStart = parseInt(val, 10);
             
             var btn = document.getElementById('btn-reset');
             var oldTxt = btn.innerText;
-            btn.innerText = "✅ Reset Done!";
-            btn.style.background = "#3ddc84";
+            btn.innerText = "SENDING...";
             
-            // Taptic feedback
-            if (navigator.vibrate) navigator.vibrate(50);
+            // Tell the phone app to execute a reset sequence
+            fetch('https://ntfy.sh/' + syncTopic.trim(), {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ trigger: false, reset: true, startIdx: newStart })
+            }).then(function() {
+                if (navigator.vibrate) navigator.vibrate(50);
+                
+                // Optimistic visual update
+                startIndex = newStart;
+                currentIndex = newStart;
+                isFinished = false;
+                renderUI();
 
-            setTimeout(function(){
-                btn.innerText = oldTxt;
-                btn.style.background = "#ff453a";
-                hideSettings();
-            }, 800);
+                btn.innerText = "✅ Reset Done!";
+                btn.style.background = "#3ddc84";
+                
+                setTimeout(function(){
+                    btn.innerText = oldTxt;
+                    btn.style.background = "#ff453a";
+                    hideSettings();
+                }, 800);
+                
+                // Check back with phone in 2.5 seconds to confirm sync
+                setTimeout(fetchPhoneState, 2500);
+            }).catch(function(){
+                btn.innerText = "❌ FAILED";
+                setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
+            });
         }
-
-        // INIT
-        renderUI();
     </script>
 </body>
 </html>
