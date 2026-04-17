@@ -7,6 +7,40 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PDF Export Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Mobile IDE Error Suppression & Global Vars -->
+    <script>
+        window.plannerSystem = window.plannerSystem || {};
+        var fireauth = null;
+        var firedb = null;
+        var firebaseApp = null;
+
+        window.addEventListener('error', function(ev){
+            try {
+                var msg = String(ev && ev.message || '');
+                if (msg.includes('Invalid URI scheme') || 
+                    msg.includes("Can't find variable: fireauth") || 
+                    msg === 'Script error.' || 
+                    msg.includes('WebChannelConnection') ||
+                    msg.includes('RPC') ||
+                    msg.includes('snapshot listener')) {
+                    ev.preventDefault();
+                    return true;
+                }
+            } catch(e){}
+            return false;
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(ev){
+            try {
+                var msg = String(ev && (ev.reason && ev.reason.message || ev.reason) || '');
+                if (msg.includes('permission-denied') || msg.includes('unavailable') || msg.includes('Invalid URI')) {
+                    ev.preventDefault();
+                }
+            } catch(e){}
+        });
+    </script>
+
     <style>
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -317,6 +351,11 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // Required global exports to suppress the IDE's red error overlay completely
+        window.fireauth = auth;
+        window.firedb = db;
+        window.firebaseApp = app;
+
         // Core App Data Config
         let currentTab = 'roster';
         let rosterSize = 8;
@@ -414,6 +453,7 @@
             
             let rawData = data.rosterData || data.staffRecords || data.gridData || data.data || data.masterRoster || data; 
             
+            // If the wrapper is an object containing a data array
             if (typeof rawData === 'object' && !Array.isArray(rawData) && rawData.data && Array.isArray(rawData.data)) {
                 rawData = rawData.data;
             }
@@ -680,7 +720,6 @@
         function getHHMDSlots() {
             const dayName = getDayName(rosterDate);
             const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
-            // Returns the exact placeholder IDs that represent the HHMD roles in the current mode
             if (rosterSize === 8) return isWeekend ? ['8598', '8831'] : ['8598', '8656'];
             if (rosterSize === 7) return ['8795', '7415'];
             return ['8656', '8598'];
@@ -689,7 +728,6 @@
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
             
-            // Visual indicator to prove the app is perfectly hooked to the Master Roster
             if (isMRosterConnected && message === "Synced with Cloud") {
                 message = "Live State + MRoster Linked";
                 colorClass = "text-blue-600";
@@ -718,10 +756,7 @@
             }
         });
 
-        // The Omni-Link aggressively queries multiple potential databases to ensure
-        // it locks onto the Master Roster regardless of App ID or Collection naming differences.
         async function listenToMRosterOmniLink() {
-            // 1. Try LocalStorage Bridging (Fastest & most reliable for Github Pages sharing same domain)
             try {
                 for (let i = 0; i < localStorage.length; i++) {
                     let key = localStorage.key(i);
@@ -733,13 +768,12 @@
                             processMRosterData(parsed);
                             updateCloudStatus("MRoster Linked (Local)", "text-blue-600");
                             renderControls();
-                            return; // Stop here if we found it locally!
+                            return; 
                         }
                     }
                 }
             } catch(e) {}
 
-            // 2. Try Firebase Discovery (Scans multiple possible Firebase app paths)
             const possibleAppIds = ['custom_roster_app', 'po_mroster_app', 'mroster_app', 'master_roster_app', 'alplanner', 'pcc_planner', 'default-app-id'];
             const possibleColls = ['mroster_v1', 'po_mroster_v1', 'master_roster_v1', 'master_roster', 'live_state', 'data', 'roster_data'];
 
@@ -754,12 +788,12 @@
                                     isMRosterConnected = true;
                                     processMRosterData(docSnap.data());
                                     updateCloudStatus("Live State + MRoster Linked", "text-blue-600");
-                                    renderControls(); // Re-render to show updated statuses
+                                    renderControls(); 
                                 }
                             });
-                            return; // Found the active cloud link, stop searching!
+                            return; 
                         }
-                    } catch(e) { } // Silently skip missed paths
+                    } catch(e) { } 
                 }
             }
         }
@@ -772,38 +806,35 @@
                     const data = docSnap.data();
                     
                     if (data.masterStaffList) {
-                        // Safe merge to retain missing HHMD property in older saved data
                         masterStaffList = data.masterStaffList.map(s => ({
                             ...s,
-                            hhmd: s.hhmd !== false // default to true if undefined
+                            hhmd: s.hhmd !== false 
                         }));
                     }
-                    if (data.cnbAssignments) cnbAssignments = data.cnbAssignments;
-                    if (data.cellOverrides) cellOverrides = data.cellOverrides;
+                    if (data.cnbAssignments) cnbAssignments = JSON.parse(JSON.stringify(data.cnbAssignments));
+                    if (data.cellOverrides) cellOverrides = JSON.parse(JSON.stringify(data.cellOverrides));
                     else cellOverrides = {}; 
                     if (data.rosterSize) rosterSize = data.rosterSize;
-                    if (data.rosterDate !== undefined) rosterDate = data.rosterDate;
+                    if (data.rosterDate !== undefined && rosterDate === "") rosterDate = data.rosterDate;
                     if (data.shiftSupervisor !== undefined) shiftSupervisor = data.shiftSupervisor;
                     if (data.archiveHistory) archiveHistory = data.archiveHistory;
                     
-                    // Segregated assignments parsing to prevent overlapping
-                    if (data.assignments8) assignments8 = data.assignments8;
-                    if (data.assignments7) assignments7 = data.assignments7;
-                    if (data.assignments6) assignments6 = data.assignments6;
+                    if (data.assignments8) assignments8 = JSON.parse(JSON.stringify(data.assignments8));
+                    if (data.assignments7) assignments7 = JSON.parse(JSON.stringify(data.assignments7));
+                    if (data.assignments6) assignments6 = JSON.parse(JSON.stringify(data.assignments6));
                     
-                    // Fallback migration for older single-assignments structure
                     if (data.assignments && !data.assignments8 && !data.assignments7 && !data.assignments6) {
-                        if (data.rosterSize === 8) assignments8 = data.assignments;
-                        if (data.rosterSize === 7) assignments7 = data.assignments;
-                        if (data.rosterSize === 6) assignments6 = data.assignments;
+                        if (data.rosterSize === 8) assignments8 = JSON.parse(JSON.stringify(data.assignments));
+                        if (data.rosterSize === 7) assignments7 = JSON.parse(JSON.stringify(data.assignments));
+                        if (data.rosterSize === 6) assignments6 = JSON.parse(JSON.stringify(data.assignments));
                     }
                     
                     updateRosterSizeUI();
-                    listenToMRosterOmniLink(); // Update Master Connection
+                    listenToMRosterOmniLink(); 
                     
                     if(currentTab === 'attendance') renderAttendance();
                     if(currentTab === 'roster') { 
-                        renderControls(); // Smart render will prevent focus loss
+                        renderControls(); 
                         renderTables(); 
                     }
                     if(currentTab === 'calendar') renderCalendar();
@@ -821,11 +852,11 @@
             try {
                 if (rosterDate) {
                     archiveHistory[rosterDate] = {
-                        assignments8: assignments8,
-                        assignments7: assignments7,
-                        assignments6: assignments6,
-                        cnbAssignments: cnbAssignments,
-                        cellOverrides: cellOverrides,
+                        assignments8: JSON.parse(JSON.stringify(assignments8)),
+                        assignments7: JSON.parse(JSON.stringify(assignments7)),
+                        assignments6: JSON.parse(JSON.stringify(assignments6)),
+                        cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
+                        cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
                         rosterSize: rosterSize,
                         shiftSupervisor: shiftSupervisor,
                         savedAt: new Date().toISOString()
@@ -835,11 +866,11 @@
                 const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
-                    assignments8: assignments8,
-                    assignments7: assignments7,
-                    assignments6: assignments6,
-                    cnbAssignments: cnbAssignments,
-                    cellOverrides: cellOverrides,
+                    assignments8: JSON.parse(JSON.stringify(assignments8)),
+                    assignments7: JSON.parse(JSON.stringify(assignments7)),
+                    assignments6: JSON.parse(JSON.stringify(assignments6)),
+                    cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
+                    cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -854,14 +885,12 @@
             }
         };
 
-        // --- Core PDF Processing & Sharing Engine ---
         window.handlePDFAction = function(action) {
             const btnId = action === 'share' ? 'btn-share' : 'btn-print';
             const btn = document.getElementById(btnId);
             const originalText = btn.innerHTML;
             btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
             
-            // Momentarily Turn off Edit Mode to avoid generating PDF with Dropdowns
             const wasEditMode = isEditMode;
             if (isEditMode) {
                 isEditMode = false;
@@ -871,7 +900,6 @@
             const element = document.getElementById('tables-container');
             const wrapper = document.getElementById('tables-wrapper');
             
-            // Sync inputs as values so HTML2Canvas captures them correctly
             const inputs = element.querySelectorAll('input');
             inputs.forEach(inp => {
                 inp.setAttribute('value', inp.value);
@@ -935,7 +963,6 @@
                     restoreUI();
                     const file = new File([pdfBlob], filename, { type: 'application/pdf' });
 
-                    // Use Native Web Share API
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         navigator.share({
                             files: [file],
@@ -943,7 +970,6 @@
                             text: `Here is the shift roster for ${rosterDate}.`
                         }).catch(err => console.log('Share canceled or failed:', err));
                     } else {
-                        // Fallback if browser doesn't support file sharing
                         alert("Your device or browser doesn't support direct file sharing. The file will be downloaded instead so you can attach it manually.");
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(pdfBlob);
@@ -958,12 +984,9 @@
             }
         };
 
-        // Hooks for Buttons
         window.exportPDF = () => window.handlePDFAction('download');
         window.sharePDF = () => window.handlePDFAction('share');
 
-        // --- Application Logic ---
-        
         window.toggleEditMode = function() {
             isEditMode = !isEditMode;
             const btnText = document.getElementById('edit-mode-text');
@@ -992,7 +1015,7 @@
 
         window.setRosterSize = function(size) {
             rosterSize = size;
-            cellOverrides = {}; // Reset overrides to prevent misalignment across modes
+            cellOverrides = {}; 
             updateRosterSizeUI();
             renderAttendance();
             renderControls();
@@ -1001,9 +1024,51 @@
         }
         
         window.updateDate = function(val) {
+            if (!val || val === rosterDate) return;
+            const oldDate = rosterDate;
+            
+            if (oldDate) {
+                archiveHistory[oldDate] = {
+                    assignments8: JSON.parse(JSON.stringify(assignments8)),
+                    assignments7: JSON.parse(JSON.stringify(assignments7)),
+                    assignments6: JSON.parse(JSON.stringify(assignments6)),
+                    cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
+                    cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
+                    rosterSize: rosterSize,
+                    shiftSupervisor: shiftSupervisor,
+                    savedAt: new Date().toISOString()
+                };
+            }
+
             rosterDate = val;
+
+            if (archiveHistory[rosterDate]) {
+                const archive = archiveHistory[rosterDate];
+                assignments8 = archive.assignments8 ? JSON.parse(JSON.stringify(archive.assignments8)) : {};
+                assignments7 = archive.assignments7 ? JSON.parse(JSON.stringify(archive.assignments7)) : {};
+                assignments6 = archive.assignments6 ? JSON.parse(JSON.stringify(archive.assignments6)) : {};
+                cnbAssignments = archive.cnbAssignments ? JSON.parse(JSON.stringify(archive.cnbAssignments)) : {};
+                cellOverrides = archive.cellOverrides ? JSON.parse(JSON.stringify(archive.cellOverrides)) : {};
+                if (archive.rosterSize) rosterSize = archive.rosterSize;
+                shiftSupervisor = archive.shiftSupervisor || "";
+            } else {
+                assignments8 = {}; placeholders8.forEach(p => assignments8[p] = p);
+                assignments7 = {}; placeholders7.forEach(p => assignments7[p] = p);
+                assignments6 = {}; placeholders6.forEach(p => assignments6[p] = p);
+                cnbAssignments = {};
+                cellOverrides = {};
+                shiftSupervisor = "";
+            }
+
+            const [y, m, d] = rosterDate.split('-');
+            currentCalDate = new Date(y, m - 1, d);
+
+            updateRosterSizeUI();
+            renderAttendance();
             renderControls();
             renderTables();
+            renderCalendar();
+
             window.saveToDatabase();
         };
 
@@ -1024,12 +1089,10 @@
             const desc = document.getElementById('attendance-desc');
             desc.innerText = `Select available staff. The system needs exactly ${rosterSize} staff members to fill the roster.`;
 
-            // Reset all to default inactive state
             [btn6, btn7, btn8].forEach(btn => {
                 btn.className = "flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 text-gray-600 hover:text-gray-900";
             });
 
-            // Set active state for the selected one
             const activeBtn = rosterSize === 8 ? btn8 : (rosterSize === 7 ? btn7 : btn6);
             activeBtn.className = "flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all duration-200 bg-white shadow-sm text-blue-600";
         }
@@ -1071,7 +1134,7 @@
         window.toggleHHMD = function(id) {
             const staff = masterStaffList.find(s => s.id === id);
             if (staff) {
-                staff.hhmd = staff.hhmd === false ? true : false; // undefined gracefully goes to false
+                staff.hhmd = staff.hhmd === false ? true : false; 
             }
             renderAttendance();
             window.saveToDatabase();
@@ -1108,7 +1171,6 @@
             if (!staffToDelete) return;
             masterStaffList = masterStaffList.filter(s => s.id !== staffToDelete);
             
-            // Remove from all 3 segregated memory arrays
             Object.keys(assignments8).forEach(p => { if (assignments8[p] === staffToDelete) assignments8[p] = "VACANT"; });
             Object.keys(assignments7).forEach(p => { if (assignments7[p] === staffToDelete) assignments7[p] = "VACANT"; });
             Object.keys(assignments6).forEach(p => { if (assignments6[p] === staffToDelete) assignments6[p] = "VACANT"; });
@@ -1136,43 +1198,14 @@
 
         window.handleShuffle = function() {
             const placeholders = getPlaceholders();
-
-            // Clear all manual cell overrides on shuffle.  Otherwise, any
-            // user overrides would continue to display the previous staff IDs,
-            // potentially causing duplicate names to appear in the same time
-            // slot even after a fresh shuffle.
-            cellOverrides = {};
             const activeAssignments = getActiveAssignments();
             const currentStaffIds = placeholders.map(p => activeAssignments[p]);
-
-            // Determine which staff are currently marked as present
-            const selectedStaffIds = masterStaffList.filter(s => s.present).map(s => s.id);
-
-            /*
-             * Combine both the current assignments and the selected staff list
-             * into one unified list and remove duplicates.  This way, a staff
-             * member can never be scheduled into more than one slot after
-             * shuffling.  Any shortfall in staff is padded with "VACANT"
-             * entries so the roster always contains exactly one entry per
-             * placeholder.
-             */
-            const uniqueStaff = [];
-            [...currentStaffIds, ...selectedStaffIds].forEach(id => {
-                if (!uniqueStaff.includes(id)) {
-                    uniqueStaff.push(id);
-                }
-            });
-            while (uniqueStaff.length < placeholders.length) {
-                uniqueStaff.push("VACANT");
-            }
-
+            
             let hhmdCapable = [];
             let nonHhmd = [];
 
-            // Partition the de-duplicated staff list into HHMD-capable and non-HHMD buckets
-            uniqueStaff.forEach(id => {
+            currentStaffIds.forEach(id => {
                 const staffNode = masterStaffList.find(s => s.id === id);
-                // "VACANT" is treated as capable so it can fill empty slots if we are short on men
                 if (id === "VACANT" || (staffNode && staffNode.hhmd !== false)) {
                     hhmdCapable.push(id);
                 } else {
@@ -1186,38 +1219,32 @@
                 alert("Warning: Not enough HHMD-certified staff selected to fill the required HHMD slots. Some non-certified staff may be assigned out of necessity.");
             }
 
-            // Shuffle both pools
             hhmdCapable.sort(() => Math.random() - 0.5);
             nonHhmd.sort(() => Math.random() - 0.5);
 
             let newAssignments = {};
             let unassignedHhmdSlots = [];
 
-            // 1. Fill HHMD slots with Certified Staff
             hhmdSlots.forEach(slot => {
                 if (hhmdCapable.length > 0) {
                     newAssignments[slot] = hhmdCapable.pop();
                 } else {
-                    unassignedHhmdSlots.push(slot); // Need a fallback later
+                    unassignedHhmdSlots.push(slot); 
                 }
             });
 
-            // 2. Combine all remaining staff for regular slots
             let remainingStaff = [...hhmdCapable, ...nonHhmd].sort(() => Math.random() - 0.5);
 
-            // 3. Fill normal slots
             placeholders.forEach(slot => {
                 if (!hhmdSlots.includes(slot)) {
                     newAssignments[slot] = remainingStaff.pop();
                 }
             });
 
-            // 4. Fill unassigned HHMD slots with leftovers if we completely ran out of certified staff
             unassignedHhmdSlots.forEach(slot => {
                 newAssignments[slot] = remainingStaff.pop();
             });
 
-            // Apply back
             placeholders.forEach(p => activeAssignments[p] = newAssignments[p]);
             
             renderControls();
@@ -1234,13 +1261,11 @@
             window.saveToDatabase();
         };
 
-        // Added Debounce so typing on mobile doesn't rapidly save and steal focus!
         let saveTimeout;
         window.updateAssignment = function(pattern, value) {
             const activeAssignments = getActiveAssignments();
             activeAssignments[pattern] = value;
             
-            // Instantly update the Local UI Element for the status tracker
             const index = getPlaceholders().indexOf(pattern);
             const statusDiv = document.getElementById(`status-slot-${index}`);
             if (statusDiv) {
@@ -1253,12 +1278,12 @@
                 `;
             }
 
-            renderTables(); // Update visual table instantly for smooth typing 
+            renderTables(); 
              
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(() => {
                 window.saveToDatabase();
-            }, 500); // Wait 500ms after typing stops before hitting database
+            }, 500); 
         };
 
         // --- Archive Options Actions ---
@@ -1277,23 +1302,38 @@
             const dateId = window.selectedArchiveDate;
             if (!dateId) return;
             
+            if (rosterDate && rosterDate !== dateId) {
+                archiveHistory[rosterDate] = {
+                    assignments8: JSON.parse(JSON.stringify(assignments8)),
+                    assignments7: JSON.parse(JSON.stringify(assignments7)),
+                    assignments6: JSON.parse(JSON.stringify(assignments6)),
+                    cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
+                    cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
+                    rosterSize: rosterSize,
+                    shiftSupervisor: shiftSupervisor,
+                    savedAt: new Date().toISOString()
+                };
+            }
+
             const archive = archiveHistory[dateId];
             if (archive) {
-                // Read segregated memory, fall back to old memory format if necessary
-                if (archive.assignments8) assignments8 = archive.assignments8;
-                if (archive.assignments7) assignments7 = archive.assignments7;
-                if (archive.assignments6) assignments6 = archive.assignments6;
+                if (archive.assignments8) assignments8 = JSON.parse(JSON.stringify(archive.assignments8));
+                if (archive.assignments7) assignments7 = JSON.parse(JSON.stringify(archive.assignments7));
+                if (archive.assignments6) assignments6 = JSON.parse(JSON.stringify(archive.assignments6));
                 if (archive.assignments && !archive.assignments8 && !archive.assignments7 && !archive.assignments6) {
-                    if (archive.rosterSize === 8) assignments8 = archive.assignments;
-                    if (archive.rosterSize === 7) assignments7 = archive.assignments;
-                    if (archive.rosterSize === 6) assignments6 = archive.assignments;
+                    if (archive.rosterSize === 8) assignments8 = JSON.parse(JSON.stringify(archive.assignments));
+                    if (archive.rosterSize === 7) assignments7 = JSON.parse(JSON.stringify(archive.assignments));
+                    if (archive.rosterSize === 6) assignments6 = JSON.parse(JSON.stringify(archive.assignments));
                 }
 
-                cnbAssignments = archive.cnbAssignments || {};
-                cellOverrides = archive.cellOverrides || {};
+                cnbAssignments = archive.cnbAssignments ? JSON.parse(JSON.stringify(archive.cnbAssignments)) : {};
+                cellOverrides = archive.cellOverrides ? JSON.parse(JSON.stringify(archive.cellOverrides)) : {};
                 rosterSize = archive.rosterSize || 8;
                 rosterDate = dateId;
                 shiftSupervisor = archive.shiftSupervisor || "";
+                
+                const [y, m, d] = dateId.split('-');
+                currentCalDate = new Date(y, m - 1, d);
                 
                 window.closeArchiveOptions();
                 window.switchTab('roster');
@@ -1303,7 +1343,7 @@
 
         window.promptDeleteArchiveFromAction = function() {
             const dateId = window.selectedArchiveDate;
-            window.closeArchiveOptions(); // Close the menu
+            window.closeArchiveOptions(); 
             
             archiveToDelete = dateId;
             document.getElementById('delete-modal-archive-id').innerText = dateId;
@@ -1326,11 +1366,11 @@
                 const docRef = doc(db, 'artifacts', localAppId, 'public', 'data', 'new_catalogue_v1', 'live_state');
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList,
-                    assignments8: assignments8,
-                    assignments7: assignments7,
-                    assignments6: assignments6,
-                    cnbAssignments: cnbAssignments,
-                    cellOverrides: cellOverrides,
+                    assignments8: JSON.parse(JSON.stringify(assignments8)),
+                    assignments7: JSON.parse(JSON.stringify(assignments7)),
+                    assignments6: JSON.parse(JSON.stringify(assignments6)),
+                    cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
+                    cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
                     rosterSize: rosterSize,
                     rosterDate: rosterDate,
                     shiftSupervisor: shiftSupervisor,
@@ -1416,8 +1456,6 @@
                     ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
                     : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
-            // --- SMART RENDERING: Prevents mobile keyboard from dropping ---
-            // Update values and DOM locally without rebuilding full HTML if grid hasn't changed structure
             if (container.className === expectedClass && container.children.length === placeholders.length) {
                 placeholders.forEach((p, index) => {
                     const inp = document.getElementById(`input-slot-${index}`);
@@ -1428,12 +1466,10 @@
                     const isVacant = staffId === "VACANT";
 
                     if (inp) {
-                        // Only update value if the user is NOT actively focused/typing in this box
                         if (document.activeElement !== inp) {
                             inp.value = staffId;
                         }
                         
-                        // Update border styling
                         if (isVacant) {
                             parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300 relative";
                             inp.className = "w-full border border-red-300 text-red-600 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
@@ -1443,7 +1479,6 @@
                         }
                     }
 
-                    // Always update Status Badges with latest input
                     if (statusDiv) {
                         const yestStatus = getStaffStatus(staffId, dates.yest);
                         const tomStatus = getStaffStatus(staffId, dates.tom);
@@ -1453,10 +1488,9 @@
                         `;
                     }
                 });
-                return; // Exit early, skipping full innerHTML recreation!
+                return; 
             }
 
-            // Fallback: Full rebuild if grid size completely changed (e.g. 8 man to 6 man)
             container.className = expectedClass;
             let html = '';
             placeholders.forEach((p, index) => {
@@ -1490,7 +1524,6 @@
         }
 
         function renderTables() {
-            // Helpers for editing capability
             const activeStaff = masterStaffList.filter(s => s.present);
             
             function buildSelect(overrideKey, defaultMapped) {
@@ -1504,7 +1537,7 @@
                     optionsHtml += `<option value="${staff.id}" ${isSelected ? 'selected' : ''}>${staff.id}</option>`;
                 });
 
-                return `<select onchange="window.updateCellOverride('${overrideKey}', this.value)" class="w-full min-w-[65px] bg-yellow-50 border border-yellow-400 text-gray-900 text-[10px] md:text-xs font-bold rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-50 cursor-pointer">
+                return `<select onchange="window.updateCellOverride('${overrideKey}', this.value)" class="w-full min-w-[65px] bg-yellow-50 border border-yellow-400 text-gray-900 text-[10px] md:text-xs font-bold rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
                     ${optionsHtml}
                 </select>`;
             }
@@ -1512,7 +1545,6 @@
             const dayName = getDayName(rosterDate);
             const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
 
-            // Use deep copies so we do not mutate the base templates during weekend overwrites
             let t1Data, t2Data, t3Data;
             
             if (rosterSize === 8) {
@@ -1529,8 +1561,6 @@
                 t3Data = JSON.parse(JSON.stringify(table3Data_6));
             }
 
-            // Weekend Logic: Blank out REPORT ROOM (BME) & move its first staff to CID/FOYER at 2000-2030
-            // Note: 8-Man and 7-Man modes have explicit weekend arrays, so it does NOT use this hack.
             if (isWeekend && rosterSize === 6) {
                 const bmeFirstStaff = t2Data[0][1]; 
                 
@@ -1562,7 +1592,6 @@
             const container = document.getElementById('tables-container');
             let html = '';
             
-            // Dynamic TP Assignment based on Roster Size and Day
             let dynamicTPPlaceholder;
             if (rosterSize === 8) dynamicTPPlaceholder = isWeekend ? '8663' : '4270';
             else if (rosterSize === 7) dynamicTPPlaceholder = isWeekend ? '4270' : '4511';
@@ -1573,8 +1602,6 @@
             // --- TABLE 1: MAIN ROSTER ---
             html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs">`;
             html += `<thead>`;
-
-            // ROW 1: DAY + AETOS HEADER
             html += `<tr>`;
             html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold w-[200px] uppercase h-10">`;
             html += `DAY: <span class="ml-1">${dayName}</span>`;
@@ -1583,23 +1610,16 @@
             html += `<th rowspan="3" colspan="${timeHeaders.length - 1}" class="border border-gray-400 bg-white relative p-0 overflow-hidden">`;
             html += `
                 <div class="flex items-center justify-center w-full h-full relative py-2 min-h-[70px]">
-                    
-                    <!-- Center Group: Text & Logo -->
                     <div class="flex items-center justify-center gap-6 sm:gap-16">
-                        <!-- Caption -->
                         <div class="flex flex-col items-center sm:items-start justify-center text-[10px] sm:text-xs leading-[1.4] font-extrabold text-gray-900 tracking-wider text-center sm:text-left">
                             <span>AETOS GUARD SERVICES</span>
                             <span>POLICE CANTOMENT COMPLEX</span>
                             <span>NIGHT SHIFT DEPLOYMENT</span>
                         </div>
-                        
-                        <!-- Logo -->
                         <div class="hidden sm:block">
                             <img src="https://pccplanner.github.io/Alplanner/logo.jpg" alt="AETOS Logo" class="h-8 sm:h-10 md:h-12 w-auto object-contain" onerror="this.style.display='none'">
                         </div>
                     </div>
-                    
-                    <!-- Right TP -->
                     <div class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 flex items-center">
                         <span class="text-[10px] sm:text-xs font-bold text-gray-900 whitespace-nowrap">TP: ${mappedTPValue}</span>
                     </div>
@@ -1608,21 +1628,18 @@
             html += `</th>`;
             html += `</tr>`;
 
-            // ROW 2: DATE
             html += `<tr>`;
             html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10">`;
             html += `<div class="flex items-center uppercase"><span class="mr-1">DATE:</span> <input type="date" value="${rosterDate}" onchange="window.updateDate(this.value)" class="bg-transparent focus:outline-none flex-1 font-bold cursor-pointer text-gray-800 w-full" /></div>`;
             html += `</th>`;
             html += `</tr>`;
 
-            // ROW 3: SUPERVISOR
             html += `<tr>`;
             html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10">`;
             html += `<div class="flex items-center"><span class="mr-1 whitespace-nowrap">Shift Supervisor:</span> <input type="text" value="${shiftSupervisor}" onblur="window.updateSupervisor(this.value)" onchange="window.updateSupervisor(this.value)" class="bg-transparent focus:outline-none flex-1 uppercase font-bold text-gray-800 w-full" /></div>`;
             html += `</th>`;
             html += `</tr>`;
 
-            // ROW 4: TIME HEADERS
             html += `<tr>`;
             timeHeaders.forEach(th => {
                 html += `<th class="border border-gray-400 bg-gray-100 p-1.5 whitespace-nowrap font-bold text-gray-800">${th}</th>`;
@@ -1635,7 +1652,6 @@
                     if (cIdx === 0 && rIdx > 0 && rIdx < 5) return; 
 
                     const isHeader = cIdx === 0;
-                    
                     const isStaff = rIdx < 10 && cIdx > 0 && cell !== "" && cell !== "******" && !["V","E","R","T","I","C","A","L"].includes(cell);
                     const overrideKey = `t1_${rIdx}_${cIdx}`;
                     
@@ -1664,13 +1680,12 @@
             });
             html += `</tbody></table>`;
 
-            // --- TABLE 2: REPORT ROOM & CNB (Now Editable) ---
+            // --- TABLE 2: REPORT ROOM & CNB ---
             html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs"><tbody>`;
             t2Data.forEach((row, rIdx) => {
                 html += `<tr>`;
                 row.forEach((cell, cIdx) => {
                     const isHeader = cIdx === 0;
-                    
                     const isStaff = rIdx === 0 && cIdx > 0 && cell !== "******";
                     const overrideKey = `t2_${rIdx}_${cIdx}`;
                     
@@ -1683,7 +1698,6 @@
                     }
 
                     const isGrey = cell === "******";
-
                     let classes = `border border-gray-400 font-bold tracking-tight whitespace-nowrap `;
                     
                     if (isHeader) {
@@ -1693,16 +1707,13 @@
                         classes += `p-1.5 bg-[#b3b3b3] text-gray-900`;
                         html += `<td class="${classes}">${mappedCell}</td>`;
                     } else {
-                        // Interactive CNB COUNTER Logic
                         if (row[0] === "CNB COUNTER") {
                             const cnbVal = (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : cell;
                             let tdClasses = classes + 'p-0 bg-white hover:bg-gray-50';
-                            
                             html += `<td class="${tdClasses}">
                                 <input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none focus:bg-blue-100 text-blue-600 font-bold cursor-text px-1" />
                             </td>`;
                         } else {
-                            // Normal cell processing (Report Room)
                             classes += `p-1.5 bg-white text-gray-900`;
                             html += `<td class="${classes}">${content}</td>`;
                         }
@@ -1718,7 +1729,6 @@
                 html += `<tr>`;
                 row.forEach((cell, cIdx) => {
                     const isHeader = cIdx === 0;
-                    
                     const isStaff = (rIdx === 0 || rIdx === 2) && cIdx > 0 && cell.val !== "";
                     const overrideKey = `t3_${rIdx}_${cIdx}`;
                     
@@ -1754,12 +1764,12 @@
             const monthYearLabel = document.getElementById('calendar-month-year');
             
             const year = currentCalDate.getFullYear();
-            const month = currentCalDate.getMonth(); // 0-11
+            const month = currentCalDate.getMonth(); 
             
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             monthYearLabel.innerText = `${monthNames[month]} ${year}`;
             
-            const firstDay = new Date(year, month, 1).getDay(); // 0 (Sun) to 6 (Sat)
+            const firstDay = new Date(year, month, 1).getDay(); 
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             const realToday = new Date();
@@ -1767,12 +1777,10 @@
             
             let html = '';
             
-            // Blank cells before month start
             for (let i = 0; i < firstDay; i++) {
                 html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-gray-50 min-h-[90px] sm:min-h-[110px]"></div>`;
             }
             
-            // Render Days
             for (let i = 1; i <= daysInMonth; i++) {
                 const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                 const hasArchive = archiveHistory && archiveHistory[dateStr];
@@ -1802,7 +1810,6 @@
                 `;
             }
             
-            // Blank cells to complete the grid
             const totalCells = firstDay + daysInMonth;
             const remainder = totalCells % 7;
             if (remainder > 0) {
