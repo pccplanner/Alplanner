@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -553,6 +554,31 @@
     }
 
     .btn-wa:hover { transform: translateY(-2px); }
+
+    /* ── COPY LOG BUTTON ── */
+    /* Styled similarly to the WhatsApp button but using the blue accent
+       colour so it stands out distinctly. It spans the full width of the
+       container and uses a gradient based off of the primary blue hue. */
+    .btn-copy {
+        width: 100%;
+        background: linear-gradient(135deg, var(--blue), #5b9fff);
+        border: none;
+        border-radius: 14px;
+        color: white;
+        font-family: var(--display);
+        font-size: 15px;
+        font-weight: 700;
+        padding: 15px;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        box-shadow: 0 6px 20px var(--blue-glow);
+        transition: transform 0.15s, box-shadow 0.15s;
+        margin-bottom: 10px;
+    }
+
+    .btn-copy:hover { transform: translateY(-2px); }
+
+    .btn-copy svg { width: 20px; height: 20px; stroke: none; fill: currentColor; }
 
     .btn-secondary {
         width: 100%;
@@ -1257,6 +1283,17 @@
             <div class="complete-title">Route Complete!</div>
             <div class="complete-sub" id="complete-sub-text">All checkpoints logged.</div>
             <div style="width:100%;padding:0 22px 8px;">
+                <!-- Copy button to allow the user to copy the completed log to the clipboard. It appears above
+                     the WhatsApp share button so that both actions are easily accessible once the route
+                     is complete. -->
+                <button class="btn-copy" id="btn-copy" onclick="copyCompletedLog()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <rect x="3" y="3" width="13" height="13" rx="2" ry="2"></rect>
+                    </svg>
+                    Copy Logs
+                </button>
+
                 <button class="btn-wa" onclick="shareToWhatsApp()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.552 4.1 1.516 5.82L0 24l6.335-1.652A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.814 9.814 0 0 1-5.003-1.368l-.36-.213-3.757.979.999-3.648-.235-.374A9.818 9.818 0 0 1 2.182 12C2.182 6.579 6.579 2.182 12 2.182S21.818 6.579 21.818 12 17.421 21.818 12 21.818z"/></svg>
                     Share to WhatsApp
@@ -1731,6 +1768,110 @@ function shareToWhatsApp() {
     
     var finalString = msgLines.join('\n');
     window.open('https://wa.me/?text=' + encodeURIComponent(finalString), '_blank');
+}
+
+/* ── COPY LOG TO CLIPBOARD ── */
+// Builds the same log summary as the WhatsApp share function but writes it to the
+// system clipboard. If available, the Clipboard API is used; otherwise it falls
+// back to the legacy execCommand method. UI feedback is provided by
+// temporarily changing the button label to indicate success or failure.
+function copyCompletedLog() {
+    // Grab the copy button so we can update its label for feedback
+    var btn = document.getElementById('btn-copy');
+    var originalLabel = btn ? btn.innerHTML : '';
+    // Helper functions to update label and restore after delay. These are defined
+    // up front so that they are available both inside the try block and in the
+    // catch clause.
+    function restore() {
+        if (btn) btn.innerHTML = originalLabel;
+    }
+    function indicateSuccess() {
+        if (btn) {
+            btn.innerHTML = '<svg view="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+            setTimeout(restore, 2000);
+        } else {
+            alert('Logs copied to clipboard');
+        }
+    }
+    function indicateFailure() {
+        if (btn) {
+            btn.innerHTML = '<svg view="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Copy Failed';
+            setTimeout(restore, 2000);
+        } else {
+            alert('Failed to copy');
+        }
+    }
+    try {
+        // Determine date for the header: if at least one checkpoint has been logged,
+        // use its timestamp; otherwise default to now. This mirrors the WhatsApp
+        // sharing logic.
+        var d = logs.length > 0 ? logs[0].timestamp : new Date();
+        var dd   = padTwo(d.getDate());
+        var mm   = padTwo(d.getMonth() + 1);
+        var yyyy = d.getFullYear();
+
+        var msgLines = [];
+        // Use plain text header rather than Markdown for general document usage
+        msgLines.push('Date: ' + dd + '/' + mm + '/' + yyyy);
+        msgLines.push('');
+
+        // Include note if a custom start point was selected
+        if (startMode === 'custom' && startIndex > 0) {
+            msgLines.push('(Route started from Point ' + (startIndex + 1) + ')');
+            msgLines.push('');
+        }
+        // Determine loop start for the second half routes
+        var loopStart = (startMode === 'second_half') ? 10 : 0;
+        for (var i = loopStart; i < TOTAL; i++) {
+            var loc = (i === 18) ? 'FOYER' : ROUTE_POINTS[i];
+            var t = '';
+            if (i < startIndex) {
+                // Prepend 00:00:00 for points before a custom start
+                t = '00:00:00';
+            } else {
+                var logEntry = null;
+                for (var j = 0; j < logs.length; j++) {
+                    if (logs[j].point === i + 1) { logEntry = logs[j]; break; }
+                }
+                if (logEntry) {
+                    var lt = logEntry.timestamp;
+                    t = padTwo(lt.getHours()) + ':' + padTwo(lt.getMinutes()) + ':' + padTwo(lt.getSeconds());
+                } else {
+                    t = '--:--:--';
+                }
+            }
+            msgLines.push(loc + ' - ' + t);
+        }
+        msgLines.push('');
+        msgLines.push('All in order & S/Normal');
+        var finalString = msgLines.join('\n');
+
+        // Attempt to copy using modern Clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(finalString).then(indicateSuccess, indicateFailure);
+        } else {
+            // Fallback for older browsers: use a hidden textarea and execCommand
+            var textarea = document.createElement('textarea');
+            textarea.value = finalString;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                var successful = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (successful) indicateSuccess();
+                else indicateFailure();
+            } catch(e) {
+                document.body.removeChild(textarea);
+                indicateFailure();
+            }
+        }
+    } catch(e) {
+        // On any unexpected error, display failure feedback
+        indicateFailure();
+    }
 }
 
 /* ── RESET / ROUTE START CONFIGURATION (NEW) ── */
