@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCCSO Access Pass System</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons for UI graphics -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Custom animations for the scanner feedback toast */
+        .toast-hidden {
+            opacity: 0;
+            transform: translateY(1rem);
+            pointer-events: none;
+        }
+        .toast-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        /* Make scrollbars look nice */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
+        <div class="flex flex-col items-center text-slate-500">
+            <i class="ph ph-spinner-gap animate-spin text-4xl mb-4 text-blue-500"></i>
+            <p class="text-lg font-medium">Loading Database...</p>
+        </div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <div class="w-full md:w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 h-auto md:h-full">
+        <div class="p-6 bg-slate-950/50">
+            <div class="flex items-center gap-3 text-white mb-2">
+                <i class="ph-fill ph-key text-blue-400 text-2xl"></i>
+                <h1 class="text-lg font-bold leading-tight">PCCSO Access</h1>
+            </div>
+            <p class="text-xs text-slate-400">Barcode Management</p>
+        </div>
+        
+        <nav class="flex-1 px-4 py-6 space-y-2 flex flex-row md:flex-col overflow-x-auto md:overflow-visible">
+            <button id="nav-scanner" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md shrink-0 whitespace-nowrap">
+                <i class="ph ph-barcode text-xl"></i> Scanner Mode
+            </button>
+            <button id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap">
+                <i class="ph ph-squares-four text-xl"></i> Live Dashboard
+            </button>
+            <button id="nav-database" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap">
+                <i class="ph ph-database text-xl"></i> Pass Database
+            </button>
+        </nav>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
+        <!-- Header -->
+        <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shrink-0">
+            <h2 id="pageTitle" class="text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
+            <div class="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                Online
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-8">
+            <div class="max-w-6xl mx-auto h-full relative">
+                
+                <!-- ========================================== -->
+                <!-- SCANNER TAB                                -->
+                <!-- ========================================== -->
+                <div id="tab-scanner" class="tab-content h-full flex flex-col max-w-2xl mx-auto space-y-6">
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center relative overflow-hidden shrink-0">
+                        <div class="mb-6">
+                            <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="ph ph-barcode text-3xl"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold text-slate-800">Ready to Scan</h3>
+                            <p class="text-slate-500 text-sm mt-1">Point scanner at pass barcode to Issue or Return.</p>
+                        </div>
+
+                        <form id="scannerForm" class="relative max-w-sm mx-auto">
+                            <input 
+                                id="scannerInput"
+                                type="text" 
+                                placeholder="Waiting for scanner input..."
+                                autocomplete="off"
+                                class="w-full text-center text-lg uppercase tracking-widest font-mono border-2 border-slate-300 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm"
+                            />
+                        </form>
+                        
+                        <!-- Real-time Feedback Toast -->
+                        <div class="mt-6 h-16">
+                            <div id="feedbackToast" class="inline-flex items-center gap-3 px-6 py-3 rounded-xl font-medium shadow-sm border toast-hidden transition-all duration-300">
+                                <i id="feedbackIcon" class="text-xl"></i>
+                                <div class="text-left">
+                                    <strong id="feedbackPassId" class="block text-lg"></strong>
+                                    <span id="feedbackMessage" class="text-sm opacity-90 block"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Scans Log -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[300px]">
+                        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <i class="ph ph-clock text-slate-400"></i> Recent Scans Session
+                            </h3>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2">
+                            <ul id="recentScansList" class="divide-y divide-slate-100">
+                                <div class="h-full flex items-center justify-center text-slate-400 text-sm py-10">
+                                    No passes scanned yet in this session.
+                                </div>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- DASHBOARD TAB                              -->
+                <!-- ========================================== -->
+                <div id="tab-dashboard" class="tab-content hidden space-y-6">
+                    <div id="dashboardStatsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Stats injected via JS -->
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                        <h3 class="text-lg font-semibold text-slate-800 mb-4">Live Capacity Tracking</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <p class="text-sm text-slate-500">Total System Passes</p>
+                                <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+                            </div>
+                            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                                <p class="text-sm text-emerald-600">Total Available in Room</p>
+                                <p id="statAvailable" class="text-2xl font-bold text-emerald-700">0</p>
+                            </div>
+                            <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                <p class="text-sm text-indigo-600">Currently Issued</p>
+                                <p id="statIssued" class="text-2xl font-bold text-indigo-700">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- DATABASE TAB                               -->
+                <!-- ========================================== -->
+                <div id="tab-database" class="tab-content hidden bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full">
+                    <!-- Controls -->
+                    <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
+                        <div class="relative w-full md:w-96">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                            <input 
+                                id="searchInput"
+                                type="text"
+                                placeholder="Search Pass ID..."
+                                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            />
+                        </div>
+                        <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full md:w-auto" id="filterGroup">
+                            <button data-filter="All" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700">All</button>
+                            <button data-filter="Available" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Available</button>
+                            <button data-filter="Issued" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
+                        </div>
+                    </div>
+
+                    <!-- Table container -->
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                                    <th class="py-4 px-6 font-medium">Pass ID</th>
+                                    <th class="py-4 px-6 font-medium">Auto-Assigned Category</th>
+                                    <th class="py-4 px-6 font-medium">Status</th>
+                                    <th class="py-4 px-6 font-medium">Last Scanned At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="databaseTableBody" class="divide-y divide-slate-100">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl text-sm text-slate-500 text-center shrink-0">
+                        Showing <span id="recordCount">0</span> pass records
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase SDKs and Application Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // ==========================================
+        // 1. CONFIGURATION & STATE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
+            authDomain: "pccso-7bad0.firebaseapp.com",
+            projectId: "pccso-7bad0",
+            storageBucket: "pccso-7bad0.firebasestorage.app",
+            messagingSenderId: "363298065770",
+            appId: "1:363298065770:web:a66de6aeb5e3902cca6913",
+            measurementId: "G-7YLKD6QF3Z"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const CATALOG_TITLE = "pccso_access_passes_v1";
+        const APP_ID = "pccso-app"; 
+        
+        let activeTab = 'scanner';
+        let dbStates = {};
+        let allPasses = [];
+        let recentScans = [];
+        let searchTerm = '';
+        let statusFilter = 'All';
+        let currentUser = null;
+        let toastTimeout = null;
+
+        const PASS_CATEGORIES = [
+            { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: 'ph-users', colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
+            { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: 'ph-users', colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
+            { id: 'brown_contractor', color: 'Brown', type: 'Contractor', prefix: 'C', min: 1001071, max: 1001220, total: 150, icon: 'ph-hard-hat', colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
+            { id: 'brown_temp', color: 'Brown', type: 'Temporary (Taps)', prefix: 'T', min: 906101, max: 906230, total: 130, icon: 'ph-ticket', colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
+        ];
+
+        // Generate Base Passes in Memory
+        const basePasses = [];
+        PASS_CATEGORIES.forEach(cat => {
+            for (let i = cat.min; i <= cat.max; i++) {
+                basePasses.push({
+                    id: `${cat.prefix}${i}`,
+                    categoryId: cat.id,
+                    color: cat.color,
+                    type: cat.type,
+                    colorClasses: cat.colorClasses,
+                    badgeClass: cat.badgeClass,
+                    status: 'Available'
+                });
+            }
+        });
+
+        // ==========================================
+        // 2. INITIALIZATION & FIREBASE
+        // ==========================================
+        async function init() {
+            try {
+                // Anonymous sign-in allows secure writing without users needing passwords
+                const userCred = await signInAnonymously(auth);
+                currentUser = userCred.user;
+
+                // Listen to Firestore for live state changes
+                const passesRef = collection(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE);
+                onSnapshot(passesRef, (snapshot) => {
+                    dbStates = {};
+                    snapshot.forEach(doc => {
+                        dbStates[doc.id] = doc.data();
+                    });
+                    
+                    updateAllPasses();
+                    document.getElementById('loadingScreen').classList.add('hidden');
+                }, (error) => {
+                    console.error("Firestore error:", error);
+                    alert("Database connection error. Please refresh.");
+                });
+
+                // Auto-focus scanner on load
+                document.getElementById('scannerInput').focus();
+
+            } catch (error) {
+                console.error("Initialization Error:", error);
+            }
+        }
+
+        // ==========================================
+        // 3. CORE LOGIC & RENDERING
+        // ==========================================
+        function updateAllPasses() {
+            allPasses = basePasses.map(p => {
+                const liveState = dbStates[p.id];
+                if (liveState && liveState.status === 'Issued') {
+                    return { ...p, ...liveState };
+                }
+                return p;
+            });
+            
+            renderDashboard();
+            renderDatabase();
+        }
+
+        function calculateStats() {
+            const initStats = {};
+            PASS_CATEGORIES.forEach(cat => {
+                initStats[cat.id] = { total: cat.total, issued: 0, available: cat.total, config: cat };
+            });
+            
+            let totalIssued = 0;
+            allPasses.forEach(p => {
+                if (p.status === 'Issued') {
+                    initStats[p.categoryId].issued += 1;
+                    initStats[p.categoryId].available -= 1;
+                    totalIssued += 1;
+                }
+            });
+            
+            return { byCategory: initStats, total: basePasses.length, totalIssued };
+        }
+
+        function renderDashboard() {
+            if (activeTab !== 'dashboard') return;
+            const stats = calculateStats();
+            
+            // Top Grid
+            const grid = document.getElementById('dashboardStatsGrid');
+            grid.innerHTML = '';
+            
+            Object.values(stats.byCategory).forEach(stat => {
+                const percentUsed = Math.round((stat.issued / stat.total) * 100);
+                grid.innerHTML += `
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 ${stat.config.badgeClass}"></div>
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500 mb-1">${stat.config.color} ${stat.config.type}</p>
+                                <h3 class="text-3xl font-bold text-slate-800">${stat.issued} <span class="text-lg text-slate-400 font-normal">/ ${stat.total}</span></h3>
+                            </div>
+                            <div class="p-3 rounded-xl ${stat.config.colorClasses}">
+                                <i class="ph ${stat.config.icon} text-2xl"></i>
+                            </div>
+                        </div>
+                        <div class="mt-auto">
+                            <div class="flex justify-between text-xs text-slate-500 mb-2">
+                                <span>Available: <strong class="text-slate-800">${stat.available}</strong></span>
+                                <span>${percentUsed}% Issued</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-2">
+                                <div class="h-2 rounded-full ${stat.config.badgeClass}" style="width: ${percentUsed}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Bottom Summaries
+            document.getElementById('statTotal').innerText = stats.total;
+            document.getElementById('statAvailable').innerText = stats.total - stats.totalIssued;
+            document.getElementById('statIssued').innerText = stats.totalIssued;
+        }
+
+        function renderDatabase() {
+            if (activeTab !== 'database') return;
+            
+            const tbody = document.getElementById('databaseTableBody');
+            
+            const filtered = allPasses.filter(p => {
+                const matchesSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+
+            document.getElementById('recordCount').innerText = filtered.length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-12 text-center text-slate-500">
+                            <i class="ph ph-warning-circle text-3xl mx-auto mb-3 text-slate-300 block"></i>
+                            No passes found matching your criteria.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
+                    <td class="py-3 px-6">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">
+                            ${p.color} ${p.type}
+                        </span>
+                    </td>
+                    <td class="py-3 px-6">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${p.status === 'Available' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}">
+                            <i class="ph ${p.status === 'Available' ? 'ph-check-circle' : 'ph-sign-out'}"></i>
+                            ${p.status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-6 text-sm">
+                        ${p.status === 'Issued' && p.issuedAt ? 
+                            `<span class="text-slate-500 flex items-center gap-1"><i class="ph ph-clock"></i> ${new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>` 
+                            : `<span class="text-slate-400">-</span>`
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderRecentScans() {
+            const list = document.getElementById('recentScansList');
+            if (recentScans.length === 0) {
+                list.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 text-sm py-10">No passes scanned yet in this session.</div>`;
+                return;
+            }
+
+            list.innerHTML = recentScans.map(log => {
+                const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : 
+                               log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 
+                               'bg-red-100 text-red-600';
+                const icon = log.type === 'issue' ? 'ph-arrows-left-right' : 
+                             log.type === 'return' ? 'ph-check-circle' : 
+                             'ph-warning-circle';
+
+                return `
+                <li class="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors rounded-xl">
+                    <div class="flex items-center gap-4">
+                        <div class="p-2 rounded-lg ${colors}">
+                            <i class="ph ${icon} text-xl"></i>
+                        </div>
+                        <div>
+                            <span class="font-bold text-slate-800 tracking-wide">${log.passId}</span>
+                            <p class="text-sm text-slate-500">${log.message}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md">${log.time}</span>
+                </li>
+            `}).join('');
+        }
+
+        // ==========================================
+        // 4. EVENTS & INTERACTIONS
+        // ==========================================
+
+        // Scanner Auto-Submit Logic
+        document.getElementById('scannerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const inputEl = document.getElementById('scannerInput');
+            const scannedId = inputEl.value.trim().toUpperCase();
+            inputEl.value = ''; // Clear immediately
+            
+            if (!scannedId) return;
+
+            const passInfo = allPasses.find(p => p.id === scannedId);
+            
+            if (!passInfo) {
+                showToast('error', `Unknown Pass ID: ${scannedId}`, scannedId);
+                return;
+            }
+
+            try {
+                const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id);
+                
+                if (passInfo.status === 'Available') {
+                    await setDoc(docRef, {
+                        status: 'Issued',
+                        issuedAt: new Date().toISOString(),
+                        scannedBy: currentUser?.uid || 'anonymous'
+                    });
+                    showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+                } else {
+                    await deleteDoc(docRef);
+                    showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+                }
+            } catch (error) {
+                console.error("Database error:", error);
+                showToast('error', `System Error updating ${scannedId}`, scannedId);
+            }
+        });
+
+        // Toast Feedback System
+        function showToast(type, message, passId) {
+            const toast = document.getElementById('feedbackToast');
+            const icon = document.getElementById('feedbackIcon');
+            
+            // Log to recent
+            const newLog = { id: Date.now(), type, message, passId, time: new Date().toLocaleTimeString() };
+            recentScans = [newLog, ...recentScans].slice(0, 10);
+            renderRecentScans();
+
+            // Style toast based on type
+            toast.className = `inline-flex items-center gap-3 px-6 py-3 rounded-xl font-medium shadow-sm border toast-visible transition-all duration-300 ${
+                type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
+                type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                'bg-red-50 border-red-200 text-red-700'
+            }`;
+            
+            icon.className = `text-xl ph ${
+                type === 'issue' ? 'ph-sign-out' :
+                type === 'return' ? 'ph-check-circle' :
+                'ph-warning-circle'
+            }`;
+
+            document.getElementById('feedbackPassId').innerText = passId;
+            document.getElementById('feedbackMessage').innerText = message;
+
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('toast-visible');
+                toast.classList.add('toast-hidden');
+            }, 3000);
+        }
+
+        // Keep scanner focused
+        document.getElementById('scannerInput').addEventListener('blur', () => {
+            if (activeTab === 'scanner') {
+                setTimeout(() => document.getElementById('scannerInput').focus(), 100);
+            }
+        });
+
+        // Navigation Logic
+        const tabs = ['scanner', 'dashboard', 'database'];
+        const titles = {
+            'scanner': 'Barcode Scanner Mode',
+            'dashboard': 'System Dashboard',
+            'database': 'Pass Database'
+        };
+
+        tabs.forEach(tab => {
+            document.getElementById(`nav-${tab}`).addEventListener('click', () => {
+                activeTab = tab;
+                document.getElementById('pageTitle').innerText = titles[tab];
+                
+                // Update UI visibility
+                tabs.forEach(t => {
+                    document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+                    
+                    const btn = document.getElementById(`nav-${t}`);
+                    if (t === tab) {
+                        btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md shrink-0 whitespace-nowrap";
+                    } else {
+                        btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap";
+                    }
+                });
+
+                // Render specific tab content
+                if (tab === 'dashboard') renderDashboard();
+                if (tab === 'database') renderDatabase();
+                if (tab === 'scanner') setTimeout(() => document.getElementById('scannerInput').focus(), 100);
+            });
+        });
+
+        // Database Filtering Logic
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            renderDatabase();
+        });
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                statusFilter = e.target.dataset.filter;
+                
+                // Update active state of buttons
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    b.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50";
+                });
+                e.target.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700";
+                
+                renderDatabase();
+            });
+        });
+
+        // Start App
+        init();
+
+    </script>
+</body>
+</html>
