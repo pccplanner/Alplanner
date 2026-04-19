@@ -2,31 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PCCSO Access Pass System</title>
     
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Phosphor Icons for UI graphics -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <style>
-        /* Custom animations for the scanner feedback toast */
-        .toast-hidden {
-            opacity: 0;
-            transform: translateY(1rem);
-            pointer-events: none;
-        }
-        .toast-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        /* Make scrollbars look nice */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        /* Custom animations & Scrollbars */
+        .toast-hidden { opacity: 0; transform: translateY(1rem); pointer-events: none; }
+        .toast-visible { opacity: 1; transform: translateY(0); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* iPhone Safe Area support for bottom nav */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
@@ -34,57 +24,56 @@
     <!-- Loading Screen -->
     <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
         <div class="flex flex-col items-center text-slate-500">
-            <i class="ph ph-spinner-gap animate-spin text-4xl mb-4 text-blue-500"></i>
-            <p class="text-lg font-medium">Loading Database...</p>
+            <svg class="animate-spin w-10 h-10 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="text-lg font-medium">Connecting to Database...</p>
         </div>
     </div>
 
-    <!-- Sidebar Navigation -->
-    <div class="w-full md:w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 h-auto md:h-full">
+    <!-- Desktop Sidebar (Hidden on Mobile) -->
+    <aside class="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 h-full">
         <div class="p-6 bg-slate-950/50">
             <div class="flex items-center gap-3 text-white mb-2">
-                <i class="ph-fill ph-key text-blue-400 text-2xl"></i>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
                 <h1 class="text-lg font-bold leading-tight">PCCSO Access</h1>
             </div>
             <p class="text-xs text-slate-400">Barcode Management</p>
         </div>
-        
-        <nav class="flex-1 px-4 py-6 space-y-2 flex flex-row md:flex-col overflow-x-auto md:overflow-visible">
-            <button id="nav-scanner" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md shrink-0 whitespace-nowrap">
-                <i class="ph ph-barcode text-xl"></i> Scanner Mode
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            <button id="nav-desktop-scanner" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg> Scanner Mode
             </button>
-            <button id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap">
-                <i class="ph ph-squares-four text-xl"></i> Live Dashboard
+            <button id="nav-desktop-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> Live Dashboard
             </button>
-            <button id="nav-database" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap">
-                <i class="ph ph-database text-xl"></i> Pass Database
+            <button id="nav-desktop-database" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Pass Database
             </button>
         </nav>
-    </div>
+    </aside>
 
     <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden">
+    <div class="flex-1 flex flex-col h-full overflow-hidden relative">
         <!-- Header -->
-        <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shrink-0">
-            <h2 id="pageTitle" class="text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
-            <div class="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+        <header class="bg-white border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between shrink-0">
+            <h2 id="pageTitle" class="text-lg md:text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
+            <div class="flex items-center gap-2 text-xs md:text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
                 <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                Online
+                System Online
             </div>
         </header>
 
-        <!-- Scrollable Content -->
-        <main class="flex-1 overflow-y-auto p-4 md:p-8">
+        <!-- Scrollable Content View (padding bottom accounts for mobile nav bar) -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
             <div class="max-w-6xl mx-auto h-full relative">
                 
                 <!-- ========================================== -->
                 <!-- SCANNER TAB                                -->
                 <!-- ========================================== -->
                 <div id="tab-scanner" class="tab-content h-full flex flex-col max-w-2xl mx-auto space-y-6">
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center relative overflow-hidden shrink-0">
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 text-center relative overflow-hidden shrink-0">
                         <div class="mb-6">
                             <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="ph ph-barcode text-3xl"></i>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
                             </div>
                             <h3 class="text-2xl font-bold text-slate-800">Ready to Scan</h3>
                             <p class="text-slate-500 text-sm mt-1">Point scanner at pass barcode to Issue or Return.</p>
@@ -101,9 +90,9 @@
                         </form>
                         
                         <!-- Real-time Feedback Toast -->
-                        <div class="mt-6 h-16">
+                        <div class="mt-6 h-16 flex justify-center">
                             <div id="feedbackToast" class="inline-flex items-center gap-3 px-6 py-3 rounded-xl font-medium shadow-sm border toast-hidden transition-all duration-300">
-                                <i id="feedbackIcon" class="text-xl"></i>
+                                <span id="feedbackIconWrapper"></span>
                                 <div class="text-left">
                                     <strong id="feedbackPassId" class="block text-lg"></strong>
                                     <span id="feedbackMessage" class="text-sm opacity-90 block"></span>
@@ -115,8 +104,8 @@
                     <!-- Recent Scans Log -->
                     <div class="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[300px]">
                         <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
-                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
-                                <i class="ph ph-clock text-slate-400"></i> Recent Scans Session
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Recent Scans Session
                             </h3>
                         </div>
                         <div class="flex-1 overflow-y-auto p-2">
@@ -163,7 +152,7 @@
                     <!-- Controls -->
                     <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
                         <div class="relative w-full md:w-96">
-                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                             <input 
                                 id="searchInput"
                                 type="text"
@@ -180,7 +169,7 @@
 
                     <!-- Table container -->
                     <div class="overflow-x-auto flex-1">
-                        <table class="w-full text-left border-collapse">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
                             <thead>
                                 <tr class="bg-white text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                                     <th class="py-4 px-6 font-medium">Pass ID</th>
@@ -204,14 +193,30 @@
         </main>
     </div>
 
-    <!-- Firebase SDKs and Application Logic -->
+    <!-- Mobile Bottom Navigation Bar (Visible ONLY on Mobile) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center px-2 py-1 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button id="nav-mobile-scanner" class="flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+            <span class="text-[10px] font-medium mt-1">Scanner</span>
+        </button>
+        <button id="nav-mobile-dashboard" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span class="text-[10px] font-medium mt-1">Dashboard</span>
+        </button>
+        <button id="nav-mobile-database" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="text-[10px] font-medium mt-1">Database</span>
+        </button>
+    </nav>
+
+    <!-- Application Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         // ==========================================
-        // 1. CONFIGURATION & STATE
+        // CONFIGURATION & STATE
         // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
@@ -239,83 +244,82 @@
         let currentUser = null;
         let toastTimeout = null;
 
+        // SVG Library for offline use
+        const ICONS = {
+            users: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+            hardhat: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z"/><path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5"/><path d="M4 15v-3a6 6 0 0 1 6-6h0"/><path d="M14 6h0a6 6 0 0 1 6 6v3"/></svg>`,
+            ticket: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>`,
+            check: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+            logout: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`,
+            clock: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+            warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`
+        };
+
         const PASS_CATEGORIES = [
-            { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: 'ph-users', colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
-            { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: 'ph-users', colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
-            { id: 'brown_contractor', color: 'Brown', type: 'Contractor', prefix: 'C', min: 1001071, max: 1001220, total: 150, icon: 'ph-hard-hat', colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            { id: 'brown_temp', color: 'Brown', type: 'Temporary (Taps)', prefix: 'T', min: 906101, max: 906230, total: 130, icon: 'ph-ticket', colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
+            { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: ICONS.users, colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
+            { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: ICONS.users, colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
+            { id: 'brown_contractor', color: 'Brown', type: 'Contractor', prefix: 'C', min: 1001071, max: 1001220, total: 150, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
+            { id: 'brown_temp', color: 'Brown', type: 'Temporary (Taps)', prefix: 'T', min: 906101, max: 906230, total: 130, icon: ICONS.ticket, colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
         ];
 
-        // Generate Base Passes in Memory
+        // Generate Base Passes
         const basePasses = [];
         PASS_CATEGORIES.forEach(cat => {
             for (let i = cat.min; i <= cat.max; i++) {
                 basePasses.push({
-                    id: `${cat.prefix}${i}`,
-                    categoryId: cat.id,
-                    color: cat.color,
-                    type: cat.type,
-                    colorClasses: cat.colorClasses,
-                    badgeClass: cat.badgeClass,
-                    status: 'Available'
+                    id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, 
+                    colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, status: 'Available'
                 });
             }
         });
 
         // ==========================================
-        // 2. INITIALIZATION & FIREBASE
+        // INITIALIZATION
         // ==========================================
         async function init() {
             try {
-                // Anonymous sign-in allows secure writing without users needing passwords
                 const userCred = await signInAnonymously(auth);
                 currentUser = userCred.user;
 
-                // Listen to Firestore for live state changes
                 const passesRef = collection(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE);
                 onSnapshot(passesRef, (snapshot) => {
                     dbStates = {};
-                    snapshot.forEach(doc => {
-                        dbStates[doc.id] = doc.data();
-                    });
-                    
+                    snapshot.forEach(doc => { dbStates[doc.id] = doc.data(); });
                     updateAllPasses();
                     document.getElementById('loadingScreen').classList.add('hidden');
                 }, (error) => {
                     console.error("Firestore error:", error);
-                    alert("Database connection error. Please refresh.");
+                    document.getElementById('loadingScreen').innerHTML = `
+                        <div class="bg-red-50 text-red-600 p-6 rounded-2xl max-w-sm text-center border border-red-200 shadow-sm">
+                            ${ICONS.warning}
+                            <h3 class="font-bold text-lg mt-3">Permission Denied</h3>
+                            <p class="text-sm mt-2">Firebase rules are still blocking access. Please update your Rules in the console and ensure Anonymous Sign-In is turned on.</p>
+                        </div>
+                    `;
                 });
 
-                // Auto-focus scanner on load
                 document.getElementById('scannerInput').focus();
-
             } catch (error) {
                 console.error("Initialization Error:", error);
             }
         }
 
         // ==========================================
-        // 3. CORE LOGIC & RENDERING
+        // RENDERING
         // ==========================================
         function updateAllPasses() {
             allPasses = basePasses.map(p => {
                 const liveState = dbStates[p.id];
-                if (liveState && liveState.status === 'Issued') {
-                    return { ...p, ...liveState };
-                }
+                if (liveState && liveState.status === 'Issued') return { ...p, ...liveState };
                 return p;
             });
-            
             renderDashboard();
             renderDatabase();
         }
 
         function calculateStats() {
             const initStats = {};
-            PASS_CATEGORIES.forEach(cat => {
-                initStats[cat.id] = { total: cat.total, issued: 0, available: cat.total, config: cat };
-            });
-            
+            PASS_CATEGORIES.forEach(cat => { initStats[cat.id] = { total: cat.total, issued: 0, available: cat.total, config: cat }; });
             let totalIssued = 0;
             allPasses.forEach(p => {
                 if (p.status === 'Issued') {
@@ -324,7 +328,6 @@
                     totalIssued += 1;
                 }
             });
-            
             return { byCategory: initStats, total: basePasses.length, totalIssued };
         }
 
@@ -332,7 +335,6 @@
             if (activeTab !== 'dashboard') return;
             const stats = calculateStats();
             
-            // Top Grid
             const grid = document.getElementById('dashboardStatsGrid');
             grid.innerHTML = '';
             
@@ -346,9 +348,7 @@
                                 <p class="text-sm font-medium text-slate-500 mb-1">${stat.config.color} ${stat.config.type}</p>
                                 <h3 class="text-3xl font-bold text-slate-800">${stat.issued} <span class="text-lg text-slate-400 font-normal">/ ${stat.total}</span></h3>
                             </div>
-                            <div class="p-3 rounded-xl ${stat.config.colorClasses}">
-                                <i class="ph ${stat.config.icon} text-2xl"></i>
-                            </div>
+                            <div class="p-3 rounded-xl ${stat.config.colorClasses}">${stat.config.icon}</div>
                         </div>
                         <div class="mt-auto">
                             <div class="flex justify-between text-xs text-slate-500 mb-2">
@@ -363,7 +363,6 @@
                 `;
             });
 
-            // Bottom Summaries
             document.getElementById('statTotal').innerText = stats.total;
             document.getElementById('statAvailable').innerText = stats.total - stats.totalIssued;
             document.getElementById('statIssued').innerText = stats.totalIssued;
@@ -371,49 +370,25 @@
 
         function renderDatabase() {
             if (activeTab !== 'database') return;
-            
             const tbody = document.getElementById('databaseTableBody');
-            
             const filtered = allPasses.filter(p => {
-                const matchesSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-                return matchesSearch && matchesStatus;
+                return (p.id.toLowerCase().includes(searchTerm.toLowerCase())) && 
+                       (statusFilter === 'All' || p.status === statusFilter);
             });
 
             document.getElementById('recordCount').innerText = filtered.length;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="py-12 text-center text-slate-500">
-                            <i class="ph ph-warning-circle text-3xl mx-auto mb-3 text-slate-300 block"></i>
-                            No passes found matching your criteria.
-                        </td>
-                    </tr>
-                `;
+                tbody.innerHTML = `<tr><td colspan="4" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = filtered.map(p => `
                 <tr class="hover:bg-slate-50/50 transition-colors">
                     <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
-                    <td class="py-3 px-6">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">
-                            ${p.color} ${p.type}
-                        </span>
-                    </td>
-                    <td class="py-3 px-6">
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${p.status === 'Available' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}">
-                            <i class="ph ${p.status === 'Available' ? 'ph-check-circle' : 'ph-sign-out'}"></i>
-                            ${p.status}
-                        </span>
-                    </td>
-                    <td class="py-3 px-6 text-sm">
-                        ${p.status === 'Issued' && p.issuedAt ? 
-                            `<span class="text-slate-500 flex items-center gap-1"><i class="ph ph-clock"></i> ${new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>` 
-                            : `<span class="text-slate-400">-</span>`
-                        }
-                    </td>
+                    <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">${p.color} ${p.type}</span></td>
+                    <td class="py-3 px-6"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${p.status === 'Available' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}">${p.status === 'Available' ? ICONS.check : ICONS.logout} ${p.status}</span></td>
+                    <td class="py-3 px-6 text-sm">${p.status === 'Issued' && p.issuedAt ? `<span class="text-slate-500 flex items-center gap-1">${ICONS.clock} ${new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>` : `<span class="text-slate-400">-</span>`}</td>
                 </tr>
             `).join('');
         }
@@ -421,28 +396,18 @@
         function renderRecentScans() {
             const list = document.getElementById('recentScansList');
             if (recentScans.length === 0) {
-                list.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 text-sm py-10">No passes scanned yet in this session.</div>`;
+                list.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 text-sm py-10">No passes scanned yet.</div>`;
                 return;
             }
 
             list.innerHTML = recentScans.map(log => {
-                const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : 
-                               log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 
-                               'bg-red-100 text-red-600';
-                const icon = log.type === 'issue' ? 'ph-arrows-left-right' : 
-                             log.type === 'return' ? 'ph-check-circle' : 
-                             'ph-warning-circle';
-
+                const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600';
+                const icon = log.type === 'issue' ? ICONS.logout : log.type === 'return' ? ICONS.check : ICONS.warning;
                 return `
                 <li class="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors rounded-xl">
                     <div class="flex items-center gap-4">
-                        <div class="p-2 rounded-lg ${colors}">
-                            <i class="ph ${icon} text-xl"></i>
-                        </div>
-                        <div>
-                            <span class="font-bold text-slate-800 tracking-wide">${log.passId}</span>
-                            <p class="text-sm text-slate-500">${log.message}</p>
-                        </div>
+                        <div class="p-2 rounded-lg ${colors}">${icon}</div>
+                        <div><span class="font-bold text-slate-800 tracking-wide">${log.passId}</span><p class="text-sm text-slate-500">${log.message}</p></div>
                     </div>
                     <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md">${log.time}</span>
                 </li>
@@ -450,20 +415,17 @@
         }
 
         // ==========================================
-        // 4. EVENTS & INTERACTIONS
+        // SCANNER LOGIC
         // ==========================================
-
-        // Scanner Auto-Submit Logic
         document.getElementById('scannerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const inputEl = document.getElementById('scannerInput');
             const scannedId = inputEl.value.trim().toUpperCase();
-            inputEl.value = ''; // Clear immediately
+            inputEl.value = ''; 
             
             if (!scannedId) return;
 
             const passInfo = allPasses.find(p => p.id === scannedId);
-            
             if (!passInfo) {
                 showToast('error', `Unknown Pass ID: ${scannedId}`, scannedId);
                 return;
@@ -471,13 +433,8 @@
 
             try {
                 const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id);
-                
                 if (passInfo.status === 'Available') {
-                    await setDoc(docRef, {
-                        status: 'Issued',
-                        issuedAt: new Date().toISOString(),
-                        scannedBy: currentUser?.uid || 'anonymous'
-                    });
+                    await setDoc(docRef, { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: currentUser?.uid || 'anonymous' });
                     showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
                 } else {
                     await deleteDoc(docRef);
@@ -489,101 +446,72 @@
             }
         });
 
-        // Toast Feedback System
         function showToast(type, message, passId) {
             const toast = document.getElementById('feedbackToast');
-            const icon = document.getElementById('feedbackIcon');
+            const iconWrapper = document.getElementById('feedbackIconWrapper');
             
-            // Log to recent
-            const newLog = { id: Date.now(), type, message, passId, time: new Date().toLocaleTimeString() };
-            recentScans = [newLog, ...recentScans].slice(0, 10);
+            recentScans = [{ id: Date.now(), type, message, passId, time: new Date().toLocaleTimeString() }, ...recentScans].slice(0, 10);
             renderRecentScans();
 
-            // Style toast based on type
-            toast.className = `inline-flex items-center gap-3 px-6 py-3 rounded-xl font-medium shadow-sm border toast-visible transition-all duration-300 ${
-                type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
-                type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-                'bg-red-50 border-red-200 text-red-700'
-            }`;
+            toast.className = `inline-flex items-center gap-3 px-6 py-3 rounded-xl font-medium shadow-sm border toast-visible transition-all duration-300 ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
+            iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
+            iconWrapper.className = "w-6 h-6 flex items-center justify-center";
             
-            icon.className = `text-xl ph ${
-                type === 'issue' ? 'ph-sign-out' :
-                type === 'return' ? 'ph-check-circle' :
-                'ph-warning-circle'
-            }`;
-
             document.getElementById('feedbackPassId').innerText = passId;
             document.getElementById('feedbackMessage').innerText = message;
 
             if (toastTimeout) clearTimeout(toastTimeout);
-            toastTimeout = setTimeout(() => {
-                toast.classList.remove('toast-visible');
-                toast.classList.add('toast-hidden');
-            }, 3000);
+            toastTimeout = setTimeout(() => { toast.classList.remove('toast-visible'); toast.classList.add('toast-hidden'); }, 3000);
         }
 
-        // Keep scanner focused
         document.getElementById('scannerInput').addEventListener('blur', () => {
-            if (activeTab === 'scanner') {
-                setTimeout(() => document.getElementById('scannerInput').focus(), 100);
-            }
+            if (activeTab === 'scanner') setTimeout(() => document.getElementById('scannerInput').focus(), 100);
         });
 
-        // Navigation Logic
+        // ==========================================
+        // NAVIGATION & TABS
+        // ==========================================
         const tabs = ['scanner', 'dashboard', 'database'];
-        const titles = {
-            'scanner': 'Barcode Scanner Mode',
-            'dashboard': 'System Dashboard',
-            'database': 'Pass Database'
-        };
+        const titles = { 'scanner': 'Barcode Scanner Mode', 'dashboard': 'System Dashboard', 'database': 'Pass Database' };
 
-        tabs.forEach(tab => {
-            document.getElementById(`nav-${tab}`).addEventListener('click', () => {
-                activeTab = tab;
-                document.getElementById('pageTitle').innerText = titles[tab];
+        function switchTab(selectedTab) {
+            activeTab = selectedTab;
+            document.getElementById('pageTitle').innerText = titles[selectedTab];
+            
+            tabs.forEach(t => {
+                document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== selectedTab);
                 
-                // Update UI visibility
-                tabs.forEach(t => {
-                    document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
-                    
-                    const btn = document.getElementById(`nav-${t}`);
-                    if (t === tab) {
-                        btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md shrink-0 whitespace-nowrap";
-                    } else {
-                        btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 hover:text-white shrink-0 whitespace-nowrap";
-                    }
-                });
-
-                // Render specific tab content
-                if (tab === 'dashboard') renderDashboard();
-                if (tab === 'database') renderDatabase();
-                if (tab === 'scanner') setTimeout(() => document.getElementById('scannerInput').focus(), 100);
+                // Desktop Nav Style
+                const dBtn = document.getElementById(`nav-desktop-${t}`);
+                if (dBtn) dBtn.className = t === selectedTab ? "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md" : "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white";
+                
+                // Mobile Nav Style
+                const mBtn = document.getElementById(`nav-mobile-${t}`);
+                if (mBtn) mBtn.className = t === selectedTab ? "flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors" : "flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors";
             });
+
+            if (selectedTab === 'dashboard') renderDashboard();
+            if (selectedTab === 'database') renderDatabase();
+            if (selectedTab === 'scanner') setTimeout(() => document.getElementById('scannerInput').focus(), 100);
+        }
+
+        tabs.forEach(t => {
+            document.getElementById(`nav-desktop-${t}`)?.addEventListener('click', () => switchTab(t));
+            document.getElementById(`nav-mobile-${t}`)?.addEventListener('click', () => switchTab(t));
         });
 
-        // Database Filtering Logic
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            searchTerm = e.target.value;
-            renderDatabase();
-        });
-
+        document.getElementById('searchInput').addEventListener('input', (e) => { searchTerm = e.target.value; renderDatabase(); });
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 statusFilter = e.target.dataset.filter;
-                
-                // Update active state of buttons
-                document.querySelectorAll('.filter-btn').forEach(b => {
-                    b.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50";
-                });
+                document.querySelectorAll('.filter-btn').forEach(b => b.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50");
                 e.target.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700";
-                
                 renderDatabase();
             });
         });
 
-        // Start App
+        // Start Application
         init();
-
     </script>
 </body>
 </html>
