@@ -17,6 +17,13 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        /* Custom animation for the camera button */
+        .scan-pulse:hover { animation: pulse-border 1.5s infinite; }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
@@ -65,58 +72,79 @@
             <div class="max-w-6xl mx-auto h-full relative">
                 
                 <!-- ========================================== -->
-                <!-- SCANNER TAB                                -->
+                <!-- SCANNER TAB (REDESIGNED)                   -->
                 <!-- ========================================== -->
                 <div id="tab-scanner" class="tab-content h-full flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8 text-center relative overflow-hidden shrink-0">
+                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-10 text-center relative overflow-hidden shrink-0">
                         
-                        <!-- Header Icon -->
-                        <div class="mb-4">
-                            <div class="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+                        <!-- Header -->
+                        <div class="mb-8">
+                            <h3 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Access Scanner</h3>
+                            <p class="text-slate-500 text-sm md:text-base mt-2">Choose your preferred scanning method below.</p>
+                        </div>
+
+                        <div class="flex flex-col items-center w-full max-w-sm mx-auto space-y-8">
+                            
+                            <!-- MOBILE CAMERA BUTTON (New Premium Design) -->
+                            <button id="startCameraBtn" class="scan-pulse group relative flex flex-col items-center justify-center w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.2)] hover:border-blue-400 transition-all duration-300 transform hover:-translate-y-1 outline-none">
+                                <div class="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"></div>
+                                <!-- Viewfinder / Camera Icon -->
+                                <svg class="relative z-10 w-14 h-14 mb-2 group-hover:text-white transition-colors duration-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                                    <!-- Inner target -->
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-4-4v8" />
+                                </svg>
+                                <span class="relative z-10 text-[11px] font-bold tracking-widest uppercase group-hover:text-white transition-colors duration-300">Tap to Scan</span>
+                            </button>
+
+                            <!-- Camera Video Feed Container (Hidden by default) -->
+                            <div id="cameraContainer" class="hidden w-full flex-col items-center">
+                                <div id="reader" class="w-full overflow-hidden rounded-3xl border-4 border-slate-800 bg-black shadow-2xl mb-5 aspect-square md:aspect-video"></div>
+                                <button id="stopCameraBtn" class="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:bg-slate-700 transition-all active:scale-95">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                    Close Camera
+                                </button>
                             </div>
-                            <h3 class="text-xl md:text-2xl font-bold text-slate-800">Ready to Scan</h3>
+
+                            <!-- DIVIDER -->
+                            <div id="scannerDivider" class="flex items-center w-full opacity-60">
+                                <div class="flex-1 border-t-2 border-slate-100"></div>
+                                <span class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or Use Laser</span>
+                                <div class="flex-1 border-t-2 border-slate-100"></div>
+                            </div>
+
+                            <!-- PHYSICAL SCANNER INPUT -->
+                            <form id="scannerForm" class="w-full relative mt-0">
+                                <!-- Subtle Keyboard icon to indicate typing input -->
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
+                                </div>
+                                <input 
+                                    id="scannerInput"
+                                    type="text" 
+                                    placeholder="Autopack laser input..."
+                                    autocomplete="off"
+                                    class="w-full pl-12 pr-4 py-4 text-center text-lg uppercase tracking-widest font-mono border-2 border-slate-200 bg-slate-50 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm placeholder:text-slate-400"
+                                />
+                            </form>
+                            
                         </div>
 
-                        <!-- MOBILE CAMERA TOGGLE -->
-                        <div class="mb-4 max-w-sm mx-auto">
-                            <button id="startCameraBtn" class="w-full flex items-center justify-center gap-2 bg-slate-800 text-white px-4 py-3 rounded-xl font-medium shadow-sm hover:bg-slate-700 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-                                Use Mobile Phone Camera
-                            </button>
-                            <button id="stopCameraBtn" class="hidden w-full flex items-center justify-center gap-2 bg-red-100 text-red-700 border border-red-200 px-4 py-3 rounded-xl font-medium shadow-sm hover:bg-red-200 transition-colors">
-                                Stop Camera
-                            </button>
-                            <!-- Camera Video Feed Container -->
-                            <div id="reader" class="hidden w-full overflow-hidden rounded-2xl border-2 border-blue-500 mt-4 shadow-inner"></div>
-                        </div>
-
-                        <!-- PHYSICAL SCANNER INPUT -->
-                        <form id="scannerForm" class="relative max-w-sm mx-auto mt-2">
-                            <p class="text-xs text-slate-400 mb-1 font-medium tracking-wide uppercase">Or use physical laser scanner</p>
-                            <input 
-                                id="scannerInput"
-                                type="text" 
-                                placeholder="Click here if using Autopack laser..."
-                                autocomplete="off"
-                                class="w-full text-center text-base md:text-lg uppercase tracking-widest font-mono border-2 border-slate-300 rounded-2xl p-3 md:p-4 focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm"
-                            />
-                        </form>
-                        
-                        <!-- Real-time Feedback Toast -->
-                        <div class="mt-4 md:mt-6 h-16 flex justify-center">
-                            <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-xl font-medium shadow-sm border toast-hidden transition-all duration-300 w-full max-w-sm">
+                        <!-- Real-time Feedback Toast (Elevated z-index) -->
+                        <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-50">
+                            <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-hidden transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm">
                                 <span id="feedbackIconWrapper" class="shrink-0"></span>
                                 <div class="text-left w-full overflow-hidden">
-                                    <strong id="feedbackPassId" class="block text-base md:text-lg"></strong>
-                                    <span id="feedbackMessage" class="text-xs md:text-sm opacity-90 block truncate"></span>
+                                    <strong id="feedbackPassId" class="block text-base md:text-lg text-slate-900 tracking-wide"></strong>
+                                    <span id="feedbackMessage" class="text-xs md:text-sm font-semibold opacity-90 block truncate"></span>
                                 </div>
                             </div>
                         </div>
+
                     </div>
 
                     <!-- Recent Scans Log -->
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[250px]">
+                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[200px]">
                         <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Recent Scans
@@ -253,14 +281,12 @@
             warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`
         };
 
-        // ADJUSTED SPLIT CONFIGURATION
+        // Pass Settings (Split Contractor and Temp arrays)
         const PASS_CATEGORIES = [
             { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: ICONS.users, colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
             { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: ICONS.users, colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
             { id: 'brown_contractor_1', color: 'Brown', type: 'Contractor (Set 1)', prefix: 'C', min: 1001071, max: 1001170, total: 100, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            // Set max to 1001210 so the generated sequence mathematically equals exactly 40 passes
             { id: 'brown_contractor_2', color: 'Brown', type: 'Contractor (Set 2)', prefix: 'C', min: 1001171, max: 1001210, total: 40, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            // Set max to 906220 so the generated sequence mathematically equals exactly 120 passes
             { id: 'brown_temp', color: 'Brown', type: 'Temp (Taps)', prefix: 'T', min: 906101, max: 906220, total: 120, icon: ICONS.ticket, colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
         ];
 
@@ -326,14 +352,18 @@
             inputEl.value = ''; 
         });
 
+        // Toggle UI logic for camera
         const startCameraBtn = document.getElementById('startCameraBtn');
         const stopCameraBtn = document.getElementById('stopCameraBtn');
-        const readerDiv = document.getElementById('reader');
+        const cameraContainer = document.getElementById('cameraContainer');
+        const scannerDivider = document.getElementById('scannerDivider');
 
         startCameraBtn.addEventListener('click', () => {
+            // Hide initial elements, show camera container
             startCameraBtn.classList.add('hidden');
-            stopCameraBtn.classList.remove('hidden');
-            readerDiv.classList.remove('hidden');
+            scannerDivider.classList.add('hidden');
+            cameraContainer.classList.remove('hidden');
+            cameraContainer.classList.add('flex');
 
             html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 100 } };
@@ -344,7 +374,7 @@
                 processScan(decodedText);
                 setTimeout(() => { html5QrCode.resume(); }, 2000);
             }).catch(err => {
-                alert("Camera error. Please ensure you have granted camera permissions.");
+                alert("Camera error. Please ensure you have granted camera permissions in your browser settings.");
                 stopCamera();
             });
         });
@@ -353,9 +383,12 @@
             if (html5QrCode) {
                 html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.log(err));
             }
+            
+            // Revert UI to default scanner view
             startCameraBtn.classList.remove('hidden');
-            stopCameraBtn.classList.add('hidden');
-            readerDiv.classList.add('hidden');
+            scannerDivider.classList.remove('hidden');
+            cameraContainer.classList.add('hidden');
+            cameraContainer.classList.remove('flex');
             document.getElementById('scannerInput').focus(); 
         }
 
@@ -371,7 +404,7 @@
             recentScans = [{ id: Date.now(), type, message, passId, time: new Date().toLocaleTimeString() }, ...recentScans].slice(0, 10);
             renderRecentScans();
 
-            toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-xl font-medium shadow-sm border toast-visible transition-all duration-300 w-full max-w-sm ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
+            toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-visible transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
             iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
             iconWrapper.className = "w-6 h-6 flex items-center justify-center";
             
@@ -511,5 +544,3 @@
     </script>
 </body>
 </html>
-
-l
