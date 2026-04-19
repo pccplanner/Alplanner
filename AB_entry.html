@@ -871,9 +871,7 @@
 
     // ── VEHICLE FORMATTER ──
     const formatVehicleNumber = (val) => {
-        // Strip out any non-alphanumeric characters (removes existing spaces)
         let clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        // RegEx matches: [Letters] [Digits] [Letters]
         let match = clean.match(/^([A-Z]+)(\d+)?([A-Z]+)?$/);
         if (match) {
             let res = match[1];
@@ -884,7 +882,7 @@
         return val.toUpperCase();
     };
 
-    // Apply auto-formatter dynamically as user types
+    // Apply auto-formatter dynamically as user types + Smart AutoFill
     $('vehicle_no').addEventListener('input', function(e) {
         let oldVal = this.value;
         let start = this.selectionStart;
@@ -892,21 +890,32 @@
         
         if (oldVal !== formatted) {
             this.value = formatted;
-            // Best effort to maintain cursor position
             let diff = formatted.length - oldVal.length;
             if (start !== null) {
                 this.setSelectionRange(start + diff, start + diff);
             }
         }
+        
+        // Smart Callsign Auto-fill!
+        autoFillCallsign(this.value);
     });
+
+    // ── SMART CALLSIGN AUTO-FILL ──
+    const autoFillCallsign = (vehStr) => {
+        const mapped = vehicleToCallsign[vehStr.trim()];
+        if (mapped && mapped.val) {
+            $('callsign_type').value = mapped.type;
+            $('callsign_val').value = mapped.val;
+        }
+    };
 
     // ── CUSTOM AUTOCOMPLETE ──
     let suggestionData = {
-        vehicle_no: [],
-        callsign_val: [],
-        paramedic_name: [],
-        escort_name: []
+        vehicle_no: [], callsign_val: [], paramedic_name: [], escort_name: []
     };
+    
+    // Dictionary to hold memory mapped from Vehicle -> Callsign
+    let vehicleToCallsign = {};
 
     const extractName = (fullName, rankArray) => {
         if (!fullName) return null;
@@ -915,29 +924,71 @@
         }
         return fullName.trim();
     };
+    
+    const extractCallsignParts = (fullStr) => {
+        const types = ['FB', 'LF', 'PL', 'A/PA'];
+        for (let t of types) {
+            if (fullStr.startsWith(t)) {
+                let digits = fullStr.replace(/[^0-9]/g, '');
+                return { type: t, val: digits };
+            }
+        }
+        return null;
+    };
 
-    // Seeded data parsed exactly from your Data.txt (Formatted with spaces)
-    const PREDEFINED_VEHICLES = ['QX 1222 S', 'QX 1233 K', 'QX 1234 H', 'QX 1242 J', 'QX 1243 G', 'QX 1295 G', 'QX 1520 G', 'QX 1520 S', 'QX 1674 X', 'QX 1683 U', 'QX 1702 Z', 'QX 1945 L', 'QX 2074 X', 'QX 2097 E', 'QX 2137 Z', 'QX 2194 H', 'QX 2197 Z', 'QX 2433 C', 'QX 2439 C', 'QX 2495 P', 'QX 2538 A', 'QX 2539 Y', 'QX 2591 U', 'QX 2658 L'];
-    const PREDEFINED_CALLSIGNS = ['111', '112', '113', '114', '115', '121', '122', '123', '124', '171', '172'];
+    // Predefined memory mappings (Derived from Data.txt)
+    const PREDEFINED_VEHICLE_MAP = {
+        'QX 1520 S': { type: 'A/PA', val: '111' },
+        'QX 2074 X': { type: 'A/PA', val: '111' },
+        'QX 1233 K': { type: 'A/PA', val: '112' },
+        'QX 1234 H': { type: 'A/PA', val: '113' },
+        'QX 1683 U': { type: 'A/PA', val: '113' },
+        'QX 1295 G': { type: 'A/PA', val: '113' },
+        'QX 2439 C': { type: 'A/PA', val: '113' },
+        'QX 1243 G': { type: 'A/PA', val: '114' },
+        'QX 1242 J': { type: 'A/PA', val: '115' },
+        'QX 1520 G': { type: 'A/PA', val: '111' },
+        'QX 2097 E': { type: 'A/PA', val: '115' }, // Defaults to PA115 mapping from history
+        'QX 1945 L': { type: 'A/PA', val: '111' },
+        'QX 2433 C': { type: 'A/PA', val: '112' },
+        'QX 2539 Y': { type: 'A/PA', val: '112' },
+        'QX 2197 Z': { type: 'A/PA', val: '112' },
+        'QX 1702 Z': { type: 'A/PA', val: '123' },
+        'QX 1674 X': { type: 'A/PA', val: '124' },
+        'QX 2495 P': { type: 'A/PA', val: '121' },
+        'QX 2194 H': { type: 'A/PA', val: '122' },
+        'QX 1222 S': { type: 'A/PA', val: '171' },
+        'QX 2137 Z': { type: 'A/PA', val: '172' },
+        'QX 2658 L': { type: 'A/PA', val: '171' },
+        'QX 2591 U': { type: 'A/PA', val: '171' },
+        'QX 2538 A': { type: 'A/PA', val: '171' }
+    };
 
     const updateSuggestions = () => {
+        // Start by pulling from the predefined "memory" map
+        vehicleToCallsign = { ...PREDEFINED_VEHICLE_MAP };
+        
         const pNames = new Set(), eNames = new Set();
-        const vNos = new Set(PREDEFINED_VEHICLES);
-        const cVals = new Set(PREDEFINED_CALLSIGNS);
+        const vNos = new Set(Object.keys(PREDEFINED_VEHICLE_MAP));
+        const cVals = new Set([...new Set(Object.values(PREDEFINED_VEHICLE_MAP).map(v => v.val))]);
 
         const paramRanks = ['SGT 1', 'SGT 2', 'SGT 3', 'SSGT', 'WO1', 'WO2', 'LTA'];
         const escortRanks = ['CPL', 'SGT', 'SSGT', 'SI', 'INSP'];
-        const callsignTypes = ['FB', 'LF', 'PL', 'A/PA'];
 
-        vehicles.forEach(v => {
+        // Overwrite mapping with live database records (ensures newer entries teach the system!)
+        // Reverse array so newest records take priority
+        [...vehicles].reverse().forEach(v => {
             if (v.vehicleNo) {
-                vNos.add(formatVehicleNumber(v.vehicleNo)); 
-            }
-            if (v.callsign) {
-                let c = extractName(v.callsign, callsignTypes);
-                if (c) {
-                    let digits = c.replace(/[^0-9]/g, ''); // Extract only digits for callsign
-                    if (digits) cVals.add(digits);
+                const formattedVeh = formatVehicleNumber(v.vehicleNo);
+                vNos.add(formattedVeh);
+                
+                // Add intelligence mappings to dictionary 
+                if (v.callsign) {
+                    let parts = extractCallsignParts(v.callsign);
+                    if (parts) {
+                        vehicleToCallsign[formattedVeh] = parts;
+                        cVals.add(parts.val);
+                    }
                 }
             }
             if (v.paramedic) {
@@ -966,7 +1017,6 @@
             let matches = [];
 
             if (inputId === 'callsign_val') {
-                // For callsing, ignore alphabets to match numbers only
                 const searchQ = q.replace(/[^0-9]/g, ''); 
                 if (searchQ) {
                     matches = suggestionData[inputId].filter(item => item.includes(searchQ));
@@ -974,7 +1024,6 @@
                     matches = suggestionData[inputId];
                 }
             } else if (inputId === 'vehicle_no') {
-                // For vehicle, ignore gaps when searching so "QX1" matches "QX 1"
                 const searchQ = q.replace(/\s+/g, '');
                 if (searchQ) {
                     matches = suggestionData[inputId].filter(item => item.replace(/\s+/g, '').includes(searchQ));
@@ -1006,6 +1055,12 @@
             if(e.target.classList.contains('autocomplete-item')) {
                 input.value = e.target.textContent;
                 dropdown.classList.remove('show');
+                
+                // Smart auto-fill trigger when option picked!
+                if (inputId === 'vehicle_no') {
+                    autoFillCallsign(input.value);
+                }
+                
                 input.focus();
             }
         });
@@ -1026,7 +1081,6 @@
                 snap.forEach(d => vehicles.push({ id: d.id, ...d.data() }));
                 vehicles.sort((a,b) => b.timestamp - a.timestamp);
                 
-                // Keep suggestions updated instantly behind the scenes
                 updateSuggestions();
                 
                 currentTab === 'live' ? renderLive() : (renderCal(), renderArchive());
@@ -1229,7 +1283,7 @@
         // Strip out non-digits ONLY for Callsign
         const callsignDigits = $('callsign_val').value.replace(/[^0-9]/g, '');
 
-        // Force rigorous formatting on submit just to be perfectly safe
+        // Force rigorous formatting on submit
         const vehicleFull = formatVehicleNumber($('vehicle_no').value.trim());
 
         const entry={
@@ -1275,5 +1329,3 @@
 </script>
 </body>
 </html>
-
-
