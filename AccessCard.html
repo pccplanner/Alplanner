@@ -18,7 +18,6 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         
-        /* Custom animation for the camera button */
         .scan-pulse:hover { animation: pulse-border 1.5s infinite; }
         @keyframes pulse-border {
             0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
@@ -26,7 +25,6 @@
             100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
 
-        /* Hide scrollbar for the quick summary ribbon */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -130,7 +128,7 @@
                             </form>
                         </div>
 
-                        <!-- Real-time Feedback Toast (Elevated z-index) -->
+                        <!-- Real-time Feedback Toast -->
                         <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-50">
                             <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-hidden transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm">
                                 <span id="feedbackIconWrapper" class="shrink-0"></span>
@@ -142,7 +140,7 @@
                         </div>
                     </div>
 
-                    <!-- NEW: Live Issued Summary Ribbon for Front Page -->
+                    <!-- Live Issued Summary Ribbon for Front Page -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
@@ -151,8 +149,6 @@
                             </h3>
                             <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">0 Active</span>
                         </div>
-                        
-                        <!-- Horizontally Scrollable Pills -->
                         <div id="quickSummaryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
                             <!-- Populated via JS -->
                         </div>
@@ -200,10 +196,11 @@
                 </div>
 
                 <!-- ========================================== -->
-                <!-- DATABASE TAB                               -->
+                <!-- DATABASE TAB (REDESIGNED FOR MOBILE)       -->
                 <!-- ========================================== -->
-                <div id="tab-database" class="tab-content hidden bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full">
-                    <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
+                <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col h-full">
+                    
+                    <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 md:bg-white rounded-t-2xl md:rounded-2xl md:border md:shadow-sm shrink-0 md:mb-4">
                         <div class="relative w-full md:w-96">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                             <input id="searchInput" type="text" placeholder="Search Pass ID..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"/>
@@ -214,20 +211,29 @@
                             <button data-filter="Issued" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
                         </div>
                     </div>
-                    <div class="overflow-x-auto flex-1">
+
+                    <!-- DESKTOP TABLE VIEW (Hidden on mobile) -->
+                    <div class="hidden md:block overflow-x-auto flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm">
                         <table class="w-full text-left border-collapse min-w-[600px]">
                             <thead>
-                                <tr class="bg-white text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-                                    <th class="py-4 px-6 font-medium">Pass ID</th>
+                                <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10">
+                                    <th class="py-4 px-6 font-medium rounded-tl-2xl">Pass ID</th>
                                     <th class="py-4 px-6 font-medium">Category</th>
                                     <th class="py-4 px-6 font-medium">Status</th>
-                                    <th class="py-4 px-6 font-medium">Last Scanned At</th>
+                                    <th class="py-4 px-6 font-medium">Last Scanned</th>
+                                    <th class="py-4 px-6 font-medium text-right rounded-tr-2xl">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="databaseTableBody" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
-                    <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl text-sm text-slate-500 text-center shrink-0">
+
+                    <!-- MOBILE CARDS VIEW (Visible only on mobile) -->
+                    <div class="md:hidden flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards">
+                        <!-- Cards injected via JS -->
+                    </div>
+
+                    <div class="p-4 border-t border-slate-200 bg-slate-50 md:bg-white rounded-b-2xl md:rounded-2xl md:border md:shadow-sm md:mt-4 text-sm text-slate-500 text-center shrink-0">
                         Showing <span id="recordCount">0</span> pass records
                     </div>
                 </div>
@@ -296,7 +302,6 @@
             warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`
         };
 
-        // Pass Settings 
         const PASS_CATEGORIES = [
             { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: ICONS.users, colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
             { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: ICONS.users, colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
@@ -333,7 +338,24 @@
         }
 
         // ==========================================
-        // UNIFIED SCANNER LOGIC
+        // 1-CLICK MANUAL RETURN LOGIC
+        // ==========================================
+        window.manualReturnPass = async (passId) => {
+            const passInfo = allPasses.find(p => p.id === passId);
+            if (!passInfo) return;
+
+            try {
+                const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId);
+                await deleteDoc(docRef); // Deleting the record reverts it to "Available"
+                showToast('return', `Pass Returned Manually: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+            } catch (error) {
+                console.error("Manual return error:", error);
+                showToast('error', `System Error updating ${passId}`, passId);
+            }
+        };
+
+        // ==========================================
+        // SCANNER LOGIC
         // ==========================================
         async function processScan(scannedIdText) {
             const scannedId = scannedIdText.trim().toUpperCase();
@@ -367,7 +389,6 @@
             inputEl.value = ''; 
         });
 
-        // Toggle UI logic for camera
         const startCameraBtn = document.getElementById('startCameraBtn');
         const stopCameraBtn = document.getElementById('stopCameraBtn');
         const cameraContainer = document.getElementById('cameraContainer');
@@ -435,7 +456,8 @@
             });
             renderDashboard();
             renderDatabase();
-            renderQuickSummary(); // New Front Page Summary
+            renderQuickSummary();
+            renderRecentScans(); // Re-render to update the manual return buttons dynamically
         }
 
         function calculateStats() {
@@ -448,7 +470,6 @@
             return { byCategory: initStats, total: basePasses.length, totalIssued };
         }
 
-        // --- NEW: Render Quick Summary for Front Page ---
         function renderQuickSummary() {
             if (activeTab !== 'scanner') return;
             const stats = calculateStats();
@@ -456,9 +477,8 @@
             
             const container = document.getElementById('quickSummaryContainer');
             container.innerHTML = Object.values(stats.byCategory).map(stat => {
-                // Determine styling based on whether passes are issued
                 const isActive = stat.issued > 0;
-                const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-100 bg-slate-50 text-slate-400';
+                const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400';
                 const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
                 
                 return `
@@ -502,33 +522,92 @@
 
         function renderDatabase() {
             if (activeTab !== 'database') return;
-            const tbody = document.getElementById('databaseTableBody');
+            const desktopTbody = document.getElementById('databaseTableBody');
+            const mobileCardsContainer = document.getElementById('mobileDatabaseCards');
+            
             const filtered = allPasses.filter(p => p.id.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'All' || p.status === statusFilter));
             document.getElementById('recordCount').innerText = filtered.length;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
+                const emptyState = `<tr><td colspan="5" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
+                desktopTbody.innerHTML = emptyState;
+                mobileCardsContainer.innerHTML = `<div class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</div>`;
                 return;
             }
-            tbody.innerHTML = filtered.map(p => `
-                <tr class="hover:bg-slate-50/50 transition-colors">
-                    <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
-                    <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">${p.color} ${p.type}</span></td>
-                    <td class="py-3 px-6"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${p.status === 'Available' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}">${p.status === 'Available' ? ICONS.check : ICONS.logout} ${p.status}</span></td>
-                    <td class="py-3 px-6 text-sm">${p.status === 'Issued' && p.issuedAt ? `<span class="text-slate-500 flex items-center gap-1">${ICONS.clock} ${new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>` : `<span class="text-slate-400">-</span>`}</td>
-                </tr>`).join('');
+
+            let desktopHtml = '';
+            let mobileHtml = '';
+
+            filtered.forEach(p => {
+                const timeStr = p.status === 'Issued' && p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
+                const statusPill = p.status === 'Available' ? 
+                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">${ICONS.check} Available</span>` : 
+                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">${ICONS.logout} Issued</span>`;
+                
+                // The 1-Click Return Button HTML
+                const returnBtn = p.status === 'Issued' ? 
+                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
+                    `<span class="text-slate-300 text-sm">-</span>`;
+
+                // Desktop Table Row
+                desktopHtml += `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
+                        <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">${p.color} ${p.type}</span></td>
+                        <td class="py-3 px-6">${statusPill}</td>
+                        <td class="py-3 px-6 text-sm text-slate-500">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td>
+                        <td class="py-3 px-6 text-right">${returnBtn}</td>
+                    </tr>`;
+
+                // Mobile Card View
+                mobileHtml += `
+                    <div class="bg-white p-4 rounded-[1.25rem] border border-slate-200 shadow-sm flex items-center justify-between gap-2">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="font-bold text-lg text-slate-800 tracking-wide">${p.id}</span>
+                                ${statusPill}
+                            </div>
+                            <div class="text-xs text-slate-500 flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded border ${p.colorClasses}">${p.color}</span>
+                                ${p.status === 'Issued' ? `<span class="flex items-center gap-1">${ICONS.clock} ${timeStr}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="shrink-0">
+                            ${p.status === 'Issued' ? returnBtn : ''}
+                        </div>
+                    </div>`;
+            });
+
+            desktopTbody.innerHTML = desktopHtml;
+            mobileCardsContainer.innerHTML = mobileHtml;
         }
 
         function renderRecentScans() {
             const list = document.getElementById('recentScansList');
             if (recentScans.length === 0) return;
+            
             list.innerHTML = recentScans.map(log => {
                 const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600';
                 const icon = log.type === 'issue' ? ICONS.logout : log.type === 'return' ? ICONS.check : ICONS.warning;
+                
+                // Check live state to see if we should show a manual return button here
+                const livePass = allPasses.find(p => p.id === log.passId);
+                const quickReturnBtn = (livePass && livePass.status === 'Issued') ? 
+                    `<button onclick="window.manualReturnPass('${log.passId}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-colors shadow-sm ml-2 shrink-0">Return</button>` : '';
+
                 return `
                 <li class="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors rounded-xl">
-                    <div class="flex items-center gap-4"><div class="p-2 rounded-lg ${colors}">${icon}</div><div><span class="font-bold text-slate-800 tracking-wide">${log.passId}</span><p class="text-sm text-slate-500">${log.message}</p></div></div>
-                    <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md">${log.time}</span>
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="p-2 rounded-lg ${colors} shrink-0">${icon}</div>
+                        <div class="truncate">
+                            <span class="font-bold text-slate-800 tracking-wide">${log.passId}</span>
+                            <p class="text-xs text-slate-500 truncate">${log.message}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md hidden md:inline-block">${log.time}</span>
+                        ${quickReturnBtn}
+                    </div>
                 </li>`
             }).join('');
         }
@@ -581,4 +660,3 @@
     </script>
 </body>
 </html>
-
