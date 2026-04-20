@@ -140,7 +140,7 @@
                         </div>
                     </div>
 
-                    <!-- Live Issued Summary Ribbon -->
+                    <!-- Live Issued Summary Ribbon for Front Page -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
@@ -196,7 +196,7 @@
                 </div>
 
                 <!-- ========================================== -->
-                <!-- DATABASE TAB (REDESIGNED FOR MOBILE)       -->
+                <!-- DATABASE TAB                               -->
                 <!-- ========================================== -->
                 <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col h-full">
                     
@@ -212,7 +212,7 @@
                         </div>
                     </div>
 
-                    <!-- DESKTOP TABLE VIEW (Hidden on mobile) -->
+                    <!-- DESKTOP TABLE VIEW -->
                     <div class="hidden md:block overflow-x-auto flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm">
                         <table class="w-full text-left border-collapse min-w-[600px]">
                             <thead>
@@ -228,10 +228,8 @@
                         </table>
                     </div>
 
-                    <!-- MOBILE CARDS VIEW (Visible only on mobile) -->
-                    <div class="md:hidden flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards">
-                        <!-- Cards injected via JS -->
-                    </div>
+                    <!-- MOBILE CARDS VIEW -->
+                    <div class="md:hidden flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards"></div>
 
                     <div class="p-4 border-t border-slate-200 bg-slate-50 md:bg-white rounded-b-2xl md:rounded-2xl md:border md:shadow-sm md:mt-4 text-sm text-slate-500 text-center shrink-0">
                         Showing <span id="recordCount">0</span> pass records
@@ -453,7 +451,7 @@
             renderDashboard();
             renderDatabase();
             renderQuickSummary();
-            renderActivePassesList(); // Replaces Recent Scans
+            renderActivePassesList();
         }
 
         function calculateStats() {
@@ -466,6 +464,7 @@
             return { byCategory: initStats, total: basePasses.length, totalIssued };
         }
 
+        // --- UPDATED: Render Nested "Available" Capsule ---
         function renderQuickSummary() {
             if (activeTab !== 'scanner') return;
             const stats = calculateStats();
@@ -474,26 +473,36 @@
             const container = document.getElementById('quickSummaryContainer');
             container.innerHTML = Object.values(stats.byCategory).map(stat => {
                 const isActive = stat.issued > 0;
+                
+                // Color formatting based on whether passes are actively out
                 const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400';
                 const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
                 
+                // Formatting for the nested "Available" pill inside the capsule
+                const tagStyle = isActive ? 'bg-white/60 border-white/50 text-slate-700' : 'bg-slate-200/50 border-slate-200/50 text-slate-500';
+                const indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400'; // Turns red if 0 available
+                
                 return `
-                <div class="shrink-0 w-[5.5rem] flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${wrapperStyle}">
-                    <span class="text-[9px] font-bold uppercase tracking-widest text-center mb-0.5 w-full truncate">${stat.config.color}</span>
-                    <span class="text-[9px] font-semibold text-center leading-tight mb-1 w-full truncate opacity-80">${stat.config.type}</span>
-                    <span class="text-xl font-extrabold ${numberStyle}">${stat.issued}</span>
+                <div class="shrink-0 w-[6.5rem] flex flex-col items-center justify-center p-2.5 rounded-[1.25rem] border transition-all shadow-sm ${wrapperStyle}">
+                    <span class="text-[9px] font-extrabold uppercase tracking-widest text-center mb-0 w-full truncate">${stat.config.color}</span>
+                    <span class="text-[9px] font-semibold text-center leading-tight mb-1.5 w-full truncate opacity-70">${stat.config.type}</span>
+                    
+                    <span class="text-3xl font-black ${numberStyle} leading-none mb-2.5">${stat.issued}</span>
+                    
+                    <div class="w-full flex items-center justify-center gap-1.5 py-0.5 rounded-lg border ${tagStyle}">
+                        <div class="w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-sm"></div>
+                        <span class="text-[9px] font-bold tracking-wide">${stat.available} Avail</span>
+                    </div>
                 </div>
                 `;
             }).join('');
         }
 
-        // --- NEW: Render Active Passes List (Replaces Recent Scans) ---
         function renderActivePassesList() {
             const list = document.getElementById('activePassesList');
             if (!list) return;
 
             const issuedPasses = allPasses.filter(p => p.status === 'Issued');
-            // Sort by newest issued first
             issuedPasses.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
             
             document.getElementById('activePassesBadge').innerText = issuedPasses.length;
