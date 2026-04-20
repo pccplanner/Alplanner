@@ -140,7 +140,7 @@
                         </div>
                     </div>
 
-                    <!-- Live Issued Summary Ribbon for Front Page -->
+                    <!-- Live Issued Summary Ribbon -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
@@ -154,18 +154,18 @@
                         </div>
                     </div>
 
-                    <!-- Recent Scans Log -->
-                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[200px]">
+                    <!-- ACTIVE PASSES LOG (Replaced Recent Scans) -->
+                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[300px]">
                         <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Recent Scans
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                Active Passes (Ready to Return)
                             </h3>
+                            <span id="activePassesBadge" class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">0</span>
                         </div>
                         <div class="flex-1 overflow-y-auto p-2">
-                            <ul id="recentScansList" class="divide-y divide-slate-100">
-                                <div class="h-full flex items-center justify-center text-slate-400 text-sm py-10">
-                                    No passes scanned yet in this session.
-                                </div>
+                            <ul id="activePassesList" class="divide-y divide-slate-100">
+                                <!-- Populated via JS -->
                             </ul>
                         </div>
                     </div>
@@ -285,7 +285,6 @@
         let activeTab = 'scanner';
         let dbStates = {};
         let allPasses = [];
-        let recentScans = [];
         let searchTerm = '';
         let statusFilter = 'All';
         let currentUser = null;
@@ -346,8 +345,8 @@
 
             try {
                 const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId);
-                await deleteDoc(docRef); // Deleting the record reverts it to "Available"
-                showToast('return', `Pass Returned Manually: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+                await deleteDoc(docRef);
+                showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             } catch (error) {
                 console.error("Manual return error:", error);
                 showToast('error', `System Error updating ${passId}`, passId);
@@ -434,9 +433,6 @@
             const toast = document.getElementById('feedbackToast');
             const iconWrapper = document.getElementById('feedbackIconWrapper');
             
-            recentScans = [{ id: Date.now(), type, message, passId, time: new Date().toLocaleTimeString() }, ...recentScans].slice(0, 10);
-            renderRecentScans();
-
             toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-visible transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
             iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
             iconWrapper.className = "w-6 h-6 flex items-center justify-center";
@@ -457,7 +453,7 @@
             renderDashboard();
             renderDatabase();
             renderQuickSummary();
-            renderRecentScans(); 
+            renderActivePassesList(); // Replaces Recent Scans
         }
 
         function calculateStats() {
@@ -488,6 +484,44 @@
                     <span class="text-xl font-extrabold ${numberStyle}">${stat.issued}</span>
                 </div>
                 `;
+            }).join('');
+        }
+
+        // --- NEW: Render Active Passes List (Replaces Recent Scans) ---
+        function renderActivePassesList() {
+            const list = document.getElementById('activePassesList');
+            if (!list) return;
+
+            const issuedPasses = allPasses.filter(p => p.status === 'Issued');
+            // Sort by newest issued first
+            issuedPasses.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
+            
+            document.getElementById('activePassesBadge').innerText = issuedPasses.length;
+
+            if (issuedPasses.length === 0) {
+                list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-10 opacity-70"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>No passes currently issued.</div>`;
+                return;
+            }
+
+            list.innerHTML = issuedPasses.map(p => {
+                const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                return `
+                <li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+                    <div class="flex items-center gap-3 overflow-hidden flex-1 pr-2">
+                        <div class="p-2 rounded-xl ${p.colorClasses} shrink-0 hidden sm:block">${p.icon}</div>
+                        <div class="flex flex-col truncate">
+                            <div class="flex items-center gap-2 mb-0.5">
+                                <span class="font-bold text-slate-800 tracking-wide text-sm md:text-base">${p.id}</span>
+                                <span class="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">${timeStr}</span>
+                            </div>
+                            <span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span>
+                        </div>
+                    </div>
+                    <button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 md:py-2.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>
+                        Return
+                    </button>
+                </li>`
             }).join('');
         }
 
@@ -527,19 +561,10 @@
             
             let filtered = allPasses.filter(p => p.id.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'All' || p.status === statusFilter));
             
-            // --- SMART SORTING: Issued passes float to top, sorted by newest ---
             filtered.sort((a, b) => {
-                // If a is Issued and b is Available, a comes first
                 if (a.status === 'Issued' && b.status === 'Available') return -1;
-                // If b is Issued and a is Available, b comes first
                 if (a.status === 'Available' && b.status === 'Issued') return 1;
-                
-                // If both are Issued, sort by newest timestamp first
-                if (a.status === 'Issued' && b.status === 'Issued') {
-                    return new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0);
-                }
-                
-                // Otherwise (both available), sort alphabetically by ID
+                if (a.status === 'Issued' && b.status === 'Issued') return new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0);
                 return a.id.localeCompare(b.id);
             });
 
@@ -562,10 +587,9 @@
                     `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">${ICONS.logout} Issued</span>`;
                 
                 const returnBtn = p.status === 'Issued' ? 
-                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
+                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
                     `<span class="text-slate-300 text-sm">-</span>`;
 
-                // Desktop Table Row
                 desktopHtml += `
                     <tr class="hover:bg-slate-50/50 transition-colors">
                         <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
@@ -575,7 +599,6 @@
                         <td class="py-3 px-6 text-right">${returnBtn}</td>
                     </tr>`;
 
-                // Mobile Card View
                 mobileHtml += `
                     <div class="bg-white p-4 rounded-[1.25rem] border border-slate-200 shadow-sm flex items-center justify-between gap-2">
                         <div class="flex-1">
@@ -598,35 +621,6 @@
             mobileCardsContainer.innerHTML = mobileHtml;
         }
 
-        function renderRecentScans() {
-            const list = document.getElementById('recentScansList');
-            if (recentScans.length === 0) return;
-            
-            list.innerHTML = recentScans.map(log => {
-                const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600';
-                const icon = log.type === 'issue' ? ICONS.logout : log.type === 'return' ? ICONS.check : ICONS.warning;
-                
-                const livePass = allPasses.find(p => p.id === log.passId);
-                const quickReturnBtn = (livePass && livePass.status === 'Issued') ? 
-                    `<button onclick="window.manualReturnPass('${log.passId}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-colors shadow-sm ml-2 shrink-0">Return</button>` : '';
-
-                return `
-                <li class="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors rounded-xl">
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <div class="p-2 rounded-lg ${colors} shrink-0">${icon}</div>
-                        <div class="truncate">
-                            <span class="font-bold text-slate-800 tracking-wide">${log.passId}</span>
-                            <p class="text-xs text-slate-500 truncate">${log.message}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md hidden md:inline-block">${log.time}</span>
-                        ${quickReturnBtn}
-                    </div>
-                </li>`
-            }).join('');
-        }
-
         // Navigation
         const tabs = ['scanner', 'dashboard', 'database'];
         const titles = { 'scanner': 'Barcode Scanner Mode', 'dashboard': 'System Dashboard', 'database': 'Pass Database' };
@@ -647,7 +641,10 @@
 
             if (selectedTab === 'dashboard') renderDashboard();
             if (selectedTab === 'database') renderDatabase();
-            if (selectedTab === 'scanner') renderQuickSummary();
+            if (selectedTab === 'scanner') {
+                renderQuickSummary();
+                renderActivePassesList();
+            }
             
             if (selectedTab !== 'scanner') {
                 stopCamera();
