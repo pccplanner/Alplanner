@@ -457,7 +457,7 @@
             renderDashboard();
             renderDatabase();
             renderQuickSummary();
-            renderRecentScans(); // Re-render to update the manual return buttons dynamically
+            renderRecentScans(); 
         }
 
         function calculateStats() {
@@ -525,7 +525,24 @@
             const desktopTbody = document.getElementById('databaseTableBody');
             const mobileCardsContainer = document.getElementById('mobileDatabaseCards');
             
-            const filtered = allPasses.filter(p => p.id.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'All' || p.status === statusFilter));
+            let filtered = allPasses.filter(p => p.id.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'All' || p.status === statusFilter));
+            
+            // --- SMART SORTING: Issued passes float to top, sorted by newest ---
+            filtered.sort((a, b) => {
+                // If a is Issued and b is Available, a comes first
+                if (a.status === 'Issued' && b.status === 'Available') return -1;
+                // If b is Issued and a is Available, b comes first
+                if (a.status === 'Available' && b.status === 'Issued') return 1;
+                
+                // If both are Issued, sort by newest timestamp first
+                if (a.status === 'Issued' && b.status === 'Issued') {
+                    return new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0);
+                }
+                
+                // Otherwise (both available), sort alphabetically by ID
+                return a.id.localeCompare(b.id);
+            });
+
             document.getElementById('recordCount').innerText = filtered.length;
 
             if (filtered.length === 0) {
@@ -544,7 +561,6 @@
                     `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">${ICONS.check} Available</span>` : 
                     `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">${ICONS.logout} Issued</span>`;
                 
-                // The 1-Click Return Button HTML
                 const returnBtn = p.status === 'Issued' ? 
                     `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
                     `<span class="text-slate-300 text-sm">-</span>`;
@@ -590,7 +606,6 @@
                 const colors = log.type === 'issue' ? 'bg-indigo-100 text-indigo-600' : log.type === 'return' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600';
                 const icon = log.type === 'issue' ? ICONS.logout : log.type === 'return' ? ICONS.check : ICONS.warning;
                 
-                // Check live state to see if we should show a manual return button here
                 const livePass = allPasses.find(p => p.id === log.passId);
                 const quickReturnBtn = (livePass && livePass.status === 'Issued') ? 
                     `<button onclick="window.manualReturnPass('${log.passId}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-colors shadow-sm ml-2 shrink-0">Return</button>` : '';
