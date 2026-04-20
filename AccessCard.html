@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -154,7 +154,7 @@
                         </div>
                     </div>
 
-                    <!-- ACTIVE PASSES LOG (Replaced Recent Scans) -->
+                    <!-- ACTIVE PASSES LOG -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[300px]">
                         <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
@@ -196,7 +196,7 @@
                 </div>
 
                 <!-- ========================================== -->
-                <!-- DATABASE TAB                               -->
+                <!-- DATABASE TAB (REDESIGNED FOR MOBILE)       -->
                 <!-- ========================================== -->
                 <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col h-full">
                     
@@ -310,7 +310,16 @@
         const basePasses = [];
         PASS_CATEGORIES.forEach(cat => {
             for (let i = cat.min; i <= cat.max; i++) {
-                basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, status: 'Available' });
+                basePasses.push({ 
+                    id: `${cat.prefix}${i}`, 
+                    categoryId: cat.id, 
+                    color: cat.color, 
+                    type: cat.type, 
+                    colorClasses: cat.colorClasses, 
+                    badgeClass: cat.badgeClass, 
+                    icon: cat.icon, // Fix: Explicitly copy icon to individual passes 
+                    status: 'Available' 
+                });
             }
         });
 
@@ -464,7 +473,6 @@
             return { byCategory: initStats, total: basePasses.length, totalIssued };
         }
 
-        // --- UPDATED: Render Nested "Available" Capsule ---
         function renderQuickSummary() {
             if (activeTab !== 'scanner') return;
             const stats = calculateStats();
@@ -474,13 +482,11 @@
             container.innerHTML = Object.values(stats.byCategory).map(stat => {
                 const isActive = stat.issued > 0;
                 
-                // Color formatting based on whether passes are actively out
                 const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400';
                 const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
                 
-                // Formatting for the nested "Available" pill inside the capsule
                 const tagStyle = isActive ? 'bg-white/60 border-white/50 text-slate-700' : 'bg-slate-200/50 border-slate-200/50 text-slate-500';
-                const indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400'; // Turns red if 0 available
+                const indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400';
                 
                 return `
                 <div class="shrink-0 w-[6.5rem] flex flex-col items-center justify-center p-2.5 rounded-[1.25rem] border transition-all shadow-sm ${wrapperStyle}">
@@ -517,7 +523,8 @@
                 return `
                 <li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
                     <div class="flex items-center gap-3 overflow-hidden flex-1 pr-2">
-                        <div class="p-2 rounded-xl ${p.colorClasses} shrink-0 hidden sm:block">${p.icon}</div>
+                        <!-- Icon visible on all screen sizes -->
+                        <div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div>
                         <div class="flex flex-col truncate">
                             <div class="flex items-center gap-2 mb-0.5">
                                 <span class="font-bold text-slate-800 tracking-wide text-sm md:text-base">${p.id}</span>
