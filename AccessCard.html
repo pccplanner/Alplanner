@@ -17,6 +17,7 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        
         /* Custom animation for the camera button */
         .scan-pulse:hover { animation: pulse-border 1.5s infinite; }
         @keyframes pulse-border {
@@ -24,6 +25,10 @@
             70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
             100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
+
+        /* Hide scrollbar for the quick summary ribbon */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
@@ -72,32 +77,29 @@
             <div class="max-w-6xl mx-auto h-full relative">
                 
                 <!-- ========================================== -->
-                <!-- SCANNER TAB (REDESIGNED)                   -->
+                <!-- SCANNER TAB                                -->
                 <!-- ========================================== -->
                 <div id="tab-scanner" class="tab-content h-full flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
+                    
+                    <!-- Top Scanner Box -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-10 text-center relative overflow-hidden shrink-0">
-                        
-                        <!-- Header -->
                         <div class="mb-8">
                             <h3 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Access Scanner</h3>
                             <p class="text-slate-500 text-sm md:text-base mt-2">Choose your preferred scanning method below.</p>
                         </div>
 
                         <div class="flex flex-col items-center w-full max-w-sm mx-auto space-y-8">
-                            
-                            <!-- MOBILE CAMERA BUTTON (New Premium Design) -->
+                            <!-- MOBILE CAMERA BUTTON -->
                             <button id="startCameraBtn" class="scan-pulse group relative flex flex-col items-center justify-center w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.2)] hover:border-blue-400 transition-all duration-300 transform hover:-translate-y-1 outline-none">
                                 <div class="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"></div>
-                                <!-- Viewfinder / Camera Icon -->
                                 <svg class="relative z-10 w-14 h-14 mb-2 group-hover:text-white transition-colors duration-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                                    <!-- Inner target -->
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-4-4v8" />
                                 </svg>
                                 <span class="relative z-10 text-[11px] font-bold tracking-widest uppercase group-hover:text-white transition-colors duration-300">Tap to Scan</span>
                             </button>
 
-                            <!-- Camera Video Feed Container (Hidden by default) -->
+                            <!-- Camera Video Feed Container -->
                             <div id="cameraContainer" class="hidden w-full flex-col items-center">
                                 <div id="reader" class="w-full overflow-hidden rounded-3xl border-4 border-slate-800 bg-black shadow-2xl mb-5 aspect-square md:aspect-video"></div>
                                 <button id="stopCameraBtn" class="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:bg-slate-700 transition-all active:scale-95">
@@ -115,7 +117,6 @@
 
                             <!-- PHYSICAL SCANNER INPUT -->
                             <form id="scannerForm" class="w-full relative mt-0">
-                                <!-- Subtle Keyboard icon to indicate typing input -->
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
                                 </div>
@@ -127,7 +128,6 @@
                                     class="w-full pl-12 pr-4 py-4 text-center text-lg uppercase tracking-widest font-mono border-2 border-slate-200 bg-slate-50 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm placeholder:text-slate-400"
                                 />
                             </form>
-                            
                         </div>
 
                         <!-- Real-time Feedback Toast (Elevated z-index) -->
@@ -140,7 +140,22 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
 
+                    <!-- NEW: Live Issued Summary Ribbon for Front Page -->
+                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Currently Issued
+                            </h3>
+                            <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">0 Active</span>
+                        </div>
+                        
+                        <!-- Horizontally Scrollable Pills -->
+                        <div id="quickSummaryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
+                            <!-- Populated via JS -->
+                        </div>
                     </div>
 
                     <!-- Recent Scans Log -->
@@ -281,12 +296,12 @@
             warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`
         };
 
-        // Pass Settings (Split Contractor and Temp arrays)
+        // Pass Settings 
         const PASS_CATEGORIES = [
             { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: ICONS.users, colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
             { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: ICONS.users, colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
-            { id: 'brown_contractor_1', color: 'Brown', type: 'Contractor (Set 1)', prefix: 'C', min: 1001071, max: 1001170, total: 100, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            { id: 'brown_contractor_2', color: 'Brown', type: 'Contractor (Set 2)', prefix: 'C', min: 1001171, max: 1001210, total: 40, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
+            { id: 'brown_contractor_1', color: 'Brown', type: 'Contractor 1', prefix: 'C', min: 1001071, max: 1001170, total: 100, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
+            { id: 'brown_contractor_2', color: 'Brown', type: 'Contractor 2', prefix: 'C', min: 1001171, max: 1001210, total: 40, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
             { id: 'brown_temp', color: 'Brown', type: 'Temp (Taps)', prefix: 'T', min: 906101, max: 906220, total: 120, icon: ICONS.ticket, colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
         ];
 
@@ -359,7 +374,6 @@
         const scannerDivider = document.getElementById('scannerDivider');
 
         startCameraBtn.addEventListener('click', () => {
-            // Hide initial elements, show camera container
             startCameraBtn.classList.add('hidden');
             scannerDivider.classList.add('hidden');
             cameraContainer.classList.remove('hidden');
@@ -383,8 +397,6 @@
             if (html5QrCode) {
                 html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.log(err));
             }
-            
-            // Revert UI to default scanner view
             startCameraBtn.classList.remove('hidden');
             scannerDivider.classList.remove('hidden');
             cameraContainer.classList.add('hidden');
@@ -423,6 +435,7 @@
             });
             renderDashboard();
             renderDatabase();
+            renderQuickSummary(); // New Front Page Summary
         }
 
         function calculateStats() {
@@ -433,6 +446,29 @@
                 if (p.status === 'Issued') { initStats[p.categoryId].issued += 1; initStats[p.categoryId].available -= 1; totalIssued += 1; }
             });
             return { byCategory: initStats, total: basePasses.length, totalIssued };
+        }
+
+        // --- NEW: Render Quick Summary for Front Page ---
+        function renderQuickSummary() {
+            if (activeTab !== 'scanner') return;
+            const stats = calculateStats();
+            document.getElementById('quickTotalIssued').innerText = `${stats.totalIssued} Active`;
+            
+            const container = document.getElementById('quickSummaryContainer');
+            container.innerHTML = Object.values(stats.byCategory).map(stat => {
+                // Determine styling based on whether passes are issued
+                const isActive = stat.issued > 0;
+                const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-100 bg-slate-50 text-slate-400';
+                const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
+                
+                return `
+                <div class="shrink-0 w-[5.5rem] flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${wrapperStyle}">
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-center mb-0.5 w-full truncate">${stat.config.color}</span>
+                    <span class="text-[9px] font-semibold text-center leading-tight mb-1 w-full truncate opacity-80">${stat.config.type}</span>
+                    <span class="text-xl font-extrabold ${numberStyle}">${stat.issued}</span>
+                </div>
+                `;
+            }).join('');
         }
 
         function renderDashboard() {
@@ -517,6 +553,7 @@
 
             if (selectedTab === 'dashboard') renderDashboard();
             if (selectedTab === 'database') renderDatabase();
+            if (selectedTab === 'scanner') renderQuickSummary();
             
             if (selectedTab !== 'scanner') {
                 stopCamera();
