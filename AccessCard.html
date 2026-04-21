@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PCCSO Access Pass System</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style>
+        /* CRITICAL FALLBACKS: Prevents UI from exploding if Tailwind CSS is blocked by strict mobile viewers */
+        .hidden { display: none !important; }
+        body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        
         .toast-hidden { opacity: 0; transform: translateY(1rem); pointer-events: none; }
         .toast-visible { opacity: 1; transform: translateY(0); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -18,808 +22,905 @@
         
         .scan-pulse:hover { animation: pulse-border 1.5s infinite; }
         @keyframes pulse-border {
-            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-            70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+            0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+            70%  { box-shadow: 0 0 0 15px rgba(59,130,246,0); }
+            100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Modal animation */
+        .modal-backdrop { animation: fadeIn 0.15s ease; }
+        .modal-card    { animation: slideUp 0.2s ease; }
+        @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+        /* Print styles — only printReport visible */
+        @media print {
+            body > * { display: none !important; }
+            #printReportWrapper  { display: block !important; }
+        }
+
+        /* Elapsed time pill colours */
+        .elapsed-safe  { background:#dcfce7; color:#15803d; border-color:#bbf7d0; }
+        .elapsed-warn  { background:#fef9c3; color:#854d0e; border-color:#fef08a; }
+        .elapsed-alert { background:#ffedd5; color:#c2410c; border-color:#fed7aa; }
+        .elapsed-over  { background:#fee2e2; color:#dc2626; border-color:#fecaca; }
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
 
-    <!-- Loading Screen -->
-    <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
-        <div class="flex flex-col items-center text-slate-500">
-            <svg class="animate-spin w-10 h-10 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+<!-- ===================== LOADING ===================== -->
+<div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
+    <div class="flex flex-col items-center text-slate-500 px-8 max-w-sm w-full text-center">
+
+        <!-- Spinner state -->
+        <div id="loadingSpinner">
+            <svg class="animate-spin w-10 h-10 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
             <p class="text-lg font-medium">Connecting to Database...</p>
         </div>
-    </div>
 
-    <!-- Desktop Sidebar -->
-    <aside class="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 h-full">
-        <div class="p-6 bg-slate-950/50">
-            <div class="flex items-center gap-3 text-white mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
-                <h1 class="text-lg font-bold leading-tight">PCCSO Access</h1>
+        <!-- Error state (hidden by default) -->
+        <div id="loadingError" class="hidden">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <p class="text-xs text-slate-400">Barcode Management</p>
+            <p class="text-lg font-bold text-slate-800 mb-2">Connection Failed</p>
+            <p class="text-sm text-slate-500 mb-2" id="loadingErrorMsg">Unable to reach the database.</p>
+            <button id="loadingRetryBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-sm text-sm mt-4">
+                Run in Offline Mode
+            </button>
         </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <button id="nav-desktop-scanner" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg> Scanner Mode
-            </button>
-            <button id="nav-desktop-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> Live Dashboard
-            </button>
-            <button id="nav-desktop-database" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Pass Database
-            </button>
-        </nav>
-    </aside>
 
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-        
-        <!-- Header with Sound Toggle -->
-        <header class="bg-white border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between shrink-0">
-            <h2 id="pageTitle" class="text-lg md:text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
-            <div class="flex items-center gap-3 text-xs md:text-sm">
-                <!-- Sound Toggle -->
-                <button id="soundToggleBtn" class="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-full border border-slate-200" title="Toggle Scan Sounds">
-                    <svg id="soundIconOn" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                    <svg id="soundIconOff" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="1" y1="1" y2="23"/><line x1="22.93" x2="17.07" y1="9" y2="15"/><line x1="17.07" x2="22.93" y1="9" y2="15"/></svg>
-                </button>
-
-                <div class="flex items-center gap-2 text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    System Online
-                </div>
-            </div>
-        </header>
-
-        <!-- pb-32 allows massive extra padding at bottom so lists easily clear mobile navbars -->
-        <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-12">
-            <div class="max-w-6xl mx-auto relative">
-                
-                <!-- ========================================== -->
-                <!-- SCANNER TAB                                -->
-                <!-- ========================================== -->
-                <div id="tab-scanner" class="tab-content flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
-                    
-                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-10 text-center relative overflow-hidden shrink-0">
-                        <div class="mb-8">
-                            <h3 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Access Scanner</h3>
-                            <p class="text-slate-500 text-sm md:text-base mt-2">Choose your preferred scanning method below.</p>
-                        </div>
-
-                        <div class="flex flex-col items-center w-full max-w-sm mx-auto space-y-8">
-                            <button id="startCameraBtn" class="scan-pulse group relative flex flex-col items-center justify-center w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.2)] hover:border-blue-400 transition-all duration-300 transform hover:-translate-y-1 outline-none">
-                                <div class="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"></div>
-                                <svg class="relative z-10 w-14 h-14 mb-2 group-hover:text-white transition-colors duration-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-4-4v8" />
-                                </svg>
-                                <span class="relative z-10 text-[11px] font-bold tracking-widest uppercase group-hover:text-white transition-colors duration-300">Tap to Scan</span>
-                            </button>
-
-                            <div id="cameraContainer" class="hidden w-full flex-col items-center">
-                                <div id="reader" class="w-full overflow-hidden rounded-3xl border-4 border-slate-800 bg-black shadow-2xl mb-5 aspect-square md:aspect-video"></div>
-                                <button id="stopCameraBtn" class="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:bg-slate-700 transition-all active:scale-95">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                                    Close Camera
-                                </button>
-                            </div>
-
-                            <div id="scannerDivider" class="flex items-center w-full opacity-60">
-                                <div class="flex-1 border-t-2 border-slate-100"></div>
-                                <span class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or Use Laser</span>
-                                <div class="flex-1 border-t-2 border-slate-100"></div>
-                            </div>
-
-                            <form id="scannerForm" class="w-full relative mt-0">
-                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
-                                </div>
-                                <input 
-                                    id="scannerInput"
-                                    type="text" 
-                                    placeholder="Autopack laser input..."
-                                    autocomplete="off"
-                                    class="w-full pl-12 pr-4 py-4 text-center text-lg uppercase tracking-widest font-mono border-2 border-slate-200 bg-slate-50 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm placeholder:text-slate-400"
-                                />
-                            </form>
-                        </div>
-
-                        <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-50">
-                            <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-hidden transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm">
-                                <span id="feedbackIconWrapper" class="shrink-0"></span>
-                                <div class="text-left w-full overflow-hidden">
-                                    <strong id="feedbackPassId" class="block text-base md:text-lg text-slate-900 tracking-wide"></strong>
-                                    <span id="feedbackMessage" class="text-xs md:text-sm font-semibold opacity-90 block truncate"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Live Issued Summary Ribbon -->
-                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                Currently Issued
-                            </h3>
-                            <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full shrink-0">0 Active</span>
-                        </div>
-                        <div id="quickSummaryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
-                            <!-- Populated via JS -->
-                        </div>
-                    </div>
-
-                    <!-- ACTIVE PASSES LOG (Removed internal scrolling so it grows naturally) -->
-                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex flex-col mb-8 overflow-hidden">
-                        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
-                            <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                Active Passes (Ready to Return)
-                            </h3>
-                            <span id="activePassesBadge" class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">0</span>
-                        </div>
-                        <div class="p-2">
-                            <ul id="activePassesList" class="divide-y divide-slate-100">
-                                <!-- Populated via JS -->
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- DASHBOARD TAB                              -->
-                <!-- ========================================== -->
-                <div id="tab-dashboard" class="tab-content hidden space-y-6">
-                    <div id="dashboardStatsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 shrink-0"></div>
-                    
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <!-- Quick Stats -->
-                        <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Live Capacity Tracking</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <p class="text-sm text-slate-500">Total System Passes</p>
-                                    <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
-                                </div>
-                                <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                                    <p class="text-sm text-emerald-600">Total Available in Room</p>
-                                    <p id="statAvailable" class="text-2xl font-bold text-emerald-700">0</p>
-                                </div>
-                                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                    <p class="text-sm text-indigo-600">Currently Issued</p>
-                                    <p id="statIssued" class="text-2xl font-bold text-indigo-700">0</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- OVERDUE TRACKER -->
-                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-red-200 flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                    Action Required
-                                </h3>
-                                <span id="overdueCountBadge" class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">0 Overdue</span>
-                            </div>
-                            <p class="text-xs text-slate-500 mb-4 shrink-0">Passes missing for > 12 hours. Please physically recover these cards.</p>
-                            
-                            <div class="bg-slate-50 rounded-xl border border-slate-100 p-3">
-                                <ul id="dashboardOverdueList" class="space-y-3">
-                                    <!-- Populated via JS -->
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- DATABASE TAB                               -->
-                <!-- ========================================== -->
-                <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col">
-                    
-                    <div class="sticky top-0 z-20 p-4 border-b border-slate-200 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50 md:bg-white rounded-t-2xl md:rounded-2xl md:border md:shadow-sm shrink-0 md:mb-4">
-                        <div class="relative w-full lg:w-80 shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                            <input id="searchInput" type="text" placeholder="Search Pass ID..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"/>
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                            <!-- Filter Buttons -->
-                            <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0" id="filterGroup">
-                                <button data-filter="All" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700">All</button>
-                                <button data-filter="Available" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Available</button>
-                                <button data-filter="Issued" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
-                                <button data-filter="Overdue" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Overdue</button>
-                            </div>
-                            <!-- EXPORT CSV BUTTON -->
-                            <button id="btnExportCsv" class="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                                Export CSV
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- DESKTOP TABLE VIEW -->
-                    <div class="hidden md:block overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
-                        <table class="w-full text-left border-collapse min-w-[600px]">
-                            <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10">
-                                    <th class="py-4 px-6 font-medium rounded-tl-2xl">Pass ID</th>
-                                    <th class="py-4 px-6 font-medium">Category</th>
-                                    <th class="py-4 px-6 font-medium">Status</th>
-                                    <th class="py-4 px-6 font-medium">Last Scanned</th>
-                                    <th class="py-4 px-6 font-medium text-right rounded-tr-2xl">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="databaseTableBody" class="divide-y divide-slate-100"></tbody>
-                        </table>
-                    </div>
-
-                    <!-- MOBILE CARDS VIEW -->
-                    <div class="md:hidden p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards"></div>
-
-                    <div class="p-4 border-t border-slate-200 bg-slate-50 md:bg-white rounded-b-2xl md:rounded-2xl md:border md:shadow-sm md:mt-4 text-sm text-slate-500 text-center shrink-0">
-                        Showing <span id="recordCount">0</span> pass records
-                    </div>
-                </div>
-
-            </div>
-        </main>
     </div>
+</div>
 
-    <!-- Mobile Bottom Navigation Bar -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center px-2 py-1 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <button id="nav-mobile-scanner" class="flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
-            <span class="text-[10px] font-medium mt-1">Scanner</span>
+<!-- ===================== BULK RETURN MODAL ===================== -->
+<div id="bulkReturnModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 modal-backdrop" style="background:rgba(15,23,42,0.55);">
+    <div class="modal-card bg-white w-full max-w-sm rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-6 pt-6 pb-4 bg-amber-50 border-b border-amber-100">
+            <p class="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">End of Shift — Bulk Action</p>
+            <p class="text-xl font-extrabold text-slate-900">Return All Active Passes?</p>
+        </div>
+        <div class="p-6">
+            <p class="text-sm text-slate-600 mb-1">
+                This will mark <strong id="bulkReturnCount" class="text-slate-900">0</strong> currently issued
+                passes as <strong class="text-emerald-700">Returned</strong>.
+            </p>
+            <p class="text-xs text-slate-400 mb-6">Use during reconciliation or shift handover. This action cannot be undone.</p>
+            <div class="flex gap-3">
+                <button id="bulkReturnCancel"  class="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">Cancel</button>
+                <button id="bulkReturnConfirm" class="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-sm transition-colors">Confirm Return All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== PRINT REPORT ===================== -->
+<div id="printReportWrapper" class="hidden p-10 font-sans text-slate-900 text-sm leading-relaxed max-w-4xl mx-auto">
+    <div id="printReportContent"></div>
+</div>
+
+<!-- ===================== DESKTOP SIDEBAR ===================== -->
+<aside class="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 h-full">
+    <div class="p-6 bg-slate-950/50">
+        <div class="flex items-center gap-3 text-white mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400">
+                <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/>
+                <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>
+            </svg>
+            <h1 class="text-lg font-bold leading-tight">PCCSO Access</h1>
+        </div>
+        <p class="text-xs text-slate-400">Barcode Management</p>
+    </div>
+    <nav class="flex-1 px-4 py-6 space-y-2">
+        <button id="nav-desktop-scanner" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+            Scanner Mode
         </button>
-        <button id="nav-mobile-dashboard" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-            <span class="text-[10px] font-medium mt-1">Dashboard</span>
+        <button id="nav-desktop-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            Live Dashboard
         </button>
-        <button id="nav-mobile-database" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <span class="text-[10px] font-medium mt-1">Database</span>
+        <button id="nav-desktop-database" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            Pass Database
+        </button>
+        <button id="nav-desktop-log" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Activity Log
+            <span id="logBadgeDesktop" class="ml-auto bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden">0</span>
         </button>
     </nav>
+</aside>
 
-    <!-- Application Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+<!-- ===================== MAIN CONTENT ===================== -->
+<div class="flex-1 flex flex-col h-full overflow-hidden relative">
 
-        // Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
-            authDomain: "pccso-7bad0.firebaseapp.com",
-            projectId: "pccso-7bad0",
-            storageBucket: "pccso-7bad0.firebasestorage.app",
+    <header class="bg-white border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between shrink-0">
+        <h2 id="pageTitle" class="text-lg md:text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
+        <div class="flex items-center gap-3 text-xs md:text-sm">
+            <button id="soundToggleBtn" class="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-full border border-slate-200" title="Toggle Scan Sounds">
+                <svg id="soundIconOn" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                <svg id="soundIconOff" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="1" y1="1" y2="23"/></svg>
+            </button>
+            <div id="statusIndicator" class="flex items-center gap-2 text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                System Online
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-12">
+    <div class="max-w-6xl mx-auto relative">
+
+        <!-- ========== SCANNER TAB ========== -->
+        <div id="tab-scanner" class="tab-content flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
+
+            <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-10 text-center relative overflow-hidden shrink-0">
+                <div class="mb-8">
+                    <h3 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Access Scanner</h3>
+                    <p class="text-slate-500 text-sm md:text-base mt-2">Choose your preferred scanning method below.</p>
+                </div>
+
+                <div class="flex flex-col items-center w-full max-w-sm mx-auto space-y-8">
+                    <button id="startCameraBtn" class="scan-pulse group relative flex flex-col items-center justify-center w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.2)] hover:border-blue-400 transition-all duration-300 transform hover:-translate-y-1 outline-none">
+                        <div class="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"></div>
+                        <svg class="relative z-10 w-14 h-14 mb-2 group-hover:text-white transition-colors duration-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-4-4v8"/>
+                        </svg>
+                        <span class="relative z-10 text-[11px] font-bold tracking-widest uppercase group-hover:text-white transition-colors duration-300">Tap to Scan</span>
+                    </button>
+
+                    <div id="cameraContainer" class="hidden w-full flex-col items-center">
+                        <div id="reader" class="w-full overflow-hidden rounded-3xl border-4 border-slate-800 bg-black shadow-2xl mb-5 aspect-square md:aspect-video"></div>
+                        <button id="stopCameraBtn" class="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:bg-slate-700 transition-all active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            Close Camera
+                        </button>
+                    </div>
+
+                    <div id="scannerDivider" class="flex items-center w-full opacity-60">
+                        <div class="flex-1 border-t-2 border-slate-100"></div>
+                        <span class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or Use Laser</span>
+                        <div class="flex-1 border-t-2 border-slate-100"></div>
+                    </div>
+
+                    <form id="scannerForm" class="w-full relative mt-0">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
+                        </div>
+                        <input id="scannerInput" type="text" placeholder="Autopack laser input..." autocomplete="off"
+                            class="w-full pl-12 pr-4 py-4 text-center text-lg uppercase tracking-widest font-mono border-2 border-slate-200 bg-slate-50 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-sm placeholder:text-slate-400"/>
+                    </form>
+                </div>
+
+                <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-50">
+                    <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-hidden transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm">
+                        <span id="feedbackIconWrapper" class="shrink-0"></span>
+                        <div class="text-left w-full overflow-hidden">
+                            <strong id="feedbackPassId" class="block text-base md:text-lg text-slate-900 tracking-wide"></strong>
+                            <span id="feedbackMessage" class="text-xs md:text-sm font-semibold opacity-90 block truncate"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Currently Issued
+                    </h3>
+                    <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full shrink-0">0 Active</span>
+                </div>
+                <div id="quickSummaryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center"></div>
+            </div>
+
+            <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex flex-col mb-8 overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                    <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Active Passes
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <span id="activePassesBadge" class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">0</span>
+                        <button id="btnReturnAll" class="hidden items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>
+                            Return All
+                        </button>
+                    </div>
+                </div>
+                <div class="p-2">
+                    <ul id="activePassesList" class="divide-y divide-slate-100"></ul>
+                </div>
+            </div>
+
+        </div><!-- end tab-scanner -->
+
+        <!-- ========== DASHBOARD TAB ========== -->
+        <div id="tab-dashboard" class="tab-content hidden space-y-6">
+            <div id="dashboardStatsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 shrink-0"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Capacity -->
+                <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-slate-800">Live Capacity Tracking</h3>
+                        <button id="btnPrintReport" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                            Print Shift Report
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <p class="text-sm text-slate-500">Total System Passes</p>
+                            <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+                        </div>
+                        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                            <p class="text-sm text-emerald-600">Total Available in Room</p>
+                            <p id="statAvailable" class="text-2xl font-bold text-emerald-700">0</p>
+                        </div>
+                        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                            <p class="text-sm text-indigo-600">Currently Issued</p>
+                            <p id="statIssued" class="text-2xl font-bold text-indigo-700">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Required -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-red-200 flex flex-col">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            Action Required
+                        </h3>
+                        <span id="overdueCountBadge" class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">0 Overdue</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3 shrink-0">
+                        <span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>Warning &gt;8h &nbsp;·&nbsp;
+                        <span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>Overdue &gt;12h
+                    </p>
+                    <div class="bg-slate-50 rounded-xl border border-slate-100 p-3 flex-1 overflow-y-auto max-h-56">
+                        <ul id="dashboardOverdueList" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+        </div><!-- end tab-dashboard -->
+
+        <!-- ========== DATABASE TAB ========== -->
+        <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col">
+            <div class="sticky top-0 z-20 p-4 border-b border-slate-200 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50 md:bg-white rounded-t-2xl md:rounded-2xl md:border md:shadow-sm shrink-0 md:mb-4">
+                <div class="relative w-full lg:w-80 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input id="searchInput" type="text" placeholder="Search Pass ID..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"/>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0" id="filterGroup">
+                        <button data-filter="All"      class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700">All</button>
+                        <button data-filter="Available" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Available</button>
+                        <button data-filter="Issued"    class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
+                        <button data-filter="Overdue"   class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Overdue</button>
+                    </div>
+                    <button id="btnExportCsv" class="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="hidden md:block overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <table class="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10">
+                            <th class="py-4 px-6 font-medium rounded-tl-2xl">Pass ID</th>
+                            <th class="py-4 px-6 font-medium">Category</th>
+                            <th class="py-4 px-6 font-medium">Status</th>
+                            <th class="py-4 px-6 font-medium">Issued At</th>
+                            <th class="py-4 px-6 font-medium">Elapsed</th>
+                            <th class="py-4 px-6 font-medium text-right rounded-tr-2xl">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="databaseTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div class="md:hidden p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards"></div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 md:bg-white rounded-b-2xl md:rounded-2xl md:border md:shadow-sm md:mt-4 text-sm text-slate-500 text-center shrink-0">
+                Showing <span id="recordCount">0</span> pass records
+            </div>
+        </div><!-- end tab-database -->
+
+        <!-- ========== ACTIVITY LOG TAB ========== -->
+        <div id="tab-log" class="tab-content hidden space-y-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Session Issues</p>
+                    <p id="logStatIssues" class="text-3xl font-extrabold text-indigo-600">0</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Session Returns</p>
+                    <p id="logStatReturns" class="text-3xl font-extrabold text-emerald-600">0</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Net Active</p>
+                    <p id="logStatNet" class="text-3xl font-extrabold text-blue-600">0</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Total Events</p>
+                    <p id="logStatTotal" class="text-3xl font-extrabold text-slate-700">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+                    <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Session Activity <span class="text-xs font-normal text-slate-400 ml-1">(resets on refresh)</span>
+                    </h3>
+                    <div class="flex gap-2">
+                        <button id="btnExportLog" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Export Log
+                        </button>
+                        <button id="btnClearLog" class="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div id="activityLogContainer" class="divide-y divide-slate-100">
+                    <div id="activityLogEmpty" class="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-3 opacity-50"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <p class="text-sm font-medium">No activity yet this session.</p>
+                        <p class="text-xs mt-1 opacity-70">Issue or return a pass to see logs here.</p>
+                    </div>
+                </div>
+            </div>
+        </div><!-- end tab-log -->
+
+    </div>
+    </main>
+</div>
+
+<!-- ===================== MOBILE BOTTOM NAV ===================== -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center px-2 py-1 pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <button id="nav-mobile-scanner" class="flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+        <span class="text-[10px] font-medium mt-1">Scanner</span>
+    </button>
+    <button id="nav-mobile-dashboard" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        <span class="text-[10px] font-medium mt-1">Dashboard</span>
+    </button>
+    <button id="nav-mobile-database" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span class="text-[10px] font-medium mt-1">Database</span>
+    </button>
+    <button id="nav-mobile-log" class="flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors relative">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span class="text-[10px] font-medium mt-1">Log</span>
+        <span id="logBadgeMobile" class="hidden absolute top-1 right-3 bg-blue-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">0</span>
+    </button>
+</nav>
+
+<!-- ===================== FIREBASE + APP LOGIC ===================== -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { initializeAuth, getAuth, inMemoryPersistence, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    let app, auth, db, APP_ID, CATALOG_TITLE;
+    let isMockMode = false; // Graceful offline degradation 
+
+    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        app = initializeApp(JSON.parse(__firebase_config));
+        APP_ID = typeof __app_id !== 'undefined' ? __app_id : "pccso-app";
+        CATALOG_TITLE = "pccso_access_passes_v1";
+    } else {
+        app = initializeApp({
+            apiKey:            "AIzaSyCmP7OBD-aR2VFYFRJM8oZWJ7upDsJWV_Y",
+            authDomain:        "pccso-7bad0.firebaseapp.com",
+            projectId:         "pccso-7bad0",
+            storageBucket:     "pccso-7bad0.firebasestorage.app",
             messagingSenderId: "363298065770",
-            appId: "1:363298065770:web:a66de6aeb5e3902cca6913",
-            measurementId: "G-7YLKD6QF3Z"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        const CATALOG_TITLE = "pccso_access_passes_v1";
-        const APP_ID = "pccso-app"; 
-        
-        let activeTab = 'scanner';
-        let dbStates = {};
-        let allPasses = [];
-        let searchTerm = '';
-        let statusFilter = 'All';
-        let currentUser = null;
-        let toastTimeout = null;
-        let html5QrCode = null;
-        
-        const recentScanTimestamps = {};
-        
-        let isSoundEnabled = true;
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        const ICONS = {
-            users: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-            hardhat: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z"/><path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5"/><path d="M4 15v-3a6 6 0 0 1 6-6h0"/><path d="M14 6h0a6 6 0 0 1 6 6v3"/></svg>`,
-            ticket: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>`,
-            check: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
-            logout: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`,
-            clock: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-            warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`
-        };
-
-        const PASS_CATEGORIES = [
-            { id: 'red_visitor', color: 'Red', type: 'Visitor', prefix: 'V', min: 801751, max: 801950, total: 200, icon: ICONS.users, colorClasses: 'bg-red-100 text-red-800 border-red-200', badgeClass: 'bg-red-500' },
-            { id: 'blue_visitor', color: 'Blue', type: 'Visitor', prefix: 'V', min: 801651, max: 801750, total: 100, icon: ICONS.users, colorClasses: 'bg-blue-100 text-blue-800 border-blue-200', badgeClass: 'bg-blue-500' },
-            { id: 'brown_contractor_1', color: 'Brown', type: 'Contractor 1', prefix: 'C', min: 1001071, max: 1001170, total: 100, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            { id: 'brown_contractor_2', color: 'Brown', type: 'Contractor 2', prefix: 'C', min: 1001171, max: 1001210, total: 40, icon: ICONS.hardhat, colorClasses: 'bg-amber-100 text-amber-900 border-amber-300', badgeClass: 'bg-amber-700' },
-            { id: 'brown_temp', color: 'Brown', type: 'Temp (Taps)', prefix: 'T', min: 906101, max: 906220, total: 120, icon: ICONS.ticket, colorClasses: 'bg-yellow-100 text-yellow-900 border-yellow-300', badgeClass: 'bg-amber-900' }
-        ];
-
-        const basePasses = [];
-        PASS_CATEGORIES.forEach(cat => {
-            for (let i = cat.min; i <= cat.max; i++) {
-                basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available' });
-            }
+            appId:             "1:363298065770:web:a66de6aeb5e3902cca6913",
+            measurementId:     "G-7YLKD6QF3Z"
         });
+        APP_ID = "pccso-app";
+        CATALOG_TITLE = "pccso_access_passes_v1";
+    }
 
-        // Initialize App
-        async function init() {
-            try {
-                const userCred = await signInAnonymously(auth);
-                currentUser = userCred.user;
+    // Safely attempt in-memory auth initialization. 
+    // If it fails (e.g. already initialized in a hot-reload), fallback to getAuth()
+    try {
+        auth = initializeAuth(app, { persistence: inMemoryPersistence });
+    } catch (e) {
+        auth = getAuth(app);
+    }
+    
+    db = getFirestore(app);
 
+    // ── Thresholds & State ──────────────────────────────
+    const WARNING_HOURS = 8, OVERDUE_HOURS = 12;
+    let activeTab = 'scanner', dbStates = {}, allPasses = [], searchTerm = '', statusFilter = 'All';
+    let currentUser = null, toastTimeout = null, html5QrCode = null, liveTimerInterval = null, isSoundEnabled = true;
+    const recentScanTimestamps = {}, audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let activityLog = [], activityLogSeq = 0;
+
+    const ICONS = {
+        users:   `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+        hardhat: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z"/><path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5"/><path d="M4 15v-3a6 6 0 0 1 6-6h0"/><path d="M14 6h0a6 6 0 0 1 6 6v3"/></svg>`,
+        ticket:  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>`,
+        check:   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+        logout:  `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`,
+        clock:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+        warning: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+    };
+
+    const PASS_CATEGORIES = [
+        { id:'red_visitor',        color:'Red',   type:'Visitor',      prefix:'V', min:801751, max:801950, total:200, icon:ICONS.users,   colorClasses:'bg-red-100 text-red-800 border-red-200',       badgeClass:'bg-red-500' },
+        { id:'blue_visitor',       color:'Blue',  type:'Visitor',      prefix:'V', min:801651, max:801750, total:100, icon:ICONS.users,   colorClasses:'bg-blue-100 text-blue-800 border-blue-200',     badgeClass:'bg-blue-500' },
+        { id:'brown_contractor_1', color:'Brown', type:'Contractor 1', prefix:'C', min:1001071,max:1001170,total:100, icon:ICONS.hardhat, colorClasses:'bg-amber-100 text-amber-900 border-amber-300',  badgeClass:'bg-amber-700' },
+        { id:'brown_contractor_2', color:'Brown', type:'Contractor 2', prefix:'C', min:1001171,max:1001210,total:40,  icon:ICONS.hardhat, colorClasses:'bg-amber-100 text-amber-900 border-amber-300',  badgeClass:'bg-amber-700' },
+        { id:'brown_temp',         color:'Brown', type:'Temp (Taps)',  prefix:'T', min:906101, max:906220, total:120, icon:ICONS.ticket,  colorClasses:'bg-yellow-100 text-yellow-900 border-yellow-300',badgeClass:'bg-amber-900' }
+    ];
+
+    const basePasses = [];
+    PASS_CATEGORIES.forEach(cat => {
+        for (let i = cat.min; i <= cat.max; i++) {
+            basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available' });
+        }
+    });
+
+    function formatElapsed(issuedAt) {
+        if (!issuedAt) return '-';
+        const ms = Date.now() - new Date(issuedAt).getTime(), min = Math.floor(ms / 60000), h = Math.floor(min / 60), m = min % 60;
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+    function elapsedClass(issuedAt) {
+        if (!issuedAt) return '';
+        const h = (Date.now() - new Date(issuedAt).getTime()) / 3600000;
+        return h >= OVERDUE_HOURS ? 'elapsed-over' : h >= WARNING_HOURS ? 'elapsed-alert' : h >= 4 ? 'elapsed-warn' : 'elapsed-safe';
+    }
+    function checkIsOverdue(issuedAt) { return issuedAt ? (Date.now() - new Date(issuedAt).getTime()) / 3600000 >= OVERDUE_HOURS : false; }
+    function checkIsWarning(issuedAt) {
+        if (!issuedAt) return false;
+        const h = (Date.now() - new Date(issuedAt).getTime()) / 3600000;
+        return h >= WARNING_HOURS && h < OVERDUE_HOURS;
+    }
+
+    // ════════════════════════════════════════
+    //  INIT WITH SEAMLESS OFFLINE FALLBACK
+    // ════════════════════════════════════════
+    function enableOfflineMockMode(reasonMsg) {
+        isMockMode = true;
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('loadingError').classList.add('hidden');
+        document.getElementById('loadingScreen').classList.add('hidden');
+        
+        const ind = document.getElementById('statusIndicator');
+        ind.className = 'flex items-center gap-2 text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200';
+        ind.innerHTML = `<div class="w-2 h-2 rounded-full bg-amber-500"></div>Local Mock Mode`;
+        
+        showToast('warning', reasonMsg, 'OFFLINE');
+        updateAllPasses();
+        startLiveTimer();
+        document.getElementById('scannerInput').focus();
+    }
+
+    document.getElementById('loadingRetryBtn').addEventListener('click', () => { enableOfflineMockMode('Forced Offline Preview Mode'); });
+
+    async function init() {
+        const timeoutId = setTimeout(() => { enableOfflineMockMode('Network restricted. Running in local memory.'); }, 6000);
+
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (!user) return;
+                currentUser = user;
                 const passesRef = collection(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE);
+                let firstLoad = true;
+
                 onSnapshot(passesRef, (snapshot) => {
+                    clearTimeout(timeoutId);
                     dbStates = {};
                     snapshot.forEach(doc => { dbStates[doc.id] = doc.data(); });
                     updateAllPasses();
-                    document.getElementById('loadingScreen').classList.add('hidden');
+
+                    if (firstLoad) {
+                        firstLoad = false;
+                        document.getElementById('loadingScreen').classList.add('hidden');
+                        document.getElementById('scannerInput').focus();
+                        startLiveTimer();
+                    }
+                }, (err) => {
+                    clearTimeout(timeoutId);
+                    enableOfflineMockMode('Database blocked by sandbox. Running locally.');
                 });
-
-                document.getElementById('scannerInput').focus();
-            } catch (error) {
-                console.error("Initialization Error:", error);
-            }
-        }
-
-        // ==========================================
-        // AUDIO FEEDBACK
-        // ==========================================
-        function playBeep(type) {
-            if (!isSoundEnabled) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            if (type === 'success') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.1);
-            } else if (type === 'error') {
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.2);
-            }
-        }
-
-        document.getElementById('soundToggleBtn').addEventListener('click', () => {
-            isSoundEnabled = !isSoundEnabled;
-            document.getElementById('soundIconOn').classList.toggle('hidden', !isSoundEnabled);
-            document.getElementById('soundIconOff').classList.toggle('hidden', isSoundEnabled);
-            if(isSoundEnabled && audioCtx.state === 'suspended') audioCtx.resume();
-        });
-
-
-        // ==========================================
-        // 1-CLICK MANUAL RETURN LOGIC
-        // ==========================================
-        window.manualReturnPass = async (passId) => {
-            const passInfo = allPasses.find(p => p.id === passId);
-            if (!passInfo) return;
-
-            try {
-                const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId);
-                await deleteDoc(docRef);
-                showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            } catch (error) {
-                showToast('error', `System Error updating ${passId}`, passId);
-            }
-        };
-
-        // ==========================================
-        // SCANNER LOGIC (With Anti-Double-Scan)
-        // ==========================================
-        async function processScan(scannedIdText) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const scannedId = scannedIdText.trim().toUpperCase();
-            if (!scannedId) return;
-
-            const now = Date.now();
-            if (recentScanTimestamps[scannedId] && (now - recentScanTimestamps[scannedId] < 3000)) {
-                showToast('error', `Scan ignored (Cooldown). Please wait...`, scannedId);
-                return;
-            }
-            recentScanTimestamps[scannedId] = now;
-
-            const passInfo = allPasses.find(p => p.id === scannedId);
-            if (!passInfo) {
-                showToast('error', `Unknown Pass ID: ${scannedId}`, scannedId);
-                return;
-            }
-
-            try {
-                const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id);
-                if (passInfo.status === 'Available') {
-                    await setDoc(docRef, { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: currentUser?.uid || 'anonymous' });
-                    showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-                } else {
-                    await deleteDoc(docRef);
-                    showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-                }
-            } catch (error) {
-                showToast('error', `System Error updating ${scannedId}`, scannedId);
-            }
-        }
-
-        document.getElementById('scannerForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const inputEl = document.getElementById('scannerInput');
-            processScan(inputEl.value);
-            inputEl.value = ''; 
-        });
-
-        // ==========================================
-        // CSV EXPORT LOGIC
-        // ==========================================
-        document.getElementById('btnExportCsv').addEventListener('click', () => {
-            let csv = 'Pass ID,Category,Type,Status,Overdue,Last Scanned Time\n';
-            allPasses.forEach(p => {
-                const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString() : '';
-                const isOverdueText = p.isOverdue ? 'Yes' : 'No';
-                csv += `${p.id},${p.color},${p.type},${p.status},${isOverdueText},"${timeStr}"\n`;
             });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `PCCSO_Pass_Report_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
 
-        // Camera Logic
-        const startCameraBtn = document.getElementById('startCameraBtn');
-        const stopCameraBtn = document.getElementById('stopCameraBtn');
-        const cameraContainer = document.getElementById('cameraContainer');
-        const scannerDivider = document.getElementById('scannerDivider');
-
-        startCameraBtn.addEventListener('click', () => {
-            startCameraBtn.classList.add('hidden');
-            scannerDivider.classList.add('hidden');
-            cameraContainer.classList.remove('hidden');
-            cameraContainer.classList.add('flex');
-
-            html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 100 } };
-
-            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                if(html5QrCode.getState() !== 2) return; 
-                html5QrCode.pause();
-                processScan(decodedText);
-                setTimeout(() => { html5QrCode.resume(); }, 2000);
-            }).catch(err => {
-                alert("Camera error. Please ensure you have granted camera permissions in your browser settings.");
-                stopCamera();
-            });
-        });
-
-        function stopCamera() {
-            if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.log(err));
-            startCameraBtn.classList.remove('hidden');
-            scannerDivider.classList.remove('hidden');
-            cameraContainer.classList.add('hidden');
-            cameraContainer.classList.remove('flex');
-            document.getElementById('scannerInput').focus(); 
+        } catch (error) {
+            clearTimeout(timeoutId);
+            enableOfflineMockMode('Network restricted viewer. Running in local memory.');
         }
-        stopCameraBtn.addEventListener('click', stopCamera);
+    }
 
+    function startLiveTimer() {
+        if (liveTimerInterval) return;
+        liveTimerInterval = setInterval(() => {
+            if (activeTab === 'scanner')   { renderQuickSummary(); renderActivePassesList(); }
+            if (activeTab === 'dashboard') renderDashboard();
+        }, 30000);
+    }
+    function stopLiveTimer() { if (liveTimerInterval) { clearInterval(liveTimerInterval); liveTimerInterval = null; } }
 
-        // ==========================================
-        // UI & RENDERING LOGIC
-        // ==========================================
-        function showToast(type, message, passId) {
-            const toast = document.getElementById('feedbackToast');
-            const iconWrapper = document.getElementById('feedbackIconWrapper');
-            
-            if(type === 'error') playBeep('error');
-            else playBeep('success');
+    function playBeep(type) {
+        if (!isSoundEnabled) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        if (type === 'success') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        }
+    }
 
-            toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-visible transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
-            iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
-            iconWrapper.className = "w-6 h-6 flex items-center justify-center shrink-0";
-            
-            document.getElementById('feedbackPassId').innerText = passId;
-            document.getElementById('feedbackMessage').innerText = message;
+    document.getElementById('soundToggleBtn').addEventListener('click', () => {
+        isSoundEnabled = !isSoundEnabled;
+        document.getElementById('soundIconOn').classList.toggle('hidden', !isSoundEnabled);
+        document.getElementById('soundIconOff').classList.toggle('hidden', isSoundEnabled);
+        if (isSoundEnabled && audioCtx.state === 'suspended') audioCtx.resume();
+    });
 
-            if (toastTimeout) clearTimeout(toastTimeout);
-            toastTimeout = setTimeout(() => { toast.classList.remove('toast-visible'); toast.classList.add('toast-hidden'); }, 3000);
+    function pushLog(passInfo, action) {
+        activityLogSeq++;
+        activityLog.unshift({ seq: activityLogSeq, passId: passInfo.id, action, color: passInfo.color, type: passInfo.type, colorClasses: passInfo.colorClasses, time: new Date() });
+        const n = activityLog.length, show = n > 0, txt = n > 99 ? '99+' : String(n);
+        const bd = document.getElementById('logBadgeDesktop'), bm = document.getElementById('logBadgeMobile');
+        if (bd) { bd.classList.toggle('hidden', !show); bd.textContent = txt; }
+        if (bm) { bm.classList.toggle('hidden', !show); bm.textContent = txt; }
+        if (activeTab === 'log') renderActivityLog();
+    }
+
+    // ════════════════════════════════════════
+    //  MANUAL RETURN
+    // ════════════════════════════════════════
+    window.manualReturnPass = async (passId) => {
+        const passInfo = allPasses.find(p => p.id === passId);
+        if (!passInfo) return;
+        
+        if (isMockMode) {
+            delete dbStates[passId];
+            pushLog(passInfo, 'return');
+            showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+            updateAllPasses();
+            return;
         }
 
-        // OVERDUE CHECK FUNCTION (> 12 HOURS)
-        function checkIsOverdue(issuedAt) {
-            if (!issuedAt) return false;
-            const issuedTime = new Date(issuedAt).getTime();
-            const hoursDiff = (Date.now() - issuedTime) / (1000 * 60 * 60);
-            return hoursDiff >= 12;
+        if(!currentUser) return;
+        try {
+            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId));
+            pushLog(passInfo, 'return');
+            showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+        } catch (error) { showToast('error', `System Error updating ${passId}`, passId); }
+    };
+
+    document.getElementById('btnReturnAll').addEventListener('click', () => {
+        const issued = allPasses.filter(p => p.status === 'Issued');
+        document.getElementById('bulkReturnCount').textContent = issued.length;
+        document.getElementById('bulkReturnModal').classList.remove('hidden');
+    });
+
+    document.getElementById('bulkReturnCancel').addEventListener('click', () => document.getElementById('bulkReturnModal').classList.add('hidden'));
+
+    document.getElementById('bulkReturnConfirm').addEventListener('click', async () => {
+        document.getElementById('bulkReturnModal').classList.add('hidden');
+        const issued = allPasses.filter(p => p.status === 'Issued');
+        if (issued.length === 0) return;
+
+        if (isMockMode) {
+            issued.forEach(p => { delete dbStates[p.id]; pushLog(p, 'bulk_return'); });
+            showToast('return', `${issued.length} passes returned`, 'BULK');
+            updateAllPasses();
+            return;
         }
 
-        function updateAllPasses() {
-            allPasses = basePasses.map(p => {
-                const liveState = dbStates[p.id];
-                if (liveState && liveState.status === 'Issued') {
-                    return { ...p, ...liveState, isOverdue: checkIsOverdue(liveState.issuedAt) };
-                }
-                return { ...p, isOverdue: false };
-            });
-            renderDashboard();
-            renderDatabase();
-            renderQuickSummary();
-            renderActivePassesList();
+        if(!currentUser) return;
+        try {
+            await Promise.all(issued.map(p => deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, p.id)).then(() => pushLog(p, 'bulk_return'))));
+            showToast('return', `${issued.length} passes returned`, 'BULK');
+        } catch (error) { showToast('error', 'Bulk return failed. Please retry.', 'ERROR'); }
+    });
+
+    // ════════════════════════════════════════
+    //  SCANNER LOGIC
+    // ════════════════════════════════════════
+    async function processScan(scannedIdText) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const scannedId = scannedIdText.trim().toUpperCase();
+        if (!scannedId) return;
+
+        const now = Date.now();
+        if (recentScanTimestamps[scannedId] && (now - recentScanTimestamps[scannedId] < 3000)) {
+            showToast('error', 'Scan ignored (Cooldown). Please wait…', scannedId); return;
         }
+        recentScanTimestamps[scannedId] = now;
 
-        function calculateStats() {
-            const initStats = {};
-            PASS_CATEGORIES.forEach(cat => { initStats[cat.id] = { total: cat.total, issued: 0, available: cat.total, config: cat }; });
-            let totalIssued = 0;
-            allPasses.forEach(p => {
-                if (p.status === 'Issued') { initStats[p.categoryId].issued += 1; initStats[p.categoryId].available -= 1; totalIssued += 1; }
-            });
-            return { byCategory: initStats, total: basePasses.length, totalIssued };
-        }
+        const passInfo = allPasses.find(p => p.id === scannedId);
+        if (!passInfo) { showToast('error', `Unknown Pass ID: ${scannedId}`, scannedId); return; }
 
-        function renderQuickSummary() {
-            if (activeTab !== 'scanner') return;
-            const stats = calculateStats();
-            document.getElementById('quickTotalIssued').innerText = `${stats.totalIssued} Active`;
-            
-            const container = document.getElementById('quickSummaryContainer');
-            container.innerHTML = Object.values(stats.byCategory).map(stat => {
-                const isActive = stat.issued > 0;
-                const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400';
-                const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
-                const tagStyle = isActive ? 'bg-white/60 border-white/50 text-slate-700' : 'bg-slate-200/50 border-slate-200/50 text-slate-500';
-                const indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400';
-                
-                return `
-                <div class="shrink-0 w-[6.5rem] flex flex-col items-center justify-center p-2.5 rounded-[1.25rem] border transition-all shadow-sm ${wrapperStyle}">
-                    <span class="text-[9px] font-extrabold uppercase tracking-widest text-center mb-0 w-full truncate">${stat.config.color}</span>
-                    <span class="text-[9px] font-semibold text-center leading-tight mb-1.5 w-full truncate opacity-70">${stat.config.type}</span>
-                    <span class="text-3xl font-black ${numberStyle} leading-none mb-2.5">${stat.issued}</span>
-                    <div class="w-full flex items-center justify-center gap-1.5 py-0.5 rounded-lg border ${tagStyle}">
-                        <div class="w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-sm shrink-0"></div>
-                        <span class="text-[9px] font-bold tracking-wide">${stat.available} Avail</span>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function renderActivePassesList() {
-            const list = document.getElementById('activePassesList');
-            if (!list) return;
-
-            const issuedPasses = allPasses.filter(p => p.status === 'Issued');
-            issuedPasses.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
-            document.getElementById('activePassesBadge').innerText = issuedPasses.length;
-
-            if (issuedPasses.length === 0) {
-                list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-10 opacity-70"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>No passes currently issued.</div>`;
-                return;
-            }
-
-            list.innerHTML = issuedPasses.map(p => {
-                const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-                const textStyle = p.isOverdue ? 'text-red-600' : 'text-slate-800';
-                
-                // ADDED: shrink-0 and whitespace-nowrap to prevent the badge from compressing/cutting off
-                const overdueTag = p.isOverdue ? `<span class="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Overdue</span>` : '';
-
-                return `
-                <li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 gap-2">
-                    <div class="flex items-center gap-3 overflow-hidden flex-1 pr-2">
-                        <div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div>
-                        
-                        <!-- ADDED: min-w-0 ensures flexbox can safely truncate child elements instead of pushing them off screen -->
-                        <div class="flex flex-col truncate min-w-0">
-                            
-                            <!-- ADDED: flex-wrap ensures that on super narrow phones, it cleanly wraps instead of breaking -->
-                            <div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5">
-                                <span class="font-bold ${textStyle} tracking-wide text-sm md:text-base shrink-0">${p.id}</span>
-                                <span class="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">${timeStr}</span>
-                                ${overdueTag}
-                            </div>
-                            <span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span>
-                        </div>
-                    </div>
-                    <button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 md:py-2.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>
-                        Return
-                    </button>
-                </li>`
-            }).join('');
-        }
-
-        function renderDashboard() {
-            if (activeTab !== 'dashboard') return;
-            const stats = calculateStats();
-            const grid = document.getElementById('dashboardStatsGrid');
-            grid.innerHTML = '';
-            
-            Object.values(stats.byCategory).forEach(stat => {
-                const percentUsed = Math.round((stat.issued / stat.total) * 100);
-                grid.innerHTML += `
-                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-full h-1 ${stat.config.badgeClass}"></div>
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <p class="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">${stat.config.color} ${stat.config.type}</p>
-                                <h3 class="text-3xl font-bold text-slate-800">${stat.issued} <span class="text-lg text-slate-400 font-normal">/ ${stat.total}</span></h3>
-                            </div>
-                            <div class="p-3 rounded-xl ${stat.config.colorClasses} shrink-0">${stat.config.icon}</div>
-                        </div>
-                        <div class="mt-auto">
-                            <div class="flex justify-between text-xs text-slate-500 mb-2"><span>Available: <strong class="text-slate-800">${stat.available}</strong></span><span>${percentUsed}% Issued</span></div>
-                            <div class="w-full bg-slate-100 rounded-full h-2"><div class="h-2 rounded-full ${stat.config.badgeClass}" style="width: ${percentUsed}%"></div></div>
-                        </div>
-                    </div>`;
-            });
-            document.getElementById('statTotal').innerText = stats.total;
-            document.getElementById('statAvailable').innerText = stats.total - stats.totalIssued;
-            document.getElementById('statIssued').innerText = stats.totalIssued;
-
-            // Render Overdue Tracker List
-            const overduePasses = allPasses.filter(p => p.isOverdue);
-            document.getElementById('overdueCountBadge').innerText = `${overduePasses.length} Overdue`;
-            
-            const overdueList = document.getElementById('dashboardOverdueList');
-            if (overduePasses.length === 0) {
-                overdueList.innerHTML = `<div class="text-center text-slate-400 text-sm py-6">All systems clear. No overdue passes.</div>`;
+        if (isMockMode) {
+            if (passInfo.status === 'Available') {
+                dbStates[passInfo.id] = { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: 'local-mock' };
+                pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             } else {
-                overdueList.innerHTML = overduePasses.map(p => {
-                    const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString([], {month:'short', day:'numeric', hour: '2-digit', minute:'2-digit'}) : '';
-                    return `
-                    <li class="bg-white border border-red-100 p-3 rounded-lg flex items-center justify-between shadow-sm gap-2">
-                        <div class="truncate">
-                            <strong class="text-red-700 block text-sm shrink-0">${p.id}</strong>
-                            <span class="text-xs text-slate-500 truncate">${p.color} ${p.type}</span>
-                        </div>
-                        <div class="text-right shrink-0">
-                            <span class="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">${timeStr}</span>
-                        </div>
-                    </li>`;
-                }).join('');
+                delete dbStates[passInfo.id];
+                pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             }
+            updateAllPasses();
+            return;
         }
 
-        function renderDatabase() {
-            if (activeTab !== 'database') return;
-            const desktopTbody = document.getElementById('databaseTableBody');
-            const mobileCardsContainer = document.getElementById('mobileDatabaseCards');
-            
-            let filtered = allPasses.filter(p => {
-                const matchSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
-                let matchStatus = false;
-                if (statusFilter === 'All') matchStatus = true;
-                if (statusFilter === 'Available') matchStatus = p.status === 'Available';
-                if (statusFilter === 'Issued') matchStatus = p.status === 'Issued' && !p.isOverdue;
-                if (statusFilter === 'Overdue') matchStatus = p.isOverdue === true;
-                return matchSearch && matchStatus;
-            });
-            
-            filtered.sort((a, b) => {
-                if (a.status === 'Issued' && b.status === 'Available') return -1;
-                if (a.status === 'Available' && b.status === 'Issued') return 1;
-                if (a.status === 'Issued' && b.status === 'Issued') return new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0);
-                return a.id.localeCompare(b.id);
-            });
-
-            document.getElementById('recordCount').innerText = filtered.length;
-
-            if (filtered.length === 0) {
-                const emptyState = `<tr><td colspan="5" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
-                desktopTbody.innerHTML = emptyState;
-                mobileCardsContainer.innerHTML = `<div class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</div>`;
-                return;
+        if (!currentUser) return;
+        try {
+            const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id);
+            if (passInfo.status === 'Available') {
+                await setDoc(docRef, { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: currentUser.uid || 'anonymous' });
+                pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+            } else {
+                await deleteDoc(docRef);
+                pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             }
+        } catch (error) { showToast('error', `System Error updating ${scannedId}`, scannedId); }
+    }
 
-            let desktopHtml = '';
-            let mobileHtml = '';
+    document.getElementById('scannerForm').addEventListener('submit', (e) => {
+        e.preventDefault(); const inputEl = document.getElementById('scannerInput');
+        processScan(inputEl.value); inputEl.value = '';
+    });
 
-            filtered.forEach(p => {
-                const timeStr = p.status === 'Issued' && p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
-                
-                let statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 shrink-0">${ICONS.check} Available</span>`;
-                if (p.status === 'Issued') {
-                    if (p.isOverdue) statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 shrink-0">${ICONS.warning} Overdue</span>`;
-                    else statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 shrink-0">${ICONS.logout} Issued</span>`;
-                }
+    document.getElementById('btnExportCsv').addEventListener('click', () => {
+        let csv = 'Pass ID,Category,Type,Status,Overdue,Last Scanned Time,Elapsed\n';
+        allPasses.forEach(p => {
+            const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString() : '', elapsed = p.status === 'Issued' ? formatElapsed(p.issuedAt) : '', isOverdue = p.isOverdue ? 'Yes' : 'No';
+            csv += `${p.id},${p.color},${p.type},${p.status},${isOverdue},"${timeStr}","${elapsed}"\n`;
+        });
+        downloadCSV(csv, `PCCSO_Pass_Report_${new Date().toISOString().slice(0,10)}.csv`);
+    });
 
-                const returnBtn = p.status === 'Issued' ? 
-                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
-                    `<span class="text-slate-300 text-sm shrink-0">-</span>`;
+    function downloadCSV(csv, filename) {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }), url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url; link.download = filename; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
 
-                desktopHtml += `
-                    <tr class="hover:bg-slate-50/50 transition-colors">
-                        <td class="py-3 px-6 font-semibold ${p.isOverdue ? 'text-red-600' : 'text-slate-800'} tracking-wide">${p.id}</td>
-                        <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses} whitespace-nowrap">${p.color} ${p.type}</span></td>
-                        <td class="py-3 px-6">${statusPill}</td>
-                        <td class="py-3 px-6 text-sm ${p.isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'} whitespace-nowrap">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td>
-                        <td class="py-3 px-6 text-right">${returnBtn}</td>
-                    </tr>`;
+    document.getElementById('btnExportLog').addEventListener('click', () => {
+        if (activityLog.length === 0) { alert('No activity to export.'); return; }
+        let csv = 'Seq,Time,Pass ID,Action,Color,Type\n';
+        [...activityLog].reverse().forEach(e => { csv += `${e.seq},"${e.time.toLocaleString()}",${e.passId},${e.action},${e.color},${e.type}\n`; });
+        downloadCSV(csv, `PCCSO_ActivityLog_${new Date().toISOString().slice(0,10)}.csv`);
+    });
 
-                mobileHtml += `
-                    <div class="bg-white p-4 rounded-[1.25rem] border ${p.isOverdue ? 'border-red-200 bg-red-50/30' : 'border-slate-200'} shadow-sm flex items-center justify-between gap-2">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                                <span class="font-bold text-lg ${p.isOverdue ? 'text-red-700' : 'text-slate-800'} tracking-wide shrink-0">${p.id}</span>
-                                ${statusPill}
-                            </div>
-                            <div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
-                                <span class="px-2 py-0.5 rounded border ${p.colorClasses} shrink-0">${p.color}</span>
-                                ${p.status === 'Issued' ? `<span class="flex items-center gap-1 ${p.isOverdue ? 'text-red-500 font-medium' : ''} shrink-0">${ICONS.clock} ${timeStr}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="shrink-0 pl-2">${p.status === 'Issued' ? returnBtn : ''}</div>
-                    </div>`;
-            });
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+        if (!confirm('Clear the session activity log?')) return;
+        activityLog = []; activityLogSeq = 0;
+        document.getElementById('logBadgeDesktop').classList.add('hidden'); document.getElementById('logBadgeMobile').classList.add('hidden');
+        renderActivityLog();
+    });
 
-            desktopTbody.innerHTML = desktopHtml;
-            mobileCardsContainer.innerHTML = mobileHtml;
+    document.getElementById('btnPrintReport').addEventListener('click', () => {
+        const stats = calculateStats(), issuedPasses = allPasses.filter(p => p.status === 'Issued'), overduePasses = allPasses.filter(p => p.isOverdue), warnPasses = allPasses.filter(p => p.isWarning), now = new Date();
+        const rowStyle = 'padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;', thStyle = `${rowStyle}background:#f1f5f9;font-weight:600;text-align:left;`;
+        
+        const categoryRows = Object.values(stats.byCategory).map(s => `<tr><td style="${rowStyle}">${s.config.color} ${s.config.type}</td><td style="${rowStyle}text-align:center;">${s.total}</td><td style="${rowStyle}text-align:center;">${s.issued}</td><td style="${rowStyle}text-align:center;">${s.available}</td></tr>`).join('');
+        const issuedRows = issuedPasses.length === 0 ? `<tr><td colspan="5" style="${rowStyle}color:#94a3b8;text-align:center;">No passes currently issued.</td></tr>` : issuedPasses.map(p => {
+            const bg = p.isOverdue ? 'background:#fef2f2;' : p.isWarning ? 'background:#fffbeb;' : '', statusLabel = p.isOverdue ? '<span style="color:#dc2626;font-weight:700;">OVERDUE</span>' : p.isWarning ? '<span style="color:#d97706;font-weight:700;">WARNING</span>' : '<span style="color:#059669;">Active</span>';
+            return `<tr style="${bg}"><td style="${rowStyle}font-weight:700;">${p.id}</td><td style="${rowStyle}">${p.color} ${p.type}</td><td style="${rowStyle}">${p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '-'}</td><td style="${rowStyle}">${formatElapsed(p.issuedAt)}</td><td style="${rowStyle}">${statusLabel}</td></tr>`;
+        }).join('');
+
+        const html = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+                <div><h1 style="font-size:20px;font-weight:800;margin:0 0 4px;">PCCSO Access Pass — Shift Report</h1><p style="font-size:12px;color:#64748b;margin:0;">Generated: ${now.toLocaleString([], {dateStyle:'full', timeStyle:'short'})}</p></div>
+                <div style="text-align:right;font-size:11px;color:#94a3b8;">PCCSO Security Operations</div>
+            </div>
+            <hr style="border:none;border-top:2px solid #e2e8f0;margin-bottom:20px;">
+            <h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Pass Summary by Category</h2>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Category</th><th style="${thStyle}text-align:center;">Total</th><th style="${thStyle}text-align:center;">Issued</th><th style="${thStyle}text-align:center;">Available</th></tr></thead><tbody>${categoryRows}</tbody></table>
+            <h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Currently Issued Passes (${issuedPasses.length})</h2>
+            ${overduePasses.length > 0 ? `<p style="font-size:11px;color:#dc2626;font-weight:600;margin-bottom:6px;">⚠ ${overduePasses.length} OVERDUE (>${OVERDUE_HOURS}h) — Immediate physical recovery required.</p>` : ''}
+            ${warnPasses.length > 0 ? `<p style="font-size:11px;color:#d97706;font-weight:600;margin-bottom:6px;">⚡ ${warnPasses.length} WARNING (>${WARNING_HOURS}h) — Monitor closely.</p>` : ''}
+            <table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Pass ID</th><th style="${thStyle}">Category</th><th style="${thStyle}">Issued At</th><th style="${thStyle}">Elapsed</th><th style="${thStyle}">Status</th></tr></thead><tbody>${issuedRows}</tbody></table>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin-top:24px;margin-bottom:8px;">
+            <p style="font-size:10px;color:#94a3b8;">PCCSO Access Pass System · Confidential · Do not distribute</p>
+        `;
+        document.getElementById('printReportContent').innerHTML = html;
+        document.getElementById('printReportWrapper').classList.remove('hidden'); window.print(); document.getElementById('printReportWrapper').classList.add('hidden');
+    });
+
+    const startCameraBtn = document.getElementById('startCameraBtn'), stopCameraBtn = document.getElementById('stopCameraBtn'), cameraContainer = document.getElementById('cameraContainer'), scannerDivider = document.getElementById('scannerDivider');
+    startCameraBtn.addEventListener('click', () => {
+        startCameraBtn.classList.add('hidden'); scannerDivider.classList.add('hidden'); cameraContainer.classList.remove('hidden'); cameraContainer.classList.add('flex');
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } }, (decodedText) => {
+            if (html5QrCode.getState() !== 2) return; html5QrCode.pause(); processScan(decodedText); setTimeout(() => { html5QrCode.resume(); }, 2000);
+        }).catch(() => { alert("Camera error. Please ensure camera permissions are granted."); stopCamera(); });
+    });
+    function stopCamera() {
+        if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {});
+        startCameraBtn.classList.remove('hidden'); scannerDivider.classList.remove('hidden'); cameraContainer.classList.add('hidden'); cameraContainer.classList.remove('flex');
+        document.getElementById('scannerInput').focus();
+    }
+    stopCameraBtn.addEventListener('click', stopCamera);
+
+    function showToast(type, message, passId) {
+        const toast = document.getElementById('feedbackToast'), iconWrapper = document.getElementById('feedbackIconWrapper');
+        if (type === 'error') playBeep('error'); else playBeep('success');
+        const colourMap = { issue: 'bg-indigo-50 border-indigo-200 text-indigo-700', return: 'bg-emerald-50 border-emerald-200 text-emerald-700', error: 'bg-red-50 border-red-200 text-red-700' };
+        toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-visible transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm ${colourMap[type] || colourMap.error}`;
+        iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
+        iconWrapper.className = "w-6 h-6 flex items-center justify-center shrink-0";
+        document.getElementById('feedbackPassId').innerText = passId; document.getElementById('feedbackMessage').innerText = message;
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => { toast.classList.remove('toast-visible'); toast.classList.add('toast-hidden'); }, 3000);
+    }
+
+    function updateAllPasses() {
+        allPasses = basePasses.map(p => {
+            const liveState = dbStates[p.id];
+            if (liveState && liveState.status === 'Issued') return { ...p, ...liveState, isOverdue: checkIsOverdue(liveState.issuedAt), isWarning: checkIsWarning(liveState.issuedAt) };
+            return { ...p, isOverdue: false, isWarning: false };
+        });
+        renderDashboard(); renderDatabase(); renderQuickSummary(); renderActivePassesList();
+    }
+
+    function calculateStats() {
+        const initStats = {}; PASS_CATEGORIES.forEach(cat => { initStats[cat.id] = { total: cat.total, issued: 0, available: cat.total, config: cat }; });
+        let totalIssued = 0;
+        allPasses.forEach(p => { if (p.status === 'Issued') { initStats[p.categoryId].issued += 1; initStats[p.categoryId].available -= 1; totalIssued += 1; } });
+        return { byCategory: initStats, total: basePasses.length, totalIssued };
+    }
+
+    function renderQuickSummary() {
+        if (activeTab !== 'scanner') return;
+        const stats = calculateStats();
+        document.getElementById('quickTotalIssued').innerText = `${stats.totalIssued} Active`;
+        document.getElementById('quickSummaryContainer').innerHTML = Object.values(stats.byCategory).map(stat => {
+            const isActive = stat.issued > 0, wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400', numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60', tagStyle = isActive ? 'bg-white/60 border-white/50 text-slate-700' : 'bg-slate-200/50 border-slate-200/50 text-slate-500', indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400';
+            return `<div class="shrink-0 w-[6.5rem] flex flex-col items-center justify-center p-2.5 rounded-[1.25rem] border transition-all shadow-sm ${wrapperStyle}"><span class="text-[9px] font-extrabold uppercase tracking-widest text-center w-full truncate">${stat.config.color}</span><span class="text-[9px] font-semibold text-center leading-tight mb-1.5 w-full truncate opacity-70">${stat.config.type}</span><span class="text-3xl font-black ${numberStyle} leading-none mb-2.5">${stat.issued}</span><div class="w-full flex items-center justify-center gap-1.5 py-0.5 rounded-lg border ${tagStyle}"><div class="w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-sm shrink-0"></div><span class="text-[9px] font-bold tracking-wide">${stat.available} Avail</span></div></div>`;
+        }).join('');
+    }
+
+    function renderActivePassesList() {
+        const list = document.getElementById('activePassesList'); if (!list) return;
+        const issuedPasses = allPasses.filter(p => p.status === 'Issued').sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
+        document.getElementById('activePassesBadge').innerText = issuedPasses.length;
+        document.getElementById('btnReturnAll').classList.toggle('hidden', issuedPasses.length === 0); document.getElementById('btnReturnAll').classList.toggle('flex', issuedPasses.length > 0);
+
+        if (issuedPasses.length === 0) { list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-10 opacity-70"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>No passes currently issued.</div>`; return; }
+
+        list.innerHTML = issuedPasses.map(p => {
+            const elapsed = formatElapsed(p.issuedAt), eClass = elapsedClass(p.issuedAt), textStyle = p.isOverdue ? 'text-red-600' : p.isWarning ? 'text-amber-700' : 'text-slate-800', rowBg = p.isOverdue ? 'bg-red-50/40' : p.isWarning ? 'bg-amber-50/40' : '';
+            const overdueTag = p.isOverdue ? `<span class="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Overdue</span>` : p.isWarning ? `<span class="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Warning</span>` : '';
+            return `<li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 gap-2 ${rowBg}"><div class="flex items-center gap-3 overflow-hidden flex-1 pr-2"><div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div><div class="flex flex-col truncate min-w-0"><div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5"><span class="font-bold ${textStyle} tracking-wide text-sm md:text-base shrink-0">${p.id}</span><span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${eClass} shrink-0 whitespace-nowrap">${elapsed}</span>${overdueTag}</div><span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span></div></div><button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 md:py-2.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>Return</button></li>`;
+        }).join('');
+    }
+
+    function renderDashboard() {
+        if (activeTab !== 'dashboard') return;
+        const stats = calculateStats(), grid = document.getElementById('dashboardStatsGrid'); grid.innerHTML = '';
+        Object.values(stats.byCategory).forEach(stat => {
+            const percentUsed = Math.round((stat.issued / stat.total) * 100);
+            grid.innerHTML += `<div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 ${stat.config.badgeClass}"></div><div class="flex justify-between items-start mb-4"><div><p class="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">${stat.config.color} ${stat.config.type}</p><h3 class="text-3xl font-bold text-slate-800">${stat.issued} <span class="text-lg text-slate-400 font-normal">/ ${stat.total}</span></h3></div><div class="p-3 rounded-xl ${stat.config.colorClasses} shrink-0">${stat.config.icon}</div></div><div class="mt-auto"><div class="flex justify-between text-xs text-slate-500 mb-2"><span>Available: <strong class="text-slate-800">${stat.available}</strong></span><span>${percentUsed}% Issued</span></div><div class="w-full bg-slate-100 rounded-full h-2"><div class="h-2 rounded-full ${stat.config.badgeClass}" style="width:${percentUsed}%"></div></div></div></div>`;
+        });
+        document.getElementById('statTotal').innerText = stats.total; document.getElementById('statAvailable').innerText = stats.total - stats.totalIssued; document.getElementById('statIssued').innerText = stats.totalIssued;
+
+        const overduePasses = allPasses.filter(p => p.isOverdue), warnPasses = allPasses.filter(p => p.isWarning), actionCount = overduePasses.length + warnPasses.length, overdueList = document.getElementById('dashboardOverdueList');
+        document.getElementById('overdueCountBadge').innerText = `${overduePasses.length} Overdue`;
+
+        if (actionCount === 0) { overdueList.innerHTML = `<div class="text-center text-slate-400 text-sm py-6">All systems clear. No action required.</div>`; } else {
+            const renderItem = (p, tier) => {
+                const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '', elapsed = formatElapsed(p.issuedAt), isOD = tier === 'overdue', borderCls = isOD ? 'border-red-100' : 'border-amber-100', idCls = isOD ? 'text-red-700' : 'text-amber-700', dotCls = isOD ? 'bg-red-500' : 'bg-amber-400', pillCls = isOD ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100';
+                return `<li class="bg-white border ${borderCls} p-3 rounded-lg flex items-center justify-between shadow-sm gap-2"><div class="truncate flex items-center gap-2"><div class="w-2 h-2 rounded-full ${dotCls} shrink-0"></div><div class="truncate"><strong class="${idCls} block text-sm">${p.id}</strong><span class="text-xs text-slate-500 truncate">${p.color} ${p.type}</span></div></div><div class="text-right shrink-0 space-y-1"><span class="block text-[10px] font-bold border px-2 py-0.5 rounded-full ${pillCls}">${elapsed}</span><span class="block text-[10px] font-mono text-slate-400">${timeStr}</span></div></li>`;
+            };
+            overdueList.innerHTML = overduePasses.map(p => renderItem(p, 'overdue')).join('') + warnPasses.map(p => renderItem(p, 'warning')).join('');
+        }
+    }
+
+    function renderDatabase() {
+        if (activeTab !== 'database') return;
+        const desktopTbody = document.getElementById('databaseTableBody'), mobileCardsContainer = document.getElementById('mobileDatabaseCards');
+        let filtered = allPasses.filter(p => {
+            const matchSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
+            let matchStatus = false;
+            if (statusFilter === 'All') matchStatus = true;
+            if (statusFilter === 'Available') matchStatus = p.status === 'Available';
+            if (statusFilter === 'Issued') matchStatus = p.status === 'Issued' && !p.isOverdue;
+            if (statusFilter === 'Overdue') matchStatus = p.isOverdue === true;
+            return matchSearch && matchStatus;
+        }).sort((a, b) => {
+            if (a.status === 'Issued' && b.status === 'Available') return -1; if (a.status === 'Available' && b.status === 'Issued') return 1;
+            if (a.status === 'Issued' && b.status === 'Issued') return new Date(b.issuedAt||0) - new Date(a.issuedAt||0);
+            return a.id.localeCompare(b.id);
+        });
+        document.getElementById('recordCount').innerText = filtered.length;
+
+        if (filtered.length === 0) {
+            desktopTbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
+            mobileCardsContainer.innerHTML = `<div class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</div>`; return;
         }
 
-        // Navigation
-        const tabs = ['scanner', 'dashboard', 'database'];
-        const titles = { 'scanner': 'Barcode Scanner Mode', 'dashboard': 'System Dashboard', 'database': 'Pass Database' };
+        let desktopHtml = '', mobileHtml = '';
+        filtered.forEach(p => {
+            const timeStr = p.status === 'Issued' && p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '-', elapsed = p.status === 'Issued' ? formatElapsed(p.issuedAt) : '-', eClass = p.status === 'Issued' ? elapsedClass(p.issuedAt) : '';
+            let statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 shrink-0">${ICONS.check} Available</span>`;
+            if (p.status === 'Issued') { statusPill = p.isOverdue ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 shrink-0">${ICONS.warning} Overdue</span>` : p.isWarning ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 shrink-0">${ICONS.clock} Warning</span>` : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 shrink-0">${ICONS.logout} Issued</span>`; }
+            const returnBtn = p.status === 'Issued' ? `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : `<span class="text-slate-300 text-sm shrink-0">-</span>`;
+            const elapsedPill = p.status === 'Issued' ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${eClass}">${elapsed}</span>` : '<span class="text-slate-300">-</span>';
 
-        function switchTab(selectedTab) {
-            activeTab = selectedTab;
-            document.getElementById('pageTitle').innerText = titles[selectedTab];
-            
-            tabs.forEach(t => {
-                document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== selectedTab);
-                
-                const dBtn = document.getElementById(`nav-desktop-${t}`);
-                if (dBtn) dBtn.className = t === selectedTab ? "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md" : "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white";
-                
-                const mBtn = document.getElementById(`nav-mobile-${t}`);
-                if (mBtn) mBtn.className = t === selectedTab ? "flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors" : "flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors";
-            });
+            desktopHtml += `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-6 font-semibold ${p.isOverdue ? 'text-red-600' : 'text-slate-800'} tracking-wide">${p.id}</td><td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses} whitespace-nowrap">${p.color} ${p.type}</span></td><td class="py-3 px-6">${statusPill}</td><td class="py-3 px-6 text-sm ${p.isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'} whitespace-nowrap">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td><td class="py-3 px-6">${elapsedPill}</td><td class="py-3 px-6 text-right">${returnBtn}</td></tr>`;
+            mobileHtml += `<div class="bg-white p-4 rounded-[1.25rem] border ${p.isOverdue ? 'border-red-200 bg-red-50/30' : p.isWarning ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200'} shadow-sm flex items-center justify-between gap-2"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="font-bold text-lg ${p.isOverdue ? 'text-red-700' : 'text-slate-800'} tracking-wide shrink-0">${p.id}</span>${statusPill}</div><div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap"><span class="px-2 py-0.5 rounded border ${p.colorClasses} shrink-0">${p.color}</span>${p.status === 'Issued' ? `${elapsedPill}` : ''}</div></div><div class="shrink-0 pl-2">${p.status === 'Issued' ? returnBtn : ''}</div></div>`;
+        });
+        desktopTbody.innerHTML = desktopHtml; mobileCardsContainer.innerHTML = mobileHtml;
+    }
 
-            if (selectedTab === 'dashboard') renderDashboard();
-            if (selectedTab === 'database') renderDatabase();
-            if (selectedTab === 'scanner') { renderQuickSummary(); renderActivePassesList(); }
-            
-            if (selectedTab !== 'scanner') stopCamera();
-            else document.getElementById('scannerInput').focus();
-        }
+    function renderActivityLog() {
+        const container = document.getElementById('activityLogContainer'), empty = document.getElementById('activityLogEmpty');
+        const issues = activityLog.filter(e => e.action === 'issue').length, returns = activityLog.filter(e => e.action === 'return' || e.action === 'bulk_return').length;
+        document.getElementById('logStatIssues').textContent = issues; document.getElementById('logStatReturns').textContent = returns; document.getElementById('logStatNet').textContent = Math.max(0, issues - returns); document.getElementById('logStatTotal').textContent = activityLog.length;
 
+        if (activityLog.length === 0) { empty.classList.remove('hidden'); [...container.querySelectorAll('.log-entry')].forEach(el => el.remove()); return; }
+        empty.classList.add('hidden'); [...container.querySelectorAll('.log-entry')].forEach(el => el.remove());
+        
+        const frag = document.createDocumentFragment();
+        activityLog.forEach(e => {
+            const div = document.createElement('div'), isIssue = e.action === 'issue', isBulk = e.action === 'bulk_return';
+            div.className = 'log-entry flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors';
+            const actionPill = isIssue ? `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">ISSUED</span>` : isBulk ? `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">BULK RET.</span>` : `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">RETURNED</span>`;
+            const dot = isIssue ? 'bg-indigo-400' : isBulk ? 'bg-amber-400' : 'bg-emerald-400', tStr = e.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}), dStr = e.time.toLocaleDateString([],{month:'short',day:'numeric'});
+            div.innerHTML = `<div class="w-2 h-2 rounded-full ${dot} shrink-0 mt-0.5"></div><div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><span class="font-bold text-sm text-slate-800 tracking-wide shrink-0">${e.passId}</span>${actionPill}<span class="text-xs text-slate-400 shrink-0">${e.color} ${e.type}</span></div></div><div class="text-right shrink-0"><p class="text-xs font-semibold text-slate-700">${tStr}</p><p class="text-[10px] text-slate-400">${dStr}</p></div><span class="text-[10px] text-slate-300 shrink-0">#${e.seq}</span>`;
+            frag.appendChild(div);
+        });
+        container.appendChild(frag);
+    }
+
+    const tabs = ['scanner', 'dashboard', 'database', 'log'], titles = { scanner:'Barcode Scanner Mode', dashboard:'System Dashboard', database:'Pass Database', log:'Activity Log' };
+    function switchTab(selectedTab) {
+        activeTab = selectedTab; document.getElementById('pageTitle').innerText = titles[selectedTab];
         tabs.forEach(t => {
-            document.getElementById(`nav-desktop-${t}`)?.addEventListener('click', () => switchTab(t));
-            document.getElementById(`nav-mobile-${t}`)?.addEventListener('click', () => switchTab(t));
+            document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== selectedTab);
+            const dBtn = document.getElementById(`nav-desktop-${t}`); if (dBtn) dBtn.className = t === selectedTab ? "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-blue-600 text-white shadow-md" : "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-300 hover:text-white";
+            const mBtn = document.getElementById(`nav-mobile-${t}`); if (mBtn) mBtn.className = t === selectedTab ? "flex-1 flex flex-col items-center justify-center p-2 text-blue-600 transition-colors" : "flex-1 flex flex-col items-center justify-center p-2 text-slate-500 hover:text-slate-800 transition-colors";
         });
-
-        document.getElementById('searchInput').addEventListener('input', (e) => { searchTerm = e.target.value; renderDatabase(); });
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                statusFilter = e.target.dataset.filter;
-                document.querySelectorAll('.filter-btn').forEach(b => b.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50");
-                e.target.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700";
-                renderDatabase();
-            });
+        if (selectedTab === 'dashboard') renderDashboard();
+        if (selectedTab === 'database') renderDatabase();
+        if (selectedTab === 'scanner') { renderQuickSummary(); renderActivePassesList(); startLiveTimer(); }
+        if (selectedTab === 'log') renderActivityLog();
+        if (selectedTab !== 'scanner') { stopCamera(); } else document.getElementById('scannerInput').focus();
+    }
+    tabs.forEach(t => { document.getElementById(`nav-desktop-${t}`)?.addEventListener('click', () => switchTab(t)); document.getElementById(`nav-mobile-${t}`)?.addEventListener('click', () => switchTab(t)); });
+    document.getElementById('searchInput').addEventListener('input', (e) => { searchTerm = e.target.value; renderDatabase(); });
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            statusFilter = e.target.dataset.filter; document.querySelectorAll('.filter-btn').forEach(b => b.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50");
+            e.target.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700"; renderDatabase();
         });
+    });
 
-        init();
-    </script>
+    init();
+</script>
 </body>
 </html>
