@@ -1,13 +1,11 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PCCSO Access Pass System</title>
     
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- HTML5 QRCode Library for Mobile Camera Scanning -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style>
@@ -63,23 +61,33 @@
 
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+        
+        <!-- Header with Sound Toggle -->
         <header class="bg-white border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between shrink-0">
             <h2 id="pageTitle" class="text-lg md:text-xl font-semibold text-slate-800">Barcode Scanner Mode</h2>
-            <div class="flex items-center gap-2 text-xs md:text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                System Online
+            <div class="flex items-center gap-3 text-xs md:text-sm">
+                <!-- Sound Toggle -->
+                <button id="soundToggleBtn" class="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-full border border-slate-200" title="Toggle Scan Sounds">
+                    <svg id="soundIconOn" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                    <svg id="soundIconOff" class="hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="1" y1="1" y2="23"/><line x1="22.93" x2="17.07" y1="9" y2="15"/><line x1="17.07" x2="22.93" y1="9" y2="15"/></svg>
+                </button>
+
+                <div class="flex items-center gap-2 text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    System Online
+                </div>
             </div>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-            <div class="max-w-6xl mx-auto h-full relative">
+        <!-- pb-32 allows massive extra padding at bottom so lists easily clear mobile navbars -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-12">
+            <div class="max-w-6xl mx-auto relative">
                 
                 <!-- ========================================== -->
                 <!-- SCANNER TAB                                -->
                 <!-- ========================================== -->
-                <div id="tab-scanner" class="tab-content h-full flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
+                <div id="tab-scanner" class="tab-content flex flex-col max-w-2xl mx-auto space-y-4 md:space-y-6">
                     
-                    <!-- Top Scanner Box -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-10 text-center relative overflow-hidden shrink-0">
                         <div class="mb-8">
                             <h3 class="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Access Scanner</h3>
@@ -87,7 +95,6 @@
                         </div>
 
                         <div class="flex flex-col items-center w-full max-w-sm mx-auto space-y-8">
-                            <!-- MOBILE CAMERA BUTTON -->
                             <button id="startCameraBtn" class="scan-pulse group relative flex flex-col items-center justify-center w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(59,130,246,0.2)] hover:border-blue-400 transition-all duration-300 transform hover:-translate-y-1 outline-none">
                                 <div class="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[2.5rem]"></div>
                                 <svg class="relative z-10 w-14 h-14 mb-2 group-hover:text-white transition-colors duration-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -97,7 +104,6 @@
                                 <span class="relative z-10 text-[11px] font-bold tracking-widest uppercase group-hover:text-white transition-colors duration-300">Tap to Scan</span>
                             </button>
 
-                            <!-- Camera Video Feed Container -->
                             <div id="cameraContainer" class="hidden w-full flex-col items-center">
                                 <div id="reader" class="w-full overflow-hidden rounded-3xl border-4 border-slate-800 bg-black shadow-2xl mb-5 aspect-square md:aspect-video"></div>
                                 <button id="stopCameraBtn" class="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:bg-slate-700 transition-all active:scale-95">
@@ -106,14 +112,12 @@
                                 </button>
                             </div>
 
-                            <!-- DIVIDER -->
                             <div id="scannerDivider" class="flex items-center w-full opacity-60">
                                 <div class="flex-1 border-t-2 border-slate-100"></div>
                                 <span class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or Use Laser</span>
                                 <div class="flex-1 border-t-2 border-slate-100"></div>
                             </div>
 
-                            <!-- PHYSICAL SCANNER INPUT -->
                             <form id="scannerForm" class="w-full relative mt-0">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
@@ -128,7 +132,6 @@
                             </form>
                         </div>
 
-                        <!-- Real-time Feedback Toast -->
                         <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-50">
                             <div id="feedbackToast" class="inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-hidden transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm">
                                 <span id="feedbackIconWrapper" class="shrink-0"></span>
@@ -140,22 +143,22 @@
                         </div>
                     </div>
 
-                    <!-- Live Issued Summary Ribbon for Front Page -->
+                    <!-- Live Issued Summary Ribbon -->
                     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-5 shrink-0">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                                 Currently Issued
                             </h3>
-                            <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">0 Active</span>
+                            <span id="quickTotalIssued" class="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full shrink-0">0 Active</span>
                         </div>
                         <div id="quickSummaryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
                             <!-- Populated via JS -->
                         </div>
                     </div>
 
-                    <!-- ACTIVE PASSES LOG -->
-                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col min-h-[300px]">
+                    <!-- ACTIVE PASSES LOG (Removed internal scrolling so it grows naturally) -->
+                    <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 flex flex-col mb-8 overflow-hidden">
                         <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
                             <h3 class="font-semibold text-slate-800 flex items-center gap-2 text-sm md:text-base">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -163,7 +166,7 @@
                             </h3>
                             <span id="activePassesBadge" class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">0</span>
                         </div>
-                        <div class="flex-1 overflow-y-auto p-2">
+                        <div class="p-2">
                             <ul id="activePassesList" class="divide-y divide-slate-100">
                                 <!-- Populated via JS -->
                             </ul>
@@ -175,45 +178,76 @@
                 <!-- DASHBOARD TAB                              -->
                 <!-- ========================================== -->
                 <div id="tab-dashboard" class="tab-content hidden space-y-6">
-                    <div id="dashboardStatsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6"></div>
-                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-                        <h3 class="text-lg font-semibold text-slate-800 mb-4">Live Capacity Tracking</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <p class="text-sm text-slate-500">Total System Passes</p>
-                                <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+                    <div id="dashboardStatsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 shrink-0"></div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Quick Stats -->
+                        <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Live Capacity Tracking</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <p class="text-sm text-slate-500">Total System Passes</p>
+                                    <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+                                </div>
+                                <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                                    <p class="text-sm text-emerald-600">Total Available in Room</p>
+                                    <p id="statAvailable" class="text-2xl font-bold text-emerald-700">0</p>
+                                </div>
+                                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                    <p class="text-sm text-indigo-600">Currently Issued</p>
+                                    <p id="statIssued" class="text-2xl font-bold text-indigo-700">0</p>
+                                </div>
                             </div>
-                            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                                <p class="text-sm text-emerald-600">Total Available in Room</p>
-                                <p id="statAvailable" class="text-2xl font-bold text-emerald-700">0</p>
+                        </div>
+
+                        <!-- OVERDUE TRACKER -->
+                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-red-200 flex flex-col">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    Action Required
+                                </h3>
+                                <span id="overdueCountBadge" class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">0 Overdue</span>
                             </div>
-                            <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                <p class="text-sm text-indigo-600">Currently Issued</p>
-                                <p id="statIssued" class="text-2xl font-bold text-indigo-700">0</p>
+                            <p class="text-xs text-slate-500 mb-4 shrink-0">Passes missing for > 12 hours. Please physically recover these cards.</p>
+                            
+                            <div class="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                                <ul id="dashboardOverdueList" class="space-y-3">
+                                    <!-- Populated via JS -->
+                                </ul>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- ========================================== -->
-                <!-- DATABASE TAB (REDESIGNED FOR MOBILE)       -->
+                <!-- DATABASE TAB                               -->
                 <!-- ========================================== -->
-                <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col h-full">
+                <div id="tab-database" class="tab-content hidden bg-white md:bg-transparent rounded-2xl shadow-sm md:shadow-none border border-slate-200 md:border-none flex flex-col">
                     
-                    <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 md:bg-white rounded-t-2xl md:rounded-2xl md:border md:shadow-sm shrink-0 md:mb-4">
-                        <div class="relative w-full md:w-96">
+                    <div class="sticky top-0 z-20 p-4 border-b border-slate-200 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50 md:bg-white rounded-t-2xl md:rounded-2xl md:border md:shadow-sm shrink-0 md:mb-4">
+                        <div class="relative w-full lg:w-80 shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                             <input id="searchInput" type="text" placeholder="Search Pass ID..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all"/>
                         </div>
-                        <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full md:w-auto" id="filterGroup">
-                            <button data-filter="All" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700">All</button>
-                            <button data-filter="Available" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Available</button>
-                            <button data-filter="Issued" class="filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
+                        <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                            <!-- Filter Buttons -->
+                            <div class="flex bg-white rounded-lg border border-slate-300 p-1 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0" id="filterGroup">
+                                <button data-filter="All" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700">All</button>
+                                <button data-filter="Available" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Available</button>
+                                <button data-filter="Issued" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Issued</button>
+                                <button data-filter="Overdue" class="filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50">Overdue</button>
+                            </div>
+                            <!-- EXPORT CSV BUTTON -->
+                            <button id="btnExportCsv" class="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                Export CSV
+                            </button>
                         </div>
                     </div>
 
                     <!-- DESKTOP TABLE VIEW -->
-                    <div class="hidden md:block overflow-x-auto flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="hidden md:block overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
                         <table class="w-full text-left border-collapse min-w-[600px]">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10">
@@ -229,7 +263,7 @@
                     </div>
 
                     <!-- MOBILE CARDS VIEW -->
-                    <div class="md:hidden flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards"></div>
+                    <div class="md:hidden p-4 space-y-3 bg-slate-100" id="mobileDatabaseCards"></div>
 
                     <div class="p-4 border-t border-slate-200 bg-slate-50 md:bg-white rounded-b-2xl md:rounded-2xl md:border md:shadow-sm md:mt-4 text-sm text-slate-500 text-center shrink-0">
                         Showing <span id="recordCount">0</span> pass records
@@ -288,6 +322,11 @@
         let currentUser = null;
         let toastTimeout = null;
         let html5QrCode = null;
+        
+        const recentScanTimestamps = {};
+        
+        let isSoundEnabled = true;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         const ICONS = {
             users: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
@@ -310,16 +349,7 @@
         const basePasses = [];
         PASS_CATEGORIES.forEach(cat => {
             for (let i = cat.min; i <= cat.max; i++) {
-                basePasses.push({ 
-                    id: `${cat.prefix}${i}`, 
-                    categoryId: cat.id, 
-                    color: cat.color, 
-                    type: cat.type, 
-                    colorClasses: cat.colorClasses, 
-                    badgeClass: cat.badgeClass, 
-                    icon: cat.icon, // Fix: Explicitly copy icon to individual passes 
-                    status: 'Available' 
-                });
+                basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available' });
             }
         });
 
@@ -344,6 +374,43 @@
         }
 
         // ==========================================
+        // AUDIO FEEDBACK
+        // ==========================================
+        function playBeep(type) {
+            if (!isSoundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'success') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'error') {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.2);
+            }
+        }
+
+        document.getElementById('soundToggleBtn').addEventListener('click', () => {
+            isSoundEnabled = !isSoundEnabled;
+            document.getElementById('soundIconOn').classList.toggle('hidden', !isSoundEnabled);
+            document.getElementById('soundIconOff').classList.toggle('hidden', isSoundEnabled);
+            if(isSoundEnabled && audioCtx.state === 'suspended') audioCtx.resume();
+        });
+
+
+        // ==========================================
         // 1-CLICK MANUAL RETURN LOGIC
         // ==========================================
         window.manualReturnPass = async (passId) => {
@@ -355,17 +422,25 @@
                 await deleteDoc(docRef);
                 showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             } catch (error) {
-                console.error("Manual return error:", error);
                 showToast('error', `System Error updating ${passId}`, passId);
             }
         };
 
         // ==========================================
-        // SCANNER LOGIC
+        // SCANNER LOGIC (With Anti-Double-Scan)
         // ==========================================
         async function processScan(scannedIdText) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
             const scannedId = scannedIdText.trim().toUpperCase();
             if (!scannedId) return;
+
+            const now = Date.now();
+            if (recentScanTimestamps[scannedId] && (now - recentScanTimestamps[scannedId] < 3000)) {
+                showToast('error', `Scan ignored (Cooldown). Please wait...`, scannedId);
+                return;
+            }
+            recentScanTimestamps[scannedId] = now;
 
             const passInfo = allPasses.find(p => p.id === scannedId);
             if (!passInfo) {
@@ -383,7 +458,6 @@
                     showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
                 }
             } catch (error) {
-                console.error("Database error:", error);
                 showToast('error', `System Error updating ${scannedId}`, scannedId);
             }
         }
@@ -395,6 +469,27 @@
             inputEl.value = ''; 
         });
 
+        // ==========================================
+        // CSV EXPORT LOGIC
+        // ==========================================
+        document.getElementById('btnExportCsv').addEventListener('click', () => {
+            let csv = 'Pass ID,Category,Type,Status,Overdue,Last Scanned Time\n';
+            allPasses.forEach(p => {
+                const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString() : '';
+                const isOverdueText = p.isOverdue ? 'Yes' : 'No';
+                csv += `${p.id},${p.color},${p.type},${p.status},${isOverdueText},"${timeStr}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `PCCSO_Pass_Report_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Camera Logic
         const startCameraBtn = document.getElementById('startCameraBtn');
         const stopCameraBtn = document.getElementById('stopCameraBtn');
         const cameraContainer = document.getElementById('cameraContainer');
@@ -421,28 +516,29 @@
         });
 
         function stopCamera() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.log(err));
-            }
+            if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear()).catch(err => console.log(err));
             startCameraBtn.classList.remove('hidden');
             scannerDivider.classList.remove('hidden');
             cameraContainer.classList.add('hidden');
             cameraContainer.classList.remove('flex');
             document.getElementById('scannerInput').focus(); 
         }
-
         stopCameraBtn.addEventListener('click', stopCamera);
 
+
         // ==========================================
-        // UI & RENDERING UPDATES
+        // UI & RENDERING LOGIC
         // ==========================================
         function showToast(type, message, passId) {
             const toast = document.getElementById('feedbackToast');
             const iconWrapper = document.getElementById('feedbackIconWrapper');
             
+            if(type === 'error') playBeep('error');
+            else playBeep('success');
+
             toast.className = `inline-flex items-center gap-3 px-4 py-3 md:px-6 rounded-2xl font-medium shadow-2xl border toast-visible transition-all duration-300 w-11/12 max-w-sm bg-opacity-95 backdrop-blur-sm ${type === 'issue' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : type === 'return' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`;
             iconWrapper.innerHTML = type === 'issue' ? ICONS.logout : type === 'return' ? ICONS.check : ICONS.warning;
-            iconWrapper.className = "w-6 h-6 flex items-center justify-center";
+            iconWrapper.className = "w-6 h-6 flex items-center justify-center shrink-0";
             
             document.getElementById('feedbackPassId').innerText = passId;
             document.getElementById('feedbackMessage').innerText = message;
@@ -451,11 +547,21 @@
             toastTimeout = setTimeout(() => { toast.classList.remove('toast-visible'); toast.classList.add('toast-hidden'); }, 3000);
         }
 
+        // OVERDUE CHECK FUNCTION (> 12 HOURS)
+        function checkIsOverdue(issuedAt) {
+            if (!issuedAt) return false;
+            const issuedTime = new Date(issuedAt).getTime();
+            const hoursDiff = (Date.now() - issuedTime) / (1000 * 60 * 60);
+            return hoursDiff >= 12;
+        }
+
         function updateAllPasses() {
             allPasses = basePasses.map(p => {
                 const liveState = dbStates[p.id];
-                if (liveState && liveState.status === 'Issued') return { ...p, ...liveState };
-                return p;
+                if (liveState && liveState.status === 'Issued') {
+                    return { ...p, ...liveState, isOverdue: checkIsOverdue(liveState.issuedAt) };
+                }
+                return { ...p, isOverdue: false };
             });
             renderDashboard();
             renderDatabase();
@@ -481,10 +587,8 @@
             const container = document.getElementById('quickSummaryContainer');
             container.innerHTML = Object.values(stats.byCategory).map(stat => {
                 const isActive = stat.issued > 0;
-                
                 const wrapperStyle = isActive ? stat.config.colorClasses : 'border-slate-200 bg-slate-50 text-slate-400';
                 const numberStyle = isActive ? 'text-slate-800' : 'text-slate-400 opacity-60';
-                
                 const tagStyle = isActive ? 'bg-white/60 border-white/50 text-slate-700' : 'bg-slate-200/50 border-slate-200/50 text-slate-500';
                 const indicatorColor = stat.available > 0 ? 'bg-emerald-400' : 'bg-red-400';
                 
@@ -492,15 +596,12 @@
                 <div class="shrink-0 w-[6.5rem] flex flex-col items-center justify-center p-2.5 rounded-[1.25rem] border transition-all shadow-sm ${wrapperStyle}">
                     <span class="text-[9px] font-extrabold uppercase tracking-widest text-center mb-0 w-full truncate">${stat.config.color}</span>
                     <span class="text-[9px] font-semibold text-center leading-tight mb-1.5 w-full truncate opacity-70">${stat.config.type}</span>
-                    
                     <span class="text-3xl font-black ${numberStyle} leading-none mb-2.5">${stat.issued}</span>
-                    
                     <div class="w-full flex items-center justify-center gap-1.5 py-0.5 rounded-lg border ${tagStyle}">
-                        <div class="w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-sm"></div>
+                        <div class="w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-sm shrink-0"></div>
                         <span class="text-[9px] font-bold tracking-wide">${stat.available} Avail</span>
                     </div>
-                </div>
-                `;
+                </div>`;
             }).join('');
         }
 
@@ -510,7 +611,6 @@
 
             const issuedPasses = allPasses.filter(p => p.status === 'Issued');
             issuedPasses.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
-            
             document.getElementById('activePassesBadge').innerText = issuedPasses.length;
 
             if (issuedPasses.length === 0) {
@@ -520,15 +620,24 @@
 
             list.innerHTML = issuedPasses.map(p => {
                 const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                const textStyle = p.isOverdue ? 'text-red-600' : 'text-slate-800';
+                
+                // ADDED: shrink-0 and whitespace-nowrap to prevent the badge from compressing/cutting off
+                const overdueTag = p.isOverdue ? `<span class="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Overdue</span>` : '';
+
                 return `
-                <li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+                <li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 gap-2">
                     <div class="flex items-center gap-3 overflow-hidden flex-1 pr-2">
-                        <!-- Icon visible on all screen sizes -->
                         <div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div>
-                        <div class="flex flex-col truncate">
-                            <div class="flex items-center gap-2 mb-0.5">
-                                <span class="font-bold text-slate-800 tracking-wide text-sm md:text-base">${p.id}</span>
+                        
+                        <!-- ADDED: min-w-0 ensures flexbox can safely truncate child elements instead of pushing them off screen -->
+                        <div class="flex flex-col truncate min-w-0">
+                            
+                            <!-- ADDED: flex-wrap ensures that on super narrow phones, it cleanly wraps instead of breaking -->
+                            <div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5">
+                                <span class="font-bold ${textStyle} tracking-wide text-sm md:text-base shrink-0">${p.id}</span>
                                 <span class="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">${timeStr}</span>
+                                ${overdueTag}
                             </div>
                             <span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span>
                         </div>
@@ -557,7 +666,7 @@
                                 <p class="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">${stat.config.color} ${stat.config.type}</p>
                                 <h3 class="text-3xl font-bold text-slate-800">${stat.issued} <span class="text-lg text-slate-400 font-normal">/ ${stat.total}</span></h3>
                             </div>
-                            <div class="p-3 rounded-xl ${stat.config.colorClasses}">${stat.config.icon}</div>
+                            <div class="p-3 rounded-xl ${stat.config.colorClasses} shrink-0">${stat.config.icon}</div>
                         </div>
                         <div class="mt-auto">
                             <div class="flex justify-between text-xs text-slate-500 mb-2"><span>Available: <strong class="text-slate-800">${stat.available}</strong></span><span>${percentUsed}% Issued</span></div>
@@ -568,6 +677,29 @@
             document.getElementById('statTotal').innerText = stats.total;
             document.getElementById('statAvailable').innerText = stats.total - stats.totalIssued;
             document.getElementById('statIssued').innerText = stats.totalIssued;
+
+            // Render Overdue Tracker List
+            const overduePasses = allPasses.filter(p => p.isOverdue);
+            document.getElementById('overdueCountBadge').innerText = `${overduePasses.length} Overdue`;
+            
+            const overdueList = document.getElementById('dashboardOverdueList');
+            if (overduePasses.length === 0) {
+                overdueList.innerHTML = `<div class="text-center text-slate-400 text-sm py-6">All systems clear. No overdue passes.</div>`;
+            } else {
+                overdueList.innerHTML = overduePasses.map(p => {
+                    const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString([], {month:'short', day:'numeric', hour: '2-digit', minute:'2-digit'}) : '';
+                    return `
+                    <li class="bg-white border border-red-100 p-3 rounded-lg flex items-center justify-between shadow-sm gap-2">
+                        <div class="truncate">
+                            <strong class="text-red-700 block text-sm shrink-0">${p.id}</strong>
+                            <span class="text-xs text-slate-500 truncate">${p.color} ${p.type}</span>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">${timeStr}</span>
+                        </div>
+                    </li>`;
+                }).join('');
+            }
         }
 
         function renderDatabase() {
@@ -575,7 +707,15 @@
             const desktopTbody = document.getElementById('databaseTableBody');
             const mobileCardsContainer = document.getElementById('mobileDatabaseCards');
             
-            let filtered = allPasses.filter(p => p.id.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'All' || p.status === statusFilter));
+            let filtered = allPasses.filter(p => {
+                const matchSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
+                let matchStatus = false;
+                if (statusFilter === 'All') matchStatus = true;
+                if (statusFilter === 'Available') matchStatus = p.status === 'Available';
+                if (statusFilter === 'Issued') matchStatus = p.status === 'Issued' && !p.isOverdue;
+                if (statusFilter === 'Overdue') matchStatus = p.isOverdue === true;
+                return matchSearch && matchStatus;
+            });
             
             filtered.sort((a, b) => {
                 if (a.status === 'Issued' && b.status === 'Available') return -1;
@@ -598,38 +738,39 @@
 
             filtered.forEach(p => {
                 const timeStr = p.status === 'Issued' && p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
-                const statusPill = p.status === 'Available' ? 
-                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">${ICONS.check} Available</span>` : 
-                    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">${ICONS.logout} Issued</span>`;
                 
+                let statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 shrink-0">${ICONS.check} Available</span>`;
+                if (p.status === 'Issued') {
+                    if (p.isOverdue) statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 shrink-0">${ICONS.warning} Overdue</span>`;
+                    else statusPill = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 shrink-0">${ICONS.logout} Issued</span>`;
+                }
+
                 const returnBtn = p.status === 'Issued' ? 
-                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
-                    `<span class="text-slate-300 text-sm">-</span>`;
+                    `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : 
+                    `<span class="text-slate-300 text-sm shrink-0">-</span>`;
 
                 desktopHtml += `
                     <tr class="hover:bg-slate-50/50 transition-colors">
-                        <td class="py-3 px-6 font-semibold text-slate-800 tracking-wide">${p.id}</td>
-                        <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses}">${p.color} ${p.type}</span></td>
+                        <td class="py-3 px-6 font-semibold ${p.isOverdue ? 'text-red-600' : 'text-slate-800'} tracking-wide">${p.id}</td>
+                        <td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses} whitespace-nowrap">${p.color} ${p.type}</span></td>
                         <td class="py-3 px-6">${statusPill}</td>
-                        <td class="py-3 px-6 text-sm text-slate-500">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td>
+                        <td class="py-3 px-6 text-sm ${p.isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'} whitespace-nowrap">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td>
                         <td class="py-3 px-6 text-right">${returnBtn}</td>
                     </tr>`;
 
                 mobileHtml += `
-                    <div class="bg-white p-4 rounded-[1.25rem] border border-slate-200 shadow-sm flex items-center justify-between gap-2">
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1.5">
-                                <span class="font-bold text-lg text-slate-800 tracking-wide">${p.id}</span>
+                    <div class="bg-white p-4 rounded-[1.25rem] border ${p.isOverdue ? 'border-red-200 bg-red-50/30' : 'border-slate-200'} shadow-sm flex items-center justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                <span class="font-bold text-lg ${p.isOverdue ? 'text-red-700' : 'text-slate-800'} tracking-wide shrink-0">${p.id}</span>
                                 ${statusPill}
                             </div>
-                            <div class="text-xs text-slate-500 flex items-center gap-2">
-                                <span class="px-2 py-0.5 rounded border ${p.colorClasses}">${p.color}</span>
-                                ${p.status === 'Issued' ? `<span class="flex items-center gap-1">${ICONS.clock} ${timeStr}</span>` : ''}
+                            <div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                                <span class="px-2 py-0.5 rounded border ${p.colorClasses} shrink-0">${p.color}</span>
+                                ${p.status === 'Issued' ? `<span class="flex items-center gap-1 ${p.isOverdue ? 'text-red-500 font-medium' : ''} shrink-0">${ICONS.clock} ${timeStr}</span>` : ''}
                             </div>
                         </div>
-                        <div class="shrink-0">
-                            ${p.status === 'Issued' ? returnBtn : ''}
-                        </div>
+                        <div class="shrink-0 pl-2">${p.status === 'Issued' ? returnBtn : ''}</div>
                     </div>`;
             });
 
@@ -657,16 +798,10 @@
 
             if (selectedTab === 'dashboard') renderDashboard();
             if (selectedTab === 'database') renderDatabase();
-            if (selectedTab === 'scanner') {
-                renderQuickSummary();
-                renderActivePassesList();
-            }
+            if (selectedTab === 'scanner') { renderQuickSummary(); renderActivePassesList(); }
             
-            if (selectedTab !== 'scanner') {
-                stopCamera();
-            } else {
-                document.getElementById('scannerInput').focus();
-            }
+            if (selectedTab !== 'scanner') stopCamera();
+            else document.getElementById('scannerInput').focus();
         }
 
         tabs.forEach(t => {
@@ -678,8 +813,8 @@
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 statusFilter = e.target.dataset.filter;
-                document.querySelectorAll('.filter-btn').forEach(b => b.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50");
-                e.target.className = "filter-btn flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700";
+                document.querySelectorAll('.filter-btn').forEach(b => b.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-slate-600 hover:bg-slate-50");
+                e.target.className = "filter-btn flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 text-blue-700";
                 renderDatabase();
             });
         });
