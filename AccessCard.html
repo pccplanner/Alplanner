@@ -55,7 +55,6 @@
 <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
     <div class="flex flex-col items-center text-slate-500 px-8 max-w-sm w-full text-center">
 
-        <!-- Spinner state -->
         <div id="loadingSpinner">
             <svg class="animate-spin w-10 h-10 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -64,7 +63,6 @@
             <p class="text-lg font-medium">Connecting to Database...</p>
         </div>
 
-        <!-- Error state (hidden by default) -->
         <div id="loadingError" class="hidden">
             <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 mx-auto">
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -469,24 +467,50 @@
         { id:'brown_contractor_1', color:'Brown', type:'Contractor 1', prefix:'C', min:1001071,max:1001170,total:100, icon:ICONS.hardhat, colorClasses:'bg-amber-100 text-amber-900 border-amber-300',  badgeClass:'bg-amber-700' },
         { id:'brown_contractor_2', color:'Brown', type:'Contractor 2', prefix:'C', min:1001171,max:1001210,total:40,  icon:ICONS.hardhat, colorClasses:'bg-amber-100 text-amber-900 border-amber-300',  badgeClass:'bg-amber-700' },
         { id:'brown_temp',         color:'Brown', type:'Temp (Taps)',  prefix:'T', min:906101, max:906220, total:120, icon:ICONS.ticket,  colorClasses:'bg-yellow-100 text-yellow-900 border-yellow-300',badgeClass:'bg-amber-900' },
-        // Added Aetos Category
-        // Note: Make sure to update the min/max/prefix to match your actual physical passes
-        { id:'aetos_security',     color:'Navy',  type:'Aetos',        prefix:'A', min:1001,   max:1050,   total:50,  icon:ICONS.shield,  colorClasses:'bg-indigo-100 text-indigo-900 border-indigo-300',badgeClass:'bg-indigo-800' }
+        { 
+            id:'aetos_security',     
+            color:'Navy',  
+            type:'Aetos',        
+            explicitIds: [
+                'T0023','T0025','T0026','T0027','T0372','T0375A','T0377','T0378',
+                'T0544','T0567','T0570','T0571','T0572','T0587','T0615','T0618',
+                'T906048','T906058','T906059','T906360','T906063'
+            ],
+            total:21,  
+            icon:ICONS.shield,  
+            colorClasses:'bg-indigo-100 text-indigo-900 border-indigo-300',
+            badgeClass:'bg-indigo-800' 
+        }
     ];
 
     const basePasses = [];
     PASS_CATEGORIES.forEach(cat => {
-        for (let i = cat.min; i <= cat.max; i++) {
-            basePasses.push({ 
-                id: `${cat.prefix}${i}`, 
-                categoryId: cat.id, 
-                color: cat.color, 
-                type: cat.type, 
-                colorClasses: cat.colorClasses, 
-                badgeClass: cat.badgeClass, 
-                icon: cat.icon, 
-                status: 'Available' 
+        if (cat.explicitIds) {
+            cat.explicitIds.forEach(id => {
+                basePasses.push({ 
+                    id: id, 
+                    categoryId: cat.id, 
+                    color: cat.color, 
+                    type: cat.type, 
+                    colorClasses: cat.colorClasses, 
+                    badgeClass: cat.badgeClass, 
+                    icon: cat.icon, 
+                    status: 'Available' 
+                });
             });
+        } else {
+            for (let i = cat.min; i <= cat.max; i++) {
+                basePasses.push({ 
+                    id: `${cat.prefix}${i}`, 
+                    categoryId: cat.id, 
+                    color: cat.color, 
+                    type: cat.type, 
+                    colorClasses: cat.colorClasses, 
+                    badgeClass: cat.badgeClass, 
+                    icon: cat.icon, 
+                    status: 'Available' 
+                });
+            }
         }
     });
 
@@ -1285,5 +1309,3 @@
 </script>
 </body>
 </html>
-
-
