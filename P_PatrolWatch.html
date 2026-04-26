@@ -223,12 +223,17 @@
         let logs = [], isFinished = false, gpsData = {};
         let isGpsActive = false, watchPositionId = null;
 
+        // Timestamps for perfect mirroring validation
+        let lastStateUpdate = Date.now();
+        let lastGpsUpdate = Date.now();
+
         let deviceId = Math.random().toString(36).substring(2, 9);
         let syncCode = safeGet('patrolSyncCode') || '';
         let isSyncActive = !!syncCode;
         let processedMsgs = []; 
         let syncTimer = null;
         let lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600);
+        let needsSyncReq = true; // Handshake flag
 
         function safeGet(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
         function safeSet(key, val) { try { localStorage.setItem(key, val); } catch(e) {} }
@@ -239,6 +244,8 @@
         try { let _smode = safeGet('patrolStartMode'); if (_smode) startMode = _smode; } catch(e) {}
         try { let _si = safeGet('patrolStartIndex'); if (_si) startIndex = parseInt(_si, 10); } catch(e) {}
         try { let _ci = safeGet('patrolCurrentIndex'); if (_ci) currentIndex = parseInt(_ci, 10); else currentIndex = startIndex; } catch(e) {}
+        try { let _ts = safeGet('patrolStateTS'); if (_ts) lastStateUpdate = parseInt(_ts, 10); } catch(e) {}
+        try { let _gts = safeGet('patrolGpsTS'); if (_gts) lastGpsUpdate = parseInt(_gts, 10); } catch(e) {}
         try {
             let _logs = safeGet('patrolLogs');
             if (_logs) {
@@ -255,6 +262,8 @@
             safeSet('patrolLogs', JSON.stringify(logs));
             safeSet('patrolIsFinished', isFinished);
             safeSet('patrolGpsData', JSON.stringify(gpsData));
+            safeSet('patrolStateTS', lastStateUpdate);
+            safeSet('patrolGpsTS', lastGpsUpdate);
         }
 
         /* ── CLOCK & UI ── */
@@ -282,6 +291,8 @@
             logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
             
             if (currentIndex + 1 >= TOTAL) isFinished = true; else currentIndex++;
+            
+            lastStateUpdate = Date.now(); // Update TS before saving & broadcasting
             saveRouteState(); updateUI(); broadcastFullState();
         }
 
@@ -328,7 +339,7 @@
             let html = '';
             
             for (let i = 0; i < ROUTE_POINTS.length; i++) {
-                if(i < startIndex) continue; // Skip timeline rendering for ignored points
+                if(i < startIndex) continue; 
                 
                 const logEntry = logs.find(l => l.point === i + 1);
                 const isDone = !!logEntry;
@@ -362,6 +373,8 @@
             currentIndex = startIndex;
             logs = [];
             isFinished = false;
+            
+            lastStateUpdate = Date.now(); // Update TS
             saveRouteState(); updateUI(); hideModal('reset-modal'); broadcastFullState();
         }
 
@@ -388,6 +401,13 @@
                 .then(res => { if (!res.ok) throw new Error('Bad response'); return res.text(); })
                 .then(text => {
                     setSyncDot('connected');
+                    
+                    // The Wakeup Handshake: Request state instantly upon connection
+                    if (needsSyncReq) {
+                        sendSyncMessage({ type: 'REQ' });
+                        needsSyncReq = false;
+                    }
+
                     let highestTime = lastSyncUnix;
                     if (text) {
                         const lines = text.trim().split('\n');
@@ -427,30 +447,33 @@
         function broadcastFullState() {
             if (!isSyncActive) return;
             const smallLogs = logs.map(l => ({ p: l.point, loc: l.location, t: l.timestamp.getTime() }));
-            sendSyncMessage({ type: 'STATE', c: currentIndex, s: startIndex, f: isFinished, m: startMode, l: smallLogs });
+            sendSyncMessage({ type: 'STATE', ts: lastStateUpdate, c: currentIndex, s: startIndex, f: isFinished, m: startMode, l: smallLogs });
         }
 
         function broadcastGPS() {
             if (!isSyncActive) return;
-            sendSyncMessage({ type: 'GPS', g: gpsData });
+            sendSyncMessage({ type: 'GPS', ts: lastGpsUpdate, g: gpsData });
         }
 
         function handleIncomingSync(payload) {
             if (!payload || payload.d === deviceId) return;
+            
             if (payload.type === 'REQ') {
                 broadcastFullState(); broadcastGPS();
             } else if (payload.type === 'STATE') {
-                if (payload.l.length >= logs.length || payload.l.length === 0) {
+                // strict timestamp comparison allows flawless overwrites, even on resets
+                if (payload.ts > lastStateUpdate) {
                     currentIndex = payload.c; startIndex = payload.s; isFinished = payload.f; startMode = payload.m;
                     logs = payload.l.map(l => ({ point: l.p, location: l.loc, timestamp: new Date(l.t) }));
+                    lastStateUpdate = payload.ts;
                     saveRouteState(); updateUI();
                 }
             } else if (payload.type === 'GPS') {
-                let updated = false;
-                for (let loc in payload.g) {
-                    if (!gpsData[loc]) { gpsData[loc] = payload.g[loc]; updated = true; }
+                if (payload.ts > lastGpsUpdate) {
+                    gpsData = payload.g;
+                    lastGpsUpdate = payload.ts;
+                    saveRouteState(); updateUI();
                 }
-                if (updated) { saveRouteState(); updateUI(); }
             }
         }
 
@@ -480,6 +503,7 @@
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
                     gpsData[locName] = { lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 20 };
+                    lastGpsUpdate = Date.now(); // update GPS TS
                     saveRouteState(); broadcastGPS(); updateUI();
                     alert("Bound " + locName + "\nAcc: ±" + Math.round(pos.coords.accuracy) + "m");
                 },
@@ -557,13 +581,13 @@
         updateUI();
         if (isSyncActive) startSyncEngine();
 
-        // Screen Wake visibility catch (vital for watch)
+        // Screen Wake visibility catch (vital for forcing sync catchup)
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === 'visible' && isSyncActive) {
+                needsSyncReq = true; // Handshake triggers on wake
                 clearTimeout(syncTimer); startSyncEngine();
             }
         });
     </script>
 </body>
 </html>
-
