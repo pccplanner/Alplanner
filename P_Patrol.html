@@ -495,30 +495,28 @@ var startIndex = 0, currentIndex = 0, startMode = 'default';
 var logs = [], isFinished = false, gpsData = {};
 var isGpsActive = false, watchPositionId = null;
 
-// NEW Timestamp validators for perfect sync mirroring
-var lastStateUpdate = Date.now();
-var lastGpsUpdate = Date.now();
-
 var deviceId = Math.random().toString(36).substring(2, 9);
 var syncCode = safeGet('patrolSyncCode') || '';
 var isSyncActive = !!syncCode;
 var processedMsgs = []; 
 var syncTimer = null;
 var lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600); // Look back 12 hours initially
-var needsSyncReq = true; // Handshake flag
 
 // Load Memory Safely
 try { var _g = safeGet('patrolGpsData'); if (_g) gpsData = JSON.parse(_g); } catch(e) {}
 try { var _smode = safeGet('patrolStartMode'); if (_smode) startMode = _smode; } catch(e) {}
 try { var _si = safeGet('patrolStartIndex'); if (_si) startIndex = parseInt(_si, 10); } catch(e) {}
-try { var _ci = safeGet('patrolCurrentIndex'); if (_ci) currentIndex = parseInt(_ci, 10); else currentIndex = startIndex; } catch(e) {}
-try { var _ts = safeGet('patrolStateTS'); if (_ts) lastStateUpdate = parseInt(_ts, 10); } catch(e) {}
-try { var _gts = safeGet('patrolGpsTS'); if (_gts) lastGpsUpdate = parseInt(_gts, 10); } catch(e) {}
+try {
+    var _ci = safeGet('patrolCurrentIndex');
+    if (_ci) currentIndex = parseInt(_ci, 10); else currentIndex = startIndex;
+} catch(e) {}
 try {
     var _logs = safeGet('patrolLogs');
     if (_logs) {
         var parsed = JSON.parse(_logs);
-        for(var i=0; i<parsed.length; i++) logs.push({ point: parsed[i].point, location: parsed[i].location, timestamp: new Date(parsed[i].timestamp) });
+        for(var i=0; i<parsed.length; i++) {
+            logs.push({ point: parsed[i].point, location: parsed[i].location, timestamp: new Date(parsed[i].timestamp) });
+        }
     }
 } catch(e) {}
 try { if (safeGet('patrolIsFinished') === 'true') isFinished = true; } catch(e) {}
@@ -530,11 +528,10 @@ function saveRouteState() {
     safeSet('patrolLogs', JSON.stringify(logs));
     safeSet('patrolIsFinished', isFinished);
     safeSet('patrolGpsData', JSON.stringify(gpsData));
-    safeSet('patrolStateTS', lastStateUpdate);
-    safeSet('patrolGpsTS', lastGpsUpdate);
 }
 
 /* ── 2. UNIVERSAL AJAX POLLING SYNC ENGINE ── */
+// This completely bypasses WebSockets/SSE which fail on Apple Watch
 function setSyncBarState(state) {
     var dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-dot-label');
     var bar = document.getElementById('sync-bar'), svg = document.getElementById('sync-icon-svg');
@@ -573,21 +570,18 @@ function startSyncEngine() {
             })
             .then(function(text) {
                 setSyncBarState('connected');
-                
-                // Wakeup Handshake Request
-                if (needsSyncReq) {
-                    sendSyncMessage({ type: 'REQ' });
-                    needsSyncReq = false;
-                }
-
                 var highestTime = lastSyncUnix;
+                
                 if (text) {
                     var lines = text.trim().split('\n');
                     for(var i=0; i<lines.length; i++) {
                         if(!lines[i]) continue;
                         try {
                             var msg = JSON.parse(lines[i]);
+                            // Find the newest message time so we don't fetch old ones next poll
                             if (msg.time && msg.time > highestTime) highestTime = msg.time;
+                            
+                            // Prevent duplicates
                             if (processedMsgs.indexOf(msg.id) === -1) {
                                 processedMsgs.push(msg.id);
                                 if (processedMsgs.length > 200) processedMsgs.shift();
@@ -598,11 +592,11 @@ function startSyncEngine() {
                 }
                 
                 lastSyncUnix = highestTime; 
-                syncTimer = setTimeout(pollServer, 2500);
+                syncTimer = setTimeout(pollServer, 2500); // Ask again in 2.5 seconds
             })
             .catch(function(err) {
                 setSyncBarState('error');
-                syncTimer = setTimeout(pollServer, 4000); 
+                syncTimer = setTimeout(pollServer, 4000); // Slower retry on error
             });
         } catch(e) {
             setSyncBarState('error');
@@ -613,10 +607,9 @@ function startSyncEngine() {
     pollServer();
 }
 
-// Force sync logic when iOS Safari wakes up from background
+// Force a quick sync the absolute second the watch screen wakes up
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && isSyncActive) {
-        needsSyncReq = true; // Ask for newest state instantly
         clearTimeout(syncTimer);
         startSyncEngine();
     }
@@ -625,20 +618,22 @@ document.addEventListener("visibilitychange", function() {
 function sendSyncMessage(dataObj) {
     if (!syncCode || !isSyncActive) return;
     dataObj.d = deviceId;
-    try { fetch('https://ntfy.sh/patrol-sync-' + syncCode, { method: 'POST', body: JSON.stringify(dataObj) }).catch(function(){}); } catch(e) {}
+    try {
+        fetch('https://ntfy.sh/patrol-sync-' + syncCode, { method: 'POST', body: JSON.stringify(dataObj) }).catch(function(){});
+    } catch(e) {}
 }
 
 function broadcastFullState() {
     if (!isSyncActive) return;
     var smallLogs = [];
     for(var i=0; i<logs.length; i++) smallLogs.push({ p: logs[i].point, loc: logs[i].location, t: logs[i].timestamp.getTime() });
-    var payload = { type: 'STATE', ts: lastStateUpdate, c: currentIndex, s: startIndex, f: isFinished, m: startMode, l: smallLogs };
+    var payload = { type: 'STATE', c: currentIndex, s: startIndex, f: isFinished, m: startMode, l: smallLogs };
     sendSyncMessage(payload);
 }
 
 function broadcastGPS() {
     if (!isSyncActive) return;
-    sendSyncMessage({ type: 'GPS', ts: lastGpsUpdate, g: gpsData });
+    sendSyncMessage({ type: 'GPS', g: gpsData });
 }
 
 function handleIncomingSync(payload) {
@@ -646,18 +641,18 @@ function handleIncomingSync(payload) {
     if (payload.type === 'REQ') {
         broadcastFullState(); broadcastGPS();
     } else if (payload.type === 'STATE') {
-        // Strict timestamp comparison for flawless mirroring
-        if (payload.ts > lastStateUpdate) {
+        if (payload.l.length >= logs.length || payload.l.length === 0) {
             currentIndex = payload.c; startIndex = payload.s; isFinished = payload.f; startMode = payload.m;
             logs = [];
             for(var i=0; i<payload.l.length; i++) logs.push({ point: payload.l[i].p, location: payload.l[i].loc, timestamp: new Date(payload.l[i].t) });
-            lastStateUpdate = payload.ts;
             saveRouteState(); updateUI(false);
         }
     } else if (payload.type === 'GPS') {
-        if (payload.ts > lastGpsUpdate) {
-            gpsData = payload.g;
-            lastGpsUpdate = payload.ts;
+        var updated = false;
+        for (var loc in payload.g) {
+            if (!gpsData[loc]) { gpsData[loc] = payload.g[loc]; updated = true; }
+        }
+        if (updated) {
             saveRouteState(); updateUI(false);
             if(document.getElementById('settings-modal').classList.contains('show')) renderGpsSettingsList();
         }
@@ -714,8 +709,6 @@ function clockIn(event, customDate) {
     var stamp = customDate ? customDate : new Date();
     logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: stamp });
     if (currentIndex + 1 >= TOTAL) isFinished = true; else currentIndex++;
-    
-    lastStateUpdate = Date.now(); // Mark timestamp
     saveRouteState(); updateUI(true); broadcastFullState();
 }
 
@@ -820,8 +813,6 @@ function confirmReset() {
     if (selectedStartIdx === 'custom') { startIndex = parseInt(document.getElementById('custom-start-select').value, 10); startMode = 'custom'; }
     else { startIndex = parseInt(selectedStartIdx, 10); startMode = (startIndex === 10) ? 'second_half' : 'default'; }
     currentIndex = startIndex; logs = []; isFinished = false;
-    
-    lastStateUpdate = Date.now(); // Mark timestamp
     saveRouteState(); updateUI(false); cancelReset(); broadcastFullState();
 }
 
@@ -838,9 +829,9 @@ function renderGpsSettingsList() {
     }
     document.getElementById('gps-settings-list').innerHTML = html;
 }
-function updateSpecificRadius(loc, val) { var r = parseInt(val); if (!isNaN(r) && r > 0 && gpsData[loc]) { gpsData[loc].radius = r; lastGpsUpdate=Date.now(); saveRouteState(); broadcastGPS(); } }
-function clearSpecificGps(loc) { if (gpsData[loc]) { delete gpsData[loc]; lastGpsUpdate=Date.now(); saveRouteState(); renderGpsSettingsList(); updateUI(false); broadcastGPS(); } }
-function clearAllGpsData() { if (confirm("Clear ALL mapped locations?")) { gpsData = {}; lastGpsUpdate=Date.now(); saveRouteState(); renderGpsSettingsList(); updateUI(false); broadcastGPS(); } }
+function updateSpecificRadius(loc, val) { var r = parseInt(val); if (!isNaN(r) && r > 0 && gpsData[loc]) { gpsData[loc].radius = r; saveRouteState(); broadcastGPS(); } }
+function clearSpecificGps(loc) { if (gpsData[loc]) { delete gpsData[loc]; saveRouteState(); renderGpsSettingsList(); updateUI(false); broadcastGPS(); } }
+function clearAllGpsData() { if (confirm("Clear ALL mapped locations?")) { gpsData = {}; saveRouteState(); renderGpsSettingsList(); updateUI(false); broadcastGPS(); } }
 
 var currentEditLoc = '';
 function openEditGpsModal(loc) {
@@ -864,7 +855,7 @@ function saveEditedGps() {
     var lat = parseFloat(document.getElementById('edit-gps-lat').value), lng = parseFloat(document.getElementById('edit-gps-lng').value);
     if (isNaN(lat) || isNaN(lng)) { alert("Invalid coordinates."); return; }
     gpsData[currentEditLoc] = { lat: lat, lng: lng, radius: gpsData[currentEditLoc] && gpsData[currentEditLoc].radius ? gpsData[currentEditLoc].radius : 20 };
-    lastGpsUpdate = Date.now(); saveRouteState(); closeEditGpsModal(); renderGpsSettingsList(); updateUI(false); broadcastGPS();
+    saveRouteState(); closeEditGpsModal(); renderGpsSettingsList(); updateUI(false); broadcastGPS();
 }
 
 /* ── 4. GPS AUTOPILOT ── */
