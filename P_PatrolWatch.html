@@ -4,868 +4,566 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Watch Patrol</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #000000;
+            --surface: #1c1c1e;
+            --border: #2c2c2e;
+            --blue: #0a84ff;
+            --green: #30d158;
+            --red: #ff453a;
+            --orange: #ff9f0a;
+            --text: #ffffff;
+            --muted: #8e8e93;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        }
 
-<style>
-    :root {
-        --blue: #5fa3ff;
-        --blue-dim: rgba(95,163,255,0.18);
-        --blue-glow: rgba(95,163,255,0.35);
-        --green: #3ddc84;
-        --green-dim: rgba(61,220,132,0.18);
-        --green-glow: rgba(61,220,132,0.35);
-        --red: #ff5c5c;
-        --amber: #ffb340;
-        --surface: #1c1c1e;
-        --surface2: #2c2c2e;
-        --border: #333336;
-        --muted: #636366;
-        --muted2: #8e8e93;
-        --display: 'Syne', sans-serif;
-        --mono: 'JetBrains Mono', monospace;
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        html { background: var(--bg); color: var(--text); font-family: var(--font-main); }
+        body { width: 100vw; min-height: 100vh; overflow-x: hidden; padding-bottom: 40px; }
 
-    * { box-sizing: border-box; }
+        /* Watch Header */
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px; position: sticky; top: 0; background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 50;
+        }
+        .time { font-size: 15px; font-weight: 600; letter-spacing: 0.5px; }
+        .status-icons { display: flex; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+        
+        /* Main Dial Section */
+        .hero { display: flex; flex-direction: column; align-items: center; padding: 10px; margin-top: 5px; }
+        .dial-container { position: relative; width: 160px; height: 160px; margin-bottom: 12px; }
+        .progress-ring { position: absolute; inset: 0; transform: rotate(-90deg); width: 160px; height: 160px; }
+        .ring-bg { fill: none; stroke: var(--surface); stroke-width: 12; }
+        .ring-fill { fill: none; stroke: var(--blue); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 427; stroke-dashoffset: 427; transition: stroke-dashoffset 0.6s ease-in-out; }
+        
+        .clock-in-btn {
+            position: absolute; inset: 12px; background: var(--surface); border-radius: 50%;
+            border: none; color: var(--blue); display: flex; flex-direction: column; align-items: center;
+            justify-content: center; cursor: pointer; transition: transform 0.1s, background 0.2s;
+        }
+        .clock-in-btn:active { transform: scale(0.92); background: #2c2c2e; }
+        .clock-in-btn svg { width: 40px; height: 40px; stroke: currentColor; fill: none; stroke-width: 2; margin-bottom: 4px; }
+        .clock-in-text { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
 
-    body {
-        background: #000;
-        color: #fff;
-        font-family: var(--mono);
-        margin: 0;
-        padding: 10px 10px 8px;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
+        /* Target Info */
+        .target-box { text-align: center; width: 100%; padding: 0 10px; }
+        .target-sub { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .target-name { font-size: 26px; font-weight: 800; line-height: 1.1; margin-bottom: 8px; color: #fff; }
+        
+        /* Context Actions under Dial */
+        .context-actions { display: flex; flex-direction: column; gap: 8px; width: 90%; margin: 0 auto; margin-top: 10px; }
+        .btn-small { 
+            background: var(--surface); border-radius: 20px; padding: 10px; border: none; color: var(--text);
+            font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn-small svg { width: 16px; height: 16px; }
+        .btn-gps-auto { background: rgba(255, 159, 10, 0.15); color: var(--orange); }
+        .btn-gps-auto.active { background: rgba(48, 209, 88, 0.15); color: var(--green); }
+        
+        /* Timeline */
+        .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin: 24px 0 12px 16px; text-transform: uppercase; }
+        .timeline { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
+        .tl-item { background: var(--surface); border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: space-between; }
+        .tl-item.done { border: 1px solid rgba(48, 209, 88, 0.3); }
+        .tl-item.current { border: 1px solid var(--blue); background: rgba(10, 132, 255, 0.1); }
+        .tl-left { display: flex; align-items: center; gap: 10px; }
+        .tl-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border); }
+        .tl-item.done .tl-dot { background: var(--green); }
+        .tl-item.current .tl-dot { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+        .tl-name { font-size: 14px; font-weight: 600; }
+        .tl-time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 
-    /* ── Views ── */
-    .view { display: none; flex-direction: column; height: 100%; width: 100%; gap: 7px; }
-    .view.active { display: flex; }
+        /* Bottom Menu */
+        .menu { padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+        .btn-menu {
+            background: var(--surface); padding: 14px; border-radius: 16px; border: none;
+            color: var(--text); font-size: 15px; font-weight: 600; text-align: left;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .btn-menu svg { width: 20px; height: 20px; color: var(--blue); }
 
-    /* ── Header ── */
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-shrink: 0;
-    }
-    .clock {
-        font-family: var(--mono);
-        font-size: 17px;
-        font-weight: 700;
-        color: var(--blue);
-        letter-spacing: 1px;
-        line-height: 1;
-    }
-    .header-center {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
-    }
-    .prog-pill {
-        font-family: var(--mono);
-        font-size: 11px;
-        font-weight: 700;
-        color: #fff;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.18);
-        padding: 3px 9px;
-        border-radius: 10px;
-        line-height: 1;
-    }
-    /* Mini progress bar under pill */
-    .mini-progress-wrap {
-        width: 56px;
-        height: 2px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 2px;
-        overflow: hidden;
-    }
-    .mini-progress-fill {
-        height: 100%;
-        background: var(--blue);
-        border-radius: 2px;
-        transition: width 0.4s ease;
-        width: 0%;
-    }
-    .gear-btn {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 50%;
-        color: var(--muted2);
-        font-size: 13px;
-        width: 28px; height: 28px;
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
-        flex-shrink: 0;
-    }
+        /* Modals */
+        .modal {
+            display: none; position: fixed; inset: 0; background: var(--bg); z-index: 100;
+            flex-direction: column; padding: 10px; overflow-y: auto; padding-bottom: 40px;
+        }
+        .modal.show { display: flex; }
+        .modal-header { font-size: 20px; font-weight: 700; margin-bottom: 16px; margin-top: 10px; text-align: center; }
+        .modal-body { font-size: 14px; color: var(--muted); text-align: center; margin-bottom: 20px; }
+        
+        .input-code {
+            width: 100%; background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
+            color: white; font-size: 32px; font-weight: 800; text-align: center; padding: 16px;
+            letter-spacing: 8px; margin-bottom: 20px; outline: none; font-family: var(--font-mono);
+        }
+        
+        .btn-primary { background: var(--blue); color: white; padding: 14px; border-radius: 16px; font-weight: 700; font-size: 16px; border: none; width: 100%; margin-bottom: 10px; }
+        .btn-danger { background: rgba(255, 69, 58, 0.2); color: var(--red); padding: 14px; border-radius: 16px; font-weight: 700; font-size: 16px; border: none; width: 100%; margin-bottom: 10px; }
+        .btn-cancel { background: var(--surface); color: white; padding: 14px; border-radius: 16px; font-weight: 600; font-size: 16px; border: none; width: 100%; }
 
-    /* ── Target Card (compact) ── */
-    .target-card {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        background: linear-gradient(150deg, rgba(45,126,255,0.12) 0%, rgba(45,126,255,0.03) 100%);
-        border-radius: 16px;
-        padding: 10px 12px 9px;
-        border: 1px solid rgba(45,126,255,0.25);
-        position: relative;
-        overflow: hidden;
-    }
-    .target-card::before {
-        content: '';
-        position: absolute;
-        top: -18px; right: -18px;
-        width: 60px; height: 60px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(95,163,255,0.12) 0%, transparent 70%);
-        pointer-events: none;
-    }
-    .target-card.done {
-        background: linear-gradient(150deg, rgba(61,220,132,0.12) 0%, rgba(61,220,132,0.03) 100%);
-        border-color: rgba(61,220,132,0.3);
-    }
-    .target-card.done::before {
-        background: radial-gradient(circle, rgba(61,220,132,0.12) 0%, transparent 70%);
-    }
+        /* Completion View */
+        #completed-view { display: none; flex-direction: column; align-items: center; justify-content: center; padding-top: 40px; }
+        .complete-icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(48, 209, 88, 0.2); color: var(--green); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+        .complete-icon svg { width: 40px; height: 40px; }
 
-    /* Card top row: label + elapsed */
-    .card-toprow {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
-    }
-    .label-wrap {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    .dot-pulse {
-        width: 5px; height: 5px;
-        border-radius: 50%;
-        background: var(--blue);
-        box-shadow: 0 0 5px var(--blue);
-        animation: dotPulse 1.5s ease-in-out infinite;
-        flex-shrink: 0;
-    }
-    @keyframes dotPulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50%       { opacity: 0.3; transform: scale(0.75); }
-    }
-    .label {
-        font-family: var(--mono);
-        font-size: 9px;
-        font-weight: 700;
-        color: var(--blue);
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-    }
-    /* Elapsed chip (new) */
-    .elapsed-chip {
-        font-family: var(--mono);
-        font-size: 9px;
-        font-weight: 700;
-        color: var(--amber);
-        letter-spacing: 0.5px;
-        background: rgba(255,179,64,0.1);
-        border: 1px solid rgba(255,179,64,0.25);
-        border-radius: 6px;
-        padding: 1px 6px;
-        line-height: 1.5;
-    }
-
-    /* Current target name */
-    .target-name {
-        font-family: var(--display);
-        font-size: 32px;
-        font-weight: 800;
-        margin: 0;
-        line-height: 1.0;
-        color: #fff;
-        letter-spacing: -0.5px;
-    }
-
-    /* Progress bar (inside card) */
-    .route-progress-wrap {
-        margin: 7px 0 5px;
-        width: 100%;
-    }
-    .route-progress-bar {
-        height: 3px;
-        background: rgba(255,255,255,0.08);
-        border-radius: 3px;
-        overflow: hidden;
-    }
-    .route-progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--blue), #a0c8ff);
-        border-radius: 3px;
-        transition: width 0.4s ease;
-        width: 0%;
-    }
-    .route-progress-fill.done-fill {
-        background: linear-gradient(90deg, var(--green), #7dffc0);
-    }
-
-    /* Stats row (new) */
-    .stats-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: nowrap;
-    }
-    .stat-chip {
-        display: flex;
-        align-items: center;
-        gap: 3px;
-        font-family: var(--mono);
-        font-size: 9px;
-        font-weight: 700;
-        color: var(--muted2);
-    }
-    .stat-chip .stat-val {
-        color: #fff;
-        font-size: 10px;
-    }
-    .stat-sep {
-        color: var(--border);
-        font-size: 10px;
-    }
-
-    /* Next target row */
-    .next-target {
-        font-family: var(--mono);
-        font-size: 10px;
-        color: rgba(255,255,255,0.45);
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        margin-top: 1px;
-    }
-    .next-arrow {
-        color: var(--blue);
-        opacity: 0.6;
-        font-size: 9px;
-    }
-
-    /* ── LOG Button ── */
-    .btn {
-        background: linear-gradient(135deg, #5fa3ff, #1a5fd4);
-        color: #fff;
-        border: none;
-        border-radius: 16px;
-        font-family: var(--display);
-        font-size: 16px;
-        font-weight: 800;
-        padding: 14px 0;
-        width: 100%;
-        cursor: pointer;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        box-shadow: 0 4px 16px rgba(45,126,255,0.3);
-        transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
-        flex-shrink: 0;
-    }
-    .btn:active { transform: scale(0.96); box-shadow: 0 2px 8px rgba(45,126,255,0.25); }
-    .btn-secondary {
-        background: var(--surface);
-        color: #fff;
-        font-family: -apple-system, sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        padding: 12px 0;
-        border-radius: 13px;
-        text-transform: none;
-        box-shadow: none;
-        border: 1px solid var(--border);
-        letter-spacing: 0;
-    }
-    .btn-danger {
-        background: rgba(255,92,92,0.12);
-        color: var(--red);
-        border: 1px solid rgba(255,92,92,0.28);
-        border-radius: 13px;
-        text-transform: none;
-        font-size: 14px;
-        box-shadow: none;
-    }
-
-    /* ── Sync Banner ── */
-    .sync-banner {
-        font-size: 8px;
-        color: var(--green);
-        text-align: center;
-        font-family: var(--mono);
-        letter-spacing: 1.5px;
-        opacity: 0.35;
-        transition: all 0.3s;
-        flex-shrink: 0;
-        padding: 0;
-    }
-
-    /* ── Settings View ── */
-    .watch-select {
-        background: var(--surface);
-        color: #fff;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        font-size: 13px;
-        font-weight: 600;
-        padding: 11px 10px;
-        width: 100%;
-        margin-bottom: 10px;
-        text-align: center;
-        appearance: none;
-        -webkit-appearance: none;
-    }
-    .settings-title {
-        font-family: var(--display);
-        font-size: 17px;
-        font-weight: 800;
-        margin-bottom: 12px;
-        text-align: center;
-    }
-    input[type="text"] {
-        width: 100%; padding: 11px;
-        border-radius: 12px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        color: #fff;
-        font-family: var(--mono);
-        font-size: 13px;
-        margin-bottom: 9px;
-        text-align: center;
-    }
-    .scrollable { overflow-y: auto; flex: 1; padding-bottom: 20px; display: flex; flex-direction: column; gap: 0; }
-    .scrollable::-webkit-scrollbar { display: none; }
-    .divider { height: 1px; background: var(--border); margin: 12px 0; }
-    .field-label {
-        font-size: 9px;
-        color: var(--muted2);
-        margin-bottom: 5px;
-        text-align: center;
-        text-transform: uppercase;
-        font-weight: 700;
-        letter-spacing: 1px;
-    }
-    .field-label.danger { color: var(--red); }
-
-    /* ── Complete View ── */
-    .complete-icon {
-        width: 52px; height: 52px;
-        border-radius: 50%;
-        border: 2px solid var(--green);
-        background: rgba(61,220,132,0.12);
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 10px;
-        box-shadow: 0 0 20px var(--green-glow);
-    }
-</style>
+        /* Utils */
+        .hidden { display: none !important; }
+        .text-green { color: var(--green) !important; }
+        .text-blue { color: var(--blue) !important; }
+    </style>
 </head>
 <body>
 
-<!-- 1. ACTIVE PATROL VIEW -->
-<div id="view-active" class="view active">
-
-    <!-- Header: Time | Progress+Bar | ⚙ -->
-    <div class="header">
-        <div class="clock" id="clock">00:00</div>
-        <div class="header-center">
-            <div class="prog-pill" id="prog-text">0/19</div>
-            <div class="mini-progress-wrap">
-                <div class="mini-progress-fill" id="mini-prog-fill"></div>
-            </div>
+    <!-- Header Status -->
+    <header>
+        <div class="time" id="watch-time">00:00</div>
+        <div class="status-icons">
+            <div class="status-dot" id="dot-sync" title="Sync Status"></div>
+            <div class="status-dot" id="dot-gps" title="GPS Status"></div>
         </div>
-        <button class="gear-btn" onclick="showSettings()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 .33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </header>
+
+    <!-- Main Active View -->
+    <div id="active-view">
+        <section class="hero">
+            <div class="dial-container">
+                <svg class="progress-ring" viewBox="0 0 150 150">
+                    <circle class="ring-bg" cx="75" cy="75" r="68"/>
+                    <circle class="ring-fill" id="progress-fill" cx="75" cy="75" r="68"/>
+                </svg>
+                <button class="clock-in-btn" id="btn-clockin" onclick="clockIn(event)">
+                    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span class="clock-in-text">Log</span>
+                </button>
+            </div>
+
+            <div class="target-box">
+                <div class="target-sub" id="target-sub">Target · Pt 1</div>
+                <div class="target-name" id="target-name">BME</div>
+            </div>
+        </section>
+
+        <div class="context-actions">
+            <button class="btn-small btn-gps-auto" id="btn-gps-toggle" onclick="toggleGpsAuto()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
+                <span id="gps-status-text">Autopilot OFF</span>
+            </button>
+            <button class="btn-small" id="btn-bind-gps" onclick="bindGpsToCurrent()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Bind GPS Here
+            </button>
+        </div>
+    </div>
+
+    <!-- Completed View -->
+    <div id="completed-view">
+        <div class="complete-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="target-name">Complete</div>
+        <div class="target-sub" style="margin-bottom: 20px;">All Checkpoints Logged</div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="section-title">Timeline (<span id="progress-text">0/19</span>)</div>
+    <div class="timeline" id="timeline-list">
+        <!-- Rendered via JS -->
+    </div>
+
+    <!-- Menu Actions -->
+    <div class="section-title">Actions</div>
+    <div class="menu">
+        <button class="btn-menu" onclick="showModal('sync-modal')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Link Device (Sync)
+        </button>
+        <button class="btn-menu" onclick="showModal('reset-modal')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Reset Route
+        </button>
+        <button class="btn-menu" onclick="shareLogs()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            Share Logs
         </button>
     </div>
 
-    <!-- Target Card -->
-    <div class="target-card" id="target-card">
-
-        <!-- Top: label + elapsed timer -->
-        <div class="card-toprow">
-            <div class="label-wrap">
-                <div class="dot-pulse"></div>
-                <div class="label" id="target-label">CURRENT</div>
-            </div>
-            <div class="elapsed-chip" id="elapsed-chip">–m</div>
-        </div>
-
-        <!-- Target Name -->
-        <div class="target-name" id="target-name">BME</div>
-
-        <!-- Route Progress Bar -->
-        <div class="route-progress-wrap">
-            <div class="route-progress-bar">
-                <div class="route-progress-fill" id="route-prog-fill"></div>
-            </div>
-        </div>
-
-        <!-- Stats Row: Cleared | Left -->
-        <div class="stats-row">
-            <div class="stat-chip">✓ <span class="stat-val" id="stat-cleared">0</span></div>
-            <div class="stat-sep">·</div>
-            <div class="stat-chip">⬤ <span class="stat-val" id="stat-left">19</span> left</div>
-        </div>
-
-        <!-- Next Target -->
-        <div class="next-target">
-            <span class="next-arrow">→</span>
-            <span id="next-target">TG/OC DR</span>
-        </div>
-
+    <!-- Modals -->
+    <!-- Sync Modal -->
+    <div id="sync-modal" class="modal">
+        <div class="modal-header">Device Sync</div>
+        <div class="modal-body">Enter code from phone to mirror data.</div>
+        <input type="number" id="sync-input" class="input-code" placeholder="----" pattern="\d*">
+        <button class="btn-primary" onclick="saveSyncCode()">Connect</button>
+        <button class="btn-danger hidden" id="btn-disconnect" onclick="disconnectSync()" style="margin-bottom:10px;">Disconnect</button>
+        <button class="btn-cancel" onclick="hideModal('sync-modal')">Cancel</button>
     </div>
 
-    <!-- Log Button -->
-    <button class="btn" id="btn-log" onclick="clockIn()">LOG NOW</button>
-
-    <!-- Sync Banner -->
-    <div class="sync-banner" id="sync-banner">SYNC ACTIVE</div>
-</div>
-
-<!-- 2. SETTINGS VIEW -->
-<div id="view-settings" class="view">
-    <div class="scrollable">
-        <div class="settings-title">Preferences</div>
-        <div class="field-label">Sync Topic ID</div>
-        <input type="text" id="topic-input" placeholder="e.g. patrol-abc123" autocorrect="off" autocapitalize="none">
-        <button class="btn btn-secondary" id="btn-save-topic" style="padding: 11px 0; font-size: 13px; margin-bottom: 0;" onclick="saveWatchTopic()">Save Topic</button>
-        <div class="divider"></div>
-        <div class="field-label danger">Reset Patrol Route</div>
-        <select id="reset-select" class="watch-select"></select>
-        <button class="btn btn-danger" id="btn-reset" style="padding: 11px 0; width:100%; cursor:pointer;" onclick="executeReset()">Confirm Reset</button>
-        <div style="height: 12px;"></div>
-        <button class="btn btn-secondary" style="border:none;" onclick="hideSettings()">← Back</button>
+    <!-- Reset Modal -->
+    <div id="reset-modal" class="modal">
+        <div class="modal-header">Reset Route</div>
+        <div class="modal-body">Start a new patrol loop. Logs will clear.</div>
+        <button class="btn-primary" onclick="confirmReset(0)">Full Route (Pt 1)</button>
+        <button class="btn-primary" onclick="confirmReset(10)" style="background:var(--surface); border:1px solid var(--border);">Half Route (Pt 11)</button>
+        <button class="btn-cancel" style="margin-top:20px;" onclick="hideModal('reset-modal')">Cancel</button>
     </div>
-</div>
 
-<!-- 3. COMPLETE VIEW -->
-<div id="view-complete" class="view" style="justify-content: center;">
-    <div class="target-card done" style="align-items:center; text-align:center; justify-content:center; gap:6px;">
-        <div class="complete-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div class="target-name" style="font-size:26px;">Complete</div>
-        <div class="next-target" style="color:rgba(255,255,255,0.6); justify-content:center;">Route Finished!</div>
-    </div>
-    <button class="btn btn-secondary" onclick="showSettings()">Reset Route</button>
-</div>
+    <script>
+        /* ── UTILS & DATA ── */
+        const ROUTE_POINTS = ["BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8","TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1","OC DR","TG","BME"];
+        const TOTAL = ROUTE_POINTS.length;
+        
+        let startIndex = 0, currentIndex = 0, startMode = 'default';
+        let logs = [], isFinished = false, gpsData = {};
+        let isGpsActive = false, watchPositionId = null;
 
-<script>
-    // ROUTE DATA
-    var ROUTE_POINTS = ["BME","TG/OC DR","CY","E1/HTTC","FC","N1","S2","S1/S8","TG / OC DR","CY","BME","S1/S8","S2","N1","FC","HTCC / E1","OC DR","TG","BME"];
+        let deviceId = Math.random().toString(36).substring(2, 9);
+        let syncCode = safeGet('patrolSyncCode') || '';
+        let isSyncActive = !!syncCode;
+        let processedMsgs = []; 
+        let syncTimer = null;
+        let lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600);
 
-    // STATE
-    var currentIndex = 0;
-    var startIndex = 0;
-    var isFinished = false;
-    var sessionId = 0;
+        function safeGet(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+        function safeSet(key, val) { try { localStorage.setItem(key, val); } catch(e) {} }
+        function safeDel(key) { try { localStorage.removeItem(key); } catch(e) {} }
 
-    var syncTopic = "patrol-xib0nj29";
-
-    // LOAD STATE
-    try {
-        var _ci = localStorage.getItem('wPatrolCurrent');
-        if (_ci) currentIndex = parseInt(_ci, 10);
-        var _si = localStorage.getItem('wPatrolStart');
-        if (_si) startIndex = parseInt(_si, 10);
-        var _sid = localStorage.getItem('wPatrolSessionId');
-        if (_sid) sessionId = parseInt(_sid, 10);
-        var _f = localStorage.getItem('wPatrolFinished');
-        if (_f === 'true') isFinished = true;
-        var _topic = localStorage.getItem('wPatrolTopic');
-        if (_topic) syncTopic = _topic;
-        else localStorage.setItem('wPatrolTopic', syncTopic);
-    } catch(e) {}
-
-    // LIVE CLOCK
-    function updateClock() {
-        var d = new Date();
-        document.getElementById('clock').innerText =
-            d.getHours().toString().padStart(2,'0') + ':' +
-            d.getMinutes().toString().padStart(2,'0');
-    }
-    setInterval(updateClock, 1000); updateClock();
-
-    // ELAPSED SINCE LAST LOG
-    function updateElapsed() {
-        var chip = document.getElementById('elapsed-chip');
-        if (!chip) return;
+        // Load State
+        try { let _g = safeGet('patrolGpsData'); if (_g) gpsData = JSON.parse(_g); } catch(e) {}
+        try { let _smode = safeGet('patrolStartMode'); if (_smode) startMode = _smode; } catch(e) {}
+        try { let _si = safeGet('patrolStartIndex'); if (_si) startIndex = parseInt(_si, 10); } catch(e) {}
+        try { let _ci = safeGet('patrolCurrentIndex'); if (_ci) currentIndex = parseInt(_ci, 10); else currentIndex = startIndex; } catch(e) {}
         try {
-            var last = localStorage.getItem('wPatrolLastLog');
-            if (last) {
-                var mins = Math.floor((Date.now() - parseInt(last, 10)) / 60000);
-                chip.innerText = mins + 'm';
-                // colour: green < 15m, amber < 30m, red >= 30m
-                if (mins < 15) {
-                    chip.style.color = 'var(--green)';
-                    chip.style.background = 'rgba(61,220,132,0.1)';
-                    chip.style.borderColor = 'rgba(61,220,132,0.25)';
-                } else if (mins < 30) {
-                    chip.style.color = 'var(--amber)';
-                    chip.style.background = 'rgba(255,179,64,0.1)';
-                    chip.style.borderColor = 'rgba(255,179,64,0.25)';
-                } else {
-                    chip.style.color = 'var(--red)';
-                    chip.style.background = 'rgba(255,92,92,0.1)';
-                    chip.style.borderColor = 'rgba(255,92,92,0.25)';
-                }
-            } else {
-                chip.innerText = '–m';
+            let _logs = safeGet('patrolLogs');
+            if (_logs) {
+                let parsed = JSON.parse(_logs);
+                logs = parsed.map(l => ({ point: l.point, location: l.location, timestamp: new Date(l.timestamp) }));
             }
         } catch(e) {}
-    }
-    setInterval(updateElapsed, 30000); updateElapsed();
+        try { if (safeGet('patrolIsFinished') === 'true') isFinished = true; } catch(e) {}
 
-    // INIT SELECT
-    function initSelect() {
-        var sel = document.getElementById('reset-select');
-        var html = '<option value="0">1st Half (Default)</option>';
-        html += '<option value="10">2nd Half Only</option>';
-        for (var i = 0; i < ROUTE_POINTS.length; i++) {
-            html += '<option value="' + i + '">Custom: Pt ' + (i+1) + ' (' + ROUTE_POINTS[i] + ')</option>';
+        function saveRouteState() {
+            safeSet('patrolStartMode', startMode);
+            safeSet('patrolStartIndex', startIndex);
+            safeSet('patrolCurrentIndex', currentIndex);
+            safeSet('patrolLogs', JSON.stringify(logs));
+            safeSet('patrolIsFinished', isFinished);
+            safeSet('patrolGpsData', JSON.stringify(gpsData));
         }
-        sel.innerHTML = html;
-    }
-    initSelect();
 
-    // UPDATE UI
-    function renderUI() {
-        var totalActive = ROUTE_POINTS.length - startIndex;
-        var cleared = currentIndex - startIndex;
-        var pct = totalActive > 0 ? Math.round((cleared / totalActive) * 100) : 0;
-
-        if (currentIndex >= ROUTE_POINTS.length || isFinished) {
-            document.getElementById('view-active').classList.remove('active');
-            document.getElementById('view-settings').classList.remove('active');
-            document.getElementById('view-complete').classList.add('active');
-        } else {
-            document.getElementById('view-complete').classList.remove('active');
-            document.getElementById('view-settings').classList.remove('active');
-            document.getElementById('view-active').classList.add('active');
-
-            document.getElementById('target-name').innerText = ROUTE_POINTS[currentIndex];
-            document.getElementById('prog-text').innerText = cleared + '/' + totalActive;
-            document.getElementById('stat-cleared').innerText = cleared;
-            document.getElementById('stat-left').innerText = totalActive - cleared;
-
-            // Progress fills
-            var fillPct = pct + '%';
-            document.getElementById('route-prog-fill').style.width = fillPct;
-            document.getElementById('mini-prog-fill').style.width = fillPct;
-
-            if (currentIndex + 1 < ROUTE_POINTS.length) {
-                document.getElementById('next-target').innerText = ROUTE_POINTS[currentIndex + 1];
-            } else {
-                document.getElementById('next-target').innerText = 'Final Point!';
-            }
+        /* ── CLOCK & UI ── */
+        function updateClock() {
+            const now = new Date();
+            const hrs = now.getHours().toString().padStart(2, '0');
+            const mins = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('watch-time').textContent = `${hrs}:${mins}`;
         }
-        updateElapsed();
-    }
+        setInterval(updateClock, 1000); updateClock();
 
-    // ── TRUE SYNC: SESSION ID PROTECTED (Prevents self-downgrading when phone is asleep) ──
-    var watchStateEventSource = null;
-    var syncInterval = null;
+        function showModal(id) { document.getElementById(id).classList.add('show'); }
+        function hideModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function updateStateFromPhone(s) {
-        if (typeof s.ci !== 'undefined') {
+        function clockIn(event) {
+            if (isFinished) return;
             
-            // Is this a completely new session broadcast by the phone?
-            var isNewSession = (s.sid && s.sid !== sessionId);
-            // Fallback for older states that don't have SID yet, but clearly represent a reset
-            var isFallbackReset = (!s.sid && s.ci === s.si && s.ci < currentIndex);
+            // Visual feedback
+            const btn = document.getElementById('btn-clockin');
+            btn.style.transform = 'scale(0.9)';
+            btn.style.background = '#0a84ff';
+            btn.style.color = '#fff';
+            setTimeout(() => { btn.style.transform = ''; btn.style.background = ''; btn.style.color = ''; }, 150);
 
-            // If the phone is sending a state that is completely older than ours, and it is NOT a new session
-            // then it means the phone is currently "asleep" and sending stale state.
-            // We MUST ignore this stale state so the Watch doesn't rollback to 0!
-            if (!isNewSession && !isFallbackReset && s.ci < currentIndex) {
-                return; // Ignore stale broadcast!
-            }
-
-
-            // Only update if there is a legitimate change
-            if (currentIndex !== s.ci || startIndex !== s.si || isFinished !== s.f) {
-                
-                // If phone advanced the checkpoint, reset the local elapsed timer
-                if (s.ci > currentIndex) {
-                    try { localStorage.setItem('wPatrolLastLog', Date.now()); } catch(e){}
-                }
-
-                currentIndex = s.ci;
-                startIndex = s.si;
-                isFinished = s.f;
-                if (s.sid) sessionId = s.sid; // Inherit phone's session ID
-                
-                try {
-                    localStorage.setItem('wPatrolStart', startIndex);
-                    localStorage.setItem('wPatrolCurrent', currentIndex);
-                    localStorage.setItem('wPatrolFinished', isFinished);
-                    localStorage.setItem('wPatrolSessionId', sessionId);
-                } catch(e){}
-                
-                renderUI();
-                
-                var sb = document.getElementById('sync-banner');
-                if (sb) {
-                    sb.innerText = "SYNCED WITH PHONE";
-                    sb.style.color = "var(--blue)";
-                    sb.style.opacity = "0.9";
-                    setTimeout(function(){
-                        sb.innerText = "SYNC ACTIVE";
-                        sb.style.color = "var(--green)";
-                        sb.style.opacity = "0.35";
-                    }, 2000);
-                }
-            }
+            logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date() });
+            
+            if (currentIndex + 1 >= TOTAL) isFinished = true; else currentIndex++;
+            saveRouteState(); updateUI(); broadcastFullState();
         }
-    }
 
-// ── FORCE CATCH UP ──
-// Fetches all state messages from the last 12 hours to ensure the watch
-// doesn't miss any updates if the SSE connection was suspended. This uses
-// the since=12h parameter similar to the phone app’s catch‑up function.
-function forceCatchUp() {
-    if (!syncTopic) return;
-    var topicClean = syncTopic.trim() + '-state';
-    var url = 'https://ntfy.sh/' + topicClean + '/json?poll=1&since=12h';
-    fetch(url, {
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-    })
-    .then(function(res) { return res.text(); })
-    .then(function(body) {
-        if (!body) return;
-        var lines = body.trim().split('\n');
-        // Iterate through all messages and apply the latest state
-        for (var i = 0; i < lines.length; i++) {
-            if (!lines[i]) continue;
-            try {
-                var msg = JSON.parse(lines[i]);
-                if (msg && msg.message) {
-                    var s = JSON.parse(msg.message);
-                    updateStateFromPhone(s);
-                }
-            } catch(e) {}
-        }
-    })
-    .catch(function() {});
-}
+        function updateUI() {
+            const activeTotal = TOTAL - startIndex;
+            const cleared = logs.length;
+            const pct = activeTotal === 0 ? 1 : (cleared / activeTotal);
+            
+            // Progress Ring
+            const circ = 2 * Math.PI * 68; // r=68
+            const fillEl = document.getElementById('progress-fill');
+            fillEl.style.strokeDashoffset = circ * (1 - pct);
+            
+            document.getElementById('progress-text').textContent = `${cleared}/${activeTotal}`;
 
-    function fetchLatestState() {
-        if (!syncTopic) return;
-        var topicClean = syncTopic.trim() + '-state';
-        var cb = Date.now(); // Cache Buster guarantees fresh data from server
-        fetch('https://ntfy.sh/' + topicClean + '/json?poll=1&cb=' + cb, {
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-        })
-        .then(function(res){ return res.text(); })
-        .then(function(body){
-            if (body) {
-                var lines = body.trim().split('\n');
-                var validLines = lines.filter(function(l){ return l.length > 0; });
-                if (validLines.length > 0) {
-                    try {
-                        var msg = JSON.parse(validLines[validLines.length-1]);
-                        if (msg && msg.message) {
-                            var s = JSON.parse(msg.message);
-                            updateStateFromPhone(s);
-                        }
-                    } catch(e){}
+            if (isFinished) {
+                document.getElementById('active-view').style.display = 'none';
+                document.getElementById('completed-view').style.display = 'flex';
+                document.querySelector('.progress-ring').style.display = 'none';
+            } else {
+                document.getElementById('active-view').style.display = 'block';
+                document.getElementById('completed-view').style.display = 'none';
+                document.querySelector('.progress-ring').style.display = 'block';
+                
+                document.getElementById('target-sub').textContent = `PT ${currentIndex + 1}`;
+                document.getElementById('target-name').textContent = ROUTE_POINTS[currentIndex];
+                
+                const locName = ROUTE_POINTS[currentIndex];
+                const btnBind = document.getElementById('btn-bind-gps');
+                if(gpsData[locName]) {
+                    btnBind.innerHTML = '📍 GPS Bound (Update)';
+                    btnBind.style.color = 'var(--muted)';
+                } else {
+                    btnBind.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Bind GPS Here';
+                    btnBind.style.color = 'var(--text)';
                 }
             }
-        }).catch(function(){});
-    }
 
-    function startStateSync() {
-        if (watchStateEventSource) { watchStateEventSource.close(); watchStateEventSource = null; }
-        if (syncInterval) { clearInterval(syncInterval); }
-        if (!syncTopic) return;
-        
-        var topicClean = syncTopic.trim() + '-state';
-        
-        // 1. Force a catch‑up sweep immediately to ensure we process any
-        // messages that arrived while the watch was asleep. This calls
-        // since=12h to fetch all recent state messages.
-        forceCatchUp();
-
-        // 2. Perform a lightweight state fetch after the initial catch‑up to pick up
-        // any new messages quickly.
-        fetchLatestState();
-
-        // 3. Set a polling fallback. While the watch is asleep, timers are paused,
-        // and they resume when it wakes. Here we call forceCatchUp() regularly
-        // rather than the lightweight fetch. This ensures that if any state
-        // broadcasts were missed while the watch was suspended, we still fetch
-        // the entire 12‑hour history and update to the latest one.
-        syncInterval = setInterval(function(){
-            forceCatchUp();
-        }, 10000);
-
-        // 3. Set up SSE for live instant updates while screen is ON
-        try {
-            watchStateEventSource = new EventSource('https://ntfy.sh/' + topicClean + '/sse');
-            watchStateEventSource.onmessage = function(e) {
-                try {
-                    var msg = JSON.parse(e.data);
-                    if (msg && msg.event === 'message' && msg.message) {
-                        var s = JSON.parse(msg.message);
-                        updateStateFromPhone(s);
-                    }
-                } catch(err){}
-            };
-            watchStateEventSource.onerror = function() {
-                if (watchStateEventSource) watchStateEventSource.close();
-            };
-        } catch(e) {}
-    }
-
-    startStateSync();
-    
-    // Aggressively trigger fetch when watch screen wakes up or focuses
-    document.addEventListener("visibilitychange", function() {
-        if (document.visibilityState === 'visible') {
-            // On wake, perform a full catch up to process any missed state broadcasts
-            forceCatchUp();
+            renderTimeline();
         }
-    });
-    window.addEventListener("focus", forceCatchUp);
-    window.addEventListener("pageshow", forceCatchUp);
 
-    // ── CLOCK IN ──
-    function clockIn() {
-        var btn = document.getElementById('btn-log');
-        btn.innerText = "SENDING…";
-        btn.style.opacity = "0.7";
-        if (navigator.vibrate) navigator.vibrate([50]);
-        var topicClean = syncTopic.trim();
+        function renderTimeline() {
+            const list = document.getElementById('timeline-list');
+            let html = '';
+            
+            for (let i = 0; i < ROUTE_POINTS.length; i++) {
+                if(i < startIndex) continue; // Skip timeline rendering for ignored points
+                
+                const logEntry = logs.find(l => l.point === i + 1);
+                const isDone = !!logEntry;
+                const isCurrent = (i === currentIndex) && !isFinished;
+                
+                let timeStr = '--:--';
+                if (isDone) {
+                    const d = logEntry.timestamp;
+                    timeStr = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+                } else if (isCurrent) {
+                    timeStr = 'NEXT';
+                }
 
-        // Send the trigger using navigator.sendBeacon to improve reliability when the
-        // watch face goes to the background. sendBeacon returns a boolean
-        // indicating whether the data was queued for sending【750154896786945†L165-L171】.
-        var payload = JSON.stringify({ trigger: true, time: Math.floor(Date.now() / 1000) });
-        var success = false;
-        try {
-            success = navigator.sendBeacon('https://ntfy.sh/' + topicClean, payload);
-        } catch (err) {
-            success = false;
+                const cls = isDone ? 'done' : (isCurrent ? 'current' : '');
+                html += `
+                    <div class="tl-item ${cls}">
+                        <div class="tl-left">
+                            <div class="tl-dot"></div>
+                            <div class="tl-name">${ROUTE_POINTS[i]}</div>
+                        </div>
+                        <div class="tl-time ${isCurrent ? 'text-blue' : ''}">${timeStr}</div>
+                    </div>
+                `;
+            }
+            list.innerHTML = html;
         }
-        if (success) {
-            if (navigator.vibrate) navigator.vibrate([100]);
-            // Record last log time but let the phone update the index; do not increment
-            try { localStorage.setItem('wPatrolLastLog', Date.now()); } catch(e){}
-            // Provide visual feedback
-            btn.innerText = "✅ SENT!";
-            btn.style.opacity = "1";
-            btn.style.background = "linear-gradient(135deg, #3ddc84, #1aab60)";
-            btn.style.boxShadow = "0 4px 16px rgba(61,220,132,0.3)";
-            // Restore button text after a moment
-            setTimeout(function(){
-                btn.innerText = "LOG NOW";
-                btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
-                btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
-            }, 1500);
-            // Force a state check after a short delay so we pick up the phone's response
-            setTimeout(function(){
-                fetchLatestState();
-                forceCatchUp();
-            }, 2000);
-        } else {
-            btn.innerText = "❌ FAILED";
-            btn.style.opacity = "1";
-            btn.style.background = "var(--red)";
-            btn.style.boxShadow = "none";
-            setTimeout(function(){
-                btn.innerText = "LOG NOW";
-                btn.style.background = "linear-gradient(135deg, #5fa3ff, #1a5fd4)";
-                btn.style.boxShadow = "0 4px 16px rgba(45,126,255,0.3)";
-            }, 2000);
-        }
-    }
 
-    // ── SETTINGS ──
-    function showSettings() {
-        document.getElementById('topic-input').value = syncTopic;
-        document.getElementById('reset-select').value = startIndex;
-        document.getElementById('view-active').classList.remove('active');
-        document.getElementById('view-complete').classList.remove('active');
-        document.getElementById('view-settings').classList.add('active');
-    }
-
-    function hideSettings() { renderUI(); }
-
-    function saveWatchTopic() {
-        var inputTopic = document.getElementById('topic-input').value.trim();
-        syncTopic = inputTopic;
-        try { localStorage.setItem('wPatrolTopic', syncTopic); } catch(e){}
-        var btn = document.getElementById('btn-save-topic');
-        var oldTxt = btn.innerText;
-        btn.innerText = "✅ Saved";
-        btn.style.background = "rgba(61,220,132,0.2)";
-        btn.style.color = "var(--green)";
-        btn.style.border = "1px solid var(--green)";
-        setTimeout(function(){
-            btn.innerText = oldTxt;
-            btn.style.background = "var(--surface)";
-            btn.style.color = "#fff";
-            btn.style.border = "1px solid var(--border)";
-        }, 1000);
-        startStateSync();
-    }
-
-    function executeReset() {
-        var val = document.getElementById('reset-select').value;
-        var newStart = parseInt(val, 10);
-        var btn = document.getElementById('btn-reset');
-        var oldTxt = btn.innerText;
-        btn.innerText = "SENDING…";
-
-        // Use navigator.sendBeacon to send the reset command reliably even if the
-        // watch face goes into the background【750154896786945†L165-L171】.
-        var payload = JSON.stringify({ trigger: false, reset: true, startIdx: newStart });
-        var success = false;
-        try {
-            success = navigator.sendBeacon('https://ntfy.sh/' + syncTopic.trim(), payload);
-        } catch (err) {
-            success = false;
-        }
-        if (success) {
-            if (navigator.vibrate) navigator.vibrate(50);
-            // Update local state immediately and clear last log, but rely on phone for
-            // subsequent state broadcasting.
-            startIndex = newStart;
-            currentIndex = newStart;
+        function confirmReset(startAt) {
+            startIndex = startAt;
+            startMode = (startAt === 10) ? 'second_half' : 'default';
+            currentIndex = startIndex;
+            logs = [];
             isFinished = false;
-            try { localStorage.removeItem('wPatrolLastLog'); } catch(e){}
-            renderUI();
-            btn.innerText = "✅ Reset Done!";
-            btn.style.background = "var(--green)";
-            btn.style.color = "#fff";
-            btn.style.borderColor = "var(--green)";
-            setTimeout(function(){
-                btn.innerText = oldTxt;
-                btn.style.background = "rgba(255,92,92,0.12)";
-                btn.style.color = "var(--red)";
-                btn.style.borderColor = "rgba(255,92,92,0.28)";
-                hideSettings();
-            }, 800);
-            setTimeout(function(){
-                fetchLatestState();
-                forceCatchUp();
-            }, 2000);
-        } else {
-            btn.innerText = "❌ FAILED";
-            setTimeout(function(){ btn.innerText = oldTxt; }, 1500);
+            saveRouteState(); updateUI(); hideModal('reset-modal'); broadcastFullState();
         }
-    }
 
-    // INIT
-    renderUI();
-</script>
+        /* ── SYNC ENGINE (NTFY) ── */
+        function setSyncDot(state) {
+            const dot = document.getElementById('dot-sync');
+            if(state === 'connected') dot.style.background = 'var(--green)';
+            else if(state === 'connecting') dot.style.background = 'var(--orange)';
+            else if(state === 'error') dot.style.background = 'var(--red)';
+            else dot.style.background = 'var(--border)';
+        }
+
+        function startSyncEngine() {
+            if (!syncCode) return;
+            setSyncDot('connecting');
+            clearTimeout(syncTimer);
+            
+            function pollServer() {
+                if (!isSyncActive) return;
+                const topic = 'patrol-sync-' + syncCode;
+                const url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + lastSyncUnix;
+                
+                fetch(url, { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } })
+                .then(res => { if (!res.ok) throw new Error('Bad response'); return res.text(); })
+                .then(text => {
+                    setSyncDot('connected');
+                    let highestTime = lastSyncUnix;
+                    if (text) {
+                        const lines = text.trim().split('\n');
+                        for(let i=0; i<lines.length; i++) {
+                            if(!lines[i]) continue;
+                            try {
+                                const msg = JSON.parse(lines[i]);
+                                if (msg.time && msg.time > highestTime) highestTime = msg.time;
+                                if (processedMsgs.indexOf(msg.id) === -1) {
+                                    processedMsgs.push(msg.id);
+                                    if (processedMsgs.length > 100) processedMsgs.shift();
+                                    handleIncomingSync(JSON.parse(msg.message));
+                                }
+                            } catch(err) {}
+                        }
+                    }
+                    lastSyncUnix = highestTime; 
+                    syncTimer = setTimeout(pollServer, 3000);
+                })
+                .catch(() => {
+                    setSyncDot('error');
+                    syncTimer = setTimeout(pollServer, 5000);
+                });
+            }
+            pollServer();
+            
+            document.getElementById('sync-input').value = syncCode;
+            document.getElementById('btn-disconnect').classList.remove('hidden');
+        }
+
+        function sendSyncMessage(dataObj) {
+            if (!syncCode || !isSyncActive) return;
+            dataObj.d = deviceId;
+            try { fetch('https://ntfy.sh/patrol-sync-' + syncCode, { method: 'POST', body: JSON.stringify(dataObj) }).catch(()=>{}); } catch(e) {}
+        }
+
+        function broadcastFullState() {
+            if (!isSyncActive) return;
+            const smallLogs = logs.map(l => ({ p: l.point, loc: l.location, t: l.timestamp.getTime() }));
+            sendSyncMessage({ type: 'STATE', c: currentIndex, s: startIndex, f: isFinished, m: startMode, l: smallLogs });
+        }
+
+        function broadcastGPS() {
+            if (!isSyncActive) return;
+            sendSyncMessage({ type: 'GPS', g: gpsData });
+        }
+
+        function handleIncomingSync(payload) {
+            if (!payload || payload.d === deviceId) return;
+            if (payload.type === 'REQ') {
+                broadcastFullState(); broadcastGPS();
+            } else if (payload.type === 'STATE') {
+                if (payload.l.length >= logs.length || payload.l.length === 0) {
+                    currentIndex = payload.c; startIndex = payload.s; isFinished = payload.f; startMode = payload.m;
+                    logs = payload.l.map(l => ({ point: l.p, location: l.loc, timestamp: new Date(l.t) }));
+                    saveRouteState(); updateUI();
+                }
+            } else if (payload.type === 'GPS') {
+                let updated = false;
+                for (let loc in payload.g) {
+                    if (!gpsData[loc]) { gpsData[loc] = payload.g[loc]; updated = true; }
+                }
+                if (updated) { saveRouteState(); updateUI(); }
+            }
+        }
+
+        function saveSyncCode() {
+            const input = document.getElementById('sync-input').value;
+            if(input.length < 4) { alert("Code too short"); return; }
+            syncCode = input; safeSet('patrolSyncCode', syncCode);
+            isSyncActive = true; hideModal('sync-modal'); startSyncEngine();
+        }
+
+        function disconnectSync() {
+            isSyncActive = false; syncCode = ''; safeDel('patrolSyncCode');
+            clearTimeout(syncTimer); setSyncDot('off');
+            document.getElementById('sync-input').value = '';
+            document.getElementById('btn-disconnect').classList.add('hidden');
+            hideModal('sync-modal');
+        }
+
+        /* ── GPS AUTOPILOT ── */
+        function bindGpsToCurrent() {
+            if (isFinished) return;
+            if (!navigator.geolocation) { alert("No GPS"); return; }
+            const locName = ROUTE_POINTS[currentIndex];
+            const btn = document.getElementById('btn-bind-gps');
+            btn.innerHTML = "Locating...";
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    gpsData[locName] = { lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 20 };
+                    saveRouteState(); broadcastGPS(); updateUI();
+                    alert("Bound " + locName + "\nAcc: ±" + Math.round(pos.coords.accuracy) + "m");
+                },
+                (err) => { alert("Error: " + err.message); updateUI(); },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        function toggleGpsAuto() {
+            const dot = document.getElementById('dot-gps');
+            const btn = document.getElementById('btn-gps-toggle');
+            const txt = document.getElementById('gps-status-text');
+
+            if (isGpsActive) {
+                isGpsActive = false; if (watchPositionId) navigator.geolocation.clearWatch(watchPositionId);
+                dot.style.background = 'var(--border)';
+                btn.classList.remove('active');
+                txt.textContent = 'Autopilot OFF';
+            } else {
+                if (!navigator.geolocation) { alert("No GPS"); return; }
+                isGpsActive = true;
+                dot.style.background = 'var(--orange)';
+                btn.classList.add('active');
+                txt.textContent = 'Searching...';
+                
+                watchPositionId = navigator.geolocation.watchPosition((pos) => {
+                    dot.style.background = 'var(--green)';
+                    if (isFinished) { txt.textContent = 'Done'; return; }
+                    
+                    const target = gpsData[ROUTE_POINTS[currentIndex]];
+                    if (target) {
+                        const acc = pos.coords.accuracy || 0; if (acc > 100) return;
+                        const R = 6371e3, rad = Math.PI/180;
+                        const dLat = (target.lat - pos.coords.latitude) * rad, dLon = (target.lng - pos.coords.longitude) * rad;
+                        const a = Math.sin(dLat/2)**2 + Math.cos(pos.coords.latitude*rad) * Math.cos(target.lat*rad) * Math.sin(dLon/2)**2;
+                        const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                        
+                        txt.textContent = `${Math.round(dist)}m Away`;
+                        if (dist <= (target.radius || 20) + (acc * 0.75)) clockIn(null);
+                    } else {
+                        txt.textContent = 'Target Unbound';
+                    }
+                }, () => { toggleGpsAuto(); alert("GPS Error"); }, { enableHighAccuracy: true, maximumAge: 0 });
+            }
+        }
+
+        /* ── EXPORT ── */
+        function shareLogs() {
+            let d = logs.length > 0 ? logs[0].timestamp : new Date();
+            let text = `Date: ${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}\n\n`;
+            
+            let loopStart = startMode === 'second_half' ? 10 : 0;
+            for (let i = loopStart; i < TOTAL; i++) {
+                if (i === 0) text += '1st HALF:\n';
+                if (i === 10) { if (i !== 0) text += '\n'; text += '2nd HALF:\n'; }
+                
+                let t = '--:--:--';
+                const entry = logs.find(l => l.point === i + 1);
+                if (entry) {
+                    const ts = entry.timestamp;
+                    t = `${ts.getHours().toString().padStart(2,'0')}:${ts.getMinutes().toString().padStart(2,'0')}:${ts.getSeconds().toString().padStart(2,'0')}`;
+                }
+                text += `${i === 18 ? 'FOYER' : ROUTE_POINTS[i]} - ${t}\n`;
+            }
+            text += '\nAll in order & S/Normal';
+            
+            if (navigator.share) {
+                navigator.share({ title: 'Patrol Logs', text: text }).catch(()=>{});
+            } else {
+                alert("Share not supported on this browser.");
+            }
+        }
+
+        /* ── INIT ── */
+        updateUI();
+        if (isSyncActive) startSyncEngine();
+
+        // Screen Wake visibility catch (vital for watch)
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === 'visible' && isSyncActive) {
+                clearTimeout(syncTimer); startSyncEngine();
+            }
+        });
+    </script>
 </body>
 </html>
+
