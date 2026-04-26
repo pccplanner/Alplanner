@@ -356,10 +356,7 @@
                 </div>
             </div>
 
-            <!-- System Controls Row -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 20px 0;">
-                
-                <!-- Link Toggle Box -->
                 <div id="sync-bar" onclick="toggleSync()" style="cursor:pointer; border-radius:14px;border:1.5px solid var(--border);background:var(--surface);padding:12px;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.3s;">
                     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="sync-icon-svg"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -370,7 +367,6 @@
                     </div>
                 </div>
 
-                <!-- GPS Auto-Pilot Box -->
                 <div id="gps-bar" onclick="toggleGpsAuto()" style="cursor:pointer; border-radius:14px;border:1.5px solid var(--border);background:var(--surface);padding:12px;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.3s;">
                     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="gps-icon-svg"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
@@ -488,7 +484,6 @@
 
 <script>
 /* ── CRITICAL: SAFE LOCAL STORAGE WRAPPER ── */
-/* Prevents crashing in strict mode browsers, webviews, and file:// viewers */
 function safeGet(key) { try { return window.localStorage ? localStorage.getItem(key) : null; } catch(e) { return null; } }
 function safeSet(key, val) { try { if(window.localStorage) localStorage.setItem(key, val); } catch(e) {} }
 function safeDel(key) { try { if(window.localStorage) localStorage.removeItem(key); } catch(e) {} }
@@ -500,12 +495,12 @@ var startIndex = 0, currentIndex = 0, startMode = 'default';
 var logs = [], isFinished = false, gpsData = {};
 var isGpsActive = false, watchPositionId = null;
 
-// Unique ID to prevent echoing messages to ourselves
 var deviceId = Math.random().toString(36).substring(2, 9);
 var syncCode = safeGet('patrolSyncCode') || '';
-var syncSocket = null;
 var isSyncActive = !!syncCode;
 var processedMsgs = []; 
+var syncTimer = null;
+var lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600); // Look back 12 hours initially
 
 // Load Memory Safely
 try { var _g = safeGet('patrolGpsData'); if (_g) gpsData = JSON.parse(_g); } catch(e) {}
@@ -535,7 +530,8 @@ function saveRouteState() {
     safeSet('patrolGpsData', JSON.stringify(gpsData));
 }
 
-/* ── 2. WEBSOCKET SYNC ENGINE ── */
+/* ── 2. UNIVERSAL AJAX POLLING SYNC ENGINE ── */
+// This completely bypasses WebSockets/SSE which fail on Apple Watch
 function setSyncBarState(state) {
     var dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-dot-label');
     var bar = document.getElementById('sync-bar'), svg = document.getElementById('sync-icon-svg');
@@ -556,68 +552,66 @@ function setSyncBarState(state) {
     }
 }
 
-function startWebSocket() {
+function startSyncEngine() {
     if (!syncCode) return;
-    if (syncSocket) { try { syncSocket.close(); } catch(e){} syncSocket = null; }
     setSyncBarState('connecting');
-    var topic = 'patrol-sync-' + syncCode;
+    clearTimeout(syncTimer);
     
-    try {
-        syncSocket = new WebSocket('wss://ntfy.sh/' + topic + '/ws');
-        syncSocket.onopen = function() {
-            setSyncBarState('connected');
-            sendSyncMessage({ type: 'REQ' });
-        };
-        syncSocket.onmessage = function(event) {
-            try {
-                var ntfyMsg = JSON.parse(event.data);
-                if (ntfyMsg.event === 'message') {
-                    if (processedMsgs.indexOf(ntfyMsg.id) === -1) {
-                        processedMsgs.push(ntfyMsg.id);
-                        if (processedMsgs.length > 100) processedMsgs.shift();
-                        handleIncomingSync(JSON.parse(ntfyMsg.message));
+    function pollServer() {
+        if (!isSyncActive) return;
+        var topic = 'patrol-sync-' + syncCode;
+        var url = 'https://ntfy.sh/' + topic + '/json?poll=1&since=' + lastSyncUnix;
+        
+        try {
+            fetch(url, { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } })
+            .then(function(res) { 
+                if (!res.ok) throw new Error('Bad response');
+                return res.text(); 
+            })
+            .then(function(text) {
+                setSyncBarState('connected');
+                var highestTime = lastSyncUnix;
+                
+                if (text) {
+                    var lines = text.trim().split('\n');
+                    for(var i=0; i<lines.length; i++) {
+                        if(!lines[i]) continue;
+                        try {
+                            var msg = JSON.parse(lines[i]);
+                            // Find the newest message time so we don't fetch old ones next poll
+                            if (msg.time && msg.time > highestTime) highestTime = msg.time;
+                            
+                            // Prevent duplicates
+                            if (processedMsgs.indexOf(msg.id) === -1) {
+                                processedMsgs.push(msg.id);
+                                if (processedMsgs.length > 200) processedMsgs.shift();
+                                handleIncomingSync(JSON.parse(msg.message));
+                            }
+                        } catch(err) {}
                     }
                 }
-            } catch(e) {}
-        };
-        syncSocket.onclose = function() {
-            if (isSyncActive) {
+                
+                lastSyncUnix = highestTime; 
+                syncTimer = setTimeout(pollServer, 2500); // Ask again in 2.5 seconds
+            })
+            .catch(function(err) {
                 setSyncBarState('error');
-                setTimeout(startWebSocket, 3000); 
-            }
-        };
-        syncSocket.onerror = function() {};
-    } catch(e) {
-        setSyncBarState('error');
+                syncTimer = setTimeout(pollServer, 4000); // Slower retry on error
+            });
+        } catch(e) {
+            setSyncBarState('error');
+            syncTimer = setTimeout(pollServer, 4000);
+        }
     }
+    
+    pollServer();
 }
 
-function catchUpSync() {
-    if (!syncCode || !isSyncActive) return;
-    var topic = 'patrol-sync-' + syncCode;
-    try {
-        fetch('https://ntfy.sh/' + topic + '/json?poll=1&since=2h', { headers: { 'Cache-Control': 'no-cache, no-store' } })
-        .then(function(res) { return res.text(); })
-        .then(function(text) {
-            var lines = text.trim().split('\n');
-            for(var i=0; i<lines.length; i++) {
-                if(!lines[i]) continue;
-                try {
-                    var msg = JSON.parse(lines[i]);
-                    if (processedMsgs.indexOf(msg.id) === -1) {
-                        processedMsgs.push(msg.id);
-                        handleIncomingSync(JSON.parse(msg.message));
-                    }
-                } catch(err) {}
-            }
-        }).catch(function(){});
-    } catch(e) {}
-}
-
+// Force a quick sync the absolute second the watch screen wakes up
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && isSyncActive) {
-        startWebSocket();
-        catchUpSync();
+        clearTimeout(syncTimer);
+        startSyncEngine();
     }
 });
 
@@ -668,7 +662,7 @@ function handleIncomingSync(payload) {
 function toggleSync() {
     if (isSyncActive) {
         isSyncActive = false; syncCode = ''; safeDel('patrolSyncCode');
-        if (syncSocket) { try { syncSocket.close(); } catch(e){} syncSocket = null; }
+        clearTimeout(syncTimer);
         setSyncBarState('off');
     } else {
         var input = document.getElementById('sync-topic-input');
@@ -681,7 +675,7 @@ function saveSyncTopic() {
     var input = document.getElementById('sync-topic-input');
     if (!input || input.value.length < 4) { alert("Please enter at least 4 digits."); return; }
     syncCode = input.value; safeSet('patrolSyncCode', syncCode);
-    isSyncActive = true; closeSyncSetup(); startWebSocket();
+    isSyncActive = true; closeSyncSetup(); startSyncEngine();
 }
 
 
@@ -946,9 +940,8 @@ function showCompleteBanner() {
 
 // Kickoff
 updateUI(false);
-if (isSyncActive) startWebSocket(); else setSyncBarState('local');
+if (isSyncActive) startSyncEngine(); else setSyncBarState('local');
 
 </script>
 </body>
 </html>
-
