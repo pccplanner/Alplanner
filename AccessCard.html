@@ -36,6 +36,7 @@
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 h-screen overflow-hidden flex flex-col md:flex-row">
 
+<!-- Loading Screen -->
 <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 transition-opacity duration-300">
     <div class="flex flex-col items-center text-slate-500 px-8 max-w-sm w-full text-center">
         <div id="loadingSpinner">
@@ -53,6 +54,39 @@
     </div>
 </div>
 
+<!-- Issue Pass / Registration Modal -->
+<div id="issuePassModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 modal-backdrop" style="background:rgba(15,23,42,0.55);">
+    <div class="modal-card bg-white w-full max-w-sm rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-6 pt-6 pb-4 bg-blue-50 border-b border-blue-100">
+            <p class="text-xs font-bold uppercase tracking-widest text-blue-600 mb-1">Issue Pass & Register</p>
+            <p class="text-xl font-extrabold text-slate-900" id="issueModalPassId">T0000</p>
+        </div>
+        <form id="issuePassForm" class="p-6 space-y-5">
+            <div>
+                <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Document Type</label>
+                <select id="issueDocType" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 focus:bg-white transition-colors cursor-pointer">
+                    <option value="Passport">Passport</option>
+                    <option value="Singpass" selected>Singpass</option>
+                    <option value="FIN">FIN</option>
+                    <option value="Driving license">Driving license</option>
+                    <option value="Student pass">Student pass</option>
+                    <option value="Special pass">Special pass</option>
+                    <option value="Senior Passion card">Senior Passion card</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Document / ID Number</label>
+                <input type="text" id="issueDocNumber" required autocomplete="off" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono text-sm bg-slate-50 focus:bg-white transition-colors placeholder:normal-case placeholder:font-sans" placeholder="Scan or enter number...">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="button" id="issueCancelBtn" class="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition-colors">Confirm Issue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Return Modal -->
 <div id="bulkReturnModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 modal-backdrop" style="background:rgba(15,23,42,0.55);">
     <div class="modal-card bg-white w-full max-w-sm rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden">
         <div class="px-6 pt-6 pb-4 bg-amber-50 border-b border-amber-100">
@@ -70,10 +104,12 @@
     </div>
 </div>
 
+<!-- Hidden Print Wrapper -->
 <div id="printReportWrapper" class="hidden p-10 font-sans text-slate-900 text-sm leading-relaxed max-w-4xl mx-auto">
     <div id="printReportContent"></div>
 </div>
 
+<!-- Desktop Sidebar -->
 <aside class="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 h-full">
     <div class="p-6 bg-slate-950/50">
         <div class="flex items-center gap-3 text-white mb-2">
@@ -219,12 +255,13 @@
                 </div>
             </div>
             <div class="hidden md:block overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
-                <table class="w-full text-left border-collapse min-w-[600px]">
+                <table class="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                         <tr class="bg-slate-50 text-slate-500 text-sm border-b border-slate-200 sticky top-0 z-10">
                             <th class="py-4 px-6 font-medium rounded-tl-2xl">Pass ID</th>
                             <th class="py-4 px-6 font-medium">Category</th>
                             <th class="py-4 px-6 font-medium">Status</th>
+                            <th class="py-4 px-6 font-medium">Visitor Info</th>
                             <th class="py-4 px-6 font-medium">Issued At</th>
                             <th class="py-4 px-6 font-medium">Elapsed</th>
                             <th class="py-4 px-6 font-medium text-right rounded-tr-2xl">Action</th>
@@ -274,7 +311,6 @@
         <!-- ========== MANAGEMENT TAB ========== -->
         <div id="tab-management" class="tab-content hidden space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Add New Pass Form -->
                 <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 h-fit">
                     <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Add Custom Pass</h3>
                     <form id="addPassForm" class="space-y-4">
@@ -289,8 +325,6 @@
                         <button type="submit" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors shadow-sm text-sm mt-2">Register Pass to Database</button>
                     </form>
                 </div>
-                
-                <!-- Custom Passes List -->
                 <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col h-[500px]">
                     <h3 class="text-lg font-semibold text-slate-800 mb-1">Custom Registered Passes</h3>
                     <p class="text-xs text-slate-500 mb-4">Manage passes that were added manually outside the hardcoded ranges.</p>
@@ -343,6 +377,7 @@
     const WARNING_HOURS = 8, OVERDUE_HOURS = 12;
     let activeTab = 'scanner', dbStates = {}, customDbStates = {}, allPasses = [], searchTerm = '', statusFilter = 'All';
     let currentUser = null, toastTimeout = null, html5QrCode = null, liveTimerInterval = null, isSoundEnabled = true;
+    let pendingIssuePassId = null;
     const recentScanTimestamps = {}, audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let activityLog = [], activityLogSeq = 0;
 
@@ -371,13 +406,9 @@
     const basePasses = [];
     PASS_CATEGORIES.forEach(cat => {
         if (cat.explicitIds) {
-            cat.explicitIds.forEach(id => {
-                basePasses.push({ id: id, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available', isCustom: false });
-            });
+            cat.explicitIds.forEach(id => { basePasses.push({ id: id, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available', isCustom: false }); });
         } else {
-            for (let i = cat.min; i <= cat.max; i++) {
-                basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available', isCustom: false });
-            }
+            for (let i = cat.min; i <= cat.max; i++) { basePasses.push({ id: `${cat.prefix}${i}`, categoryId: cat.id, color: cat.color, type: cat.type, colorClasses: cat.colorClasses, badgeClass: cat.badgeClass, icon: cat.icon, status: 'Available', isCustom: false }); }
         }
     });
 
@@ -502,45 +533,28 @@
     }
 
     // ── PASS MANAGEMENT (ADD / DELETE) ──
-
     document.getElementById('addPassForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const idInput = document.getElementById('newPassId');
-        const catInput = document.getElementById('newPassCategory');
-        const passId = idInput.value.trim().toUpperCase();
-        const catId = catInput.value;
-        
+        const idInput = document.getElementById('newPassId'), catInput = document.getElementById('newPassCategory');
+        const passId = idInput.value.trim().toUpperCase(), catId = catInput.value;
         if(!passId) return;
-        if(allPasses.find(p => p.id === passId)) {
-            showToast('error', 'Pass ID already exists in inventory', passId);
-            return;
-        }
+        if(allPasses.find(p => p.id === passId)) { showToast('error', 'Pass ID already exists in inventory', passId); return; }
         
         if (isMockMode) {
             customDbStates[passId] = { categoryId: catId, addedAt: new Date().toISOString() };
-            idInput.value = ''; updateAllPasses();
-            showToast('issue', 'Custom Pass Added (Mock Mode)', passId);
-            return;
+            idInput.value = ''; updateAllPasses(); showToast('issue', 'Custom Pass Added (Mock Mode)', passId); return;
         }
         
         try {
             await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CUSTOM_CATALOG_TITLE, passId), { categoryId: catId, addedAt: new Date().toISOString() });
-            idInput.value = '';
-            showToast('issue', 'Custom Pass Added', passId);
+            idInput.value = ''; showToast('issue', 'Custom Pass Added', passId);
         } catch(err) { showToast('error', 'Failed to add pass', passId); }
     });
 
     window.deleteCustomPass = async (passId) => {
         if(!confirm(`Are you sure you want to permanently delete custom pass [${passId}] from the registry?`)) return;
-        if (isMockMode) {
-            delete customDbStates[passId];
-            updateAllPasses();
-            showToast('return', 'Pass Removed (Mock Mode)', passId);
-            return;
-        }
-        try {
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CUSTOM_CATALOG_TITLE, passId));
-            showToast('return', 'Custom Pass Deleted', passId);
+        if (isMockMode) { delete customDbStates[passId]; updateAllPasses(); showToast('return', 'Pass Removed (Mock Mode)', passId); return; }
+        try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CUSTOM_CATALOG_TITLE, passId)); showToast('return', 'Custom Pass Deleted', passId);
         } catch(err) { showToast('error', 'Failed to delete pass', passId); }
     };
 
@@ -548,21 +562,16 @@
         const passInfo = allPasses.find(p => p.id === passId);
         if (!passInfo) return;
         if (isMockMode) {
-            delete dbStates[passId];
-            pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            updateAllPasses(); return;
+            delete dbStates[passId]; pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id); updateAllPasses(); return;
         }
         if(!currentUser) return;
-        try {
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId));
-            pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
+        try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passId)); pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
         } catch (error) { showToast('error', `System Error updating ${passId}`, passId); }
     };
 
     document.getElementById('btnReturnAll').addEventListener('click', () => {
         const issued = allPasses.filter(p => p.status === 'Issued');
-        document.getElementById('bulkReturnCount').textContent = issued.length;
-        document.getElementById('bulkReturnModal').classList.remove('hidden');
+        document.getElementById('bulkReturnCount').textContent = issued.length; document.getElementById('bulkReturnModal').classList.remove('hidden');
     });
 
     document.getElementById('bulkReturnCancel').addEventListener('click', () => { document.getElementById('bulkReturnModal').classList.add('hidden'); });
@@ -574,16 +583,14 @@
 
         if (isMockMode) {
             issued.forEach(p => { delete dbStates[p.id]; pushLog(p, 'bulk_return'); });
-            showToast('return', `${issued.length} passes returned`, 'BULK');
-            updateAllPasses(); return;
+            showToast('return', `${issued.length} passes returned`, 'BULK'); updateAllPasses(); return;
         }
         if(!currentUser) return;
-        try {
-            await Promise.all(issued.map(p => deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, p.id)).then(() => pushLog(p, 'bulk_return'))));
-            showToast('return', `${issued.length} passes returned`, 'BULK');
+        try { await Promise.all(issued.map(p => deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, p.id)).then(() => pushLog(p, 'bulk_return')))); showToast('return', `${issued.length} passes returned`, 'BULK');
         } catch (error) { showToast('error', 'Bulk return failed', 'ERROR'); }
     });
 
+    // ── ISSUE PASS MODAL & SCAN LOGIC ──
     async function processScan(scannedIdText) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const scannedId = scannedIdText.trim().toUpperCase();
@@ -596,35 +603,79 @@
         const passInfo = allPasses.find(p => p.id === scannedId);
         if (!passInfo) { showToast('error', `Unknown Pass ID: ${scannedId}`, scannedId); return; }
 
+        // If the pass is currently Available, open the registration modal before issuing
+        if (passInfo.status === 'Available') {
+            pendingIssuePassId = passInfo.id;
+            document.getElementById('issueModalPassId').textContent = `${passInfo.id} (${passInfo.color} ${passInfo.type})`;
+            document.getElementById('issueDocNumber').value = '';
+            document.getElementById('issuePassModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('issueDocNumber').focus(), 100);
+            return;
+        } 
+        
+        // If the pass is already issued, directly return it as usual
         if (isMockMode) {
-            if (passInfo.status === 'Available') {
-                dbStates[passInfo.id] = { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: 'local-mock' };
-                pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            } else {
-                delete dbStates[passInfo.id];
-                pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            }
+            delete dbStates[passInfo.id];
+            pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
             updateAllPasses(); return;
         }
 
         if (!currentUser) return;
         try {
-            const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id);
-            if (passInfo.status === 'Available') {
-                await setDoc(docRef, { status: 'Issued', issuedAt: new Date().toISOString(), scannedBy: currentUser.uid || 'anonymous' });
-                pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            } else {
-                await deleteDoc(docRef);
-                pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
-            }
+            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id));
+            pushLog(passInfo, 'return'); showToast('return', `Pass Returned: ${passInfo.color} ${passInfo.type}`, passInfo.id);
         } catch (error) { showToast('error', `System Error updating ${scannedId}`, scannedId); }
     }
 
+    document.getElementById('issueCancelBtn').addEventListener('click', () => {
+        document.getElementById('issuePassModal').classList.add('hidden');
+        pendingIssuePassId = null;
+        document.getElementById('scannerInput').focus();
+    });
+
+    document.getElementById('issuePassForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!pendingIssuePassId) return;
+
+        const docType = document.getElementById('issueDocType').value;
+        const docNum = document.getElementById('issueDocNumber').value.trim().toUpperCase();
+
+        if (!docNum) { showToast('error', 'Please enter Document Number', pendingIssuePassId); return; }
+
+        const passInfo = allPasses.find(p => p.id === pendingIssuePassId);
+        if (!passInfo) return;
+
+        document.getElementById('issuePassModal').classList.add('hidden');
+
+        const issueData = {
+            status: 'Issued',
+            issuedAt: new Date().toISOString(),
+            scannedBy: currentUser?.uid || 'anonymous',
+            visitorDocType: docType,
+            visitorDocNumber: docNum
+        };
+
+        if (isMockMode) {
+            dbStates[passInfo.id] = issueData;
+            pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued to ${docNum}`, passInfo.id);
+            updateAllPasses();
+            pendingIssuePassId = null;
+            document.getElementById('scannerInput').focus();
+            return;
+        }
+
+        try {
+            await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', CATALOG_TITLE, passInfo.id), issueData);
+            pushLog(passInfo, 'issue'); showToast('issue', `Pass Issued to ${docNum}`, passInfo.id);
+        } catch (error) { showToast('error', `System Error`, pendingIssuePassId); }
+        
+        pendingIssuePassId = null;
+        document.getElementById('scannerInput').focus();
+    });
+
     document.getElementById('scannerForm').addEventListener('submit', (e) => {
-        e.preventDefault(); 
-        const inputEl = document.getElementById('scannerInput');
-        processScan(inputEl.value); 
-        inputEl.value = '';
+        e.preventDefault(); const inputEl = document.getElementById('scannerInput');
+        processScan(inputEl.value); inputEl.value = '';
     });
 
     function downloadCSV(csv, filename) {
@@ -635,11 +686,13 @@
     }
 
     document.getElementById('btnExportCsv').addEventListener('click', () => {
-        let csv = 'Pass ID,Category,Type,Status,Overdue,Last Scanned Time,Elapsed\n';
+        let csv = 'Pass ID,Category,Type,Status,Document Type,Document Number,Overdue,Last Scanned Time,Elapsed\n';
         allPasses.forEach(p => {
             const timeStr = p.issuedAt ? new Date(p.issuedAt).toLocaleString() : '';
             const elapsed = p.status === 'Issued' ? formatElapsed(p.issuedAt) : '';
-            csv += `${p.id},${p.color},${p.type},${p.status},${p.isOverdue ? 'Yes' : 'No'},"${timeStr}","${elapsed}"\n`;
+            const docType = p.visitorDocType || '';
+            const docNum = p.visitorDocNumber || '';
+            csv += `${p.id},${p.color},${p.type},${p.status},${docType},${docNum},${p.isOverdue ? 'Yes' : 'No'},"${timeStr}","${elapsed}"\n`;
         });
         downloadCSV(csv, `PCCSO_Pass_Report_${new Date().toISOString().slice(0,10)}.csv`);
     });
@@ -664,13 +717,14 @@
         const rowStyle = 'padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;', thStyle = `${rowStyle}background:#f1f5f9;font-weight:600;text-align:left;`;
         
         const categoryRows = Object.values(stats.byCategory).map(s => `<tr><td style="${rowStyle}">${s.config.color} ${s.config.type}</td><td style="${rowStyle}text-align:center;">${s.total}</td><td style="${rowStyle}text-align:center;">${s.issued}</td><td style="${rowStyle}text-align:center;">${s.available}</td></tr>`).join('');
-        const issuedRows = issuedPasses.length === 0 ? `<tr><td colspan="5" style="${rowStyle}color:#94a3b8;text-align:center;">No passes currently issued.</td></tr>` : issuedPasses.map(p => {
+        const issuedRows = issuedPasses.length === 0 ? `<tr><td colspan="6" style="${rowStyle}color:#94a3b8;text-align:center;">No passes currently issued.</td></tr>` : issuedPasses.map(p => {
             const bg = p.isOverdue ? 'background:#fef2f2;' : p.isWarning ? 'background:#fffbeb;' : '';
             const statusLabel = p.isOverdue ? '<span style="color:#dc2626;font-weight:700;">OVERDUE</span>' : p.isWarning ? '<span style="color:#d97706;font-weight:700;">WARNING</span>' : '<span style="color:#059669;">Active</span>';
-            return `<tr style="${bg}"><td style="${rowStyle}font-weight:700;">${p.id}</td><td style="${rowStyle}">${p.color} ${p.type}</td><td style="${rowStyle}">${p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '-'}</td><td style="${rowStyle}">${formatElapsed(p.issuedAt)}</td><td style="${rowStyle}">${statusLabel}</td></tr>`;
+            const holderInfo = p.visitorDocNumber ? `${p.visitorDocType} ${p.visitorDocNumber}` : '-';
+            return `<tr style="${bg}"><td style="${rowStyle}font-weight:700;">${p.id}</td><td style="${rowStyle}">${p.color} ${p.type}</td><td style="${rowStyle}">${holderInfo}</td><td style="${rowStyle}">${p.issuedAt ? new Date(p.issuedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '-'}</td><td style="${rowStyle}">${formatElapsed(p.issuedAt)}</td><td style="${rowStyle}">${statusLabel}</td></tr>`;
         }).join('');
 
-        const html = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;"><div><h1 style="font-size:20px;font-weight:800;margin:0 0 4px;">PCCSO Access Pass — Shift Report</h1><p style="font-size:12px;color:#64748b;margin:0;">Generated: ${now.toLocaleString([], {dateStyle:'full', timeStyle:'short'})}</p></div><div style="text-align:right;font-size:11px;color:#94a3b8;">PCCSO Security Operations</div></div><hr style="border:none;border-top:2px solid #e2e8f0;margin-bottom:20px;"><h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Pass Summary by Category</h2><table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Category</th><th style="${thStyle}text-align:center;">Total</th><th style="${thStyle}text-align:center;">Issued</th><th style="${thStyle}text-align:center;">Available</th></tr></thead><tbody>${categoryRows}</tbody></table><h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Currently Issued Passes (${issuedPasses.length})</h2>${overduePasses.length > 0 ? `<p style="font-size:11px;color:#dc2626;font-weight:600;margin-bottom:6px;">⚠ ${overduePasses.length} OVERDUE (>${OVERDUE_HOURS}h) — Immediate recovery required.</p>` : ''}${warnPasses.length > 0 ? `<p style="font-size:11px;color:#d97706;font-weight:600;margin-bottom:6px;">⚡ ${warnPasses.length} WARNING (>${WARNING_HOURS}h) — Monitor closely.</p>` : ''}<table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Pass ID</th><th style="${thStyle}">Category</th><th style="${thStyle}">Issued At</th><th style="${thStyle}">Elapsed</th><th style="${thStyle}">Status</th></tr></thead><tbody>${issuedRows}</tbody></table><hr style="border:none;border-top:1px solid #e2e8f0;margin-top:24px;margin-bottom:8px;"><p style="font-size:10px;color:#94a3b8;">PCCSO Access Pass System · Confidential</p>`;
+        const html = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;"><div><h1 style="font-size:20px;font-weight:800;margin:0 0 4px;">PCCSO Access Pass — Shift Report</h1><p style="font-size:12px;color:#64748b;margin:0;">Generated: ${now.toLocaleString([], {dateStyle:'full', timeStyle:'short'})}</p></div><div style="text-align:right;font-size:11px;color:#94a3b8;">PCCSO Security Operations</div></div><hr style="border:none;border-top:2px solid #e2e8f0;margin-bottom:20px;"><h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Pass Summary by Category</h2><table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Category</th><th style="${thStyle}text-align:center;">Total</th><th style="${thStyle}text-align:center;">Issued</th><th style="${thStyle}text-align:center;">Available</th></tr></thead><tbody>${categoryRows}</tbody></table><h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Currently Issued Passes (${issuedPasses.length})</h2>${overduePasses.length > 0 ? `<p style="font-size:11px;color:#dc2626;font-weight:600;margin-bottom:6px;">⚠ ${overduePasses.length} OVERDUE (>${OVERDUE_HOURS}h) — Immediate recovery required.</p>` : ''}${warnPasses.length > 0 ? `<p style="font-size:11px;color:#d97706;font-weight:600;margin-bottom:6px;">⚡ ${warnPasses.length} WARNING (>${WARNING_HOURS}h) — Monitor closely.</p>` : ''}<table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr><th style="${thStyle}">Pass ID</th><th style="${thStyle}">Category</th><th style="${thStyle}">Holder Info</th><th style="${thStyle}">Issued At</th><th style="${thStyle}">Elapsed</th><th style="${thStyle}">Status</th></tr></thead><tbody>${issuedRows}</tbody></table><hr style="border:none;border-top:1px solid #e2e8f0;margin-top:24px;margin-bottom:8px;"><p style="font-size:10px;color:#94a3b8;">PCCSO Access Pass System · Confidential</p>`;
         document.getElementById('printReportContent').innerHTML = html;
         document.getElementById('printReportWrapper').classList.remove('hidden'); window.print(); document.getElementById('printReportWrapper').classList.add('hidden');
     });
@@ -773,7 +827,8 @@
             const textStyle = p.isOverdue ? 'text-red-600' : p.isWarning ? 'text-amber-700' : 'text-slate-800';
             const rowBg = p.isOverdue ? 'bg-red-50/40' : p.isWarning ? 'bg-amber-50/40' : '';
             const overdueTag = p.isOverdue ? `<span class="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Overdue</span>` : p.isWarning ? `<span class="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 whitespace-nowrap">Warning</span>` : '';
-            return `<li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 gap-2 ${rowBg}"><div class="flex items-center gap-3 overflow-hidden flex-1 pr-2"><div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div><div class="flex flex-col truncate min-w-0"><div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5"><span class="font-bold ${textStyle} tracking-wide text-sm md:text-base shrink-0">${p.id}</span><span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${eClass} shrink-0 whitespace-nowrap">${elapsed}</span>${overdueTag}</div><span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span></div></div><button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 md:py-2.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>Return</button></li>`;
+            const holderBadge = p.visitorDocNumber ? `<span class="inline-flex items-center text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap border border-slate-200">${p.visitorDocType}: ${p.visitorDocNumber}</span>` : '';
+            return `<li class="p-3 md:p-4 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 gap-2 ${rowBg}"><div class="flex items-center gap-3 overflow-hidden flex-1 pr-2"><div class="p-2.5 rounded-xl ${p.colorClasses} shrink-0 flex items-center justify-center">${p.icon}</div><div class="flex flex-col truncate min-w-0"><div class="flex items-center flex-wrap gap-1.5 md:gap-2 mb-0.5"><span class="font-bold ${textStyle} tracking-wide text-sm md:text-base shrink-0">${p.id}</span><span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${eClass} shrink-0 whitespace-nowrap">${elapsed}</span>${overdueTag}</div><div class="flex items-center flex-wrap mt-0.5"><span class="text-xs text-slate-500 font-medium truncate">${p.color} ${p.type}</span>${holderBadge}</div></div></div><button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 md:py-2.5 bg-emerald-50 text-emerald-700 active:bg-emerald-100 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg>Return</button></li>`;
         }).join('');
     }
 
@@ -821,7 +876,7 @@
         document.getElementById('recordCount').innerText = filtered.length;
 
         if (filtered.length === 0) {
-            desktopTbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
+            desktopTbody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</td></tr>`;
             mobileCardsContainer.innerHTML = `<div class="py-12 text-center text-slate-500"><div class="flex justify-center text-slate-300 mb-3">${ICONS.warning}</div>No passes found matching your criteria.</div>`; 
             return;
         }
@@ -833,11 +888,15 @@
             if (p.status === 'Issued') { 
                 statusPill = p.isOverdue ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 shrink-0">${ICONS.warning} Overdue</span>` : p.isWarning ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 shrink-0">${ICONS.clock} Warning</span>` : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 shrink-0">${ICONS.logout} Issued</span>`; 
             }
+            
+            const holderInfoHTML = p.status === 'Issued' && p.visitorDocNumber ? `<div class="text-xs leading-tight"><span class="font-bold text-slate-700 block">${p.visitorDocNumber}</span><span class="text-[10px] text-slate-400 uppercase tracking-wide block">${p.visitorDocType}</span></div>` : '<span class="text-slate-300">-</span>';
+            const mobileHolderHTML = p.status === 'Issued' && p.visitorDocNumber ? `<div class="w-full text-[10px] bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100 mt-2 flex items-center justify-between"><span class="text-slate-500">${p.visitorDocType}</span><span class="font-bold text-slate-700">${p.visitorDocNumber}</span></div>` : '';
+
             const returnBtn = p.status === 'Issued' ? `<button onclick="window.manualReturnPass('${p.id}')" class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center justify-center gap-1 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h13a5 5 0 0 1 0 10H7M3 9l4-4M3 9l4 4"/></svg> Return</button>` : `<span class="text-slate-300 text-sm shrink-0">-</span>`;
             const elapsedPill = p.status === 'Issued' ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${eClass}">${elapsed}</span>` : '<span class="text-slate-300">-</span>';
 
-            desktopHtml += `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-6 font-semibold ${p.isOverdue ? 'text-red-600' : 'text-slate-800'} tracking-wide">${p.id}</td><td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses} whitespace-nowrap">${p.color} ${p.type}</span></td><td class="py-3 px-6">${statusPill}</td><td class="py-3 px-6 text-sm ${p.isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'} whitespace-nowrap">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td><td class="py-3 px-6">${elapsedPill}</td><td class="py-3 px-6 text-right">${returnBtn}</td></tr>`;
-            mobileHtml += `<div class="bg-white p-4 rounded-[1.25rem] border ${p.isOverdue ? 'border-red-200 bg-red-50/30' : p.isWarning ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200'} shadow-sm flex items-center justify-between gap-2"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="font-bold text-lg ${p.isOverdue ? 'text-red-700' : 'text-slate-800'} tracking-wide shrink-0">${p.id}</span>${statusPill}</div><div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap"><span class="px-2 py-0.5 rounded border ${p.colorClasses} shrink-0">${p.color}</span>${p.status === 'Issued' ? `${elapsedPill}` : ''}</div></div><div class="shrink-0 pl-2">${p.status === 'Issued' ? returnBtn : ''}</div></div>`;
+            desktopHtml += `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-6 font-semibold ${p.isOverdue ? 'text-red-600' : 'text-slate-800'} tracking-wide">${p.id}</td><td class="py-3 px-6"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${p.colorClasses} whitespace-nowrap">${p.color} ${p.type}</span></td><td class="py-3 px-6">${statusPill}</td><td class="py-3 px-6">${holderInfoHTML}</td><td class="py-3 px-6 text-sm ${p.isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'} whitespace-nowrap">${p.status === 'Issued' ? `${ICONS.clock} ${timeStr}` : '-'}</td><td class="py-3 px-6">${elapsedPill}</td><td class="py-3 px-6 text-right">${returnBtn}</td></tr>`;
+            mobileHtml += `<div class="bg-white p-4 rounded-[1.25rem] border ${p.isOverdue ? 'border-red-200 bg-red-50/30' : p.isWarning ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200'} shadow-sm flex flex-col"><div class="flex items-center justify-between gap-2"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="font-bold text-lg ${p.isOverdue ? 'text-red-700' : 'text-slate-800'} tracking-wide shrink-0">${p.id}</span>${statusPill}</div><div class="text-xs text-slate-500 flex items-center gap-2 flex-wrap"><span class="px-2 py-0.5 rounded border ${p.colorClasses} shrink-0">${p.color}</span>${p.status === 'Issued' ? `${elapsedPill}` : ''}</div></div><div class="shrink-0 pl-2">${p.status === 'Issued' ? returnBtn : ''}</div></div>${mobileHolderHTML}</div>`;
         });
         desktopTbody.innerHTML = desktopHtml; mobileCardsContainer.innerHTML = mobileHtml;
     }
