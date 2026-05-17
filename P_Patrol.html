@@ -233,37 +233,48 @@
     <div class="progress-bar-fill" id="top-progress"></div>
 </div>
 
-<!-- Auto-Fill Modal (NEW SMART UI DIAL) -->
+<!-- Auto-Fill Modal -->
 <div class="modal-overlay" id="autofill-modal" style="z-index: 225;">
     <div class="modal-box">
         <div class="modal-icon" style="background:rgba(255,187,51,0.12);">
             <svg viewBox="0 0 24 24" stroke="var(--amber)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
         </div>
         <div class="modal-title">Auto-Fill Remaining</div>
-        <div class="modal-body" style="margin-bottom:16px;">Set the exact time interval to automatically add between each remaining checkpoint:</div>
-        
-        <div style="display:flex; gap:12px; margin-bottom:24px;">
-            <div style="flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center;">
-                <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Minutes</div>
-                <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <button class="stepper-btn" onclick="adjAutoMins(-1)">-</button>
-                    <span id="auto-mins-val" style="font-family:var(--mono); font-size:24px; font-weight:700; color:#fff;">01</span>
-                    <button class="stepper-btn" onclick="adjAutoMins(1)">+</button>
-                </div>
-            </div>
-            <div style="flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center;">
-                <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Seconds</div>
-                <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <button class="stepper-btn" onclick="adjAutoSecs(-5)">-</button>
-                    <span id="auto-secs-val" style="font-family:var(--mono); font-size:24px; font-weight:700; color:#fff;">15</span>
-                    <button class="stepper-btn" onclick="adjAutoSecs(5)">+</button>
-                </div>
-            </div>
+        <div class="modal-body" style="margin-bottom:16px;">
+            The system will generate logs for all remaining checkpoints based on your customized <b>Interval Profile</b>.
         </div>
+        
+        <button onclick="openIntervalsModal()" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:var(--text); padding:14px; font-family:var(--sans); font-size:14px; font-weight:700; margin-bottom:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+            ⚙️ Edit Interval Profile
+        </button>
 
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAutoFillModal()">Cancel</button>
-            <button class="modal-confirm" style="background:var(--amber); color:#000; box-shadow: 0 4px 16px rgba(255,187,51,0.3);" onclick="confirmAutoFill()">⚡ Auto-Fill</button>
+            <button class="modal-confirm" style="background:var(--amber); color:#000; box-shadow: 0 4px 16px rgba(255,187,51,0.3);" onclick="confirmAutoFill()">⚡ Auto-Fill Now</button>
+        </div>
+    </div>
+</div>
+
+<!-- Interval Editor Modal (Per-Location) -->
+<div class="modal-overlay" id="intervals-modal" style="z-index: 230;">
+    <div class="modal-box">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <span style="font-size:20px;">⏱️</span>
+            </div>
+            <div>
+                <div style="font-family:var(--display);font-size:17px;font-weight:800;">Interval Profile</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Set durations between steps</div>
+            </div>
+        </div>
+        
+        <div id="intervals-list" class="custom-scroll" style="max-height: 45vh; overflow-y: auto; padding-right: 6px; margin-bottom: 20px;">
+            <!-- Populated by JS -->
+        </div>
+
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeIntervalsModal()">Cancel</button>
+            <button class="modal-confirm" onclick="saveIntervals()">Save Profile</button>
         </div>
     </div>
 </div>
@@ -596,7 +607,10 @@ var syncCode = safeGet('patrolSyncCode') || '';
 var isSyncActive = !!syncCode;
 var processedMsgs = []; 
 var syncTimer = null;
-var lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600); // Look back 12 hours initially
+var lastSyncUnix = Math.floor(Date.now() / 1000) - (12 * 3600); 
+
+// Profile Data
+var customIntervals = [];
 
 // Load Memory Safely
 try { var _g = safeGet('patrolGpsData'); if (_g) gpsData = JSON.parse(_g); } catch(e) {}
@@ -616,6 +630,16 @@ try {
     }
 } catch(e) {}
 try { if (safeGet('patrolIsFinished') === 'true') isFinished = true; } catch(e) {}
+
+// Load Interval Profile (defaults to 75 seconds / 1m 15s)
+try {
+    var _ints = safeGet('patrolIntervals');
+    if (_ints) customIntervals = JSON.parse(_ints);
+} catch(e) {}
+if (!customIntervals || customIntervals.length !== TOTAL) {
+    customIntervals = [];
+    for (var i=0; i<TOTAL; i++) customIntervals.push(75);
+}
 
 function saveRouteState() {
     safeSet('patrolStartMode', startMode);
@@ -873,50 +897,63 @@ function renderTimeline(newEntry) {
     list.innerHTML = html;
 }
 
-/* ── MAGIC AUTO-FILL CUSTOM DIAL ── */
-var autoFillMins = 1;
-var autoFillSecs = 15;
-
+/* ── MAGIC AUTO-FILL CUSTOM INTERVAL PROFILE ── */
 function showAutoFillModal() {
-    updateAutoFillDisplay();
     document.getElementById('autofill-modal').classList.add('show');
 }
 function closeAutoFillModal() {
     document.getElementById('autofill-modal').classList.remove('show');
 }
-function updateAutoFillDisplay() {
-    function p2(n) { return (n < 10 ? '0' : '') + n; }
-    document.getElementById('auto-mins-val').innerText = p2(autoFillMins);
-    document.getElementById('auto-secs-val').innerText = p2(autoFillSecs);
-}
-function adjAutoMins(delta) {
-    autoFillMins = Math.max(0, Math.min(30, autoFillMins + delta));
-    updateAutoFillDisplay();
-}
-function adjAutoSecs(delta) {
-    autoFillSecs += delta;
-    if (autoFillSecs >= 60) {
-        autoFillMins++;
-        autoFillSecs -= 60;
-    } else if (autoFillSecs < 0) {
-        if (autoFillMins > 0) {
-            autoFillMins--;
-            autoFillSecs += 60;
-        } else {
-            autoFillSecs = 0;
-        }
+function renderIntervalsList() {
+    var html = '';
+    for (var i = 0; i < TOTAL - 1; i++) {
+        var m = Math.floor(customIntervals[i] / 60);
+        var s = customIntervals[i] % 60;
+        
+        html += '<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05);">';
+        html += '  <div style="flex:1; padding-right:10px;">';
+        html += '    <div style="font-size:10px; color:var(--muted); font-family:var(--mono); margin-bottom:4px;">STEP ' + (i+1) + '</div>';
+        html += '    <div style="font-size:13px; font-weight:700; color:var(--text); line-height:1.3;">' + ROUTE_POINTS[i] + ' <span style="color:var(--border);">➔</span><br><span style="color:var(--blue-bright);">' + ROUTE_POINTS[i+1] + '</span></div>';
+        html += '  </div>';
+        html += '  <div style="display:flex; gap:6px; align-items:center;">';
+        html += '    <input type="number" id="int-m-' + i + '" value="' + m + '" min="0" max="60" style="width:46px; background:rgba(0,0,0,0.2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 4px; text-align:center; font-family:var(--mono); font-size:15px;">';
+        html += '    <span style="color:var(--muted); font-size:12px;">m</span>';
+        html += '    <input type="number" id="int-s-' + i + '" value="' + s + '" min="0" max="59" style="width:46px; background:rgba(0,0,0,0.2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 4px; text-align:center; font-family:var(--mono); font-size:15px;">';
+        html += '    <span style="color:var(--muted); font-size:12px;">s</span>';
+        html += '  </div>';
+        html += '</div>';
     }
-    updateAutoFillDisplay();
+    document.getElementById('intervals-list').innerHTML = html;
 }
-function confirmAutoFill() {
-    var intervalMs = (autoFillMins * 60 + autoFillSecs) * 1000;
-    if (intervalMs === 0) { alert("Interval cannot be 0."); return; }
+function openIntervalsModal() {
+    closeAutoFillModal();
+    renderIntervalsList();
+    document.getElementById('intervals-modal').classList.add('show');
+}
+function closeIntervalsModal() {
+    document.getElementById('intervals-modal').classList.remove('show');
+    showAutoFillModal(); // Re-open auto fill warning
+}
+function saveIntervals() {
+    for (var i = 0; i < TOTAL - 1; i++) {
+        var m = parseInt(document.getElementById('int-m-' + i).value) || 0;
+        var s = parseInt(document.getElementById('int-s-' + i).value) || 0;
+        customIntervals[i] = (m * 60) + s;
+    }
+    safeSet('patrolIntervals', JSON.stringify(customIntervals));
+    document.getElementById('intervals-modal').classList.remove('show');
+    showAutoFillModal(); 
+}
 
+function confirmAutoFill() {
     var baseTime = logs.length > 0 ? new Date(logs[logs.length-1].timestamp.getTime()) : new Date();
     var remaining = TOTAL - currentIndex;
+    var isFirstLogOfSession = (logs.length === 0);
     
     for(var i = 0; i < remaining; i++) {
-        if (logs.length > 0 || i > 0) {
+        if (!isFirstLogOfSession || i > 0) {
+            // Apply the specific custom interval for traversing from the PREVIOUS index to CURRENT index
+            var intervalMs = customIntervals[currentIndex - 1] * 1000;
             baseTime = new Date(baseTime.getTime() + intervalMs); 
         }
         logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date(baseTime.getTime()) });
