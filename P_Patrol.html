@@ -129,6 +129,8 @@
     .tl-list { position: relative; display: flex; flex-direction: column; gap: 8px; }
     .tl-list::before { content: ''; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 1px; background: linear-gradient(to bottom, var(--blue), var(--border) 60%, transparent); }
     .tl-item { display: flex; align-items: center; gap: 16px; padding: 14px 16px 14px 0; border-radius: 14px; transition: all 0.3s; position: relative; z-index: 1; }
+    .tl-item.done-item { cursor: pointer; }
+    .tl-item.done-item:hover { background: rgba(255,255,255,0.04); }
     .tl-item.flash-green .tl-node { animation: nodeFlash 0.6s ease forwards; }
     @keyframes nodeFlash { 0% { box-shadow: 0 0 0 0 var(--green-glow); background: var(--green); } 50% { box-shadow: 0 0 0 14px transparent; } 100% { box-shadow: 0 0 4px var(--green-glow); } }
     .tl-node { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 13px; font-weight: 700; border: 2px solid transparent; transition: all 0.4s; z-index: 2; }
@@ -142,7 +144,8 @@
     .tl-item.current-item .tl-body { background: rgba(45,126,255,0.06); border-color: rgba(45,126,255,0.3); }
     .tl-item.pending-item .tl-body { opacity: 0.45; }
     .tl-item.skipped-item { opacity: 0.35; }
-    .tl-name { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); }
+    .tl-name { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); transition: color 0.2s; }
+    .tl-item.done-item:hover .tl-name { color: var(--blue-bright); }
     .tl-name.strikethrough { text-decoration: line-through; color: var(--muted); }
     .tl-badge { font-size: 10px; padding: 3px 8px; border-radius: 20px; font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
     .badge-action { background: rgba(45,126,255,0.15); border: 1px solid rgba(45,126,255,0.4); color: var(--blue); }
@@ -155,6 +158,7 @@
     .opt-title { font-family: var(--display); font-size: 14px; font-weight: 700; color: var(--text); }
     .opt-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
     .custom-select { margin-top: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px; font-family: var(--mono); font-size: 13px; width: 100%; outline: none; }
+    
     .modal-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.65); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
     .modal-overlay.show { display: flex; }
     .modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 28px; max-width: 440px; width: calc(100% - 40px); animation: fadeZoom 0.2s ease-out forwards; max-height: 85vh; overflow-y: auto; }
@@ -169,6 +173,10 @@
     .modal-confirm { flex: 1; background: var(--blue); border: none; border-radius: 12px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 700; padding: 13px; cursor: pointer; box-shadow: 0 4px 16px rgba(95,163,255,0.3); transition: opacity 0.15s, transform 0.1s; }
     .modal-confirm:hover { opacity: 0.9; }
     .modal-confirm:active { transform: scale(0.97); }
+    
+    .time-adj-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text); border-radius: 12px; padding: 14px 10px; font-family: var(--mono); font-size: 16px; font-weight: 700; cursor: pointer; flex: 1; transition: background 0.1s, border-color 0.1s; }
+    .time-adj-btn:active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+
     .custom-scroll::-webkit-scrollbar { width: 4px; }
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -220,6 +228,37 @@
 
 <div class="progress-bar-track">
     <div class="progress-bar-fill" id="top-progress"></div>
+</div>
+
+<!-- Time Edit Modal (NEW SMART SOLUTION) -->
+<div class="modal-overlay" id="time-edit-modal" style="z-index: 220;">
+    <div class="modal-box" style="padding-bottom: 20px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(95,163,255,0.12);border:1px solid rgba(95,163,255,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+                <div style="font-family:var(--display);font-size:17px;font-weight:800;" id="time-edit-title">Edit Time</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Adjust logged time backwards</div>
+            </div>
+        </div>
+        
+        <div style="text-align:center; font-size:36px; font-weight:800; font-family:var(--mono); color:var(--text); margin: 24px 0;" id="time-edit-display">
+            00:00:00
+        </div>
+        
+        <div style="display:flex; gap:8px; margin-bottom:28px;">
+            <button class="time-adj-btn" onclick="adjustEditTime(-5)">-5m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(-1)">-1m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(1)">+1m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(5)">+5m</button>
+        </div>
+
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeTimeEditModal()">Cancel</button>
+            <button class="modal-confirm" onclick="saveEditedTime()" style="background:var(--green); box-shadow: 0 4px 16px rgba(61,220,132,0.3);">Save Fix</button>
+        </div>
+    </div>
 </div>
 
 <!-- Reset Modal -->
@@ -585,10 +624,7 @@ function startSyncEngine() {
                         if(!lines[i]) continue;
                         try {
                             var msg = JSON.parse(lines[i]);
-                            // Find the newest message time so we don't fetch old ones next poll
                             if (msg.time && msg.time > highestTime) highestTime = msg.time;
-                            
-                            // Prevent duplicates
                             if (processedMsgs.indexOf(msg.id) === -1) {
                                 processedMsgs.push(msg.id);
                                 if (processedMsgs.length > 200) processedMsgs.shift();
@@ -599,11 +635,11 @@ function startSyncEngine() {
                 }
                 
                 lastSyncUnix = highestTime; 
-                syncTimer = setTimeout(pollServer, 2500); // Ask again in 2.5 seconds
+                syncTimer = setTimeout(pollServer, 2500); 
             })
             .catch(function(err) {
                 setSyncBarState('error');
-                syncTimer = setTimeout(pollServer, 4000); // Slower retry on error
+                syncTimer = setTimeout(pollServer, 4000);
             });
         } catch(e) {
             setSyncBarState('error');
@@ -614,7 +650,6 @@ function startSyncEngine() {
     pollServer();
 }
 
-// Force a quick sync the absolute second the watch screen wakes up
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && isSyncActive) {
         clearTimeout(syncTimer);
@@ -625,9 +660,7 @@ document.addEventListener("visibilitychange", function() {
 function sendSyncMessage(dataObj) {
     if (!syncCode || !isSyncActive) return;
     dataObj.d = deviceId;
-    try {
-        fetch('https://ntfy.sh/patrol-sync-' + syncCode, { method: 'POST', body: JSON.stringify(dataObj) }).catch(function(){});
-    } catch(e) {}
+    try { fetch('https://ntfy.sh/patrol-sync-' + syncCode, { method: 'POST', body: JSON.stringify(dataObj) }).catch(function(){}); } catch(e) {}
 }
 
 function broadcastFullState() {
@@ -669,8 +702,7 @@ function handleIncomingSync(payload) {
 function toggleSync() {
     if (isSyncActive) {
         isSyncActive = false; syncCode = ''; safeDel('patrolSyncCode');
-        clearTimeout(syncTimer);
-        setSyncBarState('off');
+        clearTimeout(syncTimer); setSyncBarState('off');
     } else {
         var input = document.getElementById('sync-topic-input');
         if(input) input.value = '';
@@ -785,10 +817,53 @@ function renderTimeline(newEntry) {
         else if (isCurrent) badgeHtml = '<span class="tl-badge badge-action">NOW</span>';
         else if (isSkipped) badgeHtml = startMode === 'custom' ? '<span class="tl-badge badge-time" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--muted);">00:00:00</span>' : '<span class="tl-badge badge-pending" style="opacity:0.4;">SKIPPED</span>';
         else badgeHtml = '<span class="tl-badge badge-pending">PT ' + (i + 1) + '</span>';
-        html += '<div class="'+itemClass+'"><div class="tl-node '+nodeClass+'">'+nodeInner+'</div><div class="tl-body"><span class="tl-name '+(isDone||isSkipped?'strikethrough':'')+'">'+ROUTE_POINTS[i]+'</span>'+badgeHtml+'</div></div>';
+        
+        var clickAttr = (isDone && logEntry) ? 'onclick="openTimeEditModal(' + i + ')"' : '';
+        html += '<div class="'+itemClass+'" '+clickAttr+'><div class="tl-node '+nodeClass+'">'+nodeInner+'</div><div class="tl-body"><span class="tl-name '+(isDone||isSkipped?'strikethrough':'')+'">'+ROUTE_POINTS[i]+'</span>'+badgeHtml+'</div></div>';
     }
     list.innerHTML = html;
 }
+
+/* ── TIMELINE TIME ADJUSTMENT (NEW SOLUTION) ── */
+var currentEditPointIndex = -1;
+var tempEditDate = null;
+
+function openTimeEditModal(routeIndex) {
+    currentEditPointIndex = routeIndex;
+    var logEntry = null;
+    for(var i=0; i<logs.length; i++) { if (logs[i].point === routeIndex + 1) { logEntry = logs[i]; break; } }
+    if (!logEntry) return;
+
+    document.getElementById('time-edit-title').textContent = ROUTE_POINTS[routeIndex];
+    tempEditDate = new Date(logEntry.timestamp.getTime());
+    updateTimeEditDisplay();
+    document.getElementById('time-edit-modal').classList.add('show');
+}
+
+function updateTimeEditDisplay() {
+    function p2(n) { return (n < 10 ? '0' : '') + n; }
+    document.getElementById('time-edit-display').textContent = p2(tempEditDate.getHours()) + ':' + p2(tempEditDate.getMinutes()) + ':' + p2(tempEditDate.getSeconds());
+}
+
+function adjustEditTime(minutes) {
+    tempEditDate.setMinutes(tempEditDate.getMinutes() + minutes);
+    updateTimeEditDisplay();
+}
+
+function closeTimeEditModal() { document.getElementById('time-edit-modal').classList.remove('show'); }
+
+function saveEditedTime() {
+    var logEntry = null;
+    for(var i=0; i<logs.length; i++) { if (logs[i].point === currentEditPointIndex + 1) { logEntry = logs[i]; break; } }
+    if(logEntry) {
+        logEntry.timestamp = tempEditDate;
+        saveRouteState();
+        updateUI(false);
+        broadcastFullState();
+    }
+    closeTimeEditModal();
+}
+
 
 /* ── SETTINGS / MODALS ── */
 var selectedStartIdx = 0;
