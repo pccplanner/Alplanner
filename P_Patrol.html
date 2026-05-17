@@ -254,7 +254,7 @@
             </div>
             <div>
                 <div style="font-family:var(--display);font-size:17px;font-weight:800;" id="time-edit-title">Edit Time</div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Adjust logged time backwards</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Adjusts this and subsequent logs</div>
             </div>
         </div>
         
@@ -397,7 +397,16 @@
 </div>
 
 <header>
-    <!-- Hidden via CSS to save screen space on mobile/watch -->
+    <div class="header-brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v4l2.5 2.5"/></svg>
+        </div>
+        Patrol Route System
+    </div>
+    <div class="header-clock">
+        <div class="clock-time" id="clock-display">--:--:--</div>
+        <div class="clock-date" id="date-display">Loading...</div>
+    </div>
 </header>
 
 <main>
@@ -856,8 +865,6 @@ function confirmAutoFill() {
     var remaining = TOTAL - currentIndex;
     
     for(var i = 0; i < remaining; i++) {
-        // If it's the absolute first point of the route, use exact current time.
-        // Otherwise, add 75,000 milliseconds (1 min 15 sec) to the baseTime.
         if (logs.length > 0 || i > 0) {
             baseTime = new Date(baseTime.getTime() + 75000); 
         }
@@ -872,7 +879,7 @@ function confirmAutoFill() {
     closeAutoFillModal();
 }
 
-/* ── TIMELINE TIME ADJUSTMENT ── */
+/* ── TIMELINE TIME ADJUSTMENT WITH CASCADING SHIFT ── */
 var currentEditPointIndex = -1;
 var tempEditDate = null;
 
@@ -901,10 +908,28 @@ function adjustEditTime(minutes) {
 function closeTimeEditModal() { document.getElementById('time-edit-modal').classList.remove('show'); }
 
 function saveEditedTime() {
-    var logEntry = null;
-    for(var i=0; i<logs.length; i++) { if (logs[i].point === currentEditPointIndex + 1) { logEntry = logs[i]; break; } }
-    if(logEntry) {
-        logEntry.timestamp = tempEditDate;
+    var logIndex = -1;
+    for(var i=0; i<logs.length; i++) { 
+        if (logs[i].point === currentEditPointIndex + 1) { 
+            logIndex = i; 
+            break; 
+        } 
+    }
+    
+    if(logIndex !== -1) {
+        var oldTime = logs[logIndex].timestamp.getTime();
+        var newTime = tempEditDate.getTime();
+        var timeDifference = newTime - oldTime; // Exact millisecond difference
+        
+        // 1. Update the targeted log's time
+        logs[logIndex].timestamp = tempEditDate;
+        
+        // 2. Automatically apply this EXACT time shift to ALL subsequent logs
+        for (var j = logIndex + 1; j < logs.length; j++) {
+            var shiftedTime = logs[j].timestamp.getTime() + timeDifference;
+            logs[j].timestamp = new Date(shiftedTime);
+        }
+
         saveRouteState();
         updateUI(false);
         broadcastFullState();
