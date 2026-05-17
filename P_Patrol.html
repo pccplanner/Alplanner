@@ -189,13 +189,13 @@
     @media (max-width: 600px) {
         main { grid-template-columns: 1fr; padding: 12px; gap: 16px; }
         
-        .target-box { padding: 16px 14px; border-radius: 16px; } /* Slid Small Box */
-        .target-name { font-size: 46px; text-shadow: 0 0 16px rgba(255,255,255,0.7); } /* Brighter White */
+        .target-box { padding: 16px 14px; border-radius: 16px; }
+        .target-name { font-size: 46px; text-shadow: 0 0 16px rgba(255,255,255,0.7); }
         .target-label { font-size: 13px; margin-bottom: 8px; color: var(--blue-bright); font-weight: 800; }
         .direction-crumbs { font-size: 15px; margin-top: 10px; color: var(--muted-bright); }
         
         .btn-clockin { padding: 16px; border-radius: 18px; }
-        .btn-clockin svg { width: 48px; height: 48px; } /* Huge Checkmark Icon */
+        .btn-clockin svg { width: 48px; height: 48px; }
         
         .card-header { padding: 16px 18px 14px; }
         .clockin-wrap { padding: 0 16px 20px; }
@@ -230,7 +230,22 @@
     <div class="progress-bar-fill" id="top-progress"></div>
 </div>
 
-<!-- Time Edit Modal (NEW SMART SOLUTION) -->
+<!-- Auto-Fill Modal (NEW SMART SOLUTION) -->
+<div class="modal-overlay" id="autofill-modal" style="z-index: 225;">
+    <div class="modal-box">
+        <div class="modal-icon" style="background:rgba(255,187,51,0.12);">
+            <svg viewBox="0 0 24 24" stroke="var(--amber)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </div>
+        <div class="modal-title">Auto-Fill Remaining</div>
+        <div class="modal-body" style="margin-bottom:24px;">Automatically generate logs for all remaining checkpoints? The system will add exactly <b style="color:var(--text);">1 min 15 secs</b> between each point based on your last clock-in time.</div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeAutoFillModal()">Cancel</button>
+            <button class="modal-confirm" style="background:var(--amber); color:#000; box-shadow: 0 4px 16px rgba(255,187,51,0.3);" onclick="confirmAutoFill()">⚡ Auto-Fill Now</button>
+        </div>
+    </div>
+</div>
+
+<!-- Time Edit Modal -->
 <div class="modal-overlay" id="time-edit-modal" style="z-index: 220;">
     <div class="modal-box" style="padding-bottom: 20px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
@@ -508,7 +523,12 @@
             </div>
 
             <!-- Reset button when active -->
-            <div id="reset-btn-area" style="padding:0 22px 22px;">
+            <div id="reset-btn-area" style="padding:0 22px 22px; display:flex; flex-direction:column; gap:10px;">
+                <!-- NEW MAGIC AUTO-FILL BUTTON -->
+                <button class="btn-secondary" onclick="showAutoFillModal()" style="color: var(--amber); border-color: rgba(255,187,51,0.3); background: rgba(255,187,51,0.05);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    ⚡ Auto-Fill Remaining (1m 15s)
+                </button>
                 <button class="btn-secondary" onclick="showResetModal()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
                     Setup / Reset Route
@@ -755,7 +775,7 @@ function updateUI(newEntry) {
         if (newEntry) { launchConfetti(); showCompleteBanner(); }
     } else {
         document.getElementById('active-view').style.display = '';
-        document.getElementById('reset-btn-area').style.display = '';
+        document.getElementById('reset-btn-area').style.display = 'flex';
         document.getElementById('completed-view').classList.remove('show');
         document.getElementById('route-status-badge').textContent = 'IN PROGRESS';
         document.getElementById('route-status-badge').style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--blue);background:rgba(45,126,255,0.1);border:1px solid rgba(45,126,255,0.25);padding:4px 10px;border-radius:20px;';
@@ -824,7 +844,35 @@ function renderTimeline(newEntry) {
     list.innerHTML = html;
 }
 
-/* ── TIMELINE TIME ADJUSTMENT (NEW SOLUTION) ── */
+/* ── MAGIC AUTO-FILL ROUTE ── */
+function showAutoFillModal() {
+    document.getElementById('autofill-modal').classList.add('show');
+}
+function closeAutoFillModal() {
+    document.getElementById('autofill-modal').classList.remove('show');
+}
+function confirmAutoFill() {
+    var baseTime = logs.length > 0 ? new Date(logs[logs.length-1].timestamp.getTime()) : new Date();
+    var remaining = TOTAL - currentIndex;
+    
+    for(var i = 0; i < remaining; i++) {
+        // If it's the absolute first point of the route, use exact current time.
+        // Otherwise, add 75,000 milliseconds (1 min 15 sec) to the baseTime.
+        if (logs.length > 0 || i > 0) {
+            baseTime = new Date(baseTime.getTime() + 75000); 
+        }
+        logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date(baseTime.getTime()) });
+        currentIndex++;
+    }
+    
+    isFinished = true;
+    saveRouteState();
+    updateUI(true);
+    broadcastFullState();
+    closeAutoFillModal();
+}
+
+/* ── TIMELINE TIME ADJUSTMENT ── */
 var currentEditPointIndex = -1;
 var tempEditDate = null;
 
