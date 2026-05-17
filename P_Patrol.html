@@ -174,8 +174,11 @@
     .modal-confirm:hover { opacity: 0.9; }
     .modal-confirm:active { transform: scale(0.97); }
     
-    .time-adj-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text); border-radius: 12px; padding: 14px 10px; font-family: var(--mono); font-size: 16px; font-weight: 700; cursor: pointer; flex: 1; transition: background 0.1s, border-color 0.1s; }
+    .time-adj-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text); border-radius: 12px; padding: 12px 6px; font-family: var(--mono); font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; transition: background 0.1s, border-color 0.1s; }
     .time-adj-btn:active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+
+    .stepper-btn { width: 36px; height: 36px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 20px; font-weight: normal; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .stepper-btn:active { background: rgba(255,255,255,0.2); }
 
     .custom-scroll::-webkit-scrollbar { width: 4px; }
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -230,17 +233,37 @@
     <div class="progress-bar-fill" id="top-progress"></div>
 </div>
 
-<!-- Auto-Fill Modal (NEW SMART SOLUTION) -->
+<!-- Auto-Fill Modal (NEW SMART UI DIAL) -->
 <div class="modal-overlay" id="autofill-modal" style="z-index: 225;">
     <div class="modal-box">
         <div class="modal-icon" style="background:rgba(255,187,51,0.12);">
             <svg viewBox="0 0 24 24" stroke="var(--amber)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
         </div>
         <div class="modal-title">Auto-Fill Remaining</div>
-        <div class="modal-body" style="margin-bottom:24px;">Automatically generate logs for all remaining checkpoints? The system will add exactly <b style="color:var(--text);">1 min 15 secs</b> between each point based on your last clock-in time.</div>
+        <div class="modal-body" style="margin-bottom:16px;">Set the exact time interval to automatically add between each remaining checkpoint:</div>
+        
+        <div style="display:flex; gap:12px; margin-bottom:24px;">
+            <div style="flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center;">
+                <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Minutes</div>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <button class="stepper-btn" onclick="adjAutoMins(-1)">-</button>
+                    <span id="auto-mins-val" style="font-family:var(--mono); font-size:24px; font-weight:700; color:#fff;">01</span>
+                    <button class="stepper-btn" onclick="adjAutoMins(1)">+</button>
+                </div>
+            </div>
+            <div style="flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center;">
+                <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Seconds</div>
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <button class="stepper-btn" onclick="adjAutoSecs(-5)">-</button>
+                    <span id="auto-secs-val" style="font-family:var(--mono); font-size:24px; font-weight:700; color:#fff;">15</span>
+                    <button class="stepper-btn" onclick="adjAutoSecs(5)">+</button>
+                </div>
+            </div>
+        </div>
+
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAutoFillModal()">Cancel</button>
-            <button class="modal-confirm" style="background:var(--amber); color:#000; box-shadow: 0 4px 16px rgba(255,187,51,0.3);" onclick="confirmAutoFill()">⚡ Auto-Fill Now</button>
+            <button class="modal-confirm" style="background:var(--amber); color:#000; box-shadow: 0 4px 16px rgba(255,187,51,0.3);" onclick="confirmAutoFill()">⚡ Auto-Fill</button>
         </div>
     </div>
 </div>
@@ -262,11 +285,17 @@
             00:00:00
         </div>
         
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <button class="time-adj-btn" onclick="adjustEditTime(-5, 'm')">-5m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(-1, 'm')">-1m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(1, 'm')">+1m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(5, 'm')">+5m</button>
+        </div>
         <div style="display:flex; gap:8px; margin-bottom:28px;">
-            <button class="time-adj-btn" onclick="adjustEditTime(-5)">-5m</button>
-            <button class="time-adj-btn" onclick="adjustEditTime(-1)">-1m</button>
-            <button class="time-adj-btn" onclick="adjustEditTime(1)">+1m</button>
-            <button class="time-adj-btn" onclick="adjustEditTime(5)">+5m</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(-15, 's')">-15s</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(-5, 's')">-5s</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(5, 's')">+5s</button>
+            <button class="time-adj-btn" onclick="adjustEditTime(15, 's')">+15s</button>
         </div>
 
         <div class="modal-actions">
@@ -397,16 +426,7 @@
 </div>
 
 <header>
-    <div class="header-brand">
-        <div class="brand-icon">
-            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v4l2.5 2.5"/></svg>
-        </div>
-        Patrol Route System
-    </div>
-    <div class="header-clock">
-        <div class="clock-time" id="clock-display">--:--:--</div>
-        <div class="clock-date" id="date-display">Loading...</div>
-    </div>
+    <!-- Hidden via CSS to save screen space on mobile/watch -->
 </header>
 
 <main>
@@ -536,7 +556,7 @@
                 <!-- NEW MAGIC AUTO-FILL BUTTON -->
                 <button class="btn-secondary" onclick="showAutoFillModal()" style="color: var(--amber); border-color: rgba(255,187,51,0.3); background: rgba(255,187,51,0.05);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                    ⚡ Auto-Fill Remaining (1m 15s)
+                    ⚡ Auto-Fill Remaining
                 </button>
                 <button class="btn-secondary" onclick="showResetModal()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
@@ -853,20 +873,51 @@ function renderTimeline(newEntry) {
     list.innerHTML = html;
 }
 
-/* ── MAGIC AUTO-FILL ROUTE ── */
+/* ── MAGIC AUTO-FILL CUSTOM DIAL ── */
+var autoFillMins = 1;
+var autoFillSecs = 15;
+
 function showAutoFillModal() {
+    updateAutoFillDisplay();
     document.getElementById('autofill-modal').classList.add('show');
 }
 function closeAutoFillModal() {
     document.getElementById('autofill-modal').classList.remove('show');
 }
+function updateAutoFillDisplay() {
+    function p2(n) { return (n < 10 ? '0' : '') + n; }
+    document.getElementById('auto-mins-val').innerText = p2(autoFillMins);
+    document.getElementById('auto-secs-val').innerText = p2(autoFillSecs);
+}
+function adjAutoMins(delta) {
+    autoFillMins = Math.max(0, Math.min(30, autoFillMins + delta));
+    updateAutoFillDisplay();
+}
+function adjAutoSecs(delta) {
+    autoFillSecs += delta;
+    if (autoFillSecs >= 60) {
+        autoFillMins++;
+        autoFillSecs -= 60;
+    } else if (autoFillSecs < 0) {
+        if (autoFillMins > 0) {
+            autoFillMins--;
+            autoFillSecs += 60;
+        } else {
+            autoFillSecs = 0;
+        }
+    }
+    updateAutoFillDisplay();
+}
 function confirmAutoFill() {
+    var intervalMs = (autoFillMins * 60 + autoFillSecs) * 1000;
+    if (intervalMs === 0) { alert("Interval cannot be 0."); return; }
+
     var baseTime = logs.length > 0 ? new Date(logs[logs.length-1].timestamp.getTime()) : new Date();
     var remaining = TOTAL - currentIndex;
     
     for(var i = 0; i < remaining; i++) {
         if (logs.length > 0 || i > 0) {
-            baseTime = new Date(baseTime.getTime() + 75000); 
+            baseTime = new Date(baseTime.getTime() + intervalMs); 
         }
         logs.push({ point: currentIndex + 1, location: ROUTE_POINTS[currentIndex], timestamp: new Date(baseTime.getTime()) });
         currentIndex++;
@@ -900,8 +951,9 @@ function updateTimeEditDisplay() {
     document.getElementById('time-edit-display').textContent = p2(tempEditDate.getHours()) + ':' + p2(tempEditDate.getMinutes()) + ':' + p2(tempEditDate.getSeconds());
 }
 
-function adjustEditTime(minutes) {
-    tempEditDate.setMinutes(tempEditDate.getMinutes() + minutes);
+function adjustEditTime(amount, unit) {
+    if (unit === 'm') tempEditDate.setMinutes(tempEditDate.getMinutes() + amount);
+    else if (unit === 's') tempEditDate.setSeconds(tempEditDate.getSeconds() + amount);
     updateTimeEditDisplay();
 }
 
@@ -919,12 +971,10 @@ function saveEditedTime() {
     if(logIndex !== -1) {
         var oldTime = logs[logIndex].timestamp.getTime();
         var newTime = tempEditDate.getTime();
-        var timeDifference = newTime - oldTime; // Exact millisecond difference
+        var timeDifference = newTime - oldTime;
         
-        // 1. Update the targeted log's time
         logs[logIndex].timestamp = tempEditDate;
         
-        // 2. Automatically apply this EXACT time shift to ALL subsequent logs
         for (var j = logIndex + 1; j < logs.length; j++) {
             var shiftedTime = logs[j].timestamp.getTime() + timeDifference;
             logs[j].timestamp = new Date(shiftedTime);
