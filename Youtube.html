@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CleanTube - Distraction Free YouTube</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom highlight color */
+        ::selection {
+            background-color: rgba(59, 130, 246, 0.3);
+            color: white;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-950 text-gray-100 font-sans">
+
+    <!-- Navigation Bar -->
+    <nav class="border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-display text-blue-500 text-2xl"></i>
+                <h1 class="text-2xl font-bold tracking-tight text-white">Clean<span class="text-blue-500">Tube</span></h1>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-800/50 px-3 py-1.5 rounded-full border border-gray-700/50">
+                <i class="fa-solid fa-shield-halved text-green-400"></i>
+                <span class="hidden sm:inline">Privacy-Enhanced Mode</span>
+                <span class="sm:hidden">Secure</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        
+        <!-- Input Section -->
+        <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 shadow-xl">
+            <form id="url-form" class="flex flex-col md:flex-row gap-4">
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-link text-gray-500"></i>
+                    </div>
+                    <input
+                        type="text"
+                        id="url-input"
+                        placeholder="Paste YouTube link here..."
+                        class="w-full pl-11 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-200 placeholder-gray-600 shadow-inner"
+                        autocomplete="off"
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95"
+                >
+                    <i class="fa-solid fa-play"></i>
+                    Watch Clean
+                </button>
+            </form>
+            
+            <!-- Error Message Container (Hidden by default) -->
+            <p id="error-message" class="hidden mt-3 text-red-400 text-sm flex items-center gap-1">
+                <i class="fa-solid fa-circle-info"></i> <span id="error-text">Please enter a valid YouTube URL.</span>
+            </p>
+        </div>
+
+        <!-- Video Player Section -->
+        
+        <!-- Placeholder (Visible initially) -->
+        <div id="placeholder-container" class="bg-gray-900/50 rounded-2xl border border-gray-800 border-dashed p-12 text-center flex flex-col items-center justify-center min-h-[400px] transition-all">
+            <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <i class="fa-solid fa-play text-3xl text-gray-500 ml-1"></i>
+            </div>
+            <h2 class="text-xl font-medium text-gray-300 mb-2">Ready to watch without distractions</h2>
+            <p class="text-gray-500 max-w-md mx-auto mb-6">
+                Paste a link above to load the video in a clean, privacy-enhanced theater mode without comments or sidebars.
+            </p>
+            <button id="example-btn" class="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors underline decoration-blue-500/30 underline-offset-4">
+                Try an example video
+            </button>
+        </div>
+
+        <!-- Video Frame Container (Hidden initially) -->
+        <div id="player-container" class="hidden bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-800 ring-1 ring-white/10 transition-all fade-in">
+            <div class="relative w-full aspect-video"> <!-- Tailwind 16:9 Aspect Ratio -->
+                <iframe
+                    id="video-frame"
+                    class="absolute top-0 left-0 w-full h-full"
+                    src=""
+                    title="CleanTube Video Player"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                ></iframe>
+            </div>
+        </div>
+
+        <!-- Information Panel -->
+        <div class="grid md:grid-cols-3 gap-6 pt-8">
+            <div class="bg-gray-900/80 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
+                <i class="fa-solid fa-shield-halved text-blue-400 text-2xl mb-3"></i>
+                <h3 class="font-semibold text-white mb-2">Privacy Enhanced</h3>
+                <p class="text-sm text-gray-400 leading-relaxed">Uses YouTube's official no-cookie domain to prevent them from tracking your viewing habits across the web.</p>
+            </div>
+            <div class="bg-gray-900/80 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
+                <i class="fa-solid fa-display text-purple-400 text-2xl mb-3"></i>
+                <h3 class="font-semibold text-white mb-2">Distraction Free</h3>
+                <p class="text-sm text-gray-400 leading-relaxed">Completely removes comments, recommended videos sidebars, and the standard YouTube webpage clutter.</p>
+            </div>
+            <div class="bg-gray-900/80 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4">
+                    <i class="fa-solid fa-circle-info text-gray-600"></i>
+                </div>
+                <h3 class="font-semibold text-white mb-2">About Ad Blocking</h3>
+                <p class="text-sm text-gray-400 leading-relaxed">
+                    Web security policies prevent modifying 3rd-party players. To 100% block in-stream video ads, use this alongside a browser extension like <strong>uBlock Origin</strong>.
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Vanilla JavaScript Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const form = document.getElementById('url-form');
+            const urlInput = document.getElementById('url-input');
+            const errorMsg = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const playerContainer = document.getElementById('player-container');
+            const placeholderContainer = document.getElementById('placeholder-container');
+            const videoFrame = document.getElementById('video-frame');
+            const exampleBtn = document.getElementById('example-btn');
+
+            // Function to extract the 11-character YouTube video ID
+            function extractVideoId(url) {
+                if (!url) return false;
+                // Regex handles standard links, youtu.be, shorts, embeds, etc.
+                const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+                const match = url.match(regExp);
+                return (match && match[7].length === 11) ? match[7] : false;
+            }
+
+            // Function to load the video into the iframe
+            function playVideo(id) {
+                // Clear any errors
+                errorMsg.classList.add('hidden');
+                
+                // Construct the privacy-enhanced URL with distraction-free parameters
+                // autoplay=1 starts it automatically
+                // modestbranding=1 hides YouTube logos where possible
+                // rel=0 limits related videos at the end to the same channel
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&modestbranding=1&rel=0`;
+                
+                // Update iframe source
+                videoFrame.src = embedUrl;
+                
+                // Swap UI panels
+                placeholderContainer.classList.add('hidden');
+                playerContainer.classList.remove('hidden');
+            }
+
+            // Form Submit Handler
+            form.addEventListener('submit', (e) => {
+                e.preventDefault(); // Prevent page reload
+                const url = urlInput.value.trim();
+                const videoId = extractVideoId(url);
+                
+                if (videoId) {
+                    playVideo(videoId);
+                    urlInput.value = ''; // Clear input field
+                } else {
+                    // Show error if extraction fails
+                    errorText.textContent = 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=...)';
+                    errorMsg.classList.remove('hidden');
+                }
+            });
+
+            // Example Button Handler
+            exampleBtn.addEventListener('click', () => {
+                const exampleId = 'dQw4w9WgXcQ'; // Never gonna give you up
+                playVideo(exampleId);
+            });
+        });
+    </script>
+</body>
+</html>
