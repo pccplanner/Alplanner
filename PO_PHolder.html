@@ -215,10 +215,13 @@
             <div class="bg-white p-5 border border-gray-200 rounded-lg shadow-md mb-6">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                     <div>
-                        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                            Staff Assignment Control
-                        </h2>
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                Staff Assignment Control
+                            </h2>
+                            <div id="clash-warning-container" class="mt-2 sm:mt-0"></div>
+                        </div>
                         <p class="text-sm text-gray-500 mt-1">
                             Current assignments. You can manually override these or shuffle them.
                         </p>
@@ -448,6 +451,7 @@
         }
 
         // Helper to parse MRoster regardless of how it was originally saved
+        let mRosterData = null;
         function processMRosterData(data) {
             if (!data) return;
             
@@ -1266,18 +1270,7 @@
             const activeAssignments = getActiveAssignments();
             activeAssignments[pattern] = value;
             
-            const index = getPlaceholders().indexOf(pattern);
-            const statusDiv = document.getElementById(`status-slot-${index}`);
-            if (statusDiv) {
-                const dates = getAdjacentDates(rosterDate);
-                const yestStatus = getStaffStatus(value, dates.yest);
-                const tomStatus = getStaffStatus(value, dates.tom);
-                statusDiv.innerHTML = `
-                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
-                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Tomorrow's Status">T: ${formatStatusBadge(tomStatus)}</span>
-                `;
-            }
-
+            renderControls();
             renderTables(); 
              
             clearTimeout(saveTimeout);
@@ -1456,14 +1449,26 @@
                     ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
                     : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
+            // Calculate Staff Assignment Duplications
+            let assignmentCounts = {};
+            placeholders.forEach(p => {
+                const staffId = activeAssignments[p] || p;
+                if (staffId && staffId !== "VACANT" && !placeholders.includes(staffId)) {
+                    assignmentCounts[staffId] = (assignmentCounts[staffId] || 0) + 1;
+                }
+            });
+
+            // Fast-path Update to avoid focus loss when typing
             if (container.className === expectedClass && container.children.length === placeholders.length) {
                 placeholders.forEach((p, index) => {
                     const inp = document.getElementById(`input-slot-${index}`);
                     const parent = document.getElementById(`wrapper-slot-${index}`);
                     const statusDiv = document.getElementById(`status-slot-${index}`);
+                    const dupIcon = document.getElementById(`dup-warn-${index}`);
                     
                     const staffId = activeAssignments[p] || p;
                     const isVacant = staffId === "VACANT";
+                    const isDuplicate = assignmentCounts[staffId] > 1;
 
                     if (inp) {
                         if (document.activeElement !== inp) {
@@ -1471,12 +1476,18 @@
                         }
                         
                         if (isVacant) {
-                            parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300 relative";
-                            inp.className = "w-full border border-red-300 text-red-600 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
+                            parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300 relative transition-colors";
+                            inp.className = "w-full border border-red-300 text-red-600 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors";
+                        } else if (isDuplicate) {
+                            parent.className = "flex flex-col bg-orange-50 p-2 rounded border border-orange-400 relative transition-colors";
+                            inp.className = "w-full border border-orange-400 text-orange-700 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white transition-colors";
                         } else {
-                            parent.className = "flex flex-col bg-gray-50 p-2 rounded border border-gray-200 relative";
-                            inp.className = "w-full border border-gray-300 text-gray-900 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white";
+                            parent.className = "flex flex-col bg-gray-50 p-2 rounded border border-gray-200 relative transition-colors";
+                            inp.className = "w-full border border-gray-300 text-gray-900 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors";
                         }
+                    }
+                    if (dupIcon) {
+                        dupIcon.style.display = isDuplicate ? 'flex' : 'none';
                     }
 
                     if (statusDiv) {
@@ -1496,22 +1507,27 @@
             placeholders.forEach((p, index) => {
                 const staffId = activeAssignments[p] || p;
                 const isVacant = staffId === "VACANT";
+                const isDuplicate = assignmentCounts[staffId] > 1;
                 const isHHMD = hhmdSlots.includes(p);
                 
                 const yestStatus = getStaffStatus(staffId, dates.yest);
                 const tomStatus = getStaffStatus(staffId, dates.tom);
 
                 const hhmdBadge = isHHMD ? `<span class="bg-purple-100 text-purple-700 text-[8px] font-bold px-1 rounded ml-1 tracking-tighter">HHMD</span>` : '';
+                const dupLabel = `<span id="dup-warn-${index}" class="text-orange-600 text-[10px] ml-auto font-bold items-center gap-1" style="display: ${isDuplicate ? 'flex' : 'none'};"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Dup!</span>`;
+
+                let wrapperClass = isVacant ? 'bg-red-50 border-red-300' : (isDuplicate ? 'bg-orange-50 border-orange-400' : 'bg-gray-50 border-gray-200');
+                let inputClass = isVacant ? 'border-red-300 text-red-600' : (isDuplicate ? 'border-orange-400 text-orange-700' : 'border-gray-300 text-gray-900');
 
                 html += `
-                    <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border relative ${isVacant ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}">
-                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 flex items-center">Slot ${index + 1} ${hhmdBadge}</label>
+                    <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border relative transition-colors ${wrapperClass}">
+                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 flex items-center w-full">Slot ${index + 1} ${hhmdBadge} ${dupLabel}</label>
                         <input
                             id="input-slot-${index}"
                             type="text"
                             value="${staffId}"
                             oninput="window.updateAssignment('${p}', this.value)"
-                            class="w-full border ${isVacant ? 'border-red-300 text-red-600' : 'border-gray-300 text-gray-900'} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                            class="w-full border ${inputClass} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors"
                         />
                         <div id="status-slot-${index}" class="flex justify-between items-center mt-1.5 px-0.5 border-t border-gray-200 pt-1">
                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
@@ -1589,6 +1605,59 @@
                 return false;
             }
 
+            // --- DOUBLE STAFF DEPLOYMENT CONFLICT DETECTION ---
+            let clashesT1 = {};
+            let clashesT2 = {};
+            let totalUniqueClashes = 0;
+
+            const getResolvedValue = (tId, rIdx, cIdx, cellVal) => {
+                const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
+                if (cellOverrides[overrideKey] !== undefined) return cellOverrides[overrideKey];
+                if (tId === 2 && t2Data[rIdx] && t2Data[rIdx][0] === "CNB COUNTER" && cIdx > 0) {
+                    return (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : applyMapping(cellVal);
+                }
+                return applyMapping(cellVal);
+            };
+
+            const numCols = timeHeaders.length;
+            for (let c = 1; c < numCols; c++) {
+                let colStaffMap = {};
+                
+                const registerStaff = (tId, rIdx, val) => {
+                    if (!val || val === "******" || val === "VACANT" || ["V","E","R","T","I","C","A","L"].includes(val)) return;
+                    const staffs = String(val).split('/');
+                    staffs.forEach(s => {
+                        s = s.trim();
+                        if (!s || s === "******" || s === "VACANT" || ["V","E","R","T","I","C","A","L"].includes(s)) return;
+                        if (!colStaffMap[s]) colStaffMap[s] = [];
+                        colStaffMap[s].push({ tId, rIdx });
+                    });
+                };
+
+                t1Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(1, rIdx, getResolvedValue(1, rIdx, c, row[c])); });
+                t2Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(2, rIdx, getResolvedValue(2, rIdx, c, row[c])); });
+                
+                Object.keys(colStaffMap).forEach(staff => {
+                    if (colStaffMap[staff].length > 1) { // Detected a double assignment in the same time column
+                        colStaffMap[staff].forEach(loc => {
+                            if (loc.tId === 1) clashesT1[`${loc.rIdx}_${c}`] = true;
+                            if (loc.tId === 2) clashesT2[`${loc.rIdx}_${c}`] = true;
+                        });
+                    }
+                });
+            }
+
+            totalUniqueClashes = Object.keys(clashesT1).length + Object.keys(clashesT2).length;
+            const clashContainer = document.getElementById('clash-warning-container');
+            if (clashContainer) {
+                if (totalUniqueClashes > 0) {
+                    clashContainer.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm"><svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> <span class="hidden sm:inline">Time Slot</span> Conflicts (${totalUniqueClashes})</div>`;
+                } else {
+                    clashContainer.innerHTML = '';
+                }
+            }
+
+
             const container = document.getElementById('tables-container');
             let html = '';
             
@@ -1665,14 +1734,16 @@
 
                     const isGrey = !isHeader && isGreyCell(rIdx, cIdx, cell);
                     const isVacant = mappedCell === "VACANT";
+                    const isClash = clashesT1[`${rIdx}_${cIdx}`];
                     
                     const rowSpan = (isHeader && rIdx === 0) ? 'rowspan="5"' : '';
-                    let classes = `border border-gray-400 p-1.5 font-bold tracking-tight whitespace-nowrap `;
+                    let classes = `border p-1.5 font-bold tracking-tight whitespace-nowrap transition-colors duration-200 `;
                     
-                    if (isHeader) classes += `bg-white text-left px-2 text-gray-700 min-w-[200px]`;
-                    else if (isVacant) classes += `bg-red-100 text-red-700`;
-                    else if (isGrey) classes += `bg-[#b3b3b3] text-gray-900`;
-                    else classes += `bg-white text-gray-900`;
+                    if (isHeader) classes += `border-gray-400 bg-white text-left px-2 text-gray-700 min-w-[200px]`;
+                    else if (isClash) classes += `border-red-600 bg-red-500 text-white shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]`;
+                    else if (isVacant) classes += `border-gray-400 bg-red-100 text-red-700`;
+                    else if (isGrey) classes += `border-gray-400 bg-[#b3b3b3] text-gray-900`;
+                    else classes += `border-gray-400 bg-white text-gray-900`;
 
                     html += `<td ${rowSpan} class="${classes}">${content}</td>`;
                 });
@@ -1698,23 +1769,25 @@
                     }
 
                     const isGrey = cell === "******";
-                    let classes = `border border-gray-400 font-bold tracking-tight whitespace-nowrap `;
+                    const isClash = clashesT2[`${rIdx}_${cIdx}`];
+                    let classes = `border font-bold tracking-tight whitespace-nowrap transition-colors duration-200 `;
                     
                     if (isHeader) {
-                        classes += `p-1.5 bg-white text-left px-2 w-[200px] text-gray-700`;
+                        classes += `border-gray-400 p-1.5 bg-white text-left px-2 w-[200px] text-gray-700`;
                         html += `<td class="${classes}">${mappedCell}</td>`;
                     } else if (isGrey) {
-                        classes += `p-1.5 bg-[#b3b3b3] text-gray-900`;
+                        classes += `border-gray-400 p-1.5 bg-[#b3b3b3] text-gray-900`;
                         html += `<td class="${classes}">${mappedCell}</td>`;
                     } else {
                         if (row[0] === "CNB COUNTER") {
                             const cnbVal = (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : cell;
-                            let tdClasses = classes + 'p-0 bg-white hover:bg-gray-50';
+                            let tdClasses = classes + (isClash ? 'border-red-600 p-0 bg-red-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]' : 'border-gray-400 p-0 bg-white hover:bg-gray-50');
                             html += `<td class="${tdClasses}">
-                                <input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none focus:bg-blue-100 text-blue-600 font-bold cursor-text px-1" />
+                                <input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none font-bold cursor-text px-1 ${isClash ? 'text-white placeholder-red-200' : 'focus:bg-blue-100 text-blue-600'}" />
                             </td>`;
                         } else {
-                            classes += `p-1.5 bg-white text-gray-900`;
+                            if (isClash) classes += `border-red-600 p-1.5 bg-red-500 text-white shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]`;
+                            else classes += `border-gray-400 p-1.5 bg-white text-gray-900`;
                             html += `<td class="${classes}">${content}</td>`;
                         }
                     }
