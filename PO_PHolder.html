@@ -220,7 +220,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                                 Staff Assignment Control
                             </h2>
-                            <div id="clash-warning-container" class="mt-2 sm:mt-0"></div>
+                            <div id="clash-warning-container" class="mt-2 sm:mt-0 transition-opacity"></div>
                         </div>
                         <p class="text-sm text-gray-500 mt-1">
                             Current assignments. You can manually override these or shuffle them.
@@ -504,38 +504,6 @@
             }
         }
 
-        function findStatusInMRoster(staffId, dateStr) {
-            if (!mRosterData) return null;
-            
-            const cleanId = String(staffId).replace(/\D/g, ''); 
-            const record = mRosterData[staffId] || mRosterData[cleanId];
-            if (!record) return null; 
-            
-            const [y, m, d] = dateStr.split('-');
-            const dayNum = parseInt(d, 10);
-
-            if (record.type === 'array') {
-                const row = record.data;
-                const targetIdx = record.idIndex + 1 + dayNum; 
-                
-                if (row.length > targetIdx) {
-                    const val = row[targetIdx];
-                    if (val !== undefined && val !== null && String(val).trim() !== "") {
-                        return String(val).trim();
-                    }
-                }
-            } else if (record.type === 'object') {
-                const row = record.data;
-                const possibleKeys = [ dateStr, dayNum.toString(), String(dayNum).padStart(2, '0') ];
-                for (let key of possibleKeys) {
-                    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
-                        return String(row[key]).trim();
-                    }
-                }
-            }
-            return null; 
-        }
-
         function getStaffStatus(staffId, dateStr) {
             if (!staffId || staffId === "VACANT" || staffId.includes("******")) return "-";
             const cleanId = String(staffId).replace(/\D/g, '');
@@ -731,17 +699,12 @@
 
         function updateCloudStatus(message, colorClass) {
             const statusEl = document.getElementById('cloud-status');
-            
             if (isMRosterConnected && message === "Synced with Cloud") {
                 message = "Live State + MRoster Linked";
                 colorClass = "text-blue-600";
             }
-            
             statusEl.className = `text-xs font-bold flex items-center gap-1 ${colorClass}`;
-            statusEl.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-                ${message}
-            `;
+            statusEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg> ${message}`;
         }
 
         if (window.location.protocol === 'file:' || window.location.protocol === 'about:') {
@@ -810,10 +773,7 @@
                     const data = docSnap.data();
                     
                     if (data.masterStaffList) {
-                        masterStaffList = data.masterStaffList.map(s => ({
-                            ...s,
-                            hhmd: s.hhmd !== false 
-                        }));
+                        masterStaffList = data.masterStaffList.map(s => ({ ...s, hhmd: s.hhmd !== false }));
                     }
                     if (data.cnbAssignments) cnbAssignments = JSON.parse(JSON.stringify(data.cnbAssignments));
                     if (data.cellOverrides) cellOverrides = JSON.parse(JSON.stringify(data.cellOverrides));
@@ -934,12 +894,7 @@
                 margin: [0.2, 0.2, 0.2, 0.2],
                 filename: filename,
                 image: { type: 'jpeg', quality: 1.0 },
-                html2canvas: {
-                    scale: 2,
-                    useCORS: true,
-                    width: contentWidth,
-                    windowWidth: contentWidth
-                },
+                html2canvas: { scale: 2, useCORS: true, width: contentWidth, windowWidth: contentWidth },
                 jsPDF: { unit: 'in', format: 'a2', orientation: 'landscape' }
             };
             
@@ -947,9 +902,7 @@
                 btn.innerHTML = originalText;
                 wrapper.style.cssText = oldWrapperCss;
                 element.style.cssText = oldElementCss;
-                inputs.forEach(inp => {
-                    if(inp.type === 'date') inp.style.cssText = '';
-                });
+                inputs.forEach(inp => { if(inp.type === 'date') inp.style.cssText = ''; });
                 if (wasEditMode) {
                     isEditMode = true;
                     renderTables();
@@ -957,22 +910,13 @@
             };
 
             if (action === 'download') {
-                html2pdf().set(opt).from(element).save().then(restoreUI).catch(err => {
-                    console.error(err);
-                    restoreUI();
-                    alert("Failed to export PDF.");
-                });
+                html2pdf().set(opt).from(element).save().then(restoreUI).catch(err => { console.error(err); restoreUI(); alert("Failed to export PDF."); });
             } else if (action === 'share') {
                 html2pdf().set(opt).from(element).outputPdf('blob').then((pdfBlob) => {
                     restoreUI();
                     const file = new File([pdfBlob], filename, { type: 'application/pdf' });
-
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        navigator.share({
-                            files: [file],
-                            title: 'Shift Roster',
-                            text: `Here is the shift roster for ${rosterDate}.`
-                        }).catch(err => console.log('Share canceled or failed:', err));
+                        navigator.share({ files: [file], title: 'Shift Roster', text: `Here is the shift roster for ${rosterDate}.` }).catch(err => console.log('Share canceled/failed:', err));
                     } else {
                         alert("Your device or browser doesn't support direct file sharing. The file will be downloaded instead so you can attach it manually.");
                         const link = document.createElement('a');
@@ -980,11 +924,7 @@
                         link.download = filename;
                         link.click();
                     }
-                }).catch(err => {
-                    console.error(err);
-                    restoreUI();
-                    alert("Failed to generate PDF for sharing.");
-                });
+                }).catch(err => { console.error(err); restoreUI(); alert("Failed to generate PDF for sharing."); });
             }
         };
 
@@ -1008,11 +948,8 @@
         };
 
         window.updateCellOverride = function(overrideKey, val) {
-            if (val === "") {
-                delete cellOverrides[overrideKey];
-            } else {
-                cellOverrides[overrideKey] = val;
-            }
+            if (val === "") delete cellOverrides[overrideKey];
+            else cellOverrides[overrideKey] = val;
             renderTables();
             window.saveToDatabase();
         };
@@ -1072,7 +1009,6 @@
             renderControls();
             renderTables();
             renderCalendar();
-
             window.saveToDatabase();
         };
 
@@ -1083,6 +1019,7 @@
 
         window.updateCNB = function(colIdx, val) {
             cnbAssignments[colIdx] = val;
+            renderTables();
             window.saveToDatabase();
         };
 
@@ -1137,9 +1074,7 @@
         
         window.toggleHHMD = function(id) {
             const staff = masterStaffList.find(s => s.id === id);
-            if (staff) {
-                staff.hhmd = staff.hhmd === false ? true : false; 
-            }
+            if (staff) staff.hhmd = staff.hhmd === false ? true : false; 
             renderAttendance();
             window.saveToDatabase();
         };
@@ -1210,15 +1145,11 @@
 
             currentStaffIds.forEach(id => {
                 const staffNode = masterStaffList.find(s => s.id === id);
-                if (id === "VACANT" || (staffNode && staffNode.hhmd !== false)) {
-                    hhmdCapable.push(id);
-                } else {
-                    nonHhmd.push(id);
-                }
+                if (id === "VACANT" || (staffNode && staffNode.hhmd !== false)) hhmdCapable.push(id);
+                else nonHhmd.push(id);
             });
 
             const hhmdSlots = getHHMDSlots();
-
             if (hhmdCapable.length < hhmdSlots.length) {
                 alert("Warning: Not enough HHMD-certified staff selected to fill the required HHMD slots. Some non-certified staff may be assigned out of necessity.");
             }
@@ -1230,25 +1161,15 @@
             let unassignedHhmdSlots = [];
 
             hhmdSlots.forEach(slot => {
-                if (hhmdCapable.length > 0) {
-                    newAssignments[slot] = hhmdCapable.pop();
-                } else {
-                    unassignedHhmdSlots.push(slot); 
-                }
+                if (hhmdCapable.length > 0) newAssignments[slot] = hhmdCapable.pop();
+                else unassignedHhmdSlots.push(slot); 
             });
 
             let remainingStaff = [...hhmdCapable, ...nonHhmd].sort(() => Math.random() - 0.5);
-
             placeholders.forEach(slot => {
-                if (!hhmdSlots.includes(slot)) {
-                    newAssignments[slot] = remainingStaff.pop();
-                }
+                if (!hhmdSlots.includes(slot)) newAssignments[slot] = remainingStaff.pop();
             });
-
-            unassignedHhmdSlots.forEach(slot => {
-                newAssignments[slot] = remainingStaff.pop();
-            });
-
+            unassignedHhmdSlots.forEach(slot => newAssignments[slot] = remainingStaff.pop());
             placeholders.forEach(p => activeAssignments[p] = newAssignments[p]);
             
             renderControls();
@@ -1274,9 +1195,7 @@
             renderTables(); 
              
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                window.saveToDatabase();
-            }, 500); 
+            saveTimeout = setTimeout(() => { window.saveToDatabase(); }, 500); 
         };
 
         // --- Archive Options Actions ---
@@ -1377,20 +1296,127 @@
         };
 
         // --- Calendar Navigation ---
-        window.prevMonth = function() {
-            currentCalDate.setMonth(currentCalDate.getMonth() - 1);
-            renderCalendar();
-        };
+        window.prevMonth = function() { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendar(); };
+        window.nextMonth = function() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); };
+        window.goToToday = function() { currentCalDate = new Date(); renderCalendar(); };
 
-        window.nextMonth = function() {
-            currentCalDate.setMonth(currentCalDate.getMonth() + 1);
-            renderCalendar();
-        };
+        // ==========================================
+        //  CORE ENGINE: DATASETS & CLASH DETECTION
+        // ==========================================
+        
+        function getCurrentTableDatasets() {
+            const dayName = getDayName(rosterDate);
+            const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
+            let t1Data, t2Data, t3Data;
+            
+            if (rosterSize === 8) {
+                t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_8_Weekend : table1Data_8_Weekday));
+                t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_8_Weekend : table2Data_8_Weekday));
+                t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_8_Weekend : table3Data_8_Weekday));
+            } else if (rosterSize === 7) {
+                t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_7_Weekend : table1Data_7_Weekday));
+                t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_7_Weekend : table2Data_7_Weekday));
+                t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_7_Weekend : table3Data_7_Weekday));
+            } else {
+                t1Data = JSON.parse(JSON.stringify(table1Data_6));
+                t2Data = JSON.parse(JSON.stringify(table2Data_6));
+                t3Data = JSON.parse(JSON.stringify(table3Data_6));
+            }
 
-        window.goToToday = function() {
-            currentCalDate = new Date();
-            renderCalendar();
-        };
+            if (isWeekend && rosterSize === 6) {
+                const bmeFirstStaff = t2Data[0][1]; 
+                t2Data[0][1] = "******"; t2Data[0][2] = "******"; t2Data[0][3] = "******";
+                for (let r = 0; r < 5; r++) {
+                    if (t1Data[r][1] === "") {
+                        t1Data[r][1] = bmeFirstStaff;
+                        break;
+                    }
+                }
+            }
+            return { t1Data, t2Data, t3Data, dayName, isWeekend };
+        }
+
+        function detectClashes(datasets) {
+            const activeAssignments = getActiveAssignments();
+            const placeholders = getPlaceholders();
+            
+            const conflicts = {
+                controls: new Set(),
+                table1: new Set(),
+                table2: new Set(),
+                totalClashes: 0
+            };
+
+            // 1. Control Panel Duplicates
+            const assignmentCounts = {};
+            placeholders.forEach(p => {
+                const val = activeAssignments[p];
+                if (val && val !== "VACANT") {
+                    assignmentCounts[val] = (assignmentCounts[val] || 0) + 1;
+                }
+            });
+            Object.keys(assignmentCounts).forEach(val => {
+                if (assignmentCounts[val] > 1) conflicts.controls.add(val);
+            });
+
+            // 2. Table Column-based Chronological Clash Detection
+            const applyMapping = (val) => {
+                if (!val) return val;
+                return String(val).split('/').map(v => activeAssignments[v] || v).join('/');
+            };
+
+            const getResolvedValue = (tId, rIdx, cIdx, cellVal) => {
+                const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
+                if (cellOverrides[overrideKey] !== undefined) return cellOverrides[overrideKey];
+                if (tId === 2 && datasets.t2Data[rIdx] && datasets.t2Data[rIdx][0] === "CNB COUNTER" && cIdx > 0) {
+                    return (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : applyMapping(cellVal);
+                }
+                return applyMapping(cellVal);
+            };
+
+            const numCols = timeHeaders.length;
+            for (let c = 1; c < numCols; c++) {
+                const colMap = new Map();
+                
+                const registerStaff = (tId, rIdx, rawVal) => {
+                    const val = getResolvedValue(tId, rIdx, c, rawVal);
+                    if (!val) return;
+                    String(val).split('/').forEach(s => {
+                        s = s.trim();
+                        // Filter out non-staff logical operators and empty states
+                        if (!s || s === "******" || s === "VACANT" || ["V","E","R","T","I","C","A","L"].includes(s)) return;
+                        
+                        if (!colMap.has(s)) colMap.set(s, []);
+                        colMap.get(s).push({ tId, rIdx });
+                    });
+                };
+
+                datasets.t1Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(1, rIdx, row[c]); });
+                datasets.t2Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(2, rIdx, row[c]); });
+
+                colMap.forEach((locations, staff) => {
+                    if (locations.length > 1) { // Clash found in this specific time column
+                        locations.forEach(loc => {
+                            if (loc.tId === 1) conflicts.table1.add(`${loc.rIdx}_${c}`);
+                            if (loc.tId === 2) conflicts.table2.add(`${loc.rIdx}_${c}`);
+                        });
+                    }
+                });
+            }
+            
+            conflicts.totalClashes = conflicts.table1.size + conflicts.table2.size;
+            return conflicts;
+        }
+
+        function updateClashWarningUI(total) {
+            const container = document.getElementById('clash-warning-container');
+            if (!container) return;
+            if (total > 0) {
+                container.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm animate-fade-in"><svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> <span class="hidden sm:inline">Time Slot</span> Conflicts (${total})</div>`;
+            } else {
+                container.innerHTML = '';
+            }
+        }
 
         // --- Render Functions ---
         function renderAttendance() {
@@ -1443,20 +1469,13 @@
             const container = document.getElementById('inputs-container');
             const dates = getAdjacentDates(rosterDate);
             
-            const expectedClass = rosterSize === 6 
-                ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
-                : (rosterSize === 7 
-                    ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" 
-                    : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
+            const expectedClass = rosterSize === 6 ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+                : (rosterSize === 7 ? "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" : "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3");
 
-            // Calculate Staff Assignment Duplications
-            let assignmentCounts = {};
-            placeholders.forEach(p => {
-                const staffId = activeAssignments[p] || p;
-                if (staffId && staffId !== "VACANT" && !placeholders.includes(staffId)) {
-                    assignmentCounts[staffId] = (assignmentCounts[staffId] || 0) + 1;
-                }
-            });
+            // Evaluate Clashes functionally using datasets
+            const datasets = getCurrentTableDatasets();
+            const conflicts = detectClashes(datasets);
+            updateClashWarningUI(conflicts.totalClashes);
 
             // Fast-path Update to avoid focus loss when typing
             if (container.className === expectedClass && container.children.length === placeholders.length) {
@@ -1468,12 +1487,10 @@
                     
                     const staffId = activeAssignments[p] || p;
                     const isVacant = staffId === "VACANT";
-                    const isDuplicate = assignmentCounts[staffId] > 1;
+                    const isDuplicate = conflicts.controls.has(staffId);
 
                     if (inp) {
-                        if (document.activeElement !== inp) {
-                            inp.value = staffId;
-                        }
+                        if (document.activeElement !== inp) inp.value = staffId;
                         
                         if (isVacant) {
                             parent.className = "flex flex-col bg-red-50 p-2 rounded border border-red-300 relative transition-colors";
@@ -1486,9 +1503,7 @@
                             inp.className = "w-full border border-gray-300 text-gray-900 rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors";
                         }
                     }
-                    if (dupIcon) {
-                        dupIcon.style.display = isDuplicate ? 'flex' : 'none';
-                    }
+                    if (dupIcon) dupIcon.style.display = isDuplicate ? 'flex' : 'none';
 
                     if (statusDiv) {
                         const yestStatus = getStaffStatus(staffId, dates.yest);
@@ -1507,7 +1522,7 @@
             placeholders.forEach((p, index) => {
                 const staffId = activeAssignments[p] || p;
                 const isVacant = staffId === "VACANT";
-                const isDuplicate = assignmentCounts[staffId] > 1;
+                const isDuplicate = conflicts.controls.has(staffId);
                 const isHHMD = hhmdSlots.includes(p);
                 
                 const yestStatus = getStaffStatus(staffId, dates.yest);
@@ -1541,10 +1556,10 @@
 
         function renderTables() {
             const activeStaff = masterStaffList.filter(s => s.present);
+            const activeAssignments = getActiveAssignments();
             
             function buildSelect(overrideKey, defaultMapped) {
                 const currentOverride = cellOverrides[overrideKey];
-                
                 let optionsHtml = `<option value="">Default (${defaultMapped})</option>`;
                 optionsHtml += `<option value="VACANT" ${currentOverride === 'VACANT' ? 'selected' : ''}>VACANT</option>`;
                 
@@ -1552,49 +1567,15 @@
                     const isSelected = currentOverride === staff.id;
                     optionsHtml += `<option value="${staff.id}" ${isSelected ? 'selected' : ''}>${staff.id}</option>`;
                 });
-
-                return `<select onchange="window.updateCellOverride('${overrideKey}', this.value)" class="w-full min-w-[65px] bg-yellow-50 border border-yellow-400 text-gray-900 text-[10px] md:text-xs font-bold rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                    ${optionsHtml}
-                </select>`;
+                return `<select onchange="window.updateCellOverride('${overrideKey}', this.value)" class="w-full min-w-[65px] bg-yellow-50 border border-yellow-400 text-gray-900 text-[10px] md:text-xs font-bold rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">${optionsHtml}</select>`;
             }
 
-            const dayName = getDayName(rosterDate);
-            const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
-
-            let t1Data, t2Data, t3Data;
-            
-            if (rosterSize === 8) {
-                t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_8_Weekend : table1Data_8_Weekday));
-                t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_8_Weekend : table2Data_8_Weekday));
-                t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_8_Weekend : table3Data_8_Weekday));
-            } else if (rosterSize === 7) {
-                t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_7_Weekend : table1Data_7_Weekday));
-                t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_7_Weekend : table2Data_7_Weekday));
-                t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_7_Weekend : table3Data_7_Weekday));
-            } else {
-                t1Data = JSON.parse(JSON.stringify(table1Data_6));
-                t2Data = JSON.parse(JSON.stringify(table2Data_6));
-                t3Data = JSON.parse(JSON.stringify(table3Data_6));
-            }
-
-            if (isWeekend && rosterSize === 6) {
-                const bmeFirstStaff = t2Data[0][1]; 
-                
-                t2Data[0][1] = "******";
-                t2Data[0][2] = "******";
-                t2Data[0][3] = "******";
-
-                for (let r = 0; r < 5; r++) {
-                    if (t1Data[r][1] === "") {
-                        t1Data[r][1] = bmeFirstStaff;
-                        break;
-                    }
-                }
-            }
+            const datasets = getCurrentTableDatasets();
+            const conflicts = detectClashes(datasets);
+            const { t1Data, t2Data, t3Data, dayName, isWeekend } = datasets;
 
             const applyMapping = (val) => {
                 if (!val) return val;
-                const activeAssignments = getActiveAssignments();
                 return String(val).split('/').map(v => activeAssignments[v] || v).join('/');
             }
 
@@ -1605,59 +1586,6 @@
                 return false;
             }
 
-            // --- DOUBLE STAFF DEPLOYMENT CONFLICT DETECTION ---
-            let clashesT1 = {};
-            let clashesT2 = {};
-            let totalUniqueClashes = 0;
-
-            const getResolvedValue = (tId, rIdx, cIdx, cellVal) => {
-                const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
-                if (cellOverrides[overrideKey] !== undefined) return cellOverrides[overrideKey];
-                if (tId === 2 && t2Data[rIdx] && t2Data[rIdx][0] === "CNB COUNTER" && cIdx > 0) {
-                    return (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : applyMapping(cellVal);
-                }
-                return applyMapping(cellVal);
-            };
-
-            const numCols = timeHeaders.length;
-            for (let c = 1; c < numCols; c++) {
-                let colStaffMap = {};
-                
-                const registerStaff = (tId, rIdx, val) => {
-                    if (!val || val === "******" || val === "VACANT" || ["V","E","R","T","I","C","A","L"].includes(val)) return;
-                    const staffs = String(val).split('/');
-                    staffs.forEach(s => {
-                        s = s.trim();
-                        if (!s || s === "******" || s === "VACANT" || ["V","E","R","T","I","C","A","L"].includes(s)) return;
-                        if (!colStaffMap[s]) colStaffMap[s] = [];
-                        colStaffMap[s].push({ tId, rIdx });
-                    });
-                };
-
-                t1Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(1, rIdx, getResolvedValue(1, rIdx, c, row[c])); });
-                t2Data.forEach((row, rIdx) => { if (c < row.length) registerStaff(2, rIdx, getResolvedValue(2, rIdx, c, row[c])); });
-                
-                Object.keys(colStaffMap).forEach(staff => {
-                    if (colStaffMap[staff].length > 1) { // Detected a double assignment in the same time column
-                        colStaffMap[staff].forEach(loc => {
-                            if (loc.tId === 1) clashesT1[`${loc.rIdx}_${c}`] = true;
-                            if (loc.tId === 2) clashesT2[`${loc.rIdx}_${c}`] = true;
-                        });
-                    }
-                });
-            }
-
-            totalUniqueClashes = Object.keys(clashesT1).length + Object.keys(clashesT2).length;
-            const clashContainer = document.getElementById('clash-warning-container');
-            if (clashContainer) {
-                if (totalUniqueClashes > 0) {
-                    clashContainer.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm"><svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> <span class="hidden sm:inline">Time Slot</span> Conflicts (${totalUniqueClashes})</div>`;
-                } else {
-                    clashContainer.innerHTML = '';
-                }
-            }
-
-
             const container = document.getElementById('tables-container');
             let html = '';
             
@@ -1665,25 +1593,18 @@
             if (rosterSize === 8) dynamicTPPlaceholder = isWeekend ? '8663' : '4270';
             else if (rosterSize === 7) dynamicTPPlaceholder = isWeekend ? '4270' : '4511';
             else dynamicTPPlaceholder = '4270';
-            
             const mappedTPValue = applyMapping(dynamicTPPlaceholder);
 
             // --- TABLE 1: MAIN ROSTER ---
             html += `<table class="w-full border-collapse text-center mb-6 text-xs sm:text-[11px] md:text-xs">`;
             html += `<thead>`;
             html += `<tr>`;
-            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold w-[200px] uppercase h-10">`;
-            html += `DAY: <span class="ml-1">${dayName}</span>`;
-            html += `</th>`;
-            
-            html += `<th rowspan="3" colspan="${timeHeaders.length - 1}" class="border border-gray-400 bg-white relative p-0 overflow-hidden">`;
-            html += `
+            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold w-[200px] uppercase h-10">DAY: <span class="ml-1">${dayName}</span></th>`;
+            html += `<th rowspan="3" colspan="${timeHeaders.length - 1}" class="border border-gray-400 bg-white relative p-0 overflow-hidden">
                 <div class="flex items-center justify-center w-full h-full relative py-2 min-h-[70px]">
                     <div class="flex items-center justify-center gap-6 sm:gap-16">
                         <div class="flex flex-col items-center sm:items-start justify-center text-[10px] sm:text-xs leading-[1.4] font-extrabold text-gray-900 tracking-wider text-center sm:text-left">
-                            <span>AETOS GUARD SERVICES</span>
-                            <span>POLICE CANTOMENT COMPLEX</span>
-                            <span>NIGHT SHIFT DEPLOYMENT</span>
+                            <span>AETOS GUARD SERVICES</span><span>POLICE CANTOMENT COMPLEX</span><span>NIGHT SHIFT DEPLOYMENT</span>
                         </div>
                         <div class="hidden sm:block">
                             <img src="https://pccplanner.github.io/Alplanner/logo.jpg" alt="AETOS Logo" class="h-8 sm:h-10 md:h-12 w-auto object-contain" onerror="this.style.display='none'">
@@ -1693,26 +1614,11 @@
                         <span class="text-[10px] sm:text-xs font-bold text-gray-900 whitespace-nowrap">TP: ${mappedTPValue}</span>
                     </div>
                 </div>
-            `;
-            html += `</th>`;
-            html += `</tr>`;
-
+            </th></tr>`;
+            html += `<tr><th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10"><div class="flex items-center uppercase"><span class="mr-1">DATE:</span> <input type="date" value="${rosterDate}" onchange="window.updateDate(this.value)" class="bg-transparent focus:outline-none flex-1 font-bold cursor-pointer text-gray-800 w-full" /></div></th></tr>`;
+            html += `<tr><th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10"><div class="flex items-center"><span class="mr-1 whitespace-nowrap">Shift Supervisor:</span> <input type="text" value="${shiftSupervisor}" onblur="window.updateSupervisor(this.value)" onchange="window.updateSupervisor(this.value)" class="bg-transparent focus:outline-none flex-1 uppercase font-bold text-gray-800 w-full" /></div></th></tr>`;
             html += `<tr>`;
-            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10">`;
-            html += `<div class="flex items-center uppercase"><span class="mr-1">DATE:</span> <input type="date" value="${rosterDate}" onchange="window.updateDate(this.value)" class="bg-transparent focus:outline-none flex-1 font-bold cursor-pointer text-gray-800 w-full" /></div>`;
-            html += `</th>`;
-            html += `</tr>`;
-
-            html += `<tr>`;
-            html += `<th class="border border-gray-400 bg-white p-1.5 text-left text-gray-800 font-bold h-10">`;
-            html += `<div class="flex items-center"><span class="mr-1 whitespace-nowrap">Shift Supervisor:</span> <input type="text" value="${shiftSupervisor}" onblur="window.updateSupervisor(this.value)" onchange="window.updateSupervisor(this.value)" class="bg-transparent focus:outline-none flex-1 uppercase font-bold text-gray-800 w-full" /></div>`;
-            html += `</th>`;
-            html += `</tr>`;
-
-            html += `<tr>`;
-            timeHeaders.forEach(th => {
-                html += `<th class="border border-gray-400 bg-gray-100 p-1.5 whitespace-nowrap font-bold text-gray-800">${th}</th>`;
-            });
+            timeHeaders.forEach(th => { html += `<th class="border border-gray-400 bg-gray-100 p-1.5 whitespace-nowrap font-bold text-gray-800">${th}</th>`; });
             html += `</tr></thead><tbody>`;
 
             t1Data.forEach((row, rIdx) => {
@@ -1728,13 +1634,11 @@
                     if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
 
                     let content = mappedCell;
-                    if (isEditMode && isStaff) {
-                        content = buildSelect(overrideKey, applyMapping(cell));
-                    }
+                    if (isEditMode && isStaff) content = buildSelect(overrideKey, applyMapping(cell));
 
                     const isGrey = !isHeader && isGreyCell(rIdx, cIdx, cell);
                     const isVacant = mappedCell === "VACANT";
-                    const isClash = clashesT1[`${rIdx}_${cIdx}`];
+                    const isClash = conflicts.table1.has(`${rIdx}_${cIdx}`);
                     
                     const rowSpan = (isHeader && rIdx === 0) ? 'rowspan="5"' : '';
                     let classes = `border p-1.5 font-bold tracking-tight whitespace-nowrap transition-colors duration-200 `;
@@ -1764,12 +1668,10 @@
                     if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
 
                     let content = mappedCell;
-                    if (isEditMode && isStaff) {
-                        content = buildSelect(overrideKey, applyMapping(cell));
-                    }
+                    if (isEditMode && isStaff) content = buildSelect(overrideKey, applyMapping(cell));
 
                     const isGrey = cell === "******";
-                    const isClash = clashesT2[`${rIdx}_${cIdx}`];
+                    const isClash = conflicts.table2.has(`${rIdx}_${cIdx}`);
                     let classes = `border font-bold tracking-tight whitespace-nowrap transition-colors duration-200 `;
                     
                     if (isHeader) {
@@ -1809,9 +1711,7 @@
                     if (cellOverrides[overrideKey] !== undefined) mappedCell = cellOverrides[overrideKey];
 
                     let content = mappedCell;
-                    if (isEditMode && isStaff) {
-                        content = buildSelect(overrideKey, applyMapping(cell.val));
-                    }
+                    if (isEditMode && isStaff) content = buildSelect(overrideKey, applyMapping(cell.val));
 
                     const noBorder = cell.val === "" && rIdx >= 2;
                     const colSpan = cell.colSpan > 1 ? `colspan="${cell.colSpan}"` : '';
@@ -1835,24 +1735,18 @@
         function renderCalendar() {
             const container = document.getElementById('calendar-grid');
             const monthYearLabel = document.getElementById('calendar-month-year');
-            
             const year = currentCalDate.getFullYear();
             const month = currentCalDate.getMonth(); 
-            
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-            monthYearLabel.innerText = `${monthNames[month]} ${year}`;
             
+            monthYearLabel.innerText = `${monthNames[month]} ${year}`;
             const firstDay = new Date(year, month, 1).getDay(); 
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-            
             const realToday = new Date();
             const realTodayStr = `${realToday.getFullYear()}-${String(realToday.getMonth()+1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
             
             let html = '';
-            
-            for (let i = 0; i < firstDay; i++) {
-                html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-gray-50 min-h-[90px] sm:min-h-[110px]"></div>`;
-            }
+            for (let i = 0; i < firstDay; i++) { html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-gray-50 min-h-[90px] sm:min-h-[110px]"></div>`; }
             
             for (let i = 1; i <= daysInMonth; i++) {
                 const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
@@ -1860,37 +1754,24 @@
                 const isToday = dateStr === realTodayStr;
                 
                 let dayNumHtml = `<span class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-sm sm:text-base font-medium ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700'}">${i}</span>`;
-                
                 let contentHtml = '';
                 if (hasArchive) {
                     contentHtml = `
                         <div class="mt-2 sm:mt-3 flex justify-center sm:justify-start">
                             <button onclick="window.openArchiveOptions('${dateStr}')" class="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded-md hover:bg-green-100 transition-colors shadow-sm cursor-pointer w-full sm:w-auto">
-                                <div class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
-                                <span class="text-[10px] sm:text-xs font-bold tracking-wide">Pub</span>
+                                <div class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div><span class="text-[10px] sm:text-xs font-bold tracking-wide">Pub</span>
                             </button>
                         </div>
                     `;
                 }
-                
-                html += `
-                    <div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-white min-h-[90px] sm:min-h-[110px] hover:bg-gray-50 transition-colors">
-                        <div class="flex flex-col h-full">
-                            <div class="text-center sm:text-left">${dayNumHtml}</div>
-                            ${contentHtml}
-                        </div>
-                    </div>
-                `;
+                html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-white min-h-[90px] sm:min-h-[110px] hover:bg-gray-50 transition-colors"><div class="flex flex-col h-full"><div class="text-center sm:text-left">${dayNumHtml}</div>${contentHtml}</div></div>`;
             }
             
             const totalCells = firstDay + daysInMonth;
             const remainder = totalCells % 7;
             if (remainder > 0) {
-                for (let i = 0; i < (7 - remainder); i++) {
-                    html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-gray-50 min-h-[90px] sm:min-h-[110px]"></div>`;
-                }
+                for (let i = 0; i < (7 - remainder); i++) { html += `<div class="p-2 sm:p-3 border-b border-r border-gray-200 bg-gray-50 min-h-[90px] sm:min-h-[110px]"></div>`; }
             }
-            
             container.innerHTML = html;
         }
 
