@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,6 +28,12 @@
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; transition: 0.2s; }
         input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+        /* Highlight for AI‑detected anomalies */
+        .ai-anomaly {
+            background-color: #FEF3C7;
+            /* use !important to override other border colors */
+            border-color: #F59E0B !important;
+        }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -816,6 +823,11 @@
             const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
             cellOverrides[overrideKey] = replacementStaffId;
             renderTables(); window.saveToDatabase();
+            // Remove anomaly highlight from the fixed cell
+            try {
+                const cellElem = document.getElementById(`cell-t${tId}-${rIdx}-${cIdx}`);
+                if (cellElem) cellElem.classList.remove('ai-anomaly');
+            } catch (e) {}
             
             const container = document.getElementById(`anomaly-box-${anomalyId}`);
             if(container) {
@@ -873,7 +885,23 @@
                 }
                 
                 const data = await response.json();
-                
+
+                // Clear any previous AI anomaly highlights
+                try {
+                    document.querySelectorAll('.ai-anomaly').forEach(el => el.classList.remove('ai-anomaly'));
+                } catch (e) {}
+
+                // Highlight current anomalies if any
+                if (data && data.status === 'FAIL' && Array.isArray(data.anomalies)) {
+                    data.anomalies.forEach(anomaly => {
+                        const cellId = `cell-t${anomaly.t_id}-${anomaly.r_idx}-${anomaly.c_idx}`;
+                        const cell = document.getElementById(cellId);
+                        if (cell) {
+                            cell.classList.add('ai-anomaly');
+                        }
+                    });
+                }
+
                 if (data.status !== "PASS" && data.status !== "FAIL") {
                     throw new Error("Invalid response format received from Backend.");
                 }
@@ -1093,7 +1121,8 @@
                     else if (isGrey) classes += `border-gray-400 bg-[#b3b3b3] text-gray-900`;
                     else classes += `border-gray-400 bg-white text-gray-900`;
 
-                    html += `<td ${rowSpan} class="${classes}">${content}</td>`;
+                    // Assign a unique id for each cell to support AI anomaly highlighting
+                    html += `<td id="cell-t1-${rIdx}-${cIdx}" ${rowSpan} class="${classes}">${content}</td>`;
                 });
                 html += `</tr>`;
             });
@@ -1120,19 +1149,19 @@
                     
                     if (isHeader) {
                         classes += `border-gray-400 p-1.5 bg-white text-left px-2 w-[200px] text-gray-700`;
-                        html += `<td class="${classes}">${mappedCell}</td>`;
+                        html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${classes}">${mappedCell}</td>`;
                     } else if (isGrey) {
                         classes += `border-gray-400 p-1.5 bg-[#b3b3b3] text-gray-900`;
-                        html += `<td class="${classes}">${mappedCell}</td>`;
+                        html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${classes}">${mappedCell}</td>`;
                     } else {
                         if (row[0] === "CNB COUNTER") {
                             const cnbVal = (cnbAssignments[cIdx] !== undefined && cnbAssignments[cIdx] !== null) ? cnbAssignments[cIdx] : cell;
                             let tdClasses = classes + (isClash ? 'border-red-600 p-0 bg-red-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]' : 'border-gray-400 p-0 bg-white hover:bg-gray-50');
-                            html += `<td class="${tdClasses}"><input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none font-bold cursor-text px-1 ${isClash ? 'text-white placeholder-red-200' : 'focus:bg-blue-100 text-blue-600'}" /></td>`;
+                            html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${tdClasses}"><input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none font-bold cursor-text px-1 ${isClash ? 'text-white placeholder-red-200' : 'focus:bg-blue-100 text-blue-600'}" /></td>`;
                         } else {
                             if (isClash) classes += `border-red-600 p-1.5 bg-red-500 text-white shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]`;
                             else classes += `border-gray-400 p-1.5 bg-white text-gray-900`;
-                            html += `<td class="${classes}">${content}</td>`;
+                            html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${classes}">${content}</td>`;
                         }
                     }
                 });
@@ -1165,7 +1194,7 @@
                     else if (isVacant) classes += `bg-red-100 text-red-700 `;
                     else classes += `bg-white text-gray-900 `;
 
-                    html += `<td ${colSpan} class="${classes}">${content}</td>`;
+                    html += `<td id="cell-t3-${rIdx}-${cIdx}" ${colSpan} class="${classes}">${content}</td>`;
                 });
                 html += `</tr>`;
             });
