@@ -218,7 +218,7 @@
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==========================================
-        // AI BACKEND URL - HTTPS VIA CLOUDFLARE PROXY
+        // AI BACKEND URL 
         // ==========================================
         const AI_BACKEND_URL = "https://aitools.th3va.com"; 
         
@@ -867,7 +867,17 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestPayload)
                 });
                 
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Cloudflare or Server Error: ${response.status} ${response.statusText}\n\n${errText}`);
+                }
+                
                 const data = await response.json();
+                
+                if (data.status !== "PASS" && data.status !== "FAIL") {
+                    throw new Error("Invalid response format received from Backend.");
+                }
+
                 const modalContent = document.getElementById('ai-modal-content');
                 if (data.status === "PASS") {
                     modalContent.innerHTML = `<div class="flex flex-col items-center justify-center p-8 text-center"><div class="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4 shadow-inner"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg></div><h4 class="text-xl font-extrabold text-gray-800">Perfect Roster!</h4><p class="text-gray-500 mt-2">The AI found 0 break violations and 0 double-deployments.</p></div>`;
@@ -906,7 +916,14 @@
                 document.getElementById('ai-fix-modal').classList.remove('hidden');
             } catch (error) {
                 console.error("AI API Error:", error);
-                alert("Could not connect to the AI Agent. Please verify your backend is running at " + AI_BACKEND_URL);
+                
+                // Detailed Error Display
+                let errorMsg = error.message;
+                if (errorMsg.includes("Failed to fetch") || errorMsg.includes("Load failed")) {
+                    errorMsg = "Network connection to the VPS failed. Cloudflare might be blocking the request due to SSL mismatch.\n\n-> Ensure Cloudflare SSL mode is set to 'Flexible'.";
+                }
+                
+                alert(`AI Connection Error:\n\n${errorMsg}\n\nBackend Expected at: ${AI_BACKEND_URL}`);
             } finally {
                 btn.innerHTML = originalContent; btn.disabled = false;
             }
@@ -1186,4 +1203,3 @@
     </script>
 </body>
 </html>
-
