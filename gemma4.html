@@ -24,8 +24,11 @@
             overscroll-behavior-y: none; 
         }
         
-        /* Header */
-        header { background-color: #ffffff; padding: 16px; text-align: center; border-bottom: 1px solid #e5e5ea; font-weight: 600; font-size: 1.1rem; color: #1c1c1e; flex-shrink: 0; z-index: 10; padding-top: env(safe-area-inset-top, 16px); }
+        /* Header with Clear Button */
+        header { background-color: #ffffff; padding: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e5ea; color: #1c1c1e; flex-shrink: 0; z-index: 10; padding-top: env(safe-area-inset-top, 16px); }
+        .header-spacer { width: 44px; }
+        .header-title { font-weight: 600; font-size: 1.1rem; text-align: center; flex-grow: 1; }
+        .clear-btn { background: transparent; color: #ff3b30; border: none; font-size: 0.95rem; font-weight: 500; cursor: pointer; width: 44px; text-align: right; }
         
         /* Chat Container */
         #chat-container { flex-grow: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
@@ -51,17 +54,12 @@
         .copy-btn { background-color: transparent; border: 1px solid #8b949e; color: #8b949e; border-radius: 4px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; font-family: -apple-system, sans-serif; }
         .copy-btn:hover { background-color: #30363d; color: #c9d1d9; }
         .copy-btn.copied { background-color: #238636; color: white; border-color: #238636; }
-        
         .preview-btn { background-color: #007aff; color: white; border: 1px solid #007aff; }
-        .preview-btn:hover { background-color: #005bb5; border-color: #005bb5; }
-
-        /* THE FIX: Limits the height of code blocks to 250px so they don't flood your screen */
+        
         .bot-message pre { margin: 0; padding: 12px; overflow: auto; max-height: 250px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
         .bot-message pre code { background-color: transparent; padding: 0; color: #c9d1d9; }
         
-        /* -----------------------------------------
-           Live Canvas Modal 
-        ------------------------------------------*/
+        /* Live Canvas Modal */
         #canvas-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #ffffff; z-index: 100; flex-direction: column; }
         #canvas-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f4f4f7; border-bottom: 1px solid #c7c7cc; padding-top: calc(env(safe-area-inset-top, 16px) + 12px); }
         #canvas-title { font-weight: 600; font-size: 1.1rem; color: #1c1c1e; }
@@ -80,24 +78,22 @@
         input[type="text"] { flex-grow: 1; padding: 12px 16px; border: 1px solid #c7c7cc; border-radius: 24px; font-size: 1rem; outline: none; transition: border-color 0.2s; }
         input[type="text"]:focus { border-color: #007aff; }
         
-        /* Buttons */
-        .icon-btn { background-color: transparent; color: #8e8e93; border: none; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
-        .icon-btn:active { color: #1c1c1e; }
-        
-        .send-btn { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s; flex-shrink: 0;}
-        .send-btn:active { background-color: #005bb5; }
+        .icon-btn { background-color: transparent; color: #8e8e93; border: none; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .send-btn { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
         .send-btn:disabled { background-color: #a1c8ff; cursor: not-allowed; }
-        
         #file-upload { display: none; }
     </style>
 </head>
 <body>
 
-    <!-- Main Chat Screen -->
-    <header>Qwen Pro Coder</header>
+    <header>
+        <div class="header-spacer"></div>
+        <div class="header-title">Qwen Pro Coder</div>
+        <button class="clear-btn" onclick="clearHistory()">Clear</button>
+    </header>
 
     <div id="chat-container">
-        <div class="message bot-message">Cloud Pro Engine Online. Connected to Qwen 480B. Ready to assist with software engineering.</div>
+        <!-- Messages will be injected here dynamically by Javascript -->
     </div>
     <div class="typing" id="typing-indicator">Analyzing...</div>
 
@@ -119,7 +115,7 @@
         </button>
     </div>
 
-    <!-- Live Canvas Screen (Hidden by default) -->
+    <!-- Live Canvas Screen -->
     <div id="canvas-modal">
         <div id="canvas-header">
             <span id="canvas-title">Live Preview</span>
@@ -130,11 +126,54 @@
 
     <script>
         // --- CONFIGURATION ---
-        const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
+        // CHANGED: We now use the /api/chat endpoint instead of /generate so the AI has memory!
+        const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/chat'; 
         const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
         
-        // System Prompt
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
+
+        // Array to hold the conversation memory
+        let chatContext = [];
+
+        // --- LOCAL STORAGE MEMORY (Load on Startup) ---
+        window.onload = function() {
+            const savedHistory = localStorage.getItem('qwen_chat_memory');
+            
+            if (savedHistory) {
+                // If history exists, load it into memory and render it to the screen
+                chatContext = JSON.parse(savedHistory);
+                chatContext.forEach(msg => {
+                    if (msg.role !== 'system') {
+                        // Rebuild visual chat (without Markdown re-parsing on user messages)
+                        addMessageVisual(msg.content, msg.role === 'user' ? 'user-message' : 'bot-message');
+                    }
+                });
+            } else {
+                // If no history exists, start fresh
+                clearHistory(); 
+            }
+        };
+
+        function saveHistory() {
+            try {
+                // We strip images before saving to prevent crashing Safari's 5MB localStorage limit
+                const safeContext = chatContext.map(msg => ({ role: msg.role, content: msg.content }));
+                localStorage.setItem('qwen_chat_memory', JSON.stringify(safeContext));
+            } catch (e) {
+                console.warn("Storage full, could not save memory.");
+            }
+        }
+
+        window.clearHistory = function() {
+            if (chatContext.length > 1 && !confirm("Are you sure you want to clear the chat history?")) return;
+            
+            localStorage.removeItem('qwen_chat_memory');
+            chatContext = [{ role: 'system', content: SYSTEM_PROMPT }];
+            
+            // Clear screen and show welcome message
+            document.getElementById('chat-container').innerHTML = '';
+            addMessageVisual("Cloud Pro Engine Online. Connected to Qwen 480B. Ready to assist with software engineering.", 'bot-message');
+        };
 
         // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
         const renderer = new marked.Renderer();
@@ -142,7 +181,6 @@
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
             const highlightedCode = hljs.highlight(text, { language: validLanguage }).value;
             
-            // Only add the "Preview" button if the AI wrote HTML code
             let previewBtnHTML = '';
             if (lang === 'html' || lang === 'xml') {
                 previewBtnHTML = `<button class="copy-btn preview-btn" onclick="openCanvas(this)">Preview</button>`;
@@ -166,15 +204,11 @@
         window.openCanvas = function(button) {
             const pre = button.parentElement.parentElement.nextElementSibling;
             const codeText = pre.textContent;
-            
             const modal = document.getElementById('canvas-modal');
             const iframe = document.getElementById('canvas-iframe');
             modal.style.display = 'flex';
-            
             const doc = iframe.contentWindow.document;
-            doc.open();
-            doc.write(codeText);
-            doc.close();
+            doc.open(); doc.write(codeText); doc.close();
         };
 
         window.closeCanvas = function() {
@@ -188,31 +222,19 @@
             const codeText = pre.textContent;
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(codeText).catch(() => fallbackCopy(codeText, button));
-            } else {
-                fallbackCopy(codeText, button);
-            }
-            button.textContent = 'Copied!';
-            button.classList.add('copied');
-            setTimeout(() => {
-                button.textContent = 'Copy';
-                button.classList.remove('copied');
-            }, 2000);
+            } else { fallbackCopy(codeText, button); }
+            button.textContent = 'Copied!'; button.classList.add('copied');
+            setTimeout(() => { button.textContent = 'Copy'; button.classList.remove('copied'); }, 2000);
         };
 
         function fallbackCopy(text, button) {
-            let textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.top = "0";
-            textArea.style.left = "0";
-            textArea.style.position = "fixed";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try { document.execCommand("copy"); } catch (err) { console.error("Copy failed", err); }
-            textArea.remove();
+            let textArea = document.createElement("textarea"); textArea.value = text;
+            textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed";
+            document.body.appendChild(textArea); textArea.focus(); textArea.select();
+            try { document.execCommand("copy"); } catch (err) {} textArea.remove();
         }
 
-        // --- DOM ELEMENTS & EVENT LISTENERS ---
+        // --- DOM ELEMENTS & FILE UPLOAD ---
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -226,46 +248,31 @@
 
         document.body.addEventListener('touchmove', function(e) {
             const canvasModal = document.getElementById('canvas-modal');
-            if (canvasModal.style.display !== 'flex' && !chatContainer.contains(e.target)) {
-                e.preventDefault();
-            }
+            if (canvasModal.style.display !== 'flex' && !chatContainer.contains(e.target)) e.preventDefault();
         }, { passive: false });
 
-        // --- FILE UPLOAD LOGIC ---
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             attachmentName.textContent = file.name;
             attachmentPreview.style.display = 'flex';
             const reader = new FileReader();
 
             if (file.type.startsWith('image/')) {
-                reader.onload = function(event) {
-                    attachedImageBase64 = event.target.result.split(',')[1];
-                    attachedTextContent = null;
-                };
+                reader.onload = function(event) { attachedImageBase64 = event.target.result.split(',')[1]; attachedTextContent = null; };
                 reader.readAsDataURL(file);
             } else {
-                reader.onload = function(event) {
-                    attachedTextContent = event.target.result;
-                    attachedImageBase64 = null;
-                };
+                reader.onload = function(event) { attachedTextContent = event.target.result; attachedImageBase64 = null; };
                 reader.readAsText(file);
             }
         });
 
         function clearAttachment() {
-            fileInput.value = '';
-            attachedImageBase64 = null;
-            attachedTextContent = null;
-            attachmentPreview.style.display = 'none';
+            fileInput.value = ''; attachedImageBase64 = null; attachedTextContent = null; attachmentPreview.style.display = 'none';
         }
 
         // --- CHAT LOGIC ---
-        userInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') sendMessage();
-        });
+        userInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') sendMessage(); });
 
         async function sendMessage() {
             let text = userInput.value.trim();
@@ -276,27 +283,30 @@
                 displayMessage += displayMessage ? `\n\n[Attached File: ${attachmentName.textContent}]` : `[Attached File: ${attachmentName.textContent}]`;
             }
 
-            addMessage(displayMessage, 'user-message');
+            // 1. Render User Message on Screen
+            addMessageVisual(displayMessage, 'user-message');
             
             let finalPrompt = text;
             if (attachedTextContent) {
                 finalPrompt += `\n\n--- FILE CONTENTS (${attachmentName.textContent}) ---\n${attachedTextContent}`;
             }
 
+            // 2. Add User Message to AI Memory
+            let userMsgObj = { role: 'user', content: finalPrompt || 'Please review this file.' };
+            if (attachedImageBase64) userMsgObj.images = [attachedImageBase64];
+            chatContext.push(userMsgObj);
+            saveHistory();
+
             userInput.value = '';
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
             
+            // 3. Send entire Chat Memory to the API Chat Endpoint
             const requestBody = {
                 model: CLOUD_MODEL_NAME,
-                prompt: finalPrompt || 'Please review this file.',
-                system: SYSTEM_PROMPT,
+                messages: chatContext,
                 stream: false
             };
-
-            if (attachedImageBase64) {
-                requestBody.images = [attachedImageBase64];
-            }
 
             clearAttachment();
 
@@ -307,27 +317,23 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                if (!response.ok) {
-                    let errorMessage = `HTTP Error ${response.status}`;
-                    try {
-                        const errorJson = await response.json();
-                        if (errorJson.error) errorMessage = errorJson.error;
-                    } catch (e) {
-                        errorMessage = await response.text();
-                    }
-                    throw new Error(errorMessage);
-                }
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
                 
                 const data = await response.json();
-                addMessage(data.response, 'bot-message');
+                
+                // 4. Read AI Response, add to memory, and render on screen
+                const aiReply = data.message.content; // API/Chat returns this instead of data.response
+                
+                chatContext.push({ role: 'assistant', content: aiReply });
+                saveHistory();
+                
+                addMessageVisual(aiReply, 'bot-message');
 
             } catch (error) {
                 console.error('API Error:', error);
-                if (error.message.includes('image')) {
-                    addMessage(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.`, 'bot-message');
-                } else {
-                    addMessage(`⚠️ **API Error:** ${error.message}`, 'bot-message');
-                }
+                // We pop the user's failed message out of memory so it doesn't confuse the AI later
+                chatContext.pop(); 
+                addMessageVisual(`⚠️ **API Error:** Could not connect. Please check your VPS.`, 'bot-message');
             } finally {
                 sendBtn.disabled = false;
                 typingIndicator.style.display = 'none';
@@ -335,25 +341,21 @@
             }
         }
 
-        function addMessage(text, className) {
+        // --- PURE VISUAL RENDERING ---
+        function addMessageVisual(text, className) {
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${className}`;
             
             if (className === 'bot-message') {
                 if (typeof marked !== 'undefined') {
                     msgDiv.innerHTML = marked.parse(text);
-                } else {
-                    msgDiv.textContent = text;
-                }
+                } else { msgDiv.textContent = text; }
             } else {
                 msgDiv.innerText = text;
             }
             
             chatContainer.appendChild(msgDiv);
-            
-            setTimeout(() => {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }, 50);
+            setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
         }
     </script>
 </body>
