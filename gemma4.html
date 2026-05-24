@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gemma 4 Mobile</title>
     
+    <!-- Load Marked.js to parse AI Markdown responses into clean HTML -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
@@ -12,7 +13,7 @@
         body { background-color: #f4f4f7; display: flex; flex-direction: column; height: 100vh; overscroll-behavior-y: none; }
         
         /* Header */
-        header { background-color: #ffffff; padding: 16px; text-align: center; border-bottom: 1px solid #e5e5ea; font-weight: 600; font-size: 1.1rem; color: #1c1c1e; flex-shrink: 0; }
+        header { background-color: #ffffff; padding: 16px; text-align: center; border-bottom: 1px solid #e5e5ea; font-weight: 600; font-size: 1.1rem; color: #1c1c1e; flex-shrink: 0; z-index: 10; }
         
         /* Chat Container */
         #chat-container { flex-grow: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
@@ -34,13 +35,25 @@
         /* Loading Indicator */
         .typing { font-style: italic; color: #8e8e93; font-size: 0.85rem; align-self: flex-start; display: none; margin-top: -8px; padding-left: 16px; }
 
+        /* Attachment Preview */
+        #attachment-preview { background-color: #e5e5ea; padding: 8px 16px; font-size: 0.85rem; color: #1c1c1e; display: none; align-items: center; justify-content: space-between; border-top: 1px solid #c7c7cc; }
+        .remove-attachment { color: #ff3b30; cursor: pointer; font-weight: bold; padding: 4px; }
+
         /* Input Area */
-        #input-area { background-color: #ffffff; padding: 12px 16px; border-top: 1px solid #e5e5ea; display: flex; gap: 8px; flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom, 12px); }
+        #input-area { background-color: #ffffff; padding: 12px 16px; border-top: 1px solid #e5e5ea; display: flex; gap: 8px; flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom, 12px); align-items: center; }
         input[type="text"] { flex-grow: 1; padding: 12px 16px; border: 1px solid #c7c7cc; border-radius: 24px; font-size: 1rem; outline: none; transition: border-color 0.2s; }
         input[type="text"]:focus { border-color: #007aff; }
-        button { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s; }
-        button:active { background-color: #005bb5; }
-        button:disabled { background-color: #a1c8ff; cursor: not-allowed; }
+        
+        /* Buttons */
+        .icon-btn { background-color: transparent; color: #8e8e93; border: none; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
+        .icon-btn:active { color: #1c1c1e; }
+        
+        .send-btn { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s; flex-shrink: 0;}
+        .send-btn:active { background-color: #005bb5; }
+        .send-btn:disabled { background-color: #a1c8ff; cursor: not-allowed; }
+        
+        /* Hidden File Input */
+        #file-upload { display: none; }
     </style>
 </head>
 <body>
@@ -52,64 +65,139 @@
     </div>
     <div class="typing" id="typing-indicator">Gemma is typing...</div>
 
+    <!-- Shows up when a file is attached -->
+    <div id="attachment-preview">
+        <span id="attachment-name">filename.txt</span>
+        <span class="remove-attachment" onclick="clearAttachment()">✕</span>
+    </div>
+
     <div id="input-area">
+        <!-- Paperclip Button -->
+        <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+        </button>
+        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json">
+        
         <input type="text" id="user-input" placeholder="Message Gemma..." autocomplete="off">
-        <button id="send-btn" onclick="sendMessage()">
+        
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
         </button>
     </div>
 
     <script>
         // --- CONFIGURATION ---
-        // Pointing securely to the Caddy Reverse Proxy
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
         
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
         const typingIndicator = document.getElementById('typing-indicator');
+        const fileInput = document.getElementById('file-upload');
+        const attachmentPreview = document.getElementById('attachment-preview');
+        const attachmentName = document.getElementById('attachment-name');
 
-        // Allow pressing Enter on the keyboard to send
+        // State variables to hold file data
+        let attachedImageBase64 = null;
+        let attachedTextContent = null;
+
+        // --- FILE UPLOAD LOGIC ---
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            attachmentName.textContent = file.name;
+            attachmentPreview.style.display = 'flex';
+
+            const reader = new FileReader();
+
+            if (file.type.startsWith('image/')) {
+                // If it's an image, convert to Base64 for Ollama's vision API
+                reader.onload = function(event) {
+                    // Remove the "data:image/jpeg;base64," prefix for Ollama
+                    const base64String = event.target.result.split(',')[1];
+                    attachedImageBase64 = base64String;
+                    attachedTextContent = null;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // If it's a text file, read the raw text content
+                reader.onload = function(event) {
+                    attachedTextContent = event.target.result;
+                    attachedImageBase64 = null;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function clearAttachment() {
+            fileInput.value = '';
+            attachedImageBase64 = null;
+            attachedTextContent = null;
+            attachmentPreview.style.display = 'none';
+        }
+
+        // --- CHAT LOGIC ---
         userInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') sendMessage();
         });
 
         async function sendMessage() {
-            const text = userInput.value.trim();
-            if (!text) return;
-
-            // 1. Add User Message to UI
-            addMessage(text, 'user-message');
-            userInput.value = '';
+            let text = userInput.value.trim();
             
-            // 2. Lock input and show loading
+            // Allow sending if there's text OR an image attached
+            if (!text && !attachedImageBase64 && !attachedTextContent) return;
+
+            // Display logic for the user's message bubble
+            let displayMessage = text;
+            if (attachmentPreview.style.display === 'flex') {
+                displayMessage += displayMessage ? `\n\n[Attached: ${attachmentName.textContent}]` : `[Attached: ${attachmentName.textContent}]`;
+            }
+
+            addMessage(displayMessage, 'user-message');
+            
+            // Prepare the prompt payload
+            let finalPrompt = text;
+            if (attachedTextContent) {
+                finalPrompt += `\n\n--- FILE CONTENTS (${attachmentName.textContent}) ---\n${attachedTextContent}`;
+            }
+
+            // Lock UI
+            userInput.value = '';
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
+            
+            // Create Request Body
+            const requestBody = {
+                model: 'gemma4:e2b',
+                prompt: finalPrompt || 'Describe this image.', // Fallback prompt if only an image is sent
+                stream: false
+            };
+
+            // If an image was attached, append it to the Ollama payload
+            if (attachedImageBase64) {
+                requestBody.images = [attachedImageBase64];
+            }
+
+            // Clear the attachment UI immediately after sending
+            clearAttachment();
 
             try {
-                // 3. Send Request to VPS Backend
                 const response = await fetch(VPS_OLLAMA_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: 'gemma4:e2b',
-                        prompt: text,
-                        stream: false
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (!response.ok) throw new Error('Network response was not ok');
                 
                 const data = await response.json();
-                
-                // 4. Add Bot Message to UI
                 addMessage(data.response, 'bot-message');
 
             } catch (error) {
                 console.error('Error:', error);
                 addMessage('Connection error. Is the VPS running and CORS configured?', 'bot-message');
             } finally {
-                // 5. Unlock input
                 sendBtn.disabled = false;
                 typingIndicator.style.display = 'none';
                 userInput.focus();
@@ -120,15 +208,14 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${className}`;
             
-            // Process AI Markdown into HTML, but keep User input as plain text
             if (className === 'bot-message') {
                 if (typeof marked !== 'undefined') {
                     msgDiv.innerHTML = marked.parse(text);
                 } else {
-                    msgDiv.textContent = text; // Fallback if Marked.js fails to load
+                    msgDiv.textContent = text;
                 }
             } else {
-                msgDiv.textContent = text;
+                msgDiv.innerText = text; // innerText respects line breaks for the attachment tags
             }
             
             chatContainer.appendChild(msgDiv);
