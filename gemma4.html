@@ -83,7 +83,8 @@
         /* Other Utilities */
         .typing { font-style: italic; color: #8e8e93; font-size: 0.85rem; align-self: flex-start; display: none; margin-top: -8px; padding-left: 16px; }
         #attachment-preview { background-color: #e5e5ea; padding: 8px 16px; font-size: 0.85rem; color: #1c1c1e; display: none; align-items: center; justify-content: space-between; border-top: 1px solid #c7c7cc; }
-        .remove-attachment { color: #ff3b30; cursor: pointer; font-weight: bold; padding: 4px; }
+        #attachment-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-grow: 1; margin-right: 8px; }
+        .remove-attachment { color: #ff3b30; cursor: pointer; font-weight: bold; padding: 4px; flex-shrink: 0; }
 
         /* Input Area */
         #input-area { background-color: #ffffff; padding: 12px 16px; border-top: 1px solid #e5e5ea; display: flex; gap: 8px; flex-shrink: 0; padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 12px); align-items: center; }
@@ -129,6 +130,7 @@
     </div>
     <div class="typing" id="typing-indicator">Analyzing...</div>
 
+    <!-- Multi-File Attachment Preview Bar -->
     <div id="attachment-preview">
         <span id="attachment-name">filename.txt</span>
         <span class="remove-attachment" onclick="clearAttachment()">✕</span>
@@ -138,7 +140,8 @@
         <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
         </button>
-        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json,.js,.py,.html,.css,.jsx,.ts,.cpp,.java">
+        <!-- ADDED "multiple" ATTRIBUTE HERE -->
+        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json,.js,.py,.html,.css,.jsx,.ts,.cpp,.java" multiple>
         
         <input type="text" id="user-input" placeholder="Ask a coding question..." autocomplete="off">
         
@@ -163,34 +166,26 @@
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
 
         // --- SESSION MANAGEMENT LOGIC ---
-        let conversations = []; // Array to hold all chats
-        let currentChatId = null; // Tracks which chat is currently open
+        let conversations = []; 
+        let currentChatId = null; 
         let chatContext = []; 
 
         window.onload = function() {
-            // Check for new Multi-Session Storage
             const savedConversations = localStorage.getItem('qwen_conversations');
-            
             if (savedConversations) {
                 conversations = JSON.parse(savedConversations);
             } else {
-                // Auto-Migrate: If user has an old single-chat memory, convert it to the new system!
                 const oldMemory = localStorage.getItem('qwen_chat_memory');
                 if (oldMemory) {
                     const parsedOld = JSON.parse(oldMemory);
                     if (parsedOld.length > 1) {
-                        conversations = [{
-                            id: Date.now().toString(),
-                            title: 'Legacy Chat',
-                            messages: parsedOld
-                        }];
+                        conversations = [{ id: Date.now().toString(), title: 'Legacy Chat', messages: parsedOld }];
                         localStorage.setItem('qwen_conversations', JSON.stringify(conversations));
                     }
-                    localStorage.removeItem('qwen_chat_memory'); // Clean up old system
+                    localStorage.removeItem('qwen_chat_memory'); 
                 }
             }
 
-            // Load the most recent chat, or start a new one
             if (conversations.length > 0) {
                 loadChat(conversations[0].id);
             } else {
@@ -202,7 +197,6 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
-            
             if (sidebar.classList.contains('open')) {
                 sidebar.classList.remove('open');
                 overlay.style.opacity = '0';
@@ -217,12 +211,10 @@
         function renderSidebar() {
             const list = document.getElementById('chat-list');
             list.innerHTML = '';
-            
             conversations.forEach(chat => {
                 const div = document.createElement('div');
                 div.className = `chat-item ${chat.id === currentChatId ? 'active' : ''}`;
                 div.onclick = () => loadChat(chat.id);
-                
                 div.innerHTML = `
                     <div class="chat-title">${chat.title}</div>
                     <button class="chat-delete" onclick="deleteChat('${chat.id}', event)">✕</button>
@@ -236,7 +228,6 @@
             chatContext = [{ role: 'system', content: SYSTEM_PROMPT }];
             document.getElementById('chat-container').innerHTML = '';
             addMessageVisual("Cloud Pro Engine Online. Connected to Qwen 480B. Ready to assist with software engineering.", 'bot-message');
-            
             if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
             renderSidebar();
         }
@@ -244,56 +235,37 @@
         function loadChat(id) {
             const chatToLoad = conversations.find(c => c.id === id);
             if (!chatToLoad) return;
-            
             currentChatId = id;
             chatContext = [...chatToLoad.messages];
             document.getElementById('chat-container').innerHTML = '';
-            
-            // Re-render UI
             chatContext.forEach(msg => {
-                if (msg.role !== 'system') {
-                    addMessageVisual(msg.content, msg.role === 'user' ? 'user-message' : 'bot-message');
-                }
+                if (msg.role !== 'system') addMessageVisual(msg.content, msg.role === 'user' ? 'user-message' : 'bot-message');
             });
-            
             if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
             renderSidebar();
         }
 
         function deleteChat(id, event) {
-            event.stopPropagation(); // Prevents loading the chat when you click the 'X'
+            event.stopPropagation(); 
             if (!confirm("Delete this conversation forever?")) return;
-            
             conversations = conversations.filter(c => c.id !== id);
             localStorage.setItem('qwen_conversations', JSON.stringify(conversations));
-            
-            if (currentChatId === id) {
-                startNewChat();
-            } else {
-                renderSidebar();
-            }
+            if (currentChatId === id) startNewChat(); else renderSidebar();
         }
 
         function saveHistory() {
-            // Strip raw images out to prevent Safari LocalStorage crash limit
             const safeContext = chatContext.map(msg => ({ role: msg.role, content: msg.content }));
-            
             if (!currentChatId) {
-                // If this is a brand new chat, generate an ID and Title
                 currentChatId = Date.now().toString();
                 const firstUserMsg = safeContext.find(m => m.role === 'user');
                 let title = firstUserMsg ? firstUserMsg.content.substring(0, 30) + '...' : 'New Chat';
-                
-                // Add to beginning of array
                 conversations.unshift({ id: currentChatId, title: title, messages: safeContext });
             } else {
-                // If it's an existing chat, just update the messages array
                 const index = conversations.findIndex(c => c.id === currentChatId);
                 if (index !== -1) conversations[index].messages = safeContext;
             }
-            
             localStorage.setItem('qwen_conversations', JSON.stringify(conversations));
-            renderSidebar(); // Refresh the active state in the sidebar
+            renderSidebar(); 
         }
 
         // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
@@ -301,20 +273,15 @@
         renderer.code = function({text, lang}) {
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
             const highlightedCode = hljs.highlight(text, { language: validLanguage }).value;
-            
             let previewBtnHTML = '';
             if (lang === 'html' || lang === 'xml') {
                 previewBtnHTML = `<button class="copy-btn preview-btn" onclick="openCanvas(this)">Preview</button>`;
             }
-
             return `
                 <div class="code-wrapper">
                     <div class="code-header">
                         <span class="lang-label">${validLanguage}</span>
-                        <div class="btn-group">
-                            ${previewBtnHTML}
-                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        </div>
+                        <div class="btn-group">${previewBtnHTML}<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
                     </div>
                     <pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>
                 </div>`;
@@ -324,12 +291,9 @@
         // --- CANVAS & COPY LOGIC ---
         window.openCanvas = function(button) {
             const pre = button.parentElement.parentElement.nextElementSibling;
-            const codeText = pre.textContent;
-            const modal = document.getElementById('canvas-modal');
-            const iframe = document.getElementById('canvas-iframe');
-            modal.style.display = 'flex';
-            const doc = iframe.contentWindow.document;
-            doc.open(); doc.write(codeText); doc.close();
+            const doc = document.getElementById('canvas-iframe').contentWindow.document;
+            document.getElementById('canvas-modal').style.display = 'flex';
+            doc.open(); doc.write(pre.textContent); doc.close();
         };
 
         window.closeCanvas = function() {
@@ -338,8 +302,7 @@
         };
 
         window.copyCode = function(button) {
-            const pre = button.parentElement.parentElement.nextElementSibling;
-            const codeText = pre.textContent;
+            const codeText = button.parentElement.parentElement.nextElementSibling.textContent;
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(codeText).catch(() => fallbackCopy(codeText, button));
             } else { fallbackCopy(codeText, button); }
@@ -354,7 +317,7 @@
             try { document.execCommand("copy"); } catch (err) {} textArea.remove();
         }
 
-        // --- DOM ELEMENTS & FILE UPLOAD ---
+        // --- DOM ELEMENTS & MULTI-FILE UPLOAD LOGIC ---
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -363,8 +326,8 @@
         const attachmentPreview = document.getElementById('attachment-preview');
         const attachmentName = document.getElementById('attachment-name');
 
-        let attachedImageBase64 = null;
-        let attachedTextContent = null;
+        // NEW: Array to hold multiple files
+        let attachedFiles = []; 
 
         document.body.addEventListener('touchmove', function(e) {
             const canvasModal = document.getElementById('canvas-modal');
@@ -374,24 +337,42 @@
             }
         }, { passive: false });
 
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            attachmentName.textContent = file.name;
-            attachmentPreview.style.display = 'flex';
-            const reader = new FileReader();
+        // REWRITTEN: Handles arrays of files simultaneously 
+        fileInput.addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
 
-            if (file.type.startsWith('image/')) {
-                reader.onload = function(event) { attachedImageBase64 = event.target.result.split(',')[1]; attachedTextContent = null; };
-                reader.readAsDataURL(file);
-            } else {
-                reader.onload = function(event) { attachedTextContent = event.target.result; attachedImageBase64 = null; };
-                reader.readAsText(file);
-            }
+            attachmentPreview.style.display = 'flex';
+            attachmentName.textContent = 'Loading files...';
+
+            const filePromises = files.map(file => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    if (file.type.startsWith('image/')) {
+                        reader.onload = function(event) {
+                            resolve({ name: file.name, type: 'image', content: event.target.result.split(',')[1] });
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        reader.onload = function(event) {
+                            resolve({ name: file.name, type: 'text', content: event.target.result });
+                        };
+                        reader.readAsText(file);
+                    }
+                });
+            });
+
+            // Wait for all files to be read and loaded into memory
+            attachedFiles = await Promise.all(filePromises);
+            
+            // Update the UI with a comma-separated list of filenames
+            attachmentName.textContent = attachedFiles.map(f => f.name).join(', ');
         });
 
         function clearAttachment() {
-            fileInput.value = ''; attachedImageBase64 = null; attachedTextContent = null; attachmentPreview.style.display = 'none';
+            fileInput.value = ''; 
+            attachedFiles = []; 
+            attachmentPreview.style.display = 'none';
         }
 
         // --- CHAT LOGIC ---
@@ -399,33 +380,41 @@
 
         async function sendMessage() {
             let text = userInput.value.trim();
-            if (!text && !attachedImageBase64 && !attachedTextContent) return;
+            if (!text && attachedFiles.length === 0) return;
 
+            // 1. Render User Message (Showing all attached file names)
             let displayMessage = text;
-            if (attachmentPreview.style.display === 'flex') {
-                displayMessage += displayMessage ? `\n\n[Attached File: ${attachmentName.textContent}]` : `[Attached File: ${attachmentName.textContent}]`;
+            if (attachedFiles.length > 0) {
+                const namesList = attachedFiles.map(f => f.name).join(', ');
+                displayMessage += displayMessage ? `\n\n[Attached: ${namesList}]` : `[Attached: ${namesList}]`;
             }
 
-            // 1. Render User Message
             addMessageVisual(displayMessage, 'user-message');
             
+            // 2. Format Prompt with Multi-File Contents
             let finalPrompt = text;
-            if (attachedTextContent) {
-                finalPrompt += `\n\n--- FILE CONTENTS (${attachmentName.textContent}) ---\n${attachedTextContent}`;
+            const textFiles = attachedFiles.filter(f => f.type === 'text');
+            if (textFiles.length > 0) {
+                textFiles.forEach(f => {
+                    finalPrompt += `\n\n--- FILE CONTENTS (${f.name}) ---\n${f.content}`;
+                });
             }
 
-            // 2. Add to API Memory & Save Session
-            let userMsgObj = { role: 'user', content: finalPrompt || 'Please review this file.' };
-            if (attachedImageBase64) userMsgObj.images = [attachedImageBase64];
-            chatContext.push(userMsgObj);
+            let userMsgObj = { role: 'user', content: finalPrompt || 'Please review these files.' };
             
-            saveHistory(); // Auto-saves to Sidebar
+            // 3. Attach multiple images (if any)
+            const imageFiles = attachedFiles.filter(f => f.type === 'image');
+            if (imageFiles.length > 0) {
+                userMsgObj.images = imageFiles.map(f => f.content);
+            }
+            
+            chatContext.push(userMsgObj);
+            saveHistory(); 
 
             userInput.value = '';
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
             
-            // 3. Send entire history to the Cloud
             const requestBody = {
                 model: CLOUD_MODEL_NAME,
                 messages: chatContext,
@@ -446,7 +435,6 @@
                 const data = await response.json();
                 const aiReply = data.message.content; 
                 
-                // 4. Save AI Reply to Memory
                 chatContext.push({ role: 'assistant', content: aiReply });
                 saveHistory();
                 
