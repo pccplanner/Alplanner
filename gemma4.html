@@ -42,9 +42,7 @@
         /* Inline Code */
         .bot-message code:not(.hljs) { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background-color: #f0f0f5; padding: 2px 5px; border-radius: 4px; font-size: 0.85rem; color: #d73a49; }
         
-        /* -----------------------------------------
-           NEW: Developer Code Block UI 
-        ------------------------------------------*/
+        /* Developer Code Block UI */
         .code-wrapper { margin: 12px 0; border-radius: 8px; overflow: hidden; background-color: #0d1117; border: 1px solid #30363d; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background-color: #161b22; padding: 6px 12px; border-bottom: 1px solid #30363d; }
         .lang-label { color: #8b949e; font-size: 0.75rem; font-family: ui-monospace, monospace; text-transform: uppercase; font-weight: bold; }
@@ -97,7 +95,6 @@
         <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
         </button>
-        <!-- Expanded accept list for coding files -->
         <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json,.js,.py,.html,.css,.jsx,.ts,.cpp,.java">
         
         <input type="text" id="user-input" placeholder="Ask a coding question..." autocomplete="off">
@@ -110,20 +107,14 @@
     <script>
         // --- CONFIGURATION ---
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
-        
-        // 1. Pointing to the massive Qwen Cloud Model
         const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
-
-        // 2. System Prompt to force Senior Developer behavior
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient, and highly readable code. Always wrap code in markdown blocks with the correct language tag. Explain complex logic briefly.";
 
-        // --- MARKED.JS & HIGHLIGHT.JS SETUP (For beautiful code blocks) ---
+        // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
         const renderer = new marked.Renderer();
         renderer.code = function({text, lang}) {
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
             const highlightedCode = hljs.highlight(text, { language: validLanguage }).value;
-            
-            // Injects the Copy Button and Header above every block of code
             return `
                 <div class="code-wrapper">
                     <div class="code-header">
@@ -135,18 +126,14 @@
         };
         marked.setOptions({ renderer: renderer });
 
-        // Global Copy Function
         window.copyCode = function(button) {
             const pre = button.parentElement.nextElementSibling;
             const codeText = pre.textContent;
-            
-            // Try modern clipboard API, fallback to older iOS method
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(codeText).catch(() => fallbackCopy(codeText, button));
             } else {
                 fallbackCopy(codeText, button);
             }
-            
             button.textContent = 'Copied!';
             button.classList.add('copied');
             setTimeout(() => {
@@ -158,18 +145,13 @@
         function fallbackCopy(text, button) {
             let textArea = document.createElement("textarea");
             textArea.value = text;
-            // Avoid scrolling to bottom on iOS
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            try {
-                document.execCommand("copy");
-            } catch (err) {
-                console.error("Fallback copy failed", err);
-            }
+            try { document.execCommand("copy"); } catch (err) { console.error("Copy failed", err); }
             textArea.remove();
         }
 
@@ -245,7 +227,6 @@
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
             
-            // 3. Updated Payload: Using the Cloud model + System Prompt
             const requestBody = {
                 model: CLOUD_MODEL_NAME,
                 prompt: finalPrompt || 'Please review this file.',
@@ -266,14 +247,30 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                if (!response.ok) throw new Error('Network response was not ok');
+                // NEW: Advanced Error Handling to catch exact Ollama API errors
+                if (!response.ok) {
+                    let errorMessage = `HTTP Error ${response.status}`;
+                    try {
+                        const errorJson = await response.json();
+                        if (errorJson.error) errorMessage = errorJson.error;
+                    } catch (e) {
+                        errorMessage = await response.text();
+                    }
+                    throw new Error(errorMessage);
+                }
                 
                 const data = await response.json();
                 addMessage(data.response, 'bot-message');
 
             } catch (error) {
-                console.error('Error:', error);
-                addMessage('Connection error. Is your VPS routing to Ollama Cloud correctly?', 'bot-message');
+                console.error('API Error:', error);
+                
+                // Show a helpful user-facing error message based on the type of error
+                if (error.message.includes('image')) {
+                    addMessage(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.\n\n*Tip: If you want to analyze images, change the model name back to 'llava' in your script.*`, 'bot-message');
+                } else {
+                    addMessage(`⚠️ **API Error:** ${error.message}`, 'bot-message');
+                }
             } finally {
                 sendBtn.disabled = false;
                 typingIndicator.style.display = 'none';
