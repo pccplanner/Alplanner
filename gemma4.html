@@ -55,11 +55,12 @@
         .preview-btn { background-color: #007aff; color: white; border: 1px solid #007aff; }
         .preview-btn:hover { background-color: #005bb5; border-color: #005bb5; }
 
-        .bot-message pre { margin: 0; padding: 12px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
+        /* THE FIX: Limits the height of code blocks to 250px so they don't flood your screen */
+        .bot-message pre { margin: 0; padding: 12px; overflow: auto; max-height: 250px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
         .bot-message pre code { background-color: transparent; padding: 0; color: #c9d1d9; }
         
         /* -----------------------------------------
-           NEW: Full Screen Live Canvas Modal 
+           Live Canvas Modal 
         ------------------------------------------*/
         #canvas-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #ffffff; z-index: 100; flex-direction: column; }
         #canvas-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f4f4f7; border-bottom: 1px solid #c7c7cc; padding-top: calc(env(safe-area-inset-top, 16px) + 12px); }
@@ -118,7 +119,7 @@
         </button>
     </div>
 
-    <!-- NEW: Live Canvas Screen (Hidden by default) -->
+    <!-- Live Canvas Screen (Hidden by default) -->
     <div id="canvas-modal">
         <div id="canvas-header">
             <span id="canvas-title">Live Preview</span>
@@ -132,7 +133,7 @@
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
         const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
         
-        // Updated System Prompt to force the AI to output single-file HTML apps so the Canvas works perfectly
+        // System Prompt
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
 
         // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
@@ -161,18 +162,15 @@
         };
         marked.setOptions({ renderer: renderer });
 
-        // --- CANVAS LOGIC (NEW) ---
+        // --- CANVAS LOGIC ---
         window.openCanvas = function(button) {
-            // Find the raw code block associated with this button
             const pre = button.parentElement.parentElement.nextElementSibling;
             const codeText = pre.textContent;
             
-            // Show the Full Screen Modal
             const modal = document.getElementById('canvas-modal');
             const iframe = document.getElementById('canvas-iframe');
             modal.style.display = 'flex';
             
-            // Inject the AI's code into the iframe to run it
             const doc = iframe.contentWindow.document;
             doc.open();
             doc.write(codeText);
@@ -180,7 +178,6 @@
         };
 
         window.closeCanvas = function() {
-            // Hide the modal and clear out the old code
             document.getElementById('canvas-modal').style.display = 'none';
             document.getElementById('canvas-iframe').src = 'about:blank'; 
         };
@@ -227,7 +224,6 @@
         let attachedImageBase64 = null;
         let attachedTextContent = null;
 
-        // Prevent body scroll only if the Canvas modal is NOT open
         document.body.addEventListener('touchmove', function(e) {
             const canvasModal = document.getElementById('canvas-modal');
             if (canvasModal.style.display !== 'flex' && !chatContainer.contains(e.target)) {
