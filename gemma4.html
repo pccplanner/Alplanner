@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Ollama Pro Coder</title>
+    <title>Qwen Pro Coder</title>
     
     <!-- Load Marked.js for Markdown Parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -46,13 +46,27 @@
         .code-wrapper { margin: 12px 0; border-radius: 8px; overflow: hidden; background-color: #0d1117; border: 1px solid #30363d; }
         .code-header { display: flex; justify-content: space-between; align-items: center; background-color: #161b22; padding: 6px 12px; border-bottom: 1px solid #30363d; }
         .lang-label { color: #8b949e; font-size: 0.75rem; font-family: ui-monospace, monospace; text-transform: uppercase; font-weight: bold; }
+        
+        .btn-group { display: flex; gap: 8px; }
         .copy-btn { background-color: transparent; border: 1px solid #8b949e; color: #8b949e; border-radius: 4px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; font-family: -apple-system, sans-serif; }
         .copy-btn:hover { background-color: #30363d; color: #c9d1d9; }
         .copy-btn.copied { background-color: #238636; color: white; border-color: #238636; }
         
+        .preview-btn { background-color: #007aff; color: white; border: 1px solid #007aff; }
+        .preview-btn:hover { background-color: #005bb5; border-color: #005bb5; }
+
         .bot-message pre { margin: 0; padding: 12px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
         .bot-message pre code { background-color: transparent; padding: 0; color: #c9d1d9; }
         
+        /* -----------------------------------------
+           NEW: Full Screen Live Canvas Modal 
+        ------------------------------------------*/
+        #canvas-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #ffffff; z-index: 100; flex-direction: column; }
+        #canvas-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f4f4f7; border-bottom: 1px solid #c7c7cc; padding-top: calc(env(safe-area-inset-top, 16px) + 12px); }
+        #canvas-title { font-weight: 600; font-size: 1.1rem; color: #1c1c1e; }
+        .close-canvas-btn { background: #e5e5ea; color: #1c1c1e; border: none; padding: 6px 12px; border-radius: 16px; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
+        #canvas-iframe { flex-grow: 1; border: none; width: 100%; background: #ffffff; }
+
         /* Loading Indicator */
         .typing { font-style: italic; color: #8e8e93; font-size: 0.85rem; align-self: flex-start; display: none; margin-top: -8px; padding-left: 16px; }
 
@@ -73,12 +87,12 @@
         .send-btn:active { background-color: #005bb5; }
         .send-btn:disabled { background-color: #a1c8ff; cursor: not-allowed; }
         
-        /* Hidden File Input */
         #file-upload { display: none; }
     </style>
 </head>
 <body>
 
+    <!-- Main Chat Screen -->
     <header>Qwen Pro Coder</header>
 
     <div id="chat-container">
@@ -104,30 +118,76 @@
         </button>
     </div>
 
+    <!-- NEW: Live Canvas Screen (Hidden by default) -->
+    <div id="canvas-modal">
+        <div id="canvas-header">
+            <span id="canvas-title">Live Preview</span>
+            <button class="close-canvas-btn" onclick="closeCanvas()">Close</button>
+        </div>
+        <iframe id="canvas-iframe"></iframe>
+    </div>
+
     <script>
         // --- CONFIGURATION ---
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
         const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
-        const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient, and highly readable code. Always wrap code in markdown blocks with the correct language tag. Explain complex logic briefly.";
+        
+        // Updated System Prompt to force the AI to output single-file HTML apps so the Canvas works perfectly
+        const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
 
         // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
         const renderer = new marked.Renderer();
         renderer.code = function({text, lang}) {
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
             const highlightedCode = hljs.highlight(text, { language: validLanguage }).value;
+            
+            // Only add the "Preview" button if the AI wrote HTML code
+            let previewBtnHTML = '';
+            if (lang === 'html' || lang === 'xml') {
+                previewBtnHTML = `<button class="copy-btn preview-btn" onclick="openCanvas(this)">Preview</button>`;
+            }
+
             return `
                 <div class="code-wrapper">
                     <div class="code-header">
                         <span class="lang-label">${validLanguage}</span>
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        <div class="btn-group">
+                            ${previewBtnHTML}
+                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                        </div>
                     </div>
                     <pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>
                 </div>`;
         };
         marked.setOptions({ renderer: renderer });
 
+        // --- CANVAS LOGIC (NEW) ---
+        window.openCanvas = function(button) {
+            // Find the raw code block associated with this button
+            const pre = button.parentElement.parentElement.nextElementSibling;
+            const codeText = pre.textContent;
+            
+            // Show the Full Screen Modal
+            const modal = document.getElementById('canvas-modal');
+            const iframe = document.getElementById('canvas-iframe');
+            modal.style.display = 'flex';
+            
+            // Inject the AI's code into the iframe to run it
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(codeText);
+            doc.close();
+        };
+
+        window.closeCanvas = function() {
+            // Hide the modal and clear out the old code
+            document.getElementById('canvas-modal').style.display = 'none';
+            document.getElementById('canvas-iframe').src = 'about:blank'; 
+        };
+
+        // --- COPY LOGIC ---
         window.copyCode = function(button) {
-            const pre = button.parentElement.nextElementSibling;
+            const pre = button.parentElement.parentElement.nextElementSibling;
             const codeText = pre.textContent;
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(codeText).catch(() => fallbackCopy(codeText, button));
@@ -155,7 +215,7 @@
             textArea.remove();
         }
 
-        // --- DOM ELEMENTS ---
+        // --- DOM ELEMENTS & EVENT LISTENERS ---
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -167,8 +227,12 @@
         let attachedImageBase64 = null;
         let attachedTextContent = null;
 
+        // Prevent body scroll only if the Canvas modal is NOT open
         document.body.addEventListener('touchmove', function(e) {
-            if (!chatContainer.contains(e.target)) e.preventDefault();
+            const canvasModal = document.getElementById('canvas-modal');
+            if (canvasModal.style.display !== 'flex' && !chatContainer.contains(e.target)) {
+                e.preventDefault();
+            }
         }, { passive: false });
 
         // --- FILE UPLOAD LOGIC ---
@@ -247,7 +311,6 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                // NEW: Advanced Error Handling to catch exact Ollama API errors
                 if (!response.ok) {
                     let errorMessage = `HTTP Error ${response.status}`;
                     try {
@@ -264,10 +327,8 @@
 
             } catch (error) {
                 console.error('API Error:', error);
-                
-                // Show a helpful user-facing error message based on the type of error
                 if (error.message.includes('image')) {
-                    addMessage(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.\n\n*Tip: If you want to analyze images, change the model name back to 'llava' in your script.*`, 'bot-message');
+                    addMessage(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.`, 'bot-message');
                 } else {
                     addMessage(`⚠️ **API Error:** ${error.message}`, 'bot-message');
                 }
