@@ -93,21 +93,19 @@
         .icon-btn { background-color: transparent; color: #8e8e93; border: none; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .send-btn { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
         .send-btn:disabled { background-color: #a1c8ff; cursor: not-allowed; }
-        #file-upload { display: none; }
+        
+        /* FIX: Made the file input truly hidden natively so iOS respects the label click */
+        #file-upload { opacity: 0; position: absolute; z-index: -1; width: 1px; height: 1px; }
     </style>
 </head>
 <body>
 
     <!-- Header Navigation -->
     <header>
-        <!-- Hamburger Icon -->
         <button class="header-btn" onclick="toggleSidebar()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
-        
         <div class="header-title">Qwen Pro Coder</div>
-        
-        <!-- New Chat Icon (Square with pencil) -->
         <button class="header-btn" onclick="startNewChat()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
         </button>
@@ -120,14 +118,10 @@
             <span>Conversations</span>
             <button class="header-btn" onclick="toggleSidebar()">✕</button>
         </div>
-        <div id="chat-list">
-            <!-- Chat history links get injected here -->
-        </div>
+        <div id="chat-list"></div>
     </div>
 
-    <div id="chat-container">
-        <!-- Messages will be injected here dynamically -->
-    </div>
+    <div id="chat-container"></div>
     <div class="typing" id="typing-indicator">Analyzing...</div>
 
     <!-- Multi-File Attachment Preview Bar -->
@@ -137,11 +131,13 @@
     </div>
 
     <div id="input-area">
-        <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
+        <!-- FIX: Switched from button to native HTML label for robust iOS compatibility -->
+        <label class="icon-btn" for="file-upload">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-        </button>
-        <!-- ADDED "multiple" ATTRIBUTE HERE -->
-        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json,.js,.py,.html,.css,.jsx,.ts,.cpp,.java" multiple>
+        </label>
+        
+        <!-- FIX: Removed complex accept list so iOS safely opens the picker -->
+        <input type="file" id="file-upload" multiple>
         
         <input type="text" id="user-input" placeholder="Ask a coding question..." autocomplete="off">
         
@@ -160,12 +156,10 @@
     </div>
 
     <script>
-        // --- CONFIGURATION ---
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/chat'; 
         const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
 
-        // --- SESSION MANAGEMENT LOGIC ---
         let conversations = []; 
         let currentChatId = null; 
         let chatContext = []; 
@@ -193,7 +187,6 @@
             }
         };
 
-        // --- SIDEBAR UI LOGIC ---
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
@@ -268,7 +261,6 @@
             renderSidebar(); 
         }
 
-        // --- MARKED.JS & HIGHLIGHT.JS SETUP ---
         const renderer = new marked.Renderer();
         renderer.code = function({text, lang}) {
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
@@ -288,7 +280,6 @@
         };
         marked.setOptions({ renderer: renderer });
 
-        // --- CANVAS & COPY LOGIC ---
         window.openCanvas = function(button) {
             const pre = button.parentElement.parentElement.nextElementSibling;
             const doc = document.getElementById('canvas-iframe').contentWindow.document;
@@ -317,7 +308,6 @@
             try { document.execCommand("copy"); } catch (err) {} textArea.remove();
         }
 
-        // --- DOM ELEMENTS & MULTI-FILE UPLOAD LOGIC ---
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -326,7 +316,6 @@
         const attachmentPreview = document.getElementById('attachment-preview');
         const attachmentName = document.getElementById('attachment-name');
 
-        // NEW: Array to hold multiple files
         let attachedFiles = []; 
 
         document.body.addEventListener('touchmove', function(e) {
@@ -337,7 +326,6 @@
             }
         }, { passive: false });
 
-        // REWRITTEN: Handles arrays of files simultaneously 
         fileInput.addEventListener('change', async function(e) {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
@@ -348,6 +336,11 @@
             const filePromises = files.map(file => {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
+                    
+                    reader.onerror = () => {
+                        resolve({ name: file.name, type: 'text', content: '[Error reading file]' });
+                    };
+
                     if (file.type.startsWith('image/')) {
                         reader.onload = function(event) {
                             resolve({ name: file.name, type: 'image', content: event.target.result.split(',')[1] });
@@ -362,10 +355,7 @@
                 });
             });
 
-            // Wait for all files to be read and loaded into memory
             attachedFiles = await Promise.all(filePromises);
-            
-            // Update the UI with a comma-separated list of filenames
             attachmentName.textContent = attachedFiles.map(f => f.name).join(', ');
         });
 
@@ -375,14 +365,12 @@
             attachmentPreview.style.display = 'none';
         }
 
-        // --- CHAT LOGIC ---
         userInput.addEventListener('keypress', function (e) { if (e.key === 'Enter') sendMessage(); });
 
         async function sendMessage() {
             let text = userInput.value.trim();
             if (!text && attachedFiles.length === 0) return;
 
-            // 1. Render User Message (Showing all attached file names)
             let displayMessage = text;
             if (attachedFiles.length > 0) {
                 const namesList = attachedFiles.map(f => f.name).join(', ');
@@ -391,7 +379,6 @@
 
             addMessageVisual(displayMessage, 'user-message');
             
-            // 2. Format Prompt with Multi-File Contents
             let finalPrompt = text;
             const textFiles = attachedFiles.filter(f => f.type === 'text');
             if (textFiles.length > 0) {
@@ -402,7 +389,6 @@
 
             let userMsgObj = { role: 'user', content: finalPrompt || 'Please review these files.' };
             
-            // 3. Attach multiple images (if any)
             const imageFiles = attachedFiles.filter(f => f.type === 'image');
             if (imageFiles.length > 0) {
                 userMsgObj.images = imageFiles.map(f => f.content);
@@ -430,7 +416,11 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                if (!response.ok) {
+                    let errorMessage = `HTTP Error ${response.status}`;
+                    try { const errorJson = await response.json(); if (errorJson.error) errorMessage = errorJson.error; } catch (e) { errorMessage = await response.text(); }
+                    throw new Error(errorMessage);
+                }
                 
                 const data = await response.json();
                 const aiReply = data.message.content; 
@@ -443,7 +433,11 @@
             } catch (error) {
                 console.error('API Error:', error);
                 chatContext.pop(); 
-                addMessageVisual(`⚠️ **API Error:** Could not connect. Please check your VPS.`, 'bot-message');
+                if (error.message.includes('image')) {
+                    addMessageVisual(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.`, 'bot-message');
+                } else {
+                    addMessageVisual(`⚠️ **API Error:** ${error.message}`, 'bot-message');
+                }
             } finally {
                 sendBtn.disabled = false;
                 typingIndicator.style.display = 'none';
@@ -451,7 +445,6 @@
             }
         }
 
-        // --- PURE VISUAL RENDERING ---
         function addMessageVisual(text, className) {
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${className}`;
