@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Gemma 4 Mobile</title>
+    <title>Ollama Pro Coder</title>
     
-    <!-- Load Marked.js to parse AI Markdown responses into clean HTML -->
+    <!-- Load Marked.js for Markdown Parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Load Highlight.js for Code Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         
-        /* THE FIX: Using 100dvh (Dynamic Viewport Height) prevents the Safari address bar overlap */
         body { 
             background-color: #f4f4f7; 
             display: flex; 
             flex-direction: column; 
-            height: 100vh; /* Fallback for very old browsers */
-            height: 100dvh; /* Magic fix for iOS Safari */
+            height: 100vh; 
+            height: 100dvh; 
             overscroll-behavior-y: none; 
         }
         
@@ -27,19 +30,30 @@
         /* Chat Container */
         #chat-container { flex-grow: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
         
-        .message { max-width: 85%; padding: 12px 16px; border-radius: 20px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
+        .message { max-width: 90%; padding: 12px 16px; border-radius: 20px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
         .user-message { align-self: flex-end; background-color: #007aff; color: white; border-bottom-right-radius: 4px; }
         
         /* Bot Message & Markdown Formatting Rules */
-        .bot-message { align-self: flex-start; background-color: #e5e5ea; color: black; border-bottom-left-radius: 4px; }
+        .bot-message { align-self: flex-start; background-color: #ffffff; border: 1px solid #e5e5ea; color: black; border-bottom-left-radius: 4px; width: 100%; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .bot-message p { margin-bottom: 8px; }
         .bot-message p:last-child { margin-bottom: 0; }
         .bot-message ul, .bot-message ol { margin-left: 20px; margin-bottom: 8px; }
         
-        /* Code Block Styling */
-        .bot-message pre { background-color: #d1d1d6; padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; margin-bottom: 8px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
-        .bot-message code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background-color: #d1d1d6; padding: 2px 4px; border-radius: 4px; font-size: 0.85rem; }
-        .bot-message pre code { background-color: transparent; padding: 0; }
+        /* Inline Code */
+        .bot-message code:not(.hljs) { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background-color: #f0f0f5; padding: 2px 5px; border-radius: 4px; font-size: 0.85rem; color: #d73a49; }
+        
+        /* -----------------------------------------
+           NEW: Developer Code Block UI 
+        ------------------------------------------*/
+        .code-wrapper { margin: 12px 0; border-radius: 8px; overflow: hidden; background-color: #0d1117; border: 1px solid #30363d; }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background-color: #161b22; padding: 6px 12px; border-bottom: 1px solid #30363d; }
+        .lang-label { color: #8b949e; font-size: 0.75rem; font-family: ui-monospace, monospace; text-transform: uppercase; font-weight: bold; }
+        .copy-btn { background-color: transparent; border: 1px solid #8b949e; color: #8b949e; border-radius: 4px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; font-family: -apple-system, sans-serif; }
+        .copy-btn:hover { background-color: #30363d; color: #c9d1d9; }
+        .copy-btn.copied { background-color: #238636; color: white; border-color: #238636; }
+        
+        .bot-message pre { margin: 0; padding: 12px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
+        .bot-message pre code { background-color: transparent; padding: 0; color: #c9d1d9; }
         
         /* Loading Indicator */
         .typing { font-style: italic; color: #8e8e93; font-size: 0.85rem; align-self: flex-start; display: none; margin-top: -8px; padding-left: 16px; }
@@ -48,17 +62,8 @@
         #attachment-preview { background-color: #e5e5ea; padding: 8px 16px; font-size: 0.85rem; color: #1c1c1e; display: none; align-items: center; justify-content: space-between; border-top: 1px solid #c7c7cc; }
         .remove-attachment { color: #ff3b30; cursor: pointer; font-weight: bold; padding: 4px; }
 
-        /* Input Area (Added extra safe-area padding for iPhone bottom bar) */
-        #input-area { 
-            background-color: #ffffff; 
-            padding: 12px 16px; 
-            border-top: 1px solid #e5e5ea; 
-            display: flex; 
-            gap: 8px; 
-            flex-shrink: 0; 
-            padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 12px); /* Ensures it sits above the home bar */
-            align-items: center; 
-        }
+        /* Input Area */
+        #input-area { background-color: #ffffff; padding: 12px 16px; border-top: 1px solid #e5e5ea; display: flex; gap: 8px; flex-shrink: 0; padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 12px); align-items: center; }
         input[type="text"] { flex-grow: 1; padding: 12px 16px; border: 1px solid #c7c7cc; border-radius: 24px; font-size: 1rem; outline: none; transition: border-color 0.2s; }
         input[type="text"]:focus { border-color: #007aff; }
         
@@ -76,27 +81,26 @@
 </head>
 <body>
 
-    <header>Gemma 4 Server</header>
+    <header>Qwen Pro Coder</header>
 
     <div id="chat-container">
-        <div class="message bot-message">System online. Connected to VPS. How can I help you?</div>
+        <div class="message bot-message">Cloud Pro Engine Online. Connected to Qwen 480B. Ready to assist with software engineering.</div>
     </div>
-    <div class="typing" id="typing-indicator">Gemma is typing...</div>
+    <div class="typing" id="typing-indicator">Analyzing...</div>
 
-    <!-- Shows up when a file is attached -->
     <div id="attachment-preview">
         <span id="attachment-name">filename.txt</span>
         <span class="remove-attachment" onclick="clearAttachment()">✕</span>
     </div>
 
     <div id="input-area">
-        <!-- Paperclip Button -->
         <button class="icon-btn" onclick="document.getElementById('file-upload').click()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
         </button>
-        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json">
+        <!-- Expanded accept list for coding files -->
+        <input type="file" id="file-upload" accept="image/*,.txt,.csv,.md,.json,.js,.py,.html,.css,.jsx,.ts,.cpp,.java">
         
-        <input type="text" id="user-input" placeholder="Message Gemma..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="Ask a coding question..." autocomplete="off">
         
         <button class="send-btn" id="send-btn" onclick="sendMessage()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -107,6 +111,69 @@
         // --- CONFIGURATION ---
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/generate';
         
+        // 1. Pointing to the massive Qwen Cloud Model
+        const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
+
+        // 2. System Prompt to force Senior Developer behavior
+        const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient, and highly readable code. Always wrap code in markdown blocks with the correct language tag. Explain complex logic briefly.";
+
+        // --- MARKED.JS & HIGHLIGHT.JS SETUP (For beautiful code blocks) ---
+        const renderer = new marked.Renderer();
+        renderer.code = function({text, lang}) {
+            const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
+            const highlightedCode = hljs.highlight(text, { language: validLanguage }).value;
+            
+            // Injects the Copy Button and Header above every block of code
+            return `
+                <div class="code-wrapper">
+                    <div class="code-header">
+                        <span class="lang-label">${validLanguage}</span>
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <pre><code class="hljs ${validLanguage}">${highlightedCode}</code></pre>
+                </div>`;
+        };
+        marked.setOptions({ renderer: renderer });
+
+        // Global Copy Function
+        window.copyCode = function(button) {
+            const pre = button.parentElement.nextElementSibling;
+            const codeText = pre.textContent;
+            
+            // Try modern clipboard API, fallback to older iOS method
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(codeText).catch(() => fallbackCopy(codeText, button));
+            } else {
+                fallbackCopy(codeText, button);
+            }
+            
+            button.textContent = 'Copied!';
+            button.classList.add('copied');
+            setTimeout(() => {
+                button.textContent = 'Copy';
+                button.classList.remove('copied');
+            }, 2000);
+        };
+
+        function fallbackCopy(text, button) {
+            let textArea = document.createElement("textarea");
+            textArea.value = text;
+            // Avoid scrolling to bottom on iOS
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand("copy");
+            } catch (err) {
+                console.error("Fallback copy failed", err);
+            }
+            textArea.remove();
+        }
+
+        // --- DOM ELEMENTS ---
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -115,15 +182,11 @@
         const attachmentPreview = document.getElementById('attachment-preview');
         const attachmentName = document.getElementById('attachment-name');
 
-        // State variables to hold file data
         let attachedImageBase64 = null;
         let attachedTextContent = null;
 
-        // Prevent body scrolling when dragging on the screen (iOS elastic bounce fix)
         document.body.addEventListener('touchmove', function(e) {
-            if (!chatContainer.contains(e.target)) {
-                e.preventDefault();
-            }
+            if (!chatContainer.contains(e.target)) e.preventDefault();
         }, { passive: false });
 
         // --- FILE UPLOAD LOGIC ---
@@ -133,19 +196,15 @@
 
             attachmentName.textContent = file.name;
             attachmentPreview.style.display = 'flex';
-
             const reader = new FileReader();
 
             if (file.type.startsWith('image/')) {
-                // If it's an image, convert to Base64 for Ollama's vision API
                 reader.onload = function(event) {
-                    const base64String = event.target.result.split(',')[1];
-                    attachedImageBase64 = base64String;
+                    attachedImageBase64 = event.target.result.split(',')[1];
                     attachedTextContent = null;
                 };
                 reader.readAsDataURL(file);
             } else {
-                // If it's a text file, read the raw text content
                 reader.onload = function(event) {
                     attachedTextContent = event.target.result;
                     attachedImageBase64 = null;
@@ -168,13 +227,11 @@
 
         async function sendMessage() {
             let text = userInput.value.trim();
-            
-            // Allow sending if there's text OR an image attached
             if (!text && !attachedImageBase64 && !attachedTextContent) return;
 
             let displayMessage = text;
             if (attachmentPreview.style.display === 'flex') {
-                displayMessage += displayMessage ? `\n\n[Attached: ${attachmentName.textContent}]` : `[Attached: ${attachmentName.textContent}]`;
+                displayMessage += displayMessage ? `\n\n[Attached File: ${attachmentName.textContent}]` : `[Attached File: ${attachmentName.textContent}]`;
             }
 
             addMessage(displayMessage, 'user-message');
@@ -188,9 +245,11 @@
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
             
+            // 3. Updated Payload: Using the Cloud model + System Prompt
             const requestBody = {
-                model: 'gemma4:e2b',
-                prompt: finalPrompt || 'Describe this image in detail.',
+                model: CLOUD_MODEL_NAME,
+                prompt: finalPrompt || 'Please review this file.',
+                system: SYSTEM_PROMPT,
                 stream: false
             };
 
@@ -214,7 +273,7 @@
 
             } catch (error) {
                 console.error('Error:', error);
-                addMessage('Connection error. Is the VPS running and CORS configured?', 'bot-message');
+                addMessage('Connection error. Is your VPS routing to Ollama Cloud correctly?', 'bot-message');
             } finally {
                 sendBtn.disabled = false;
                 typingIndicator.style.display = 'none';
@@ -238,7 +297,6 @@
             
             chatContainer.appendChild(msgDiv);
             
-            // Give the browser a millisecond to render the HTML before scrolling
             setTimeout(() => {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }, 50);
