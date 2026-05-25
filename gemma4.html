@@ -29,6 +29,7 @@
             --text-primary: #1f1f1f;
             --text-secondary: #444746;
             --accent-blue: #0b57d0;
+            --border-color: #dadce0;
             --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
@@ -452,15 +453,22 @@ Rules:
             modelSelect.disabled = true;
             currentModel = '';
 
+            const requestUrl = `${VPS_OLLAMA_TAGS_URL}?t=${Date.now()}`;
+
             try {
-                const response = await fetch(VPS_OLLAMA_TAGS_URL, {
+                const response = await fetch(requestUrl, {
                     method: 'GET',
+                    mode: 'cors',
                     headers: { 'Accept': 'application/json' },
                     cache: 'no-store'
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Model fetch failed: HTTP ${response.status}`);
+                    let serverText = '';
+                    try {
+                        serverText = await response.text();
+                    } catch (e) {}
+                    throw new Error(`HTTP ${response.status} ${response.statusText}${serverText ? ' - ' + serverText.slice(0, 160) : ''}`);
                 }
 
                 const data = await response.json();
@@ -475,7 +483,7 @@ Rules:
                 });
 
                 if (Object.keys(activeModels).length === 0) {
-                    throw new Error('No active models returned by server.');
+                    throw new Error('The server responded, but no models were returned.');
                 }
 
                 AVAILABLE_MODELS = activeModels;
@@ -484,14 +492,42 @@ Rules:
                 showToast('Active models loaded from VPS');
             } catch (error) {
                 console.error('Model loading failed:', error);
+
                 AVAILABLE_MODELS = {};
                 currentModel = '';
-                modelSelect.innerHTML = '<option value="">Unable to load models</option>';
-                modelSelect.disabled = true;
+                localStorage.removeItem(STORAGE_MODEL_KEY);
+
+                modelSelect.innerHTML = `
+                    <option value="">Unable to load models</option>
+                    <option value="__retry__">Retry loading models</option>
+                `;
+                modelSelect.disabled = false;
+
                 showToast('Unable to load models from VPS');
+
+                const chat = document.getElementById('chat-container');
+                if (chat && !document.querySelector('.welcome-screen')) {
+                    chat.innerHTML = '';
+                }
+
+                if (chat) {
+                    chat.innerHTML = `
+                        <div class="welcome-screen">
+                            <h1 class="welcome-title">Hello, Developer</h1>
+                            <p class="welcome-subtitle">Model loading failed.</p>
+                            <p style="margin-top:16px; max-width:720px; color:#5f6368; line-height:1.5;">
+                                The frontend could not fetch <strong>/api/tags</strong> from the VPS.
+                                Confirm this opens in Safari: <br>
+                                <code>https://aiproxy.th3va.com/api/tags</code>
+                            </p>
+                            <p style="margin-top:10px; max-width:720px; color:#5f6368; line-height:1.5; font-size:0.95rem;">
+                                Error: ${escapeHtml(error.message)}
+                            </p>
+                        </div>
+                    `;
+                }
             }
         }
-
 
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -503,6 +539,17 @@ Rules:
 
         function changeModel() {
             currentModel = document.getElementById('model-select').value;
+
+            if (currentModel === '__retry__') {
+                loadActiveModelsFromServer();
+                return;
+            }
+
+            if (!currentModel) {
+                localStorage.removeItem(STORAGE_MODEL_KEY);
+                return;
+            }
+
             localStorage.setItem(STORAGE_MODEL_KEY, currentModel);
             const modelName = AVAILABLE_MODELS[currentModel] || currentModel;
             showToast(`Switched to ${modelName}`);
@@ -522,6 +569,15 @@ Rules:
             }
         }
 
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function renderSidebar() {
             const list = document.getElementById('chat-list');
             list.innerHTML = '';
@@ -532,7 +588,7 @@ Rules:
                 div.innerHTML = `
                     <div class="chat-title">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px; opacity: 0.7"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        ${chat.title}
+                        ${escapeHtml(chat.title)}
                     </div>
                     <button class="chat-delete" onclick="deleteChat('${chat.id}', event)">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -804,7 +860,11 @@ Rules:
                 }
                 
                 const data = await response.json();
-                const aiReply = data.message.content; 
+                const aiReply =
+                    data?.message?.content ||
+                    data?.response ||
+                    data?.error ||
+                    'No response content returned by server.'; 
                 
                 chatContext.push({ role: 'assistant', content: aiReply });
                 saveHistory();
@@ -818,7 +878,7 @@ Rules:
                 removeTypingIndicator(typingRowId);
                 
                 if (error.name === 'AbortError') {
-                    addMessageVisual(`⚠️ **Timeout Error:** The cloud provider took too long to respond.`, 'bot-message');
+                    addMessageVisual(`⚠️ **Timeout Error:** The model took too long to respond.`, 'bot-message');
                 } else if (error.message.includes('image') || error.message.includes('vision')) {
                     addMessageVisual(`⚠️ **Model Limitation:** You selected a text-only model. Please switch to **LLaVA (Vision)** in the top menu to process images.`, 'bot-message');
                 } else {
