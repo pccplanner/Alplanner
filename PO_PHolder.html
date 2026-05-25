@@ -52,7 +52,7 @@
             </div>
             
             <div class="p-5 overflow-y-auto flex-1 bg-gray-50" id="ai-modal-content">
-                </div>
+            </div>
             
             <div class="p-4 border-t border-gray-200 bg-white flex justify-end">
                 <button onclick="window.closeAIModal()" class="px-5 py-2 text-sm font-bold text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">Close</button>
@@ -520,8 +520,7 @@
                     shiftSupervisor: shiftSupervisor, lastUpdated: new Date().toISOString(), archiveHistory: archiveHistory 
                 });
                 updateCloudStatus("Synced with Cloud", "text-green-600");
-            } catch (error) { updateCloudStatus("Failed to Save", "text-red-500");
-            }
+            } catch (error) { updateCloudStatus("Failed to Save", "text-red-500"); }
         };
 
         window.handlePDFAction = function(action) {
@@ -545,8 +544,7 @@
             
             let contentWidth = 0;
             const tables = element.querySelectorAll('table');
-            if (tables && tables.length > 0) { tables.forEach(tbl => { if (tbl.scrollWidth > contentWidth) contentWidth = tbl.scrollWidth; });
-            }
+            if (tables && tables.length > 0) { tables.forEach(tbl => { if (tbl.scrollWidth > contentWidth) contentWidth = tbl.scrollWidth; }); }
             if (!contentWidth) contentWidth = element.scrollWidth;
             const newWidth = `${contentWidth}px`;
             
@@ -577,7 +575,6 @@
                 }).catch(err => { restoreUI(); alert("Failed to generate PDF for sharing."); });
             }
         };
-
         window.exportPDF = () => window.handlePDFAction('download');
         window.sharePDF = () => window.handlePDFAction('share');
         window.toggleEditMode = function() {
@@ -641,13 +638,11 @@
                 }
             });
             if (tab === 'attendance') renderAttendance();
-            if (tab === 'roster') { renderControls(); renderTables();
-            }
+            if (tab === 'roster') { renderControls(); renderTables(); }
             if (tab === 'calendar') renderCalendar();
         };
         window.toggleStaff = function(id) { const staff = masterStaffList.find(s => s.id === id); if (staff) staff.present = !staff.present; renderAttendance(); window.saveToDatabase(); };
-        window.toggleHHMD = function(id) { const staff = masterStaffList.find(s => s.id === id); if (staff) staff.hhmd = staff.hhmd === false ?
-        true : false; renderAttendance(); window.saveToDatabase(); };
+        window.toggleHHMD = function(id) { const staff = masterStaffList.find(s => s.id === id); if (staff) staff.hhmd = staff.hhmd === false ? true : false; renderAttendance(); window.saveToDatabase(); };
         window.addNewStaff = function() {
             const idInput = document.getElementById('new-staff-id');
             const nameInput = document.getElementById('new-staff-name');
@@ -832,11 +827,8 @@
             }
         };
 
-        // NEW: Apply the best replacement automatically
         window.applyBestAIFix = function(tId, rIdx, cIdx, anomalyId, suggestedReplacements) {
             if (!suggestedReplacements || suggestedReplacements.length === 0) return;
-            
-            // Get the best replacement (first in the list)
             const bestReplacement = suggestedReplacements[0];
             const replacementStaffId = typeof bestReplacement === 'object' ? bestReplacement.staff_id : bestReplacement;
             
@@ -858,49 +850,61 @@
             }
         };
 
-        // NEW: Apply all best replacements automatically
         window.applyAllBestAIFixes = function(anomalies) {
             if (!anomalies || anomalies.length === 0) return;
-            
             let fixedCount = 0;
+            
+            // Track who we've assigned per column to prevent new double-deployments
+            let newlyAssignedStaffByColumn = {}; 
+
             anomalies.forEach((anomaly, index) => {
                 const suggestedReplacements = anomaly.suggested_replacements || [];
-                if (suggestedReplacements.length > 0) {
-                    const bestReplacement = suggestedReplacements[0];
-                    const replacementStaffId = typeof bestReplacement === 'object' ? bestReplacement.staff_id : bestReplacement;
+                const cIdx = anomaly.c_idx; // Already correctly offset now
+                let replacementStaffId = null;
+
+                // Find the first best option that hasn't ALREADY been used in this same column
+                for (let option of suggestedReplacements) {
+                    const staffId = typeof option === 'object' ? option.staff_id : option;
+                    if (!newlyAssignedStaffByColumn[cIdx] || !newlyAssignedStaffByColumn[cIdx].has(staffId)) {
+                        replacementStaffId = staffId;
+                        break;
+                    }
+                }
+
+                if (replacementStaffId) {
+                    const tId = anomaly.t_id;
+                    const rIdx = anomaly.r_idx;
+                    const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
+
+                    // Track this staff as used in this column
+                    if (!newlyAssignedStaffByColumn[cIdx]) newlyAssignedStaffByColumn[cIdx] = new Set();
+                    newlyAssignedStaffByColumn[cIdx].add(replacementStaffId);
+
+                    cellOverrides[overrideKey] = replacementStaffId;
+                    fixedCount++;
                     
-                    if (replacementStaffId) {
-                        const tId = anomaly.t_id;
-                        const rIdx = anomaly.r_idx;
-                        // FIXED: Correct column index alignment (no +1 needed for applyAll)
-                        const cIdx = anomaly.c_idx;
-                        const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
-                        cellOverrides[overrideKey] = replacementStaffId;
-                        fixedCount++;
-                        
-                        // Remove anomaly highlight from the fixed cell
-                        try {
-                            const cellElem = document.getElementById(`cell-t${tId}-${rIdx}-${cIdx}`);
-                            if (cellElem) cellElem.classList.remove('ai-anomaly');
-                        } catch (e) {}
-                        
-                        // Update the anomaly box
-                        const container = document.getElementById(`anomaly-box-${index}`);
-                        if(container) {
-                            container.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-md font-bold flex items-center gap-2 border border-green-300"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Auto-fixed! Applied best option: ${replacementStaffId}.</div>`;
-                        }
+                    // Remove anomaly highlight from the fixed cell
+                    try {
+                        const cellElem = document.getElementById(`cell-t${tId}-${rIdx}-${cIdx}`);
+                        if (cellElem) cellElem.classList.remove('ai-anomaly');
+                    } catch (e) {}
+                    
+                    // Update the anomaly box
+                    const container = document.getElementById(`anomaly-box-${index}`);
+                    if(container) {
+                        container.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-md font-bold flex items-center gap-2 border border-green-300"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Auto-fixed! Applied clash-free option: ${replacementStaffId}.</div>`;
                     }
                 }
             });
-            
+
             if (fixedCount > 0) {
                 renderTables();
                 window.saveToDatabase();
-                // Show success message
+                
                 const modalContent = document.getElementById('ai-modal-content');
                 const successMsg = document.createElement('div');
                 successMsg.className = 'mb-4 p-3 bg-green-100 text-green-800 rounded border border-green-200 font-bold';
-                successMsg.innerHTML = `Successfully auto-fixed ${fixedCount} anomalies with best options!`;
+                successMsg.innerHTML = `Successfully auto-fixed ${fixedCount} anomalies!`;
                 modalContent.insertBefore(successMsg, modalContent.firstChild);
             }
         };
@@ -961,6 +965,14 @@
                 }
                 
                 const data = await response.json();
+                
+                // SHIFT INDEX FIX: Align backend 0-index with frontend 1-index
+                if (data.anomalies && Array.isArray(data.anomalies)) {
+                    data.anomalies.forEach(anomaly => {
+                        anomaly.c_idx = parseInt(anomaly.c_idx) + 1;
+                    });
+                }
+
                 // Clear any previous AI anomaly highlights
                 try {
                     document.querySelectorAll('.ai-anomaly').forEach(el => el.classList.remove('ai-anomaly'));
@@ -969,7 +981,6 @@
                 // Highlight current anomalies if any
                 if (data && data.status === 'FAIL' && Array.isArray(data.anomalies)) {
                     data.anomalies.forEach(anomaly => {
-                        // FIXED: Correct column index alignment (no +1 needed for highlighting)
                         const actualCIdx = anomaly.c_idx;
                         const cellId = `cell-t${anomaly.t_id}-${anomaly.r_idx}-${actualCIdx}`;
                         const cell = document.getElementById(cellId);
@@ -988,7 +999,6 @@
                     modalContent.innerHTML = `<div class="flex flex-col items-center justify-center p-8 text-center"><div class="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4 shadow-inner"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg></div><h4 class="text-xl font-extrabold text-gray-800">Perfect Roster!</h4><p class="text-gray-500 mt-2">The AI found 0 break violations and 0 double-deployments.</p></div>`;
                 } else {
                     let html = `<div class="mb-4 p-3 bg-red-100 text-red-800 rounded border border-red-200 font-bold">Detected ${data.total_anomalies} scheduling anomalies.</div>`;
-                    
                     // Add "Auto-Fix All Best" button at the top
                     html += `<div class="mb-4 flex">
                         <button onclick="window.applyAllBestAIFixes(${JSON.stringify(data.anomalies).replace(/"/g, '&quot;')})" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
@@ -996,7 +1006,6 @@
                             Auto-Fix All Best Solutions
                         </button>
                     </div>`;
-                    
                     data.anomalies.forEach((anomaly, index) => {
                         
                         // Replaces the old replaceOpts map logic
@@ -1031,7 +1040,6 @@
                                             ${replaceOpts}
                                             <option value="VACANT">Leave VACANT</option>
                                         </select>
-                                        
                                         <div class="flex flex-col sm:flex-row gap-2 w-full">
                                             <button onclick="window.applyAIFix('${anomaly.t_id}', '${anomaly.r_idx}', '${anomaly.c_idx}', '${index}', document.getElementById('fix-select-${index}').value)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm whitespace-nowrap transition-colors flex-1">
                                                 Apply Fix
@@ -1045,6 +1053,7 @@
                             </div>
                         </div>`;
                     });
+                
                     modalContent.innerHTML = html;
                 }
                 document.getElementById('ai-fix-modal').classList.remove('hidden');
@@ -1090,12 +1099,10 @@
                                 <span class="font-bold text-gray-800 text-xs md:text-sm truncate">${staff.id}</span>
                                 <span class="text-[10px] md:text-xs text-gray-500 truncate">${staff.name || ''}</span>
                             </div>
-                            <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ?
-'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                            <svg class="w-4 h-4 md:w-5 md:h-5 text-blue-600 flex-shrink-0 transition-opacity ${isPresent ? 'opacity-100' : 'opacity-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         </label>
                         <div class="flex flex-col border-l border-gray-200 w-10 shrink-0">
-                            <button type="button" onclick="window.toggleHHMD('${staff.id}')" 
-class="flex-1 flex items-center justify-center transition-colors ${isHHMD ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-tr-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 rounded-tr-md'}" title="Toggle HHMD Certification">
+                            <button type="button" onclick="window.toggleHHMD('${staff.id}')" class="flex-1 flex items-center justify-center transition-colors ${isHHMD ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-tr-md' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 rounded-tr-md'}" title="Toggle HHMD Certification">
                                 <span class="text-[8px] font-extrabold">HHMD</span>
                             </button>
                             <button type="button" onclick="window.promptDeleteStaff('${staff.id}', event)" class="flex-1 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors border-t border-gray-200 flex items-center justify-center rounded-br-md" title="Remove Staff">
@@ -1158,8 +1165,7 @@ class="flex-1 flex items-center justify-center transition-colors ${isHHMD ? 'bg-
                 html += `
                     <div id="wrapper-slot-${index}" class="flex flex-col p-2 rounded border relative transition-colors ${wrapperClass}">
                         <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 flex items-center w-full">Slot ${index + 1} ${hhmdBadge} ${dupLabel}</label>
-                        <input id="input-slot-${index}" type="text" value="${staffId}" oninput="window.updateAssignment('${p}', this.value)" class="w-full border 
-${inputClass} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors" />
+                        <input id="input-slot-${index}" type="text" value="${staffId}" oninput="window.updateAssignment('${p}', this.value)" class="w-full border ${inputClass} rounded p-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white transition-colors" />
                         <div id="status-slot-${index}" class="flex justify-between items-center mt-1.5 px-0.5 border-t border-gray-200 pt-1">
                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Yesterday's Status">Y: ${formatStatusBadge(yestStatus)}</span>
                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter" title="Tomorrow's Status">T: ${formatStatusBadge(tomStatus)}</span>
