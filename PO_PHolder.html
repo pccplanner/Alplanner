@@ -832,6 +832,32 @@
             }
         };
 
+        // NEW: Apply the best replacement automatically
+        window.applyBestAIFix = function(tId, rIdx, cIdx, anomalyId, suggestedReplacements) {
+            if (!suggestedReplacements || suggestedReplacements.length === 0) return;
+            
+            // Get the best replacement (first in the list)
+            const bestReplacement = suggestedReplacements[0];
+            const replacementStaffId = typeof bestReplacement === 'object' ? bestReplacement.staff_id : bestReplacement;
+            
+            if(!replacementStaffId) return;
+            
+            const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
+            cellOverrides[overrideKey] = replacementStaffId;
+            renderTables(); window.saveToDatabase();
+            
+            // Remove anomaly highlight from the fixed cell
+            try {
+                const cellElem = document.getElementById(`cell-t${tId}-${rIdx}-${cIdx}`);
+                if (cellElem) cellElem.classList.remove('ai-anomaly');
+            } catch (e) {}
+            
+            const container = document.getElementById(`anomaly-box-${anomalyId}`);
+            if(container) {
+                container.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-md font-bold flex items-center gap-2 border border-green-300"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Auto-fixed! Applied best option: ${replacementStaffId}.</div>`;
+            }
+        };
+
         window.runAIAudit = async function() {
             const btn = document.getElementById('btn-ai-audit');
             const originalContent = btn.innerHTML;
@@ -950,9 +976,14 @@
                                             <option value="VACANT">Leave VACANT</option>
                                         </select>
                                         
-                                        <button onclick="window.applyAIFix('${anomaly.t_id}', '${anomaly.r_idx}', '${anomaly.c_idx + 1}', '${index}', document.getElementById('fix-select-${index}').value)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm whitespace-nowrap transition-colors">
-                                            Apply Fix
-                                        </button>
+                                        <div class="flex flex-col sm:flex-row gap-2 w-full">
+                                            <button onclick="window.applyAIFix('${anomaly.t_id}', '${anomaly.r_idx}', '${anomaly.c_idx + 1}', '${index}', document.getElementById('fix-select-${index}').value)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm whitespace-nowrap transition-colors flex-1">
+                                                Apply Fix
+                                            </button>
+                                            <button onclick="window.applyBestAIFix('${anomaly.t_id}', '${anomaly.r_idx}', '${anomaly.c_idx + 1}', '${index}', ${JSON.stringify(anomaly.suggested_replacements || [])})" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm whitespace-nowrap transition-colors flex-1">
+                                                Auto-Fix Best
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
