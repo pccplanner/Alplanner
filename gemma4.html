@@ -292,10 +292,7 @@
         </button>
         <div class="header-title">
             <select id="model-select" onchange="changeModel()">
-                <option value="qwen3-coder:480b-cloud">Qwen 3 Coder 480B</option>
-                <option value="deepseek-v4-pro:cloud">DeepSeek V4 Pro</option>
-                <option value="gemma4:e4b">Gemma 4 e4b</option>
-                <option value="llava:latest">LLaVA (Vision)</option>
+                <option value="">Loading models...</option>
             </select>
         </div>
         <button class="header-btn" onclick="startNewChat()" aria-label="New Chat">
@@ -359,18 +356,31 @@
     </div>
 
     <script>
-        // API CONFIGURATION (Using your secure proxy)
-        const VPS_OLLAMA_URL = 'https://aiproxy.th3va.com/api/chat'; 
-        
-        const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
+        // API CONFIGURATION
+        // Frontend talks only to your Node.js proxy. The proxy talks to Ollama.
+        const API_BASE_URL = 'https://aiproxy.th3va.com';
+        const VPS_OLLAMA_URL = `${API_BASE_URL}/api/chat`;
+        const VPS_OLLAMA_TAGS_URL = `${API_BASE_URL}/api/tags`;
 
-        const AVAILABLE_MODELS = {
-            'qwen3-coder:480b-cloud': 'Qwen 480B',
-            'deepseek-v4-pro:cloud': 'DeepSeek V4 Pro',
-            'gemma4:e4b': 'Gemma 4 e4b',
-            'llava:latest': 'LLaVA (Vision)'
-        };
-        let currentModel = localStorage.getItem('gemini_selected_model') || 'qwen3-coder:480b-cloud';
+        const STORAGE_MODEL_KEY = 'aiproxy_selected_model';
+        const STORAGE_CONVERSATIONS_KEY = 'aiproxy_conversations';
+
+        const SYSTEM_PROMPT = `
+You are AI Pro Coder, an elite senior software engineer and AI architect.
+
+Rules:
+- Always provide production-grade solutions
+- Never give incomplete code
+- Generate full working scripts when requested
+- Prefer clean architecture, mobile responsiveness, and performance
+- When generating HTML/CSS/JS, provide complete standalone files
+- Explain fixes clearly and briefly
+`;
+
+        // No hardcoded model list.
+        // This object is populated dynamically from /api/tags on page load.
+        let AVAILABLE_MODELS = {};
+        let currentModel = '';
 
         let conversations = []; 
         let currentChatId = null; 
@@ -378,17 +388,17 @@
         let toastTimeout = null;
         let isWaitingForReply = false;
 
-        window.onload = function() {
-            const modelSelect = document.getElementById('model-select');
-            if (modelSelect.querySelector(`option[value="${currentModel}"]`)) {
-                modelSelect.value = currentModel;
-            } else {
-                currentModel = modelSelect.value;
-            }
+        window.onload = async function() {
+            await loadActiveModelsFromServer();
 
-            const savedConversations = localStorage.getItem('gemini_conversations');
+            const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
-                conversations = JSON.parse(savedConversations);
+                try {
+                    conversations = JSON.parse(savedConversations) || [];
+                } catch (e) {
+                    conversations = [];
+                    localStorage.removeItem(STORAGE_CONVERSATIONS_KEY);
+                }
             }
 
             if (conversations.length > 0) {
@@ -397,6 +407,91 @@
                 startNewChat();
             }
         };
+
+        function formatModelLabel(modelName) {
+            return String(modelName || '')
+                .replace(/:cloud$/i, ' Cloud')
+                .replace(/:latest$/i, ' Latest')
+                .replace(/-/g, ' ')
+                .replace(/\b\w/g, char => char.toUpperCase())
+                .trim();
+        }
+
+        function populateModelDropdown(modelsMap) {
+            const modelSelect = document.getElementById('model-select');
+            modelSelect.innerHTML = '';
+
+            const modelEntries = Object.entries(modelsMap);
+            if (modelEntries.length === 0) {
+                modelSelect.innerHTML = '<option value="">No models found</option>';
+                currentModel = '';
+                return;
+            }
+
+            modelEntries.forEach(([modelId, label]) => {
+                const option = document.createElement('option');
+                option.value = modelId;
+                option.textContent = label;
+                modelSelect.appendChild(option);
+            });
+
+            const savedModel = localStorage.getItem(STORAGE_MODEL_KEY);
+            if (savedModel && modelsMap[savedModel]) {
+                currentModel = savedModel;
+            } else if (!currentModel || !modelsMap[currentModel]) {
+                currentModel = modelEntries[0][0];
+                localStorage.setItem(STORAGE_MODEL_KEY, currentModel);
+            }
+
+            modelSelect.value = currentModel;
+        }
+
+        async function loadActiveModelsFromServer() {
+            const modelSelect = document.getElementById('model-select');
+            modelSelect.innerHTML = '<option value="">Loading models...</option>';
+            modelSelect.disabled = true;
+            currentModel = '';
+
+            try {
+                const response = await fetch(VPS_OLLAMA_TAGS_URL, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Model fetch failed: HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const serverModels = Array.isArray(data.models) ? data.models : [];
+
+                const activeModels = {};
+                serverModels.forEach(item => {
+                    const modelId = item.name || item.model;
+                    if (modelId) {
+                        activeModels[modelId] = formatModelLabel(modelId);
+                    }
+                });
+
+                if (Object.keys(activeModels).length === 0) {
+                    throw new Error('No active models returned by server.');
+                }
+
+                AVAILABLE_MODELS = activeModels;
+                populateModelDropdown(AVAILABLE_MODELS);
+                modelSelect.disabled = false;
+                showToast('Active models loaded from VPS');
+            } catch (error) {
+                console.error('Model loading failed:', error);
+                AVAILABLE_MODELS = {};
+                currentModel = '';
+                modelSelect.innerHTML = '<option value="">Unable to load models</option>';
+                modelSelect.disabled = true;
+                showToast('Unable to load models from VPS');
+            }
+        }
+
 
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -408,7 +503,7 @@
 
         function changeModel() {
             currentModel = document.getElementById('model-select').value;
-            localStorage.setItem('gemini_selected_model', currentModel);
+            localStorage.setItem(STORAGE_MODEL_KEY, currentModel);
             const modelName = AVAILABLE_MODELS[currentModel] || currentModel;
             showToast(`Switched to ${modelName}`);
         }
@@ -488,7 +583,7 @@
             event.stopPropagation(); 
             if (!confirm("Delete this conversation forever?")) return;
             conversations = conversations.filter(c => c.id !== id);
-            localStorage.setItem('gemini_conversations', JSON.stringify(conversations));
+            localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(conversations));
             if (currentChatId === id) startNewChat(); else renderSidebar();
         }
 
@@ -503,7 +598,7 @@
                 const index = conversations.findIndex(c => c.id === currentChatId);
                 if (index !== -1) conversations[index].messages = safeContext;
             }
-            localStorage.setItem('gemini_conversations', JSON.stringify(conversations));
+            localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(conversations));
             renderSidebar(); 
         }
 
@@ -638,6 +733,10 @@
             if (isWaitingForReply) return;
             let text = userInput.value.trim();
             if (!text && attachedFiles.length === 0) return;
+            if (!currentModel) {
+                showToast('No active model available. Please check Ollama /api/tags.');
+                return;
+            }
 
             removeWelcomeScreen();
             isWaitingForReply = true;
