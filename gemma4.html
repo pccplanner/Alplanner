@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Qwen Pro Coder</title>
+    <title>AI Pro Coder</title>
     
     <!-- Load Marked.js for Markdown Parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -28,7 +28,30 @@
            Header & Navigation
         ------------------------------------------*/
         header { background-color: #ffffff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e5ea; color: #1c1c1e; flex-shrink: 0; z-index: 10; padding-top: calc(env(safe-area-inset-top, 16px) + 8px); }
-        .header-title { font-weight: 600; font-size: 1.1rem; text-align: center; flex-grow: 1; }
+        .header-title { text-align: center; flex-grow: 1; display: flex; justify-content: center; align-items: center;}
+        
+        /* Model Selector Dropdown */
+        #model-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-color: #f4f4f7;
+            border: 1px solid #e5e5ea;
+            border-radius: 8px;
+            padding: 6px 32px 6px 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1c1c1e;
+            cursor: pointer;
+            outline: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 16px;
+            transition: all 0.2s;
+        }
+        #model-select:hover { background-color: #e5e5ea; }
+        #model-select:focus { border-color: #007aff; }
+
         .header-btn { background: transparent; color: #1c1c1e; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; }
         
         /* -----------------------------------------
@@ -142,7 +165,6 @@
         .send-btn { background-color: #007aff; color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
         .send-btn:disabled { background-color: #a1c8ff; cursor: not-allowed; }
         
-        /* FIX: Made the file input truly hidden natively so iOS respects the label click */
         #file-upload { opacity: 0; position: absolute; z-index: -1; width: 1px; height: 1px; }
     </style>
 </head>
@@ -153,7 +175,12 @@
         <button class="header-btn" onclick="toggleSidebar()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
-        <div class="header-title">Qwen Pro Coder</div>
+        <div class="header-title">
+            <select id="model-select" onchange="changeModel()">
+                <option value="qwen3-coder:480b-cloud">Qwen 3 Coder 480B</option>
+                <option value="deepseek-v4-pro:cloud">DeepSeek V4 Pro</option>
+            </select>
+        </div>
         <button class="header-btn" onclick="startNewChat()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
         </button>
@@ -179,12 +206,10 @@
     </div>
 
     <div id="input-area">
-        <!-- FIX: Switched from button to native HTML label for robust iOS compatibility -->
         <label class="icon-btn" for="file-upload">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
         </label>
         
-        <!-- FIX: Removed complex accept list so iOS safely opens the picker -->
         <input type="file" id="file-upload" multiple>
         
         <textarea id="user-input" placeholder="Ask a coding question..." autocomplete="off" rows="1"></textarea>
@@ -205,14 +230,28 @@
 
     <script>
         const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/chat'; 
-        const CLOUD_MODEL_NAME = 'qwen3-coder:480b-cloud';
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
+
+        // --- Model Management ---
+        const AVAILABLE_MODELS = {
+            'qwen3-coder:480b-cloud': 'Qwen 480B',
+            'deepseek-v4-pro:cloud': 'DeepSeek V4 Pro'
+        };
+        let currentModel = localStorage.getItem('qwen_selected_model') || 'qwen3-coder:480b-cloud';
 
         let conversations = []; 
         let currentChatId = null; 
         let chatContext = []; 
 
         window.onload = function() {
+            // Set dropdown to saved model
+            const modelSelect = document.getElementById('model-select');
+            if (modelSelect.querySelector(`option[value="${currentModel}"]`)) {
+                modelSelect.value = currentModel;
+            } else {
+                currentModel = modelSelect.value; // Fallback to default
+            }
+
             const savedConversations = localStorage.getItem('qwen_conversations');
             if (savedConversations) {
                 conversations = JSON.parse(savedConversations);
@@ -234,6 +273,11 @@
                 startNewChat();
             }
         };
+
+        function changeModel() {
+            currentModel = document.getElementById('model-select').value;
+            localStorage.setItem('qwen_selected_model', currentModel);
+        }
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -268,7 +312,10 @@
             currentChatId = null;
             chatContext = [{ role: 'system', content: SYSTEM_PROMPT }];
             document.getElementById('chat-container').innerHTML = '';
-            addMessageVisual("Cloud Pro Engine Online. Connected to Qwen 480B. Ready to assist with software engineering.", 'bot-message');
+            
+            const modelName = AVAILABLE_MODELS[currentModel] || currentModel;
+            addMessageVisual(`Cloud Pro Engine Online. Connected to ${modelName}. Ready to assist with software engineering.`, 'bot-message');
+            
             if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
             renderSidebar();
         }
@@ -462,8 +509,9 @@
             sendBtn.disabled = true;
             typingIndicator.style.display = 'block';
             
+            // Use dynamic model selected by user
             const requestBody = {
-                model: CLOUD_MODEL_NAME,
+                model: currentModel,
                 messages: chatContext,
                 stream: false
             };
@@ -495,7 +543,7 @@
                 console.error('API Error:', error);
                 chatContext.pop(); 
                 if (error.message.includes('image')) {
-                    addMessageVisual(`⚠️ **Model Error:** Qwen Coder is a text-only model and cannot process images.`, 'bot-message');
+                    addMessageVisual(`⚠️ **Model Error:** The selected model is text-only and cannot process images.`, 'bot-message');
                 } else {
                     addMessageVisual(`⚠️ **API Error:** ${error.message}`, 'bot-message');
                 }
