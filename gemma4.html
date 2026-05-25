@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>AI Pro Coder</title>
     
-    <!-- Load Fonts (Outfit/Roboto to simulate Google Sans) -->
+    <!-- Load Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
@@ -67,7 +67,7 @@
             background-color: transparent;
             border: none;
             padding: 8px 32px 8px 12px;
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-family: var(--font-main);
             font-weight: 500;
             color: var(--text-primary);
@@ -79,8 +79,13 @@
             background-size: 18px;
             transition: background-color 0.2s;
             border-radius: 8px;
+            max-width: 250px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
         #model-select:hover { background-color: var(--surface-color); }
+        #model-select:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .header-btn { 
             background: transparent; 
@@ -176,7 +181,7 @@
             display: flex;
             flex-direction: column;
             gap: 24px;
-            padding: 24px 16px 140px; /* Extra bottom padding for floating input */
+            padding: 24px 16px 140px; 
             -webkit-overflow-scrolling: touch;
             max-width: 850px;
             margin: 0 auto;
@@ -284,9 +289,7 @@
             transition: background-color 0.3s;
         }
         
-        #input-area:focus-within {
-            background-color: #eaf1fb;
-        }
+        #input-area:focus-within { background-color: #eaf1fb; }
 
         #user-input {
             flex: 1 1 auto;
@@ -376,10 +379,7 @@
         </button>
         <div class="header-title">
             <select id="model-select" onchange="changeModel()">
-                <option value="qwen3-coder:480b-cloud">Qwen 3 Coder 480B</option>
-                <option value="deepseek-v4-pro:cloud">DeepSeek V4 Pro</option>
-                <!-- Added new model option as requested -->
-                <option value="gemma4:e4b">Ollama run gemma4:e4b</option>
+                <option value="loading">Loading models...</option>
             </select>
         </div>
         <button class="header-btn" onclick="startNewChat()" aria-label="New Chat">
@@ -440,16 +440,14 @@
     </div>
 
     <script>
-        const VPS_OLLAMA_URL = 'https://ollama.th3va.com/api/chat'; 
+        const VPS_OLLAMA_BASE_URL = 'https://ollama.th3va.com'; 
+        const VPS_OLLAMA_CHAT_URL = `${VPS_OLLAMA_BASE_URL}/api/chat`;
+        const VPS_OLLAMA_TAGS_URL = `${VPS_OLLAMA_BASE_URL}/api/tags`;
+
         const SYSTEM_PROMPT = "You are an expert Senior Software Engineer. Provide concise, efficient code. When generating web code (HTML/CSS/JS), ALWAYS output it as a single, fully-contained HTML document block so it can be previewed. Explain complex logic briefly.";
 
-        // --- Model Management ---
-        const AVAILABLE_MODELS = {
-            'qwen3-coder:480b-cloud': 'Qwen 480B',
-            'deepseek-v4-pro:cloud': 'DeepSeek V4 Pro',
-            'gemma4:e4b': 'Gemma 4 e4b' // Added logic mapping for new model
-        };
-        let currentModel = localStorage.getItem('gemini_ui_selected_model') || 'qwen3-coder:480b-cloud';
+        let currentModel = localStorage.getItem('gemini_ui_selected_model') || null;
+        let availableModels = [];
 
         let conversations = []; 
         let currentChatId = null; 
@@ -457,13 +455,9 @@
         let toastTimeout = null;
         let isWaitingForReply = false;
 
-        window.onload = function() {
-            const modelSelect = document.getElementById('model-select');
-            if (modelSelect.querySelector(`option[value="${currentModel}"]`)) {
-                modelSelect.value = currentModel;
-            } else {
-                currentModel = modelSelect.value;
-            }
+        window.onload = async function() {
+            // Fetch dynamically installed models from the VPS
+            await fetchAvailableModels();
 
             const savedConversations = localStorage.getItem('gemini_ui_conversations');
             if (savedConversations) {
@@ -477,25 +471,61 @@
             }
         };
 
-        // --- Toast Notification Logic ---
+        async function fetchAvailableModels() {
+            const selectEl = document.getElementById('model-select');
+            selectEl.disabled = true;
+
+            try {
+                const response = await fetch(VPS_OLLAMA_TAGS_URL);
+                if (!response.ok) throw new Error("Failed to fetch models");
+                
+                const data = await response.json();
+                availableModels = data.models || [];
+                
+                selectEl.innerHTML = ''; // Clear loading text
+                
+                if (availableModels.length === 0) {
+                    selectEl.innerHTML = '<option value="">No Models Found</option>';
+                    return;
+                }
+
+                availableModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    selectEl.appendChild(option);
+                });
+
+                // Set selection back to saved model if it exists on the server
+                if (currentModel && availableModels.find(m => m.name === currentModel)) {
+                    selectEl.value = currentModel;
+                } else {
+                    // Fallback to first available model if saved model isn't installed
+                    currentModel = availableModels[0].name;
+                    selectEl.value = currentModel;
+                    localStorage.setItem('gemini_ui_selected_model', currentModel);
+                }
+                
+                selectEl.disabled = false;
+
+            } catch (error) {
+                console.error("Error fetching models:", error);
+                selectEl.innerHTML = '<option value="">Server Unreachable</option>';
+            }
+        }
+
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.classList.add('show');
-            
             if (toastTimeout) clearTimeout(toastTimeout);
-            
-            toastTimeout = setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
+            toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
         function changeModel() {
             currentModel = document.getElementById('model-select').value;
             localStorage.setItem('gemini_ui_selected_model', currentModel);
-            
-            const modelName = AVAILABLE_MODELS[currentModel] || currentModel;
-            showToast(`Model switched to ${modelName}`);
+            showToast(`Switched to ${currentModel}`);
         }
 
         function toggleSidebar() {
@@ -594,7 +624,6 @@
             renderSidebar(); 
         }
 
-        // Configure Marked.js renderer
         const renderer = new marked.Renderer();
         renderer.code = function({text, lang}) {
             const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
@@ -718,7 +747,7 @@
         userInput.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (!isWaitingForReply) sendMessage();
+                sendMessage();
             }
         });
 
@@ -728,11 +757,20 @@
         }
 
         async function sendMessage() {
+            if (isWaitingForReply) return;
+            
+            if (!currentModel) {
+                alert("Please wait for models to load or select a valid model.");
+                return;
+            }
+
             let text = userInput.value.trim();
             if (!text && attachedFiles.length === 0) return;
 
             removeWelcomeScreen();
             isWaitingForReply = true;
+            sendBtn.disabled = true;
+            sendBtn.classList.remove('active');
 
             let displayMessage = text;
             if (attachedFiles.length > 0) {
@@ -762,10 +800,7 @@
 
             userInput.value = '';
             autoResizeInput();
-            sendBtn.disabled = true;
-            sendBtn.classList.remove('active');
             
-            // Add typing indicator row
             const typingRowId = `typing-${Date.now()}`;
             addTypingIndicator(typingRowId);
 
@@ -777,13 +812,18 @@
 
             clearAttachment();
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); 
+
             try {
-                const response = await fetch(VPS_OLLAMA_URL, {
+                const response = await fetch(VPS_OLLAMA_CHAT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify(requestBody),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
                 removeTypingIndicator(typingRowId);
 
                 if (!response.ok) {
@@ -802,18 +842,24 @@
 
             } catch (error) {
                 console.error('API Error:', error);
+                
                 chatContext.pop(); 
+                saveHistory(); 
+
                 removeTypingIndicator(typingRowId);
                 
-                if (error.message.includes('image')) {
-                    addMessageVisual(`⚠️ **Model Error:** The selected model is text-only and cannot process images.`, 'bot-message');
+                if (error.name === 'AbortError') {
+                    addMessageVisual(`⚠️ **Timeout:** The server took too long to respond. The model (${currentModel}) might be too large for your VPS, or it is currently downloading it in the background.`, 'bot-message');
+                } else if (error.message.includes('image')) {
+                    addMessageVisual(`⚠️ **Model Limitation:** The selected model is text-only and cannot process images.`, 'bot-message');
                 } else {
-                    addMessageVisual(`⚠️ **API Error:** ${error.message}`, 'bot-message');
+                    addMessageVisual(`⚠️ **Error:** ${error.message}`, 'bot-message');
                 }
             } finally {
                 sendBtn.disabled = false;
                 isWaitingForReply = false;
                 userInput.focus();
+                updateSendButtonState();
             }
         }
 
@@ -869,10 +915,9 @@
         }
 
         function scrollToBottom() {
-            setTimeout(() => { 
-                chatContainer.scrollTop = chatContainer.scrollHeight; 
-            }, 50);
+            setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
         }
     </script>
 </body>
 </html>
+
