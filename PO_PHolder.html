@@ -858,6 +858,53 @@
             }
         };
 
+        // NEW: Apply all best replacements automatically
+        window.applyAllBestAIFixes = function(anomalies) {
+            if (!anomalies || anomalies.length === 0) return;
+            
+            let fixedCount = 0;
+            anomalies.forEach((anomaly, index) => {
+                const suggestedReplacements = anomaly.suggested_replacements || [];
+                if (suggestedReplacements.length > 0) {
+                    const bestReplacement = suggestedReplacements[0];
+                    const replacementStaffId = typeof bestReplacement === 'object' ? bestReplacement.staff_id : bestReplacement;
+                    
+                    if (replacementStaffId) {
+                        const tId = anomaly.t_id;
+                        const rIdx = anomaly.r_idx;
+                        // FIX: Add + 1 to align Python 0-index with HTML Table 1-index
+                        const cIdx = anomaly.c_idx + 1;
+                        const overrideKey = `t${tId}_${rIdx}_${cIdx}`;
+                        cellOverrides[overrideKey] = replacementStaffId;
+                        fixedCount++;
+                        
+                        // Remove anomaly highlight from the fixed cell
+                        try {
+                            const cellElem = document.getElementById(`cell-t${tId}-${rIdx}-${cIdx}`);
+                            if (cellElem) cellElem.classList.remove('ai-anomaly');
+                        } catch (e) {}
+                        
+                        // Update the anomaly box
+                        const container = document.getElementById(`anomaly-box-${index}`);
+                        if(container) {
+                            container.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-md font-bold flex items-center gap-2 border border-green-300"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Auto-fixed! Applied best option: ${replacementStaffId}.</div>`;
+                        }
+                    }
+                }
+            });
+            
+            if (fixedCount > 0) {
+                renderTables();
+                window.saveToDatabase();
+                // Show success message
+                const modalContent = document.getElementById('ai-modal-content');
+                const successMsg = document.createElement('div');
+                successMsg.className = 'mb-4 p-3 bg-green-100 text-green-800 rounded border border-green-200 font-bold';
+                successMsg.innerHTML = `Successfully auto-fixed ${fixedCount} anomalies with best options!`;
+                modalContent.insertBefore(successMsg, modalContent.firstChild);
+            }
+        };
+
         window.runAIAudit = async function() {
             const btn = document.getElementById('btn-ai-audit');
             const originalContent = btn.innerHTML;
@@ -941,6 +988,15 @@
                     modalContent.innerHTML = `<div class="flex flex-col items-center justify-center p-8 text-center"><div class="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4 shadow-inner"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg></div><h4 class="text-xl font-extrabold text-gray-800">Perfect Roster!</h4><p class="text-gray-500 mt-2">The AI found 0 break violations and 0 double-deployments.</p></div>`;
                 } else {
                     let html = `<div class="mb-4 p-3 bg-red-100 text-red-800 rounded border border-red-200 font-bold">Detected ${data.total_anomalies} scheduling anomalies.</div>`;
+                    
+                    // Add "Auto-Fix All Best" button at the top
+                    html += `<div class="mb-4 flex">
+                        <button onclick="window.applyAllBestAIFixes(${JSON.stringify(data.anomalies)})" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Auto-Fix All Best Solutions
+                        </button>
+                    </div>`;
+                    
                     data.anomalies.forEach((anomaly, index) => {
                         
                         // Replaces the old replaceOpts map logic
