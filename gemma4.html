@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
@@ -559,6 +560,16 @@
         const VPS_OLLAMA_URL = `${API_BASE_URL}/api/chat`;
         const VPS_OLLAMA_TAGS_URL = `${API_BASE_URL}/api/tags`;
 
+        // Shared secret with your server.js PROXY_API_KEY env var.
+        // Leave empty ("") if the backend has auth disabled.
+        // Note: visible in the bundled HTML — it's a deterrent, not a vault.
+        const API_KEY = 'M-oxxFLWyXUKAX_uTBWRhLlRxzG3xIP0_75gHcz8n-8';
+
+        // Sliding window: how many of the most-recent non-system messages
+        // get sent upstream to Ollama. The full history stays in localStorage
+        // for display — this only trims the outgoing request.
+        const HISTORY_WINDOW = 20;
+
         const STORAGE_MODEL_KEY = 'aiproxy_selected_model';
         const STORAGE_CONVERSATIONS_KEY = 'aiproxy_conversations';
         const STORAGE_SNIPPETS_KEY = 'aiproxy_snippets';
@@ -669,7 +680,12 @@ Rules:
             currentModel = '';
             const requestUrl = `${VPS_OLLAMA_TAGS_URL}?t=${Date.now()}`;
             try {
-                const response = await fetch(requestUrl, { method: 'GET', mode: 'cors', headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+                const response = await fetch(requestUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: apiHeaders({ 'Accept': 'application/json' }),
+                    cache: 'no-store'
+                });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 const serverModels = Array.isArray(data.models) ? data.models : [];
@@ -892,12 +908,12 @@ Rules:
                             <span class="code-meta">${meta}</span>
                         </div>
                         <div class="btn-group">
-                            ${isHtml ? `<button class="code-btn preview-btn" onclick="openCanvasFromBlock(this)" title="Preview HTML"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="btn-label">Preview</span></button>` : ''}
-                            <button class="code-btn" onclick="toggleWrap(this)" title="Toggle line wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span class="btn-label">Wrap</span></button>
-                            <button class="code-btn" onclick="expandCode(this)" title="Expand to fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span class="btn-label">Expand</span></button>
-                            <button class="code-btn" onclick="downloadCodeBlock(this)" title="Download as file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span class="btn-label">Download</span></button>
-                            <button class="code-btn" onclick="saveSnippetFromBlock(this)" title="Save to snippet vault"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span class="btn-label">Save</span></button>
-                            <button class="code-btn copy-btn" onclick="copyCodeBlock(this)" title="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-label">Copy</span></button>
+                            ${isHtml ? `<button class="code-btn preview-btn" data-action="preview" title="Preview HTML"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="btn-label">Preview</span></button>` : ''}
+                            <button class="code-btn" data-action="wrap" title="Toggle line wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span class="btn-label">Wrap</span></button>
+                            <button class="code-btn" data-action="expand" title="Expand to fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span class="btn-label">Expand</span></button>
+                            <button class="code-btn" data-action="download" title="Download as file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span class="btn-label">Download</span></button>
+                            <button class="code-btn" data-action="save" title="Save to snippet vault"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span class="btn-label">Save</span></button>
+                            <button class="code-btn copy-btn" data-action="copy" title="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-label">Copy</span></button>
                         </div>
                     </div>
                     <div class="code-body">
@@ -905,6 +921,53 @@ Rules:
                         <div class="code-content-wrap"><pre class="code-content"><code class="hljs ${lang}">${highlightedHtml}</code></pre></div>
                     </div>
                 </div>`;
+        }
+
+        /**
+         * Build the request headers, attaching the API key if configured.
+         */
+        function apiHeaders(extra) {
+            const h = { 'Content-Type': 'application/json' };
+            if (API_KEY) h['x-api-key'] = API_KEY;
+            return Object.assign(h, extra || {});
+        }
+
+        /**
+         * Sliding-window trim for the outgoing /api/chat payload.
+         * Keeps every `system` message (there should only be one) plus the
+         * most recent HISTORY_WINDOW user/assistant messages, in order.
+         */
+        function trimChatContext(context, maxNonSystem = HISTORY_WINDOW) {
+            const systemMsgs = context.filter(m => m.role === 'system');
+            const others = context.filter(m => m.role !== 'system');
+            if (others.length <= maxNonSystem) return context;
+            return [...systemMsgs, ...others.slice(-maxNonSystem)];
+        }
+
+        /**
+         * Render Markdown → sanitized HTML.
+         * - marked.parse() converts markdown to HTML
+         * - DOMPurify strips dangerous content (script tags, event handlers,
+         *   javascript: URLs, etc.) before we write it to innerHTML
+         *
+         * DOMPurify keeps SVG icons (for our code-block buttons), `class`,
+         * and `data-*` attributes. It strips inline `onclick` — which is why
+         * our code-block buttons use `data-action` + event delegation instead.
+         */
+        const DOMPURIFY_CONFIG = {
+            USE_PROFILES: { html: true, svg: true },
+            ALLOW_DATA_ATTR: true,
+            ADD_TAGS: ['span'],
+            ADD_ATTR: ['target']
+        };
+        function safeMarkdownRender(text) {
+            if (typeof marked === 'undefined') return escapeHtml(text || '');
+            const rawHtml = marked.parse(text || '');
+            if (typeof DOMPurify === 'undefined') {
+                console.warn('DOMPurify not loaded — falling back to unsanitized render');
+                return rawHtml;
+            }
+            return DOMPurify.sanitize(rawHtml, DOMPURIFY_CONFIG);
         }
 
         /**
@@ -944,9 +1007,9 @@ Rules:
             const fenceMatches = text.match(/```/g);
             const fenceCount = fenceMatches ? fenceMatches.length : 0;
             if (isStreaming && fenceCount % 2 === 1) {
-                return { html: marked.parse(text + '\n```'), hasOpenFence: true };
+                return { html: safeMarkdownRender(text + '\n```'), hasOpenFence: true };
             }
-            return { html: marked.parse(text), hasOpenFence: false };
+            return { html: safeMarkdownRender(text), hasOpenFence: false };
         }
 
         /* ============================================================
@@ -1222,7 +1285,7 @@ Rules:
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'bot-message';
                 if (typeof marked !== 'undefined') {
-                    msgDiv.innerHTML = marked.parse(text);
+                    msgDiv.innerHTML = safeMarkdownRender(text);
                 } else { msgDiv.textContent = text; }
                 content.appendChild(msgDiv);
 
@@ -1282,6 +1345,24 @@ Rules:
                 const nearBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 140;
                 userScrolledUp = !nearBottom;
             }, { passive: true });
+
+            // Event delegation for code-block buttons.
+            // DOMPurify strips inline `onclick` from sanitized markdown output,
+            // so each button declares `data-action="..."` and we dispatch here.
+            const CODE_BTN_HANDLERS = {
+                preview: openCanvasFromBlock,
+                wrap: toggleWrap,
+                expand: expandCode,
+                download: downloadCodeBlock,
+                save: saveSnippetFromBlock,
+                copy: copyCodeBlock
+            };
+            c.addEventListener('click', (e) => {
+                const btn = e.target.closest('.code-btn[data-action]');
+                if (!btn || !c.contains(btn)) return;
+                const handler = CODE_BTN_HANDLERS[btn.dataset.action];
+                if (handler) handler(btn);
+            });
         });
 
         function requestAutoScroll(force) {
@@ -1421,9 +1502,16 @@ Rules:
             currentBotMessageDiv = botMessageDiv;
             requestAutoScroll(true);
 
+            // Sliding-window trim: send only the system prompt + last HISTORY_WINDOW
+            // user/assistant messages. Display history is unaffected.
+            const outgoingMessages = trimChatContext(
+                chatContext.filter(m => m.role !== undefined),
+                HISTORY_WINDOW
+            );
+
             const requestBody = {
                 model: currentModel,
-                messages: chatContext.filter(m => m.role !== undefined),
+                messages: outgoingMessages,
                 stream: true
             };
 
@@ -1435,7 +1523,7 @@ Rules:
             try {
                 const response = await fetch(VPS_OLLAMA_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: apiHeaders(),
                     body: JSON.stringify(requestBody),
                     signal: currentStreamController.signal
                 });
