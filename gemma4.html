@@ -433,7 +433,95 @@
         #edit-textarea:focus { border-color: var(--accent-blue); }
         .edit-hint { color: var(--text-muted); font-size: 0.85rem; padding: 0 4px; }
 
+        /* ============================================================
+           Dev Console Panel (slide-up drawer)
+           ============================================================ */
+        #console-toggle-btn {
+            position: fixed; bottom: 90px; right: 16px;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: var(--surface-elev); border: 1px solid var(--border-color);
+            color: var(--text-muted); cursor: pointer; z-index: 90;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            transition: color 0.2s, border-color 0.2s, bottom 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        #console-toggle-btn:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+        #console-toggle-btn.has-error { color: var(--accent-red); border-color: var(--accent-red); animation: errPulse 1.4s ease infinite; }
+        #console-toggle-btn.has-warn { color: var(--accent-yellow); border-color: var(--accent-yellow); }
+        @keyframes errPulse { 0%,100%{box-shadow:0 0 0 0 rgba(242,139,130,0);} 50%{box-shadow:0 0 0 6px rgba(242,139,130,0.25);} }
+
+        #console-panel {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            height: 44vh; max-height: 420px; min-height: 180px;
+            background: #0d0e0f; border-top: 1px solid var(--border-color);
+            z-index: 200; display: flex; flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            resize: vertical; overflow: hidden;
+        }
+        #console-panel.open { transform: translateY(0); }
+
+        #console-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; background: #161718;
+            border-bottom: 1px solid var(--border-soft);
+            flex-shrink: 0;
+        }
+        .console-title { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.04em; flex: 1; }
+        .console-filter-btn {
+            background: transparent; border: 1px solid var(--border-soft);
+            border-radius: 6px; padding: 3px 9px; font-family: var(--font-mono);
+            font-size: 0.72rem; font-weight: 600; cursor: pointer; color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .console-filter-btn.active-log  { border-color: var(--accent-blue);   color: var(--accent-blue); }
+        .console-filter-btn.active-warn { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .console-filter-btn.active-err  { border-color: var(--accent-red);    color: var(--accent-red); }
+        .console-filter-btn.active-all  { border-color: var(--text-secondary);color: var(--text-primary); }
+
+        .console-header-actions { display: flex; gap: 4px; }
+        .console-icon-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem;
+            font-family: var(--font-main); transition: all 0.15s;
+        }
+        .console-icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        #console-log {
+            flex: 1; overflow-y: auto; overflow-x: hidden;
+            padding: 8px 0; font-family: var(--font-mono); font-size: 0.8rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        .log-entry {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 4px 14px; line-height: 1.5;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: background 0.1s;
+        }
+        .log-entry:hover { background: rgba(255,255,255,0.03); }
+        .log-ts { flex-shrink: 0; color: var(--text-muted); font-size: 0.72rem; padding-top: 1px; min-width: 72px; }
+        .log-level { flex-shrink: 0; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-top: 1px; text-transform: uppercase; min-width: 42px; text-align: center; }
+        .log-level.LOG  { background: rgba(168,199,250,0.12); color: var(--accent-blue); }
+        .log-level.WARN { background: rgba(253,214,99,0.12);  color: var(--accent-yellow); }
+        .log-level.ERR  { background: rgba(242,139,130,0.12); color: var(--accent-red); }
+        .log-level.NET  { background: rgba(129,201,149,0.12); color: var(--accent-green); }
+        .log-level.INFO { background: rgba(200,200,200,0.08); color: var(--text-muted); }
+        .log-msg { flex: 1; min-width: 0; word-break: break-all; white-space: pre-wrap; color: var(--text-secondary); }
+        .log-entry.err .log-msg { color: var(--accent-red); }
+        .log-entry.warn .log-msg { color: var(--accent-yellow); }
+        .log-entry.net .log-msg { color: var(--accent-green); }
+
+        #console-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.82rem; display: none; }
+        #console-log:empty ~ #console-empty { display: block; }
+
+        /* Nudge toggle button up when console is open */
+        #console-panel.open ~ #console-toggle-btn,
+        body.console-open #console-toggle-btn { bottom: calc(44vh + 6px); }
+
         @media (max-width: 600px) {
+            #console-toggle-btn { bottom: 100px; right: 12px; width: 36px; height: 36px; }
+        }
             .line-numbers { min-width: 36px; padding-left: 8px; }
             .line-numbers span { padding: 0 6px 0 4px; }
             .bot-message pre.code-content { padding: 14px; font-size: 0.82rem; }
@@ -552,6 +640,32 @@
         </div>
     </div>
 
+    <!-- Dev Console Panel -->
+    <div id="console-panel">
+        <div id="console-header">
+            <span class="console-title">&gt;_ DEV CONSOLE</span>
+            <div style="display:flex;gap:4px;align-items:center;">
+                <button class="console-filter-btn active-all" data-filter="ALL"  onclick="setConsoleFilter('ALL')">All</button>
+                <button class="console-filter-btn" data-filter="LOG"  onclick="setConsoleFilter('LOG')">Log</button>
+                <button class="console-filter-btn" data-filter="WARN" onclick="setConsoleFilter('WARN')">Warn</button>
+                <button class="console-filter-btn" data-filter='ERR'  onclick="setConsoleFilter('ERR')">Error</button>
+                <button class="console-filter-btn" data-filter="NET"  onclick="setConsoleFilter('NET')">Net</button>
+            </div>
+            <div class="console-header-actions">
+                <button class="console-icon-btn" onclick="clearConsole()" title="Clear">Clear</button>
+                <button class="console-icon-btn" onclick="copyConsole()" title="Copy all">Copy</button>
+                <button class="console-icon-btn" onclick="toggleConsole()" title="Close">✕</button>
+            </div>
+        </div>
+        <div id="console-log"></div>
+        <div id="console-empty">No log entries yet.</div>
+    </div>
+
+    <!-- Console toggle FAB -->
+    <button id="console-toggle-btn" onclick="toggleConsole()" title="Dev Console">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+    </button>
+
     <script>
         /* ============================================================
            Configuration
@@ -573,6 +687,151 @@
         const STORAGE_MODEL_KEY = 'aiproxy_selected_model';
         const STORAGE_CONVERSATIONS_KEY = 'aiproxy_conversations';
         const STORAGE_SNIPPETS_KEY = 'aiproxy_snippets';
+
+        /* ============================================================
+           Dev Console — intercepts console.log/warn/error, fetch, and
+           window.onerror so every runtime issue appears in the panel.
+           ============================================================ */
+        const _consoleLogs = [];   // { ts, level, msg }
+        let _consoleFilter = 'ALL';
+        let _consoleOpen   = false;
+        let _hasError      = false;
+        let _hasWarn       = false;
+
+        function _ts() {
+            const d = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+
+        function _serialize(args) {
+            return args.map(a => {
+                if (a instanceof Error) return `${a.name}: ${a.message}${a.stack ? '\n' + a.stack : ''}`;
+                if (typeof a === 'object' && a !== null) {
+                    try { return JSON.stringify(a, null, 2); } catch (e) { return String(a); }
+                }
+                return String(a);
+            }).join(' ');
+        }
+
+        function _addLog(level, msg) {
+            _consoleLogs.push({ ts: _ts(), level, msg });
+            const toggleBtn = document.getElementById('console-toggle-btn');
+            if (level === 'ERR')  { _hasError = true; if (toggleBtn) { toggleBtn.classList.add('has-error'); toggleBtn.classList.remove('has-warn'); } }
+            if (level === 'WARN' && !_hasError) { _hasWarn = true; if (toggleBtn) toggleBtn.classList.add('has-warn'); }
+            _renderLog({ ts: _ts(), level, msg });
+        }
+
+        function _renderLog(entry) {
+            const log = document.getElementById('console-log');
+            if (!log) return;
+            if (_consoleFilter !== 'ALL' && entry.level !== _consoleFilter) return;
+            const row = document.createElement('div');
+            const levelClass = { LOG:'LOG', WARN:'WARN', ERR:'err', NET:'net', INFO:'info' }[entry.level] || 'LOG';
+            row.className = `log-entry ${levelClass.toLowerCase()}`;
+            row.innerHTML = `<span class="log-ts">${entry.ts}</span><span class="log-level ${entry.level}">${entry.level}</span><span class="log-msg">${escapeHtml(entry.msg)}</span>`;
+            log.appendChild(row);
+            if (_consoleOpen) log.scrollTop = log.scrollHeight;
+        }
+
+        function _rebuildLog() {
+            const log = document.getElementById('console-log');
+            if (!log) return;
+            log.innerHTML = '';
+            _consoleLogs.forEach(e => {
+                if (_consoleFilter === 'ALL' || e.level === _consoleFilter) _renderLog(e);
+            });
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Intercept the native console methods
+        const _origLog   = console.log.bind(console);
+        const _origWarn  = console.warn.bind(console);
+        const _origError = console.error.bind(console);
+        const _origInfo  = console.info.bind(console);
+
+        console.log   = (...a) => { _origLog(...a);   _addLog('LOG',  _serialize(a)); };
+        console.warn  = (...a) => { _origWarn(...a);  _addLog('WARN', _serialize(a)); };
+        console.error = (...a) => { _origError(...a); _addLog('ERR',  _serialize(a)); };
+        console.info  = (...a) => { _origInfo(...a);  _addLog('INFO', _serialize(a)); };
+
+        // Catch uncaught errors
+        window.onerror = function(msg, src, line, col, err) {
+            _addLog('ERR', `${msg}\n  at ${src}:${line}:${col}${err ? '\n' + err.stack : ''}`);
+        };
+        window.addEventListener('unhandledrejection', (e) => {
+            _addLog('ERR', `Unhandled Promise: ${e.reason instanceof Error ? e.reason.stack || e.reason.message : String(e.reason)}`);
+        });
+
+        // Intercept fetch for network logging
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = async function(...args) {
+            const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || String(args[0]));
+            const method = args[1]?.method || 'GET';
+            const shortUrl = url.replace(/^https?:\/\/[^/]+/, '');
+            _addLog('NET', `▶ ${method} ${shortUrl}`);
+            const t0 = performance.now();
+            try {
+                const resp = await _origFetch(...args);
+                const ms = Math.round(performance.now() - t0);
+                _addLog('NET', `◀ ${resp.status} ${shortUrl} (${ms}ms)`);
+                return resp;
+            } catch (err) {
+                const ms = Math.round(performance.now() - t0);
+                _addLog('ERR', `✖ FETCH ${shortUrl} failed (${ms}ms): ${err.message}`);
+                throw err;
+            }
+        };
+
+        // Console panel controls
+        function toggleConsole() {
+            _consoleOpen = !_consoleOpen;
+            const panel = document.getElementById('console-panel');
+            const btn   = document.getElementById('console-toggle-btn');
+            panel.classList.toggle('open', _consoleOpen);
+            document.body.classList.toggle('console-open', _consoleOpen);
+            if (_consoleOpen) {
+                _rebuildLog();
+                // Nudge input wrapper up so it sits above the console
+                document.getElementById('input-wrapper').style.bottom = panel.offsetHeight + 'px';
+            } else {
+                document.getElementById('input-wrapper').style.bottom = '';
+            }
+        }
+
+        function setConsoleFilter(level) {
+            _consoleFilter = level;
+            document.querySelectorAll('.console-filter-btn').forEach(b => {
+                const active = b.dataset.filter === level;
+                b.className = 'console-filter-btn' + (active ? ` active-${level.toLowerCase()}` : '');
+            });
+            _rebuildLog();
+        }
+
+        function clearConsole() {
+            _consoleLogs.length = 0;
+            _hasError = _hasWarn = false;
+            const log = document.getElementById('console-log');
+            if (log) log.innerHTML = '';
+            const btn = document.getElementById('console-toggle-btn');
+            if (btn) { btn.classList.remove('has-error', 'has-warn'); }
+        }
+
+        function copyConsole() {
+            const text = _consoleLogs.map(e => `[${e.ts}] ${e.level.padEnd(4)} ${e.msg}`).join('\n');
+            copyToClipboard(text)
+                .then(() => showToast('Console log copied'))
+                .catch(() => showToast('Copy failed'));
+        }
+You are AI Pro Coder, an elite senior software engineer and AI architect.
+Rules:
+- Always provide production-grade solutions
+- Never give incomplete code
+- Generate full working scripts when requested
+- Prefer clean architecture, mobile responsiveness, and performance
+- When generating HTML/CSS/JS, provide complete standalone files
+- Explain fixes clearly and briefly
+`;
 
         const SYSTEM_PROMPT = `
 You are AI Pro Coder, an elite senior software engineer and AI architect.
@@ -1370,7 +1629,12 @@ Rules:
             if (!c) return;
             if (force) userScrolledUp = false;
             if (userScrolledUp) return;
-            requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+            // Don't fight the user's finger — if they are actively touching,
+            // skip this tick; the rAF loop will catch the next one.
+            if (isTouching) return;
+            requestAnimationFrame(() => {
+                if (!userScrolledUp && !isTouching) c.scrollTop = c.scrollHeight;
+            });
         }
 
         /* ============================================================
@@ -1649,16 +1913,23 @@ Rules:
 
         let attachedFiles = [];
 
+        // ── Touch scroll fix ───────────────────────────────────────────
+        // Only prevent default (= rubber-band prevention) on surfaces that
+        // should not scroll at all: the fixed header, input wrapper, toasts.
+        // Everything else (chat container, code-body, sidebar, modals) must
+        // be able to scroll freely — including during active streaming.
+        const NON_SCROLL_SELECTORS = [
+            '#input-wrapper', 'header', '#toast'
+        ];
+        let isTouching = false;
+        document.body.addEventListener('touchstart', () => { isTouching = true; }, { passive: true });
+        document.body.addEventListener('touchend',   () => { isTouching = false; }, { passive: true });
+        document.body.addEventListener('touchcancel',() => { isTouching = false; }, { passive: true });
+
         document.body.addEventListener('touchmove', function(e) {
-            const canvasOpen = document.getElementById('canvas-modal').classList.contains('open');
-            const codeOpen = document.getElementById('code-modal').classList.contains('open');
-            const editOpen = document.getElementById('edit-modal').classList.contains('open');
-            const sidebarOpen = document.getElementById('sidebar-overlay').style.display === 'block';
-            if (!canvasOpen && !codeOpen && !editOpen && !sidebarOpen
-                && !chatContainer.contains(e.target)
-                && !document.getElementById('sidebar').contains(e.target)) {
-                e.preventDefault();
-            }
+            const fixedSurface = NON_SCROLL_SELECTORS.some(sel => e.target.closest(sel));
+            if (fixedSurface) e.preventDefault();
+            // All other surfaces (chat-container, code-body, sidebar, modals) pass through.
         }, { passive: false });
 
         fileInput.addEventListener('change', async function(e) {
@@ -1729,4 +2000,3 @@ Rules:
     </script>
 </body>
 </html>
-
