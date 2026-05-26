@@ -354,7 +354,7 @@ Rules:
         let chatContext = []; 
         let toastTimeout = null;
         let isWaitingForReply = false;
-        let currentBotMessageDiv = null; // Reference to the div being streamed into
+        let currentBotMessageDiv = null;
 
         window.onload = async function() {
             await loadActiveModelsFromServer();
@@ -676,7 +676,7 @@ Rules:
             if (welcomeScreen) welcomeScreen.remove();
         }
 
-        // STREAMING IMPLEMENTATION
+        // STREAMING IMPLEMENTATION (FIXED BUFFER)
         async function sendMessage() {
             if (isWaitingForReply) return;
             let text = userInput.value.trim();
@@ -741,13 +741,12 @@ Rules:
             const requestBody = {
                 model: currentModel,
                 messages: chatContext,
-                stream: true // Enable Streaming
+                stream: true 
             };
 
             clearAttachment();
 
             const controller = new AbortController();
-            // Mobile networks can be slow, give it 5 mins
             const timeoutId = setTimeout(() => controller.abort(), 300000); 
 
             let fullResponseText = "";
@@ -768,16 +767,33 @@ Rules:
                     throw new Error(errorJson.error || `HTTP Error ${response.status}`);
                 }
                 
-                // HANDLE STREAM
+                // FIXED FRONTEND BUFFER LOGIC 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
+                let buffer = ""; 
 
                 while (true) {
                     const { done, value } = await reader.read();
-                    if (done) break;
+                    
+                    if (done) {
+                        // Flush any remaining data in the buffer when the stream is completely done
+                        if (buffer.trim()) {
+                            try {
+                                const json = JSON.parse(buffer);
+                                if (json.message && json.message.content) {
+                                    fullResponseText += json.message.content;
+                                    currentBotMessageDiv.innerHTML = marked.parse(fullResponseText);
+                                }
+                            } catch (e) {}
+                        }
+                        break; 
+                    }
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split('\n');
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    
+                    // Keep the last incomplete chunk in the buffer for the next round
+                    buffer = lines.pop(); 
 
                     for (const line of lines) {
                         if (!line.trim()) continue;
@@ -786,20 +802,19 @@ Rules:
                             if (json.message && json.message.content) {
                                 const content = json.message.content;
                                 fullResponseText += content;
+                                
                                 // Update UI incrementally
                                 currentBotMessageDiv.innerHTML = marked.parse(fullResponseText);
-                                // Re-highlight code blocks
+                                
+                                // Safety wrapper around code highlighting so it doesn't break if a code block is half-written
                                 currentBotMessageDiv.querySelectorAll('pre code').forEach((block) => {
-                                    hljs.highlightElement(block);
+                                    try { hljs.highlightElement(block); } catch(err) {} 
                                 });
+                                
                                 scrollToBottom();
                             }
-                            if (json.done) {
-                                // Stream finished
-                                break;
-                            }
                         } catch (e) {
-                            console.warn("Error parsing stream chunk", e);
+                            console.warn("Skipped incomplete stream chunk");
                         }
                     }
                 }
@@ -809,7 +824,6 @@ Rules:
 
             } catch (error) {
                 console.error('API Error:', error);
-                // Remove partial message if error occurs early
                 if(currentBotMessageDiv) currentBotMessageDiv.remove();
                 
                 if (error.name === 'AbortError') {
