@@ -908,6 +908,34 @@ Rules:
         }
 
         /**
+         * Merge a new streaming chunk into the accumulated response text.
+         *
+         * Different backends stream in different shapes:
+         *   1. DELTA       — each chunk is just the newly produced tokens (Ollama native)
+         *   2. CUMULATIVE  — each chunk is the entire response so far (some proxies / cloud models)
+         *   3. OVERLAPPING — each chunk repeats the tail of the previous chunk plus new tokens
+         *                    (observed on Ollama ":cloud" models via the th3va proxy)
+         *
+         * We handle all three by computing the longest suffix of `accumulated` that is
+         * a prefix of `chunk`, and appending only the non-overlapping remainder.
+         *   - DELTA:       overlap = 0           → behaves like plain concat
+         *   - CUMULATIVE:  overlap = acc.length  → strips the whole prefix
+         *   - OVERLAPPING: overlap = shared tail → strips just the duplicated portion
+         */
+        function mergeStreamChunk(accumulated, chunk) {
+            if (!chunk) return accumulated;
+            if (!accumulated) return chunk;
+            const maxOverlap = Math.min(accumulated.length, chunk.length);
+            for (let i = maxOverlap; i > 0; i--) {
+                // Endsequence of accumulated == prefix of chunk?
+                if (accumulated.endsWith(chunk.substring(0, i))) {
+                    return accumulated + chunk.substring(i);
+                }
+            }
+            return accumulated + chunk;
+        }
+
+        /**
          * During streaming, an unclosed ``` fence would otherwise render as plain
          * text until the closing fence arrives. We auto-close it for rendering only
          * so the code block displays immediately and adds the streaming indicator.
@@ -1432,7 +1460,7 @@ Rules:
                             try {
                                 const json = JSON.parse(buffer);
                                 if (json.message && json.message.content) {
-                                    fullResponseText += json.message.content;
+                                    fullResponseText = mergeStreamChunk(fullResponseText, json.message.content);
                                 }
                             } catch (e) { /* ignore final partial */ }
                         }
@@ -1448,7 +1476,7 @@ Rules:
                         try {
                             const json = JSON.parse(line);
                             if (json.message && json.message.content) {
-                                fullResponseText += json.message.content;
+                                fullResponseText = mergeStreamChunk(fullResponseText, json.message.content);
                                 scheduleStreamRender(fullResponseText, true);
                             }
                         } catch (e) {
