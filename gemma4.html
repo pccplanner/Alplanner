@@ -291,8 +291,108 @@
         .bot-message img { max-width: 100%; height: auto; border-radius: 12px; margin-top: 12px; border: 1px solid var(--border-color); }
 
         /* ============================================================
-           Input Area
+           Inline IDE Console Panel (per code block)
            ============================================================ */
+        /* Tab bar */
+        .ide-tabs {
+            display: flex; align-items: center;
+            background: #161718; border-top: 1px solid var(--border-soft);
+            padding: 0 8px; gap: 2px;
+        }
+        .ide-tab {
+            background: transparent; border: none; color: var(--text-muted);
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600;
+            padding: 7px 12px; cursor: pointer; letter-spacing: 0.03em;
+            border-bottom: 2px solid transparent; transition: all 0.15s;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .ide-tab:hover { color: var(--text-secondary); }
+        .ide-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+        .ide-tab.has-error { color: var(--accent-red) !important; border-bottom-color: var(--accent-red) !important; }
+        .ide-tab .tab-badge {
+            font-size: 0.65rem; min-width: 16px; height: 16px; border-radius: 8px;
+            background: var(--accent-red); color: #fff; display: none;
+            align-items: center; justify-content: center; padding: 0 4px;
+        }
+        .ide-tab .tab-badge.show { display: flex; }
+
+        .ide-tab-spacer { flex: 1; }
+        .ide-tab-action {
+            background: transparent; border: none; color: var(--text-muted);
+            font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer;
+            padding: 4px 8px; border-radius: 6px; transition: all 0.15s;
+        }
+        .ide-tab-action:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        /* Panels */
+        .ide-panels { display: none; flex-direction: column; }
+        .ide-panels.open { display: flex; }
+
+        /* Preview panel */
+        .ide-preview-panel {
+            display: none; flex-direction: column;
+            border-top: 1px solid var(--border-soft);
+        }
+        .ide-preview-panel.active { display: flex; }
+        .ide-preview-iframe {
+            width: 100%; border: none; background: #fff;
+            min-height: 280px; max-height: 520px;
+        }
+
+        /* Console output panel */
+        .ide-console-panel {
+            display: none; flex-direction: column;
+            background: #0d0e0f; border-top: 1px solid var(--border-soft);
+            max-height: 220px; overflow: hidden;
+        }
+        .ide-console-panel.active { display: flex; }
+        .ide-console-output {
+            flex: 1; overflow-y: auto; overflow-x: hidden;
+            padding: 8px 0; font-family: var(--font-mono); font-size: 0.78rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        .ide-log-row {
+            display: flex; gap: 8px; padding: 3px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03); line-height: 1.5;
+        }
+        .ide-log-row:hover { background: rgba(255,255,255,0.03); }
+        .ide-log-row .il-lvl {
+            flex-shrink: 0; font-size: 0.68rem; font-weight: 700;
+            padding: 1px 5px; border-radius: 4px; min-width: 38px; text-align: center;
+            align-self: flex-start; margin-top: 1px;
+        }
+        .il-lvl.LOG  { background: rgba(168,199,250,0.12); color: #a8c7fa; }
+        .il-lvl.WARN { background: rgba(253,214,99,0.12);  color: #fdd663; }
+        .il-lvl.ERR  { background: rgba(242,139,130,0.12); color: #f28b82; }
+        .il-lvl.INFO { background: rgba(200,200,200,0.07); color: #8a8d8e; }
+        .ide-log-row .il-msg {
+            flex: 1; color: #c4c7c5; white-space: pre-wrap;
+            word-break: break-all; min-width: 0;
+        }
+        .ide-log-row.err .il-msg  { color: #f28b82; }
+        .ide-log-row.warn .il-msg { color: #fdd663; }
+        .ide-console-empty {
+            text-align: center; padding: 24px 16px;
+            color: var(--text-muted); font-size: 0.78rem;
+        }
+
+        /* Problems panel */
+        .ide-problems-panel {
+            display: none; flex-direction: column;
+            background: #0d0e0f; border-top: 1px solid var(--border-soft);
+            max-height: 180px; overflow-y: auto;
+        }
+        .ide-problems-panel.active { display: flex; }
+        .ide-problem-row {
+            display: flex; gap: 8px; align-items: flex-start;
+            padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.45;
+        }
+        .ide-problem-row .ip-icon { flex-shrink: 0; font-size: 0.9rem; }
+        .ide-problem-row .ip-msg  { flex: 1; color: #c4c7c5; word-break: break-word; }
+        .ide-problem-row .ip-loc  { flex-shrink: 0; color: #8a8d8e; font-size: 0.72rem; }
+        .ide-problem-row.err-row  { border-left: 2px solid #f28b82; }
+        .ide-problem-row.warn-row { border-left: 2px solid #fdd663; }
         #input-wrapper {
             position: absolute; bottom: 0; left: 0; right: 0;
             background: linear-gradient(to top, rgba(19,19,20,1) 50%, rgba(19,19,20,0));
@@ -1149,6 +1249,8 @@ Rules:
             const charCount = rawText.length;
             const meta = `${lineCount} ${lineCount === 1 ? 'line' : 'lines'} · ${charCount} chars`;
             const isHtml = (lang === 'html' || lang === 'xml');
+            const isJs   = ['javascript','js','typescript','ts'].includes(lang);
+            const canRun = isHtml || isJs;
 
             return `
                 <div class="code-wrapper" data-lang="${lang}" data-raw="${encodedRaw}">
@@ -1158,18 +1260,54 @@ Rules:
                             <span class="code-meta">${meta}</span>
                         </div>
                         <div class="btn-group">
-                            ${isHtml ? `<button class="code-btn preview-btn" data-action="preview" title="Preview HTML"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="btn-label">Preview</span></button>` : ''}
-                            <button class="code-btn" data-action="wrap" title="Toggle line wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span class="btn-label">Wrap</span></button>
-                            <button class="code-btn" data-action="expand" title="Expand to fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span class="btn-label">Expand</span></button>
-                            <button class="code-btn" data-action="download" title="Download as file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span class="btn-label">Download</span></button>
-                            <button class="code-btn" data-action="save" title="Save to snippet vault"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span class="btn-label">Save</span></button>
-                            <button class="code-btn copy-btn" data-action="copy" title="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-label">Copy</span></button>
+                            ${canRun ? `<button class="code-btn preview-btn" data-action="run" title="Run / Preview">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                <span class="btn-label">Run</span>
+                            </button>` : ''}
+                            <button class="code-btn" data-action="wrap"     title="Toggle wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span class="btn-label">Wrap</span></button>
+                            <button class="code-btn" data-action="expand"   title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span class="btn-label">Expand</span></button>
+                            <button class="code-btn" data-action="download" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span class="btn-label">Download</span></button>
+                            <button class="code-btn" data-action="save"     title="Save to snippets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span class="btn-label">Save</span></button>
+                            <button class="code-btn copy-btn" data-action="copy" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-label">Copy</span></button>
                         </div>
                     </div>
+
                     <div class="code-body">
                         <div class="line-numbers">${lineNumbersHtml}</div>
                         <div class="code-content-wrap"><pre class="code-content"><code class="hljs ${lang}">${highlightedHtml}</code></pre></div>
                     </div>
+
+                    ${canRun ? `
+                    <div class="ide-tabs">
+                        <button class="ide-tab active" data-ide-tab="preview"  data-action="ide-tab">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            ${isHtml ? 'Preview' : 'Output'}
+                        </button>
+                        <button class="ide-tab" data-ide-tab="console" data-action="ide-tab">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                            Console
+                            <span class="tab-badge" id=""></span>
+                        </button>
+                        <button class="ide-tab" data-ide-tab="problems" data-action="ide-tab">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            Problems
+                            <span class="tab-badge"></span>
+                        </button>
+                        <span class="ide-tab-spacer"></span>
+                        <button class="ide-tab-action" data-action="ide-clear" title="Clear console">Clear</button>
+                        <button class="ide-tab-action" data-action="ide-close" title="Close panel">✕</button>
+                    </div>
+                    <div class="ide-panels">
+                        <div class="ide-preview-panel active">
+                            <iframe class="ide-preview-iframe" sandbox="allow-scripts allow-forms allow-same-origin" loading="lazy"></iframe>
+                        </div>
+                        <div class="ide-console-panel">
+                            <div class="ide-console-output"><div class="ide-console-empty">No output yet. Click Run to execute.</div></div>
+                        </div>
+                        <div class="ide-problems-panel">
+                            <div class="ide-problem-row warn-row"><span class="ip-icon">⚠</span><span class="ip-msg">No problems detected.</span></div>
+                        </div>
+                    </div>` : ''}
                 </div>`;
         }
 
@@ -1344,6 +1482,231 @@ Rules:
         function closeCanvas() {
             document.getElementById('canvas-modal').classList.remove('open');
             document.getElementById('canvas-iframe').src = 'about:blank';
+        }
+
+        /* ============================================================
+           Inline IDE Console — Run, Console capture, Problems, Tab switch
+           ============================================================ */
+
+        // Inject a console bridge into the iframe srcdoc so its console.*
+        // calls get forwarded to us via postMessage.
+        const CONSOLE_BRIDGE = `
+<script>
+(function(){
+  const _send = (level, args) => {
+    const msg = args.map(a => {
+      if (a instanceof Error) return a.name + ': ' + a.message;
+      try { return typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a); }
+      catch(e) { return String(a); }
+    }).join(' ');
+    window.parent.postMessage({ type: 'IDE_CONSOLE', level, msg }, '*');
+  };
+  ['log','info','warn','error','debug'].forEach(m => {
+    const orig = console[m].bind(console);
+    console[m] = (...a) => { orig(...a); _send(m === 'debug' ? 'LOG' : m.toUpperCase(), a); };
+  });
+  window.onerror = (msg, src, line, col) => {
+    window.parent.postMessage({ type: 'IDE_CONSOLE', level: 'ERR', msg: msg + ' (' + src + ':' + line + ':' + col + ')' }, '*');
+  };
+  window.addEventListener('unhandledrejection', e => {
+    window.parent.postMessage({ type: 'IDE_CONSOLE', level: 'ERR', msg: 'Unhandled promise: ' + (e.reason?.message || e.reason) }, '*');
+  });
+})();
+<\/script>`;
+
+        // Map from iframe element → its console output div + badge elements
+        const _iframeToWrapper = new WeakMap();
+
+        // Listen for messages from any iframe
+        window.addEventListener('message', (e) => {
+            if (!e.data || e.data.type !== 'IDE_CONSOLE') return;
+            // Find which iframe sent this
+            const iframes = document.querySelectorAll('.ide-preview-iframe');
+            iframes.forEach(iframe => {
+                if (iframe.contentWindow !== e.source) return;
+                const wrapper = _iframeToWrapper.get(iframe);
+                if (!wrapper) return;
+                _ideAppendLog(wrapper, e.data.level, e.data.msg);
+            });
+        });
+
+        function _ideAppendLog(wrapper, level, msg) {
+            const output = wrapper.querySelector('.ide-console-output');
+            if (!output) return;
+            // Remove the empty-state placeholder on first real entry
+            const empty = output.querySelector('.ide-console-empty');
+            if (empty) empty.remove();
+
+            const row = document.createElement('div');
+            const lvlClass = { LOG:'LOG', INFO:'INFO', WARN:'WARN', ERROR:'ERR', ERR:'ERR' }[level] || 'LOG';
+            row.className = `ide-log-row ${lvlClass.toLowerCase()}`;
+            row.innerHTML = `<span class="il-lvl ${lvlClass}">${lvlClass}</span><span class="il-msg">${escapeHtml(msg)}</span>`;
+            output.appendChild(row);
+            output.scrollTop = output.scrollHeight;
+
+            // Update badge + tab state
+            if (lvlClass === 'ERR' || lvlClass === 'WARN') {
+                const consoleTab = wrapper.querySelector('[data-ide-tab="console"]');
+                if (consoleTab) {
+                    consoleTab.classList.add('has-error');
+                    const badge = consoleTab.querySelector('.tab-badge');
+                    if (badge) {
+                        badge.classList.add('show');
+                        badge.textContent = parseInt(badge.textContent || '0') + 1;
+                    }
+                }
+            }
+        }
+
+        function _ideAnalyseProblems(wrapper, code, lang) {
+            const panel = wrapper.querySelector('.ide-problems-panel');
+            if (!panel) return;
+            panel.innerHTML = '';
+            const problems = [];
+
+            if (lang === 'html' || lang === 'xml') {
+                // Unclosed common tags
+                const selfClose = new Set(['br','hr','img','input','meta','link','area','base','col','embed','param','source','track','wbr']);
+                const opens = (code.match(/<([a-z][a-z0-9]*)\b[^>]*>/gi) || []).map(t => t.match(/<([a-z][a-z0-9]*)/i)?.[1]?.toLowerCase()).filter(Boolean);
+                const closes = (code.match(/<\/([a-z][a-z0-9]*)\s*>/gi) || []).map(t => t.match(/<\/([a-z][a-z0-9]*)/i)?.[1]?.toLowerCase()).filter(Boolean);
+                opens.forEach(tag => {
+                    if (!selfClose.has(tag) && !closes.includes(tag)) {
+                        problems.push({ type: 'warn', msg: `Possibly unclosed <${tag}> tag` });
+                    }
+                });
+                if (!code.includes('<!DOCTYPE') && !code.includes('<!doctype')) problems.push({ type: 'warn', msg: 'Missing <!DOCTYPE html> declaration' });
+                if (!code.includes('<title') && (code.includes('<head') || code.includes('<html'))) problems.push({ type: 'warn', msg: 'Missing <title> element' });
+            }
+
+            if (lang === 'javascript' || lang === 'js') {
+                if (/\beval\s*\(/.test(code))  problems.push({ type: 'warn', msg: 'eval() detected — security risk' });
+                if (/var\s+/.test(code))        problems.push({ type: 'warn', msg: 'var declarations found — prefer const/let' });
+                if (/===?\s*null/.test(code) && !/!==?\s*null/.test(code)) problems.push({ type: 'warn', msg: 'Loose null check — consider ?? or !=' });
+                const opens = (code.match(/[{([]/g) || []).length;
+                const closes = (code.match(/[})\]]/g) || []).length;
+                if (Math.abs(opens - closes) > 1) problems.push({ type: 'err', msg: `Bracket mismatch: ${opens} opening vs ${closes} closing` });
+            }
+
+            if (problems.length === 0) {
+                problems.push({ type: 'ok', msg: 'No problems detected.' });
+            }
+
+            const problemsTab = wrapper.querySelector('[data-ide-tab="problems"]');
+            const errCount = problems.filter(p => p.type === 'err').length;
+            const warnCount = problems.filter(p => p.type === 'warn').length;
+            if (problemsTab) {
+                const badge = problemsTab.querySelector('.tab-badge');
+                if (badge && (errCount + warnCount) > 0) {
+                    badge.classList.add('show');
+                    badge.textContent = errCount + warnCount;
+                    if (errCount > 0) problemsTab.classList.add('has-error');
+                }
+            }
+
+            problems.forEach(p => {
+                const row = document.createElement('div');
+                row.className = `ide-problem-row ${p.type === 'err' ? 'err-row' : p.type === 'warn' ? 'warn-row' : ''}`;
+                const icon = p.type === 'err' ? '✖' : p.type === 'warn' ? '⚠' : '✓';
+                row.innerHTML = `<span class="ip-icon">${icon}</span><span class="ip-msg">${escapeHtml(p.msg)}</span>`;
+                panel.appendChild(row);
+            });
+        }
+
+        function runCodeInBlock(btn) {
+            const wrapper = btn.closest('.code-wrapper');
+            const code = getRawCodeFromBlock(btn);
+            const lang = getLangFromBlock(btn);
+            const panels = wrapper.querySelector('.ide-panels');
+            const previewPanel = wrapper.querySelector('.ide-preview-panel');
+            const iframe = wrapper.querySelector('.ide-preview-iframe');
+            if (!panels || !previewPanel || !iframe) return;
+
+            // Show the panel section
+            panels.classList.add('open');
+
+            // Reset console output
+            const output = wrapper.querySelector('.ide-console-output');
+            if (output) output.innerHTML = '<div class="ide-console-empty">Running…</div>';
+
+            // Reset all tab badges
+            wrapper.querySelectorAll('.ide-tab .tab-badge').forEach(b => { b.classList.remove('show'); b.textContent = ''; });
+            wrapper.querySelectorAll('.ide-tab').forEach(t => t.classList.remove('has-error'));
+
+            // Switch to Preview tab
+            _ideSwitchTab(wrapper, 'preview');
+
+            // Register iframe → wrapper mapping for message routing
+            _iframeToWrapper.set(iframe, wrapper);
+
+            if (lang === 'html' || lang === 'xml') {
+                // Inject console bridge just after <head> or at the top
+                let injected = code;
+                if (/<head>/i.test(code)) {
+                    injected = code.replace(/<head>/i, '<head>' + CONSOLE_BRIDGE);
+                } else if (/<html[^>]*>/i.test(code)) {
+                    injected = code.replace(/<html[^>]*>/i, (m) => m + CONSOLE_BRIDGE);
+                } else {
+                    injected = CONSOLE_BRIDGE + code;
+                }
+                const blob = new Blob([injected], { type: 'text/html' });
+                const blobUrl = URL.createObjectURL(blob);
+                iframe.onload = () => { URL.revokeObjectURL(blobUrl); };
+                iframe.src = blobUrl;
+                // Update empty message
+                if (output) output.innerHTML = '<div class="ide-console-empty">No console output. JS errors will appear here.</div>';
+            } else if (lang === 'javascript' || lang === 'js') {
+                // Wrap JS in a minimal HTML runner
+                const runner = `<!DOCTYPE html><html><head><meta charset="UTF-8">${CONSOLE_BRIDGE}</head><body>
+<script>
+try {
+${code}
+} catch(e) { console.error(e.message); }
+<\/script></body></html>`;
+                const blob = new Blob([runner], { type: 'text/html' });
+                iframe.src = URL.createObjectURL(blob);
+                iframe.style.minHeight = '40px';
+                previewPanel.style.display = 'none';
+                _ideSwitchTab(wrapper, 'console');
+                if (output) output.innerHTML = '<div class="ide-console-empty">Running JS…</div>';
+            }
+
+            // Analyse problems
+            _ideAnalyseProblems(wrapper, code, lang);
+
+            // Update Run button label
+            const label = btn.querySelector('.btn-label');
+            if (label) { label.textContent = 'Re-run'; }
+        }
+
+        function _ideSwitchTab(wrapper, tabName) {
+            wrapper.querySelectorAll('.ide-tab').forEach(t => t.classList.toggle('active', t.dataset.ideTab === tabName));
+            wrapper.querySelector('.ide-preview-panel')?.classList.toggle('active', tabName === 'preview');
+            wrapper.querySelector('.ide-console-panel')?.classList.toggle('active', tabName === 'console');
+            wrapper.querySelector('.ide-problems-panel')?.classList.toggle('active', tabName === 'problems');
+        }
+
+        function ideTabClick(btn) {
+            const wrapper = btn.closest('.code-wrapper');
+            const tabName = btn.dataset.ideTab;
+            if (!tabName) return;
+            _ideSwitchTab(wrapper, tabName);
+        }
+
+        function ideClear(btn) {
+            const wrapper = btn.closest('.code-wrapper');
+            const output = wrapper.querySelector('.ide-console-output');
+            if (output) output.innerHTML = '<div class="ide-console-empty">Console cleared.</div>';
+            wrapper.querySelectorAll('.ide-tab .tab-badge').forEach(b => { b.classList.remove('show'); b.textContent = ''; });
+            wrapper.querySelectorAll('.ide-tab').forEach(t => t.classList.remove('has-error'));
+        }
+
+        function ideClose(btn) {
+            const wrapper = btn.closest('.code-wrapper');
+            const panels = wrapper.querySelector('.ide-panels');
+            if (panels) panels.classList.remove('open');
+            // Reset Run button
+            const runBtn = wrapper.querySelector('[data-action="run"] .btn-label');
+            if (runBtn) runBtn.textContent = 'Run';
         }
 
         /* ============================================================
@@ -1601,14 +1964,18 @@ Rules:
             // so each button declares `data-action="..."` and we dispatch here.
             const CODE_BTN_HANDLERS = {
                 preview: openCanvasFromBlock,
-                wrap: toggleWrap,
-                expand: expandCode,
+                run:     runCodeInBlock,
+                wrap:    toggleWrap,
+                expand:  expandCode,
                 download: downloadCodeBlock,
-                save: saveSnippetFromBlock,
-                copy: copyCodeBlock
+                save:    saveSnippetFromBlock,
+                copy:    copyCodeBlock,
+                'ide-tab':   ideTabClick,
+                'ide-clear': ideClear,
+                'ide-close': ideClose
             };
             c.addEventListener('click', (e) => {
-                const btn = e.target.closest('.code-btn[data-action]');
+                const btn = e.target.closest('[data-action]');
                 if (!btn || !c.contains(btn)) return;
                 const handler = CODE_BTN_HANDLERS[btn.dataset.action];
                 if (handler) handler(btn);
