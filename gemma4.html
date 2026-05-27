@@ -653,6 +653,43 @@
             text-overflow: ellipsis; flex-shrink: 0;
         }
         .agent-model-chip svg { flex-shrink: 0; }
+
+        /* Background mode toggle */
+        #cm-bg-mode-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: transparent;
+            border: 1px solid var(--border-soft);
+            border-radius: 16px; padding: 5px 11px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 500;
+            color: var(--text-muted); cursor: pointer; transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        #cm-bg-mode-btn:hover { border-color: var(--accent-green); color: var(--accent-green); }
+        #cm-bg-mode-btn.active {
+            background: rgba(129,201,149,0.12);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        #cm-bg-mode-btn .bg-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--border-color); transition: background 0.2s; flex-shrink: 0;
+        }
+        #cm-bg-mode-btn.active .bg-dot { background: var(--accent-green); animation: pulse 1.5s infinite ease-in-out; }
+
+        /* Background status bar inside agent feed */
+        #cm-bg-status-bar {
+            display: none; align-items: center; gap: 8px;
+            background: rgba(129,201,149,0.08); border: 1px solid rgba(129,201,149,0.2);
+            border-radius: 10px; padding: 8px 12px;
+            font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-green);
+            flex-shrink: 0;
+        }
+        #cm-bg-status-bar.visible { display: flex; }
+        #cm-bg-status-bar .bg-pulse {
+            width: 7px; height: 7px; border-radius: 50%; background: var(--accent-green);
+            flex-shrink: 0; animation: pulse 1.2s infinite ease-in-out;
+        }
+        #cm-bg-status-text { flex: 1; }
         .agent-iter-label {
             font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
         }
@@ -1160,8 +1197,15 @@
                     <span id="cm-agent-model-name">--</span>
                 </span>
                 <button id="cm-agent-collapse-btn" onclick="agentCollapseAll()" title="Collapse all cards">Collapse all</button>
+                <button id="cm-bg-mode-btn" onclick="toggleBgMode()" title="Keep running when phone locks">
+                    <span class="bg-dot"></span>Background
+                </button>
             </div>
             <div id="cm-agent-feed">
+                <div id="cm-bg-status-bar">
+                    <span class="bg-pulse"></span>
+                    <span id="cm-bg-status-text">Background mode active -- safe to lock screen or switch apps</span>
+                </div>
                 <div class="agent-banner info" id="cm-agent-welcome">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                     Click <strong>Auto-Fix</strong> to run your code, detect errors, and let the selected model fix them automatically -- up to 5 iterations.
@@ -2789,6 +2833,190 @@ Return format:
             return { fixedCode, reasoning };
         }
 
+        /* ============================================================
+           Background Mode Engine
+           Keeps the agent running when the phone is locked or the user
+           switches apps. Uses three layers:
+             1. Screen Wake Lock API  -- prevents screen-off (Safari 16.4+)
+             2. Silent Audio Loop     -- Web Audio silence keeps iOS from
+                                        suspending the JS thread
+             3. Page Visibility API  -- detects suspension and reschedules
+             4. Notification API     -- alerts user when agent finishes
+           ============================================================ */
+        let _bgModeEnabled = false;
+        let _wakeLock = null;
+        let _silentAudio = null;       // AudioContext
+        let _silentSource = null;      // BufferSourceNode playing silence
+        let _notifGranted = false;
+
+        function toggleBgMode() {
+            _bgModeEnabled = !_bgModeEnabled;
+            const btn = document.getElementById('cm-bg-mode-btn');
+            if (!btn) return;
+            btn.classList.toggle('active', _bgModeEnabled);
+            btn.querySelector('.bg-dot').style.background = _bgModeEnabled ? '' : '';
+
+            if (_bgModeEnabled) {
+                _bgRequestNotifPermission();
+                showToast('Background mode ON -- safe to lock screen');
+            } else {
+                _bgRelease();
+                showToast('Background mode OFF');
+            }
+        }
+
+        // ── 1. Screen Wake Lock ──────────────────────────────────────
+        async function _bgAcquireWakeLock() {
+            if (!('wakeLock' in navigator)) return;
+            try {
+                _wakeLock = await navigator.wakeLock.request('screen');
+                _wakeLock.addEventListener('release', () => {
+                    // Re-acquire if agent is still running and bg mode is on
+                    if (_bgModeEnabled && _agentRunning) {
+                        setTimeout(_bgAcquireWakeLock, 500);
+                    }
+                });
+                console.log('Wake lock acquired');
+            } catch (e) {
+                console.warn('Wake lock failed:', e.message);
+            }
+        }
+
+        function _bgReleaseWakeLock() {
+            if (_wakeLock) {
+                try { _wakeLock.release(); } catch (_) {}
+                _wakeLock = null;
+            }
+        }
+
+        // ── 2. Silent Audio Loop ─────────────────────────────────────
+        // iOS suspends JS when there is no active media. Playing a
+        // buffer of silence keeps the audio session alive, which in turn
+        // keeps the JS thread running even with the screen off.
+        function _bgStartSilentAudio() {
+            if (_silentAudio) return; // already running
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                _silentAudio = new AudioContext();
+
+                function _scheduleChunk() {
+                    if (!_bgModeEnabled || !_agentRunning) {
+                        _bgStopSilentAudio();
+                        return;
+                    }
+                    // Create a 2-second silent buffer and schedule the next one
+                    // before it ends so there is no gap (gap = suspension).
+                    const bufferSize = _silentAudio.sampleRate * 2;
+                    const buf = _silentAudio.createBuffer(1, bufferSize, _silentAudio.sampleRate);
+                    // Buffer is zeroed by default -- pure silence
+                    const src = _silentAudio.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(_silentAudio.destination);
+                    src.onended = _scheduleChunk;
+                    src.start();
+                    _silentSource = src;
+                }
+
+                // AudioContext requires a user gesture to start on iOS.
+                // toggleBgMode() is called by a button tap -- that IS a user gesture.
+                if (_silentAudio.state === 'suspended') {
+                    _silentAudio.resume().then(_scheduleChunk).catch(() => {});
+                } else {
+                    _scheduleChunk();
+                }
+                console.log('Silent audio loop started');
+            } catch (e) {
+                console.warn('Silent audio failed:', e.message);
+            }
+        }
+
+        function _bgStopSilentAudio() {
+            try {
+                if (_silentSource) { _silentSource.onended = null; _silentSource.stop(); }
+            } catch (_) {}
+            try { if (_silentAudio) _silentAudio.close(); } catch (_) {}
+            _silentAudio = null;
+            _silentSource = null;
+        }
+
+        // ── 3. Page Visibility / Suspension Recovery ─────────────────
+        document.addEventListener('visibilitychange', () => {
+            if (!_bgModeEnabled) return;
+            if (document.hidden) {
+                // Page went to background -- update status
+                _bgSetStatus('Running in background... (screen may be locked)');
+            } else {
+                // Page came back to foreground
+                _bgSetStatus('Background mode active -- safe to lock screen or switch apps');
+                // Re-acquire wake lock if it was released while hidden
+                if (_agentRunning) _bgAcquireWakeLock();
+                // Resume AudioContext if iOS paused it
+                if (_silentAudio && _silentAudio.state === 'suspended') {
+                    _silentAudio.resume().catch(() => {});
+                }
+            }
+        });
+
+        // ── 4. Notification API ──────────────────────────────────────
+        async function _bgRequestNotifPermission() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'granted') {
+                _notifGranted = true;
+            } else if (Notification.permission !== 'denied') {
+                try {
+                    const result = await Notification.requestPermission();
+                    _notifGranted = result === 'granted';
+                } catch (_) {}
+            }
+        }
+
+        function _bgNotify(title, body) {
+            if (!_notifGranted || !('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+            try {
+                const n = new Notification(title, {
+                    body,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%23a8c7fa"/></svg>',
+                    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%23a8c7fa"/></svg>',
+                    requireInteraction: true,  // stays visible until dismissed
+                    silent: false
+                });
+                n.onclick = () => { window.focus(); n.close(); };
+            } catch (e) {
+                console.warn('Notification failed:', e.message);
+            }
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────
+        function _bgSetStatus(msg) {
+            const bar = document.getElementById('cm-bg-status-bar');
+            const txt = document.getElementById('cm-bg-status-text');
+            if (bar) bar.classList.toggle('visible', _bgModeEnabled);
+            if (txt && msg) txt.textContent = msg;
+        }
+
+        function _bgActivate() {
+            if (!_bgModeEnabled) return;
+            _bgAcquireWakeLock();
+            _bgStartSilentAudio();
+            _bgSetStatus('Background mode active -- safe to lock screen or switch apps');
+        }
+
+        function _bgRelease() {
+            _bgReleaseWakeLock();
+            _bgStopSilentAudio();
+            const bar = document.getElementById('cm-bg-status-bar');
+            if (bar) bar.classList.remove('visible');
+        }
+
+        function _bgOnComplete(success, summary) {
+            _bgRelease();
+            if (!_bgModeEnabled) return;
+            const title = success ? 'Agent: All errors fixed!' : 'Agent: Run complete';
+            _bgNotify(title, summary || 'Open AI Pro Coder to see the results.');
+        }
+
         async function agentRun() {
             if (_agentRunning) return;
             const { code, lang } = codeModalState;
@@ -2799,6 +3027,9 @@ Return format:
                 showToast('No model selected -- choose a model from the dropdown first');
                 return;
             }
+
+            // Activate background mode (wake lock + silent audio) if enabled
+            _bgActivate();
 
             // Switch to agent tab
             cmSwitchTab('agent');
@@ -2938,13 +3169,16 @@ Return format:
             // Final banner — exactly one, chosen by priority
             if (_agentAbort) {
                 _agentBanner('giveup', 'Agent stopped by user. Partial fixes (if any) have been applied to the Code tab.');
+                _bgOnComplete(false, 'Agent was stopped manually.');
                 cmSetStatus('', 'Agent stopped');
             } else if (apiCallFailed) {
                 _agentBanner('giveup', `AI call failed. Make sure model "${currentModel}" is running on your VPS and the API key is correct.`);
+                _bgOnComplete(false, `AI call failed for model "${AVAILABLE_MODELS[currentModel] || currentModel}".`);
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
                 _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
                 _agentShowWarnNote();
+                _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
                 cmSetStatus('ok', 'Agent: all clear');
                 document.getElementById('cm-tab-preview').style.display = lang === 'html' || lang === 'xml' ? '' : 'none';
                 if (lang === 'html' || lang === 'xml') {
@@ -2952,6 +3186,7 @@ Return format:
                 }
             } else {
                 _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Some errors may remain. Check the Code tab for the latest version.`);
+                _bgOnComplete(false, `Max iterations reached. Some errors may still remain.`);
                 cmSetStatus('err', 'Max iterations reached');
             }
 
