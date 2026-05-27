@@ -642,6 +642,17 @@
             cursor: pointer; transition: all 0.15s; margin-left: auto;
         }
         #cm-agent-collapse-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        .agent-model-chip {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: var(--accent-blue-bg); color: var(--accent-blue);
+            border: 1px solid rgba(168,199,250,0.25);
+            border-radius: 20px; padding: 4px 10px;
+            font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+            white-space: nowrap; overflow: hidden; max-width: 160px;
+            text-overflow: ellipsis; flex-shrink: 0;
+        }
+        .agent-model-chip svg { flex-shrink: 0; }
         .agent-iter-label {
             font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
         }
@@ -1144,6 +1155,10 @@
                 </button>
                 <span class="agent-iter-label" id="cm-agent-iter-label"></span>
                 <div class="agent-iter-dots" id="cm-agent-iter-dots"></div>
+                <span class="agent-model-chip" id="cm-agent-model-chip" title="Active model for agent">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    <span id="cm-agent-model-name">--</span>
+                </span>
                 <button id="cm-agent-collapse-btn" onclick="agentCollapseAll()" title="Collapse all cards">Collapse all</button>
             </div>
             <div id="cm-agent-feed">
@@ -1484,6 +1499,7 @@ Rules:
                 AVAILABLE_MODELS = activeModels;
                 populateModelDropdown(AVAILABLE_MODELS);
                 modelSelect.disabled = false;
+                updateAgentModelChip();
             } catch (error) {
                 console.error('Model loading failed:', error);
                 AVAILABLE_MODELS = {};
@@ -1502,6 +1518,16 @@ Rules:
             localStorage.setItem(STORAGE_MODEL_KEY, currentModel);
             const modelName = AVAILABLE_MODELS[currentModel] || currentModel;
             showToast(`Switched to ${modelName}`);
+            updateAgentModelChip();
+        }
+
+        function updateAgentModelChip() {
+            const chip = document.getElementById('cm-agent-model-name');
+            if (!chip) return;
+            const label = AVAILABLE_MODELS[currentModel] || currentModel || 'No model';
+            // Shorten long names: keep first 18 chars
+            chip.textContent = label.length > 22 ? label.slice(0, 20) + '...' : label;
+            chip.parentElement.title = `Agent will use: ${label}`;
         }
 
         /* ============================================================
@@ -2417,6 +2443,7 @@ Rules:
             cmAnalyseProblems(code, lang);
 
             document.getElementById('code-modal').classList.add('open');
+            updateAgentModelChip();
         }
 
         function closeCodeModal() {
@@ -2845,7 +2872,7 @@ Return format:
                     // Update card with error summary
                     _agentUpdateCard(iter, {
                         title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length > 1 ? 's' : ''} found`,
-                        thinking: `Errors found:\n${allErrors.join('\n')}\n\n[Waiting for ${currentModel} to respond... This may take 15-60s for large models. Do not close this panel.]`
+                        thinking: `Errors found:\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond... This may take 15-60s for large models. Do not close this panel.]`
                     });
                     if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
 
