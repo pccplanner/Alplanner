@@ -610,8 +610,115 @@
         .cm-prob-row .pi { flex-shrink:0; font-size:.95rem; }
         .cm-prob-row .pm { flex:1; color:#c4c7c5; word-break:break-word; }
 
-        /* Run status bar */
-        #cm-statusbar {
+        /* ── Agent panel ── */
+        #cm-agent-panel { background: #0d0e0f; flex-direction: column; overflow: hidden; }
+
+        #cm-agent-topbar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; background: #161718;
+            border-bottom: 1px solid var(--border-soft); flex-shrink: 0;
+        }
+        #cm-agent-run-btn {
+            background: var(--accent-blue); color: #0d0e0f; border: none;
+            border-radius: 20px; padding: 7px 18px; font-family: var(--font-main);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+        }
+        #cm-agent-run-btn:hover { background: #b6d0fb; }
+        #cm-agent-run-btn:disabled { background: var(--surface-hover); color: var(--text-muted); cursor: not-allowed; }
+        #cm-agent-stop-btn {
+            background: var(--accent-red); color: #fff; border: none;
+            border-radius: 20px; padding: 7px 18px; font-family: var(--font-main);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; display: none;
+            align-items: center; gap: 6px;
+        }
+        #cm-agent-stop-btn.visible { display: flex; }
+        .agent-iter-label {
+            font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
+        }
+        .agent-iter-dots { display: flex; gap: 4px; }
+        .agent-iter-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--border-color); transition: background 0.3s;
+        }
+        .agent-iter-dot.done { background: var(--accent-green); }
+        .agent-iter-dot.active { background: var(--accent-yellow); animation: pulse 0.8s infinite; }
+        .agent-iter-dot.err  { background: var(--accent-red); }
+
+        #cm-agent-feed {
+            flex: 1; overflow-y: auto; padding: 12px 14px;
+            -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px;
+        }
+
+        /* Each agent iteration card */
+        .agent-card {
+            background: var(--surface-color); border: 1px solid var(--border-soft);
+            border-radius: 12px; overflow: hidden;
+            animation: fadeIn 0.3s ease;
+        }
+        .agent-card-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; cursor: pointer; user-select: none;
+            border-bottom: 1px solid transparent; transition: background 0.15s;
+        }
+        .agent-card-header:hover { background: rgba(255,255,255,0.03); }
+        .agent-card.open .agent-card-header { border-bottom-color: var(--border-soft); }
+        .ac-step-badge {
+            flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
+        }
+        .ac-step-badge.pending  { background: var(--border-color); color: var(--text-muted); }
+        .ac-step-badge.running  { background: #fdd663; color: #000; animation: pulse 0.8s infinite; }
+        .ac-step-badge.ok       { background: var(--accent-green); color: #000; }
+        .ac-step-badge.err      { background: var(--accent-red); color: #fff; }
+        .ac-step-badge.fixed    { background: var(--accent-blue); color: #000; }
+
+        .ac-title { flex: 1; font-size: 0.88rem; font-weight: 500; color: var(--text-primary); }
+        .ac-subtitle { font-size: 0.75rem; color: var(--text-muted); }
+        .ac-chevron { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; }
+        .agent-card.open .ac-chevron { transform: rotate(90deg); }
+
+        .agent-card-body { display: none; padding: 12px 14px; }
+        .agent-card.open .agent-card-body { display: block; }
+
+        /* Thinking / reasoning block */
+        .ac-thinking {
+            font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
+            background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px;
+            margin-bottom: 10px; white-space: pre-wrap; word-break: break-word;
+            border-left: 2px solid var(--border-color); line-height: 1.55;
+        }
+        /* Diff block */
+        .ac-diff {
+            font-family: var(--font-mono); font-size: 0.78rem; border-radius: 8px;
+            overflow: hidden; margin-bottom: 10px;
+        }
+        .ac-diff-line {
+            padding: 2px 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+        }
+        .ac-diff-line.add  { background: rgba(129,201,149,0.1); color: #81c995; }
+        .ac-diff-line.rem  { background: rgba(242,139,130,0.1); color: #f28b82; }
+        .ac-diff-line.ctx  { color: var(--text-muted); }
+        /* Result row */
+        .ac-result {
+            font-size: 0.82rem; font-family: var(--font-mono); padding: 6px 0 0;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .ac-result.ok   { color: var(--accent-green); }
+        .ac-result.err  { color: var(--accent-red); }
+        .ac-result.info { color: var(--accent-blue); }
+
+        /* Final success / give-up banner */
+        .agent-banner {
+            border-radius: 12px; padding: 14px 16px;
+            display: flex; align-items: center; gap: 10px;
+            font-size: 0.9rem; font-weight: 500; animation: fadeIn 0.4s ease;
+        }
+        .agent-banner.success { background: rgba(129,201,149,0.12); border: 1px solid rgba(129,201,149,0.3); color: var(--accent-green); }
+        .agent-banner.giveup  { background: rgba(242,139,130,0.10); border: 1px solid rgba(242,139,130,0.25); color: var(--accent-red); }
+        .agent-banner.info    { background: rgba(168,199,250,0.10); border: 1px solid rgba(168,199,250,0.25); color: var(--accent-blue); }
+        .agent-banner svg { flex-shrink: 0; }
             display: flex; align-items: center; gap: 10px;
             padding: 5px 14px; background: #161718;
             border-top: 1px solid var(--border-soft);
@@ -832,6 +939,11 @@
                 Problems
                 <span class="cm-badge" id="cm-prob-badge"></span>
             </button>
+            <button class="cm-tab" data-cm-tab="agent" id="cm-tab-agent">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                Agent
+                <span class="cm-badge" id="cm-agent-badge"></span>
+            </button>
             <span class="cm-tab-spacer"></span>
             <button class="modal-btn" id="cm-run-btn"  onclick="runCodeModal()"           style="display:none">▶ Run</button>
             <button class="modal-btn" id="cm-wrap-btn" onclick="toggleCodeModalWrap()">Wrap</button>
@@ -869,6 +981,28 @@
 
         <!-- Problems panel -->
         <div class="cm-panel" id="cm-problems-panel">
+        </div>
+
+        <!-- Agent panel -->
+        <div class="cm-panel" id="cm-agent-panel">
+            <div id="cm-agent-topbar">
+                <button id="cm-agent-run-btn" onclick="agentRun()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    Auto-Fix
+                </button>
+                <button id="cm-agent-stop-btn" onclick="agentStop()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    Stop
+                </button>
+                <span class="agent-iter-label" id="cm-agent-iter-label"></span>
+                <div class="agent-iter-dots" id="cm-agent-iter-dots"></div>
+            </div>
+            <div id="cm-agent-feed">
+                <div class="agent-banner info" id="cm-agent-welcome">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    Click <strong>Auto-Fix</strong> to run your code, detect errors, and let the AI agent fix them automatically — up to 5 iterations.
+                </div>
+            </div>
         </div>
 
         <!-- Status bar -->
@@ -929,12 +1063,12 @@
 
         // Shared secret with your server.js PROXY_API_KEY env var.
         // Leave empty ("") if the backend has auth disabled.
-        // Note: visible in the bundled HTML — it's a deterrent, not a vault.
+        // Note: visible in the bundled HTML -- it's a deterrent, not a vault.
         const API_KEY = 'M-oxxFLWyXUKAX_uTBWRhLlRxzG3xIP0_75gHcz8n-8';
 
         // Sliding window: how many of the most-recent non-system messages
         // get sent upstream to Ollama. The full history stays in localStorage
-        // for display — this only trims the outgoing request.
+        // for display -- this only trims the outgoing request.
         const HISTORY_WINDOW = 20;
 
         const STORAGE_MODEL_KEY = 'aiproxy_selected_model';
@@ -942,7 +1076,7 @@
         const STORAGE_SNIPPETS_KEY = 'aiproxy_snippets';
 
         /* ============================================================
-           Dev Console — intercepts console.log/warn/error, fetch, and
+           Dev Console -- intercepts console.log/warn/error, fetch, and
            window.onerror so every runtime issue appears in the panel.
            ============================================================ */
         const _consoleLogs = [];   // { ts, level, msg }
@@ -1022,16 +1156,16 @@
             const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || String(args[0]));
             const method = args[1]?.method || 'GET';
             const shortUrl = url.replace(/^https?:\/\/[^/]+/, '');
-            _addLog('NET', `▶ ${method} ${shortUrl}`);
+            _addLog('NET', `> ${method} ${shortUrl}`);
             const t0 = performance.now();
             try {
                 const resp = await _origFetch(...args);
                 const ms = Math.round(performance.now() - t0);
-                _addLog('NET', `◀ ${resp.status} ${shortUrl} (${ms}ms)`);
+                _addLog('NET', `< ${resp.status} ${shortUrl} (${ms}ms)`);
                 return resp;
             } catch (err) {
                 const ms = Math.round(performance.now() - t0);
-                _addLog('ERR', `✖ FETCH ${shortUrl} failed (${ms}ms): ${err.message}`);
+                _addLog('ERR', `x FETCH ${shortUrl} failed (${ms}ms): ${err.message}`);
                 throw err;
             }
         };
@@ -1330,7 +1464,7 @@ Rules:
                         <path d="M12.0001 22.5001C11.854 22.5001 11.7161 22.4276 11.6366 22.3023C9.9392 19.5898 7.64998 17.3006 4.93751 15.6032C4.81223 15.5237 4.73975 15.3858 4.73975 15.2397V15.2397C4.73975 15.0936 4.81223 14.9557 4.93751 14.8762C7.64998 13.1788 9.9392 10.8896 11.6366 8.17714C11.7161 8.05185 11.854 7.97937 12.0001 7.97937V7.97937C12.1462 7.97937 12.284 8.05185 12.3636 8.17714C14.061 10.8896 16.3502 13.1788 19.0627 14.8762C19.188 14.9557 19.2604 15.0936 19.2604 15.2397V15.2397C19.2604 15.3858 19.188 15.5237 19.0627 15.6032C16.3502 17.3006 14.061 19.5898 12.3636 22.3023C12.284 22.4276 12.1462 22.5001 12.0001 22.5001V22.5001Z"/>
                     </svg>
                     <h1 class="welcome-title">Hi Developer,<br>what's on your mind?</h1>
-                    <p class="welcome-subtitle">Stream responses with smart code blocks. Save snippets, download files, preview HTML — all without leaving the chat.</p>
+                    <p class="welcome-subtitle">Stream responses with smart code blocks. Save snippets, download files, preview HTML -- all without leaving the chat.</p>
                 </div>
             `;
         }
@@ -1400,7 +1534,7 @@ Rules:
             const lineNumbersHtml = Array.from({ length: lineCount }, (_, i) => `<span>${i + 1}</span>`).join('');
             const encodedRaw = encodeURIComponent(rawText);
             const charCount = rawText.length;
-            const meta = `${lineCount} ${lineCount === 1 ? 'line' : 'lines'} · ${charCount} chars`;
+            const meta = `${lineCount} ${lineCount === 1 ? 'line' : 'lines'} . ${charCount} chars`;
             const isHtml = (lang === 'html' || lang === 'xml');
             const isJs   = ['javascript','js','typescript','ts'].includes(lang);
             const canRun = isHtml || isJs;
@@ -1448,7 +1582,7 @@ Rules:
                         </button>
                         <span class="ide-tab-spacer"></span>
                         <button class="ide-tab-action" data-action="ide-clear" title="Clear console">Clear</button>
-                        <button class="ide-tab-action" data-action="ide-close" title="Close panel">✕</button>
+                        <button class="ide-tab-action" data-action="ide-close" title="Close panel">x</button>
                     </div>
                     <div class="ide-panels">
                         <div class="ide-preview-panel active">
@@ -1458,7 +1592,7 @@ Rules:
                             <div class="ide-console-output"><div class="ide-console-empty">No output yet. Click Run to execute.</div></div>
                         </div>
                         <div class="ide-problems-panel">
-                            <div class="ide-problem-row warn-row"><span class="ip-icon">⚠</span><span class="ip-msg">No problems detected.</span></div>
+                            <div class="ide-problem-row warn-row"><span class="ip-icon">(!)</span><span class="ip-msg">No problems detected.</span></div>
                         </div>
                     </div>` : ''}
                 </div>`;
@@ -1486,13 +1620,13 @@ Rules:
         }
 
         /**
-         * Render Markdown → sanitized HTML.
+         * Render Markdown -> sanitized HTML.
          * - marked.parse() converts markdown to HTML
          * - DOMPurify strips dangerous content (script tags, event handlers,
          *   javascript: URLs, etc.) before we write it to innerHTML
          *
          * DOMPurify keeps SVG icons (for our code-block buttons), `class`,
-         * and `data-*` attributes. It strips inline `onclick` — which is why
+         * and `data-*` attributes. It strips inline `onclick` -- which is why
          * our code-block buttons use `data-action` + event delegation instead.
          */
         const DOMPURIFY_CONFIG = {
@@ -1505,7 +1639,7 @@ Rules:
             if (typeof marked === 'undefined') return escapeHtml(text || '');
             const rawHtml = marked.parse(text || '');
             if (typeof DOMPurify === 'undefined') {
-                console.warn('DOMPurify not loaded — falling back to unsanitized render');
+                console.warn('DOMPurify not loaded -- falling back to unsanitized render');
                 return rawHtml;
             }
             return DOMPurify.sanitize(rawHtml, DOMPURIFY_CONFIG);
@@ -1515,16 +1649,16 @@ Rules:
          * Merge a new streaming chunk into the accumulated response text.
          *
          * Different backends stream in different shapes:
-         *   1. DELTA       — each chunk is just the newly produced tokens (Ollama native)
-         *   2. CUMULATIVE  — each chunk is the entire response so far (some proxies / cloud models)
-         *   3. OVERLAPPING — each chunk repeats the tail of the previous chunk plus new tokens
+         *   1. DELTA       -- each chunk is just the newly produced tokens (Ollama native)
+         *   2. CUMULATIVE  -- each chunk is the entire response so far (some proxies / cloud models)
+         *   3. OVERLAPPING -- each chunk repeats the tail of the previous chunk plus new tokens
          *                    (observed on Ollama ":cloud" models via the th3va proxy)
          *
          * We handle all three by computing the longest suffix of `accumulated` that is
          * a prefix of `chunk`, and appending only the non-overlapping remainder.
-         *   - DELTA:       overlap = 0           → behaves like plain concat
-         *   - CUMULATIVE:  overlap = acc.length  → strips the whole prefix
-         *   - OVERLAPPING: overlap = shared tail → strips just the duplicated portion
+         *   - DELTA:       overlap = 0           -> behaves like plain concat
+         *   - CUMULATIVE:  overlap = acc.length  -> strips the whole prefix
+         *   - OVERLAPPING: overlap = shared tail -> strips just the duplicated portion
          */
         function mergeStreamChunk(accumulated, chunk) {
             if (!chunk) return accumulated;
@@ -1638,36 +1772,26 @@ Rules:
         }
 
         /* ============================================================
-           Inline IDE Console — Run, Console capture, Problems, Tab switch
+           Inline IDE Console -- Run, Console capture, Problems, Tab switch
            ============================================================ */
 
         // Inject a console bridge into the iframe srcdoc so its console.*
         // calls get forwarded to us via postMessage.
-        const CONSOLE_BRIDGE = `
-<script>
-(function(){
-  const _send = (level, args) => {
-    const msg = args.map(a => {
-      if (a instanceof Error) return a.name + ': ' + a.message;
-      try { return typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a); }
-      catch(e) { return String(a); }
-    }).join(' ');
-    window.parent.postMessage({ type: 'IDE_CONSOLE', level, msg }, '*');
-  };
-  ['log','info','warn','error','debug'].forEach(m => {
-    const orig = console[m].bind(console);
-    console[m] = (...a) => { orig(...a); _send(m === 'debug' ? 'LOG' : m.toUpperCase(), a); };
-  });
-  window.onerror = (msg, src, line, col) => {
-    window.parent.postMessage({ type: 'IDE_CONSOLE', level: 'ERR', msg: msg + ' (' + src + ':' + line + ':' + col + ')' }, '*');
-  };
-  window.addEventListener('unhandledrejection', e => {
-    window.parent.postMessage({ type: 'IDE_CONSOLE', level: 'ERR', msg: 'Unhandled promise: ' + (e.reason?.message || e.reason) }, '*');
-  });
-})();
-<\/script>`;
+        const CONSOLE_BRIDGE = '<'+'script>(function(){'
+            + 'const _send=(level,args)=>{'
+            + 'const msg=args.map(a=>{if(a instanceof Error)return a.name+": "+a.message;'
+            + 'try{return typeof a==="object"?JSON.stringify(a,null,2):String(a);}catch(e){return String(a);}}).join(" ");'
+            + 'window.parent.postMessage({type:"IDE_CONSOLE",level,msg},"*");};'
+            + '["log","info","warn","error","debug"].forEach(m=>{'
+            + 'const orig=console[m].bind(console);'
+            + 'console[m]=(...a)=>{orig(...a);_send(m==="debug"?"LOG":m.toUpperCase(),a);};});'
+            + 'window.onerror=(msg,src,line,col)=>{'
+            + 'window.parent.postMessage({type:"IDE_CONSOLE",level:"ERR",msg:msg+" ("+src+":"+line+":"+col+")"},"*");};'
+            + 'window.addEventListener("unhandledrejection",e=>{'
+            + 'window.parent.postMessage({type:"IDE_CONSOLE",level:"ERR",msg:"Unhandled promise: "+(e.reason?.message||e.reason)},"*");});'
+            + '})();<'+'/script>';
 
-        // Map from iframe element → its console output div + badge elements
+        // Map from iframe element -> its console output div + badge elements
         const _iframeToWrapper = new WeakMap();
 
         // Listen for messages from any iframe
@@ -1732,9 +1856,9 @@ Rules:
             }
 
             if (lang === 'javascript' || lang === 'js') {
-                if (/\beval\s*\(/.test(code))  problems.push({ type: 'warn', msg: 'eval() detected — security risk' });
-                if (/var\s+/.test(code))        problems.push({ type: 'warn', msg: 'var declarations found — prefer const/let' });
-                if (/===?\s*null/.test(code) && !/!==?\s*null/.test(code)) problems.push({ type: 'warn', msg: 'Loose null check — consider ?? or !=' });
+                if (/\beval\s*\(/.test(code))  problems.push({ type: 'warn', msg: 'eval() detected -- security risk' });
+                if (/var\s+/.test(code))        problems.push({ type: 'warn', msg: 'var declarations found -- prefer const/let' });
+                if (/===?\s*null/.test(code) && !/!==?\s*null/.test(code)) problems.push({ type: 'warn', msg: 'Loose null check -- consider ?? or !=' });
                 const opens = (code.match(/[{([]/g) || []).length;
                 const closes = (code.match(/[})\]]/g) || []).length;
                 if (Math.abs(opens - closes) > 1) problems.push({ type: 'err', msg: `Bracket mismatch: ${opens} opening vs ${closes} closing` });
@@ -1759,7 +1883,7 @@ Rules:
             problems.forEach(p => {
                 const row = document.createElement('div');
                 row.className = `ide-problem-row ${p.type === 'err' ? 'err-row' : p.type === 'warn' ? 'warn-row' : ''}`;
-                const icon = p.type === 'err' ? '✖' : p.type === 'warn' ? '⚠' : '✓';
+                const icon = p.type === 'err' ? 'x' : p.type === 'warn' ? '(!)' : 'v';
                 row.innerHTML = `<span class="ip-icon">${icon}</span><span class="ip-msg">${escapeHtml(p.msg)}</span>`;
                 panel.appendChild(row);
             });
@@ -1779,7 +1903,7 @@ Rules:
 
             // Reset console output
             const output = wrapper.querySelector('.ide-console-output');
-            if (output) output.innerHTML = '<div class="ide-console-empty">Running…</div>';
+            if (output) output.innerHTML = '<div class="ide-console-empty">Running...</div>';
 
             // Reset all tab badges
             wrapper.querySelectorAll('.ide-tab .tab-badge').forEach(b => { b.classList.remove('show'); b.textContent = ''; });
@@ -1788,7 +1912,7 @@ Rules:
             // Switch to Preview tab
             _ideSwitchTab(wrapper, 'preview');
 
-            // Register iframe → wrapper mapping for message routing
+            // Register iframe -> wrapper mapping for message routing
             _iframeToWrapper.set(iframe, wrapper);
 
             if (lang === 'html' || lang === 'xml') {
@@ -1809,18 +1933,14 @@ Rules:
                 if (output) output.innerHTML = '<div class="ide-console-empty">No console output. JS errors will appear here.</div>';
             } else if (lang === 'javascript' || lang === 'js') {
                 // Wrap JS in a minimal HTML runner
-                const runner = `<!DOCTYPE html><html><head><meta charset="UTF-8">${CONSOLE_BRIDGE}</head><body>
-<script>
-try {
-${code}
-} catch(e) { console.error(e.message); }
-<\/script></body></html>`;
+                const runner = `<!DOCTYPE html><html><head><meta charset="UTF-8">${CONSOLE_BRIDGE}</head><body>`
+                    + '<'+'script>\ntry {\n' + code + '\n} catch(e) { console.error(e.message); }\n<'+'/script></body></html>';
                 const blob = new Blob([runner], { type: 'text/html' });
                 iframe.src = URL.createObjectURL(blob);
                 iframe.style.minHeight = '40px';
                 previewPanel.style.display = 'none';
                 _ideSwitchTab(wrapper, 'console');
-                if (output) output.innerHTML = '<div class="ide-console-empty">Running JS…</div>';
+                if (output) output.innerHTML = '<div class="ide-console-empty">Running JS...</div>';
             }
 
             // Analyse problems
@@ -2024,17 +2144,17 @@ ${code}
                 const opened = {};
                 opens.forEach(t => { if (!selfClose.has(t)) opened[t] = (opened[t]||0)+1; });
                 closes.forEach(t => { if (opened[t]) opened[t]--; });
-                Object.entries(opened).forEach(([tag, n]) => { if (n > 0) problems.push({ type:'warn', msg:`Unclosed <${tag}> tag (${n}×)` }); });
+                Object.entries(opened).forEach(([tag, n]) => { if (n > 0) problems.push({ type:'warn', msg:`Unclosed <${tag}> tag (${n}x)` }); });
                 if (!/<!(DOCTYPE|doctype)/.test(code)) problems.push({ type:'warn', msg:'Missing <!DOCTYPE html>' });
                 if (!/<title[\s>]/i.test(code)) problems.push({ type:'warn', msg:'Missing <title> element' });
                 if (!/<meta[^>]+charset/i.test(code)) problems.push({ type:'warn', msg:'No charset meta tag' });
             }
             if (['javascript','js','typescript','ts'].includes(lang)) {
-                if (/\beval\s*\(/.test(code))  problems.push({ type:'warn', msg:'eval() detected — security risk' });
-                if (/\bvar\s+/.test(code))       problems.push({ type:'warn', msg:'var declarations — prefer const/let' });
+                if (/\beval\s*\(/.test(code))  problems.push({ type:'warn', msg:'eval() detected -- security risk' });
+                if (/\bvar\s+/.test(code))       problems.push({ type:'warn', msg:'var declarations -- prefer const/let' });
                 const o = (code.match(/[{([]/g)||[]).length, c2 = (code.match(/[})\]]/g)||[]).length;
                 if (Math.abs(o-c2) > 1) problems.push({ type:'err', msg:`Bracket mismatch: ${o} open vs ${c2} close` });
-                if (/console\.log/.test(code)) problems.push({ type:'info', msg:'console.log() present — outputs appear in Console tab' });
+                if (/console\.log/.test(code)) problems.push({ type:'info', msg:'console.log() present -- outputs appear in Console tab' });
             }
 
             const errN = problems.filter(p=>p.type==='err').length;
@@ -2048,28 +2168,29 @@ ${code}
             problems.forEach(p => {
                 const row = document.createElement('div');
                 row.className = `cm-prob-row p-${p.type}`;
-                const icon = p.type==='err' ? '✖' : p.type==='warn' ? '⚠' : p.type==='ok' ? '✓' : 'ℹ';
+                const icon = p.type==='err' ? 'x' : p.type==='warn' ? '(!)' : p.type==='ok' ? 'v' : 'i';
                 row.innerHTML = `<span class="pi">${icon}</span><span class="pm">${escapeHtml(p.msg)}</span>`;
                 panel.appendChild(row);
             });
         }
 
         // Console bridge injected into the IDE iframe
-        const CM_BRIDGE = `<script>(function(){
-  const _s = (l,a) => window.parent.postMessage({type:'CM_CONSOLE',level:l,msg:a.map(x=>{
-    if(x instanceof Error) return x.name+': '+x.message;
-    try{return typeof x==='object'?JSON.stringify(x,null,2):String(x);}catch(e){return String(x);}
-  }).join(' ')},'*');
-  ['log','info','warn','error'].forEach(m=>{ const o=console[m].bind(console); console[m]=(...a)=>{o(...a);_s(m.toUpperCase(),a);}; });
-  window.onerror=(m,s,l,c)=>{window.parent.postMessage({type:'CM_CONSOLE',level:'ERR',msg:m+' ('+s+':'+l+':'+c+')'},'*');};
-  window.addEventListener('unhandledrejection',e=>{window.parent.postMessage({type:'CM_CONSOLE',level:'ERR',msg:'Unhandled: '+(e.reason?.message||e.reason)},'*');});
-})();<\/script>`;
+        // NOTE: '<'+'script>' split prevents the HTML parser from closing this script block early.
+        const CM_BRIDGE = '<'+'script>(function(){'
+            + 'const _s=(l,a)=>window.parent.postMessage({type:\'CM_CONSOLE\',level:l,msg:a.map(x=>{'
+            + 'if(x instanceof Error)return x.name+\': \'+x.message;'
+            + 'try{return typeof x===\'object\'?JSON.stringify(x,null,2):String(x);}catch(e){return String(x);}'
+            + '}).join(\' \')},\'*\');'
+            + '[\'log\',\'info\',\'warn\',\'error\'].forEach(m=>{const o=console[m].bind(console);console[m]=(...a)=>{o(...a);_s(m.toUpperCase(),a);};});'
+            + 'window.onerror=(m,s,l,c)=>{window.parent.postMessage({type:\'CM_CONSOLE\',level:\'ERR\',msg:m+\' (\'+s+\':\'+l+\':\'+c+\')\'},\'*\');};'
+            + 'window.addEventListener(\'unhandledrejection\',e=>{window.parent.postMessage({type:\'CM_CONSOLE\',level:\'ERR\',msg:\'Unhandled: \'+(e.reason?.message||e.reason)},\'*\');});'
+            + '})();<'+'/script>';
 
         function runCodeModal() {
             const { code, lang } = codeModalState;
             _cmLogs = [];
             cmClearConsole();
-            cmSetStatus('running', 'Running…');
+            cmSetStatus('running', 'Running...');
             document.getElementById('cm-sb-dot').classList.add('running');
 
             const iframe = document.getElementById('cm-preview-iframe');
@@ -2085,7 +2206,7 @@ ${code}
                 src = URL.createObjectURL(new Blob([injected], { type: 'text/html' }));
             } else {
                 src = URL.createObjectURL(new Blob([
-                    `<!DOCTYPE html><html><head>${CM_BRIDGE}</head><body><script>try{${code}}catch(e){console.error(e.message);}<\/script></body></html>`
+                    `<!DOCTYPE html><html><head>${CM_BRIDGE}</head><body>` + '<'+'script>try{' + code + '}catch(e){console.error(e.message);}<'+'/script></body></html>'
                 ], { type: 'text/html' }));
             }
 
@@ -2106,7 +2227,7 @@ ${code}
 
             // Analyse problems
             cmAnalyseProblems(code, lang);
-            document.getElementById('cm-run-btn').textContent = '↺ Re-run';
+            document.getElementById('cm-run-btn').textContent = 're Re-run';
         }
 
         function openCodeModal(code, lang) {
@@ -2121,7 +2242,7 @@ ${code}
             ['cm-con-badge','cm-prob-badge'].forEach(id => {
                 const b = document.getElementById(id); if (b) { b.classList.remove('on'); b.textContent = ''; }
             });
-            document.getElementById('cm-console-out').innerHTML = '<div id="cm-console-empty">No output yet. Click ▶ Run to execute.</div>';
+            document.getElementById('cm-console-out').innerHTML = '<div id="cm-console-empty">No output yet. Click > Run to execute.</div>';
             document.getElementById('cm-problems-panel').innerHTML = '';
             document.getElementById('cm-preview-iframe').src = 'about:blank';
             document.getElementById('cm-tab-preview').style.display = 'none';
@@ -2141,7 +2262,7 @@ ${code}
             const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
             const runBtn = document.getElementById('cm-run-btn');
             runBtn.style.display = canRun ? '' : 'none';
-            runBtn.textContent = '▶ Run';
+            runBtn.textContent = '> Run';
 
             // Show Problems tab with initial analysis
             cmAnalyseProblems(code, lang);
@@ -2169,6 +2290,421 @@ ${code}
         function downloadCodeModal() {
             const ext = LANG_EXTENSIONS[codeModalState.lang.toLowerCase()] || 'txt';
             downloadAsFile(codeModalState.code, `code-${Date.now()}.${ext}`);
+        }
+
+        /* ============================================================
+           Self-Healing Agent -- iterative AI fix loop
+           ============================================================ */
+        const AGENT_MAX_ITER = 5;
+        let _agentAbort = false;
+        let _agentRunning = false;
+        let _agentCurrentCode = '';
+
+        // Collect all current errors from console logs + problems panel
+        function _agentCollectErrors() {
+            const errors = [];
+            // Console ERR entries
+            _cmLogs.forEach(l => {
+                const lvl = { ERR:'ERR', ERROR:'ERR', WARN:'WARN' }[l.level];
+                if (lvl) errors.push(`[${lvl}] ${l.msg}`);
+            });
+            // Problems panel
+            document.querySelectorAll('#cm-problems-panel .cm-prob-row.p-err, #cm-problems-panel .cm-prob-row.p-warn').forEach(row => {
+                const msg = row.querySelector('.pm')?.textContent?.trim();
+                if (msg) errors.push(`[STATIC] ${msg}`);
+            });
+            return [...new Set(errors)]; // dedupe
+        }
+
+        // Render a simple line-by-line diff between two code strings
+        function _agentDiff(oldCode, newCode) {
+            const oldLines = oldCode.split('\n');
+            const newLines = newCode.split('\n');
+            const result = [];
+            let oi = 0, ni = 0;
+            while (oi < oldLines.length || ni < newLines.length) {
+                if (oi >= oldLines.length) {
+                    result.push({ type: 'add', text: newLines[ni++] });
+                } else if (ni >= newLines.length) {
+                    result.push({ type: 'rem', text: oldLines[oi++] });
+                } else if (oldLines[oi] === newLines[ni]) {
+                    // Only show context lines near changes -- collect 2 at a time
+                    result.push({ type: 'ctx', text: oldLines[oi] });
+                    oi++; ni++;
+                } else {
+                    result.push({ type: 'rem', text: oldLines[oi++] });
+                    result.push({ type: 'add', text: newLines[ni++] });
+                }
+            }
+            // Collapse long context runs into "... N unchanged lines ..."
+            const compressed = [];
+            let ctxRun = 0;
+            result.forEach((line, idx) => {
+                if (line.type === 'ctx') {
+                    ctxRun++;
+                    if (ctxRun <= 2) compressed.push(line); // keep first 2
+                } else {
+                    if (ctxRun > 2) compressed.push({ type: 'ctx', text: `  ... ${ctxRun - 2} unchanged lines ...` });
+                    ctxRun = 0;
+                    compressed.push(line);
+                }
+            });
+            if (ctxRun > 2) compressed.push({ type: 'ctx', text: `  ... ${ctxRun - 2} unchanged lines ...` });
+            return compressed;
+        }
+
+        function _agentBuildCard(iteration) {
+            const feed = document.getElementById('cm-agent-feed');
+            const card = document.createElement('div');
+            card.className = 'agent-card open';
+            card.id = `agent-card-${iteration}`;
+            card.innerHTML = `
+                <div class="agent-card-header" onclick="this.closest('.agent-card').classList.toggle('open')">
+                    <span class="ac-step-badge running" id="ac-badge-${iteration}">${iteration}</span>
+                    <span class="ac-title" id="ac-title-${iteration}">Iteration ${iteration} -- Analysing errors...</span>
+                    <span class="ac-subtitle" id="ac-sub-${iteration}"></span>
+                    <span class="ac-chevron">></span>
+                </div>
+                <div class="agent-card-body">
+                    <div class="ac-thinking" id="ac-think-${iteration}">Waiting for AI...</div>
+                    <div class="ac-diff"     id="ac-diff-${iteration}"></div>
+                    <div class="ac-result"   id="ac-result-${iteration}"></div>
+                </div>`;
+            feed.appendChild(card);
+            feed.scrollTop = feed.scrollHeight;
+            return card;
+        }
+
+        function _agentUpdateCard(iter, { badge, title, subtitle, thinking, diff, result, resultClass }) {
+            if (badge !== undefined) {
+                const b = document.getElementById(`ac-badge-${iter}`);
+                if (b) b.className = `ac-step-badge ${badge}`;
+            }
+            if (title !== undefined) {
+                const t = document.getElementById(`ac-title-${iter}`);
+                if (t) t.textContent = title;
+            }
+            if (subtitle !== undefined) {
+                const s = document.getElementById(`ac-sub-${iter}`);
+                if (s) s.textContent = subtitle;
+            }
+            if (thinking !== undefined) {
+                const th = document.getElementById(`ac-think-${iter}`);
+                if (th) th.textContent = thinking;
+            }
+            if (diff !== undefined) {
+                const df = document.getElementById(`ac-diff-${iter}`);
+                if (df) {
+                    df.innerHTML = diff.map(l =>
+                        `<div class="ac-diff-line ${l.type}">${l.type === 'add' ? '+ ' : l.type === 'rem' ? '- ' : '  '}${escapeHtml(l.text)}</div>`
+                    ).join('');
+                }
+            }
+            if (result !== undefined) {
+                const r = document.getElementById(`ac-result-${iter}`);
+                if (r) { r.textContent = result; r.className = `ac-result ${resultClass || ''}`; }
+            }
+            const feed = document.getElementById('cm-agent-feed');
+            if (feed) feed.scrollTop = feed.scrollHeight;
+        }
+
+        function _agentSetDots(current, max) {
+            const label = document.getElementById('cm-agent-iter-label');
+            const dots  = document.getElementById('cm-agent-iter-dots');
+            if (label) label.textContent = `Iteration ${current} / ${max}`;
+            if (dots) {
+                dots.innerHTML = '';
+                for (let i = 1; i <= max; i++) {
+                    const d = document.createElement('span');
+                    d.className = 'agent-iter-dot' + (i < current ? ' done' : i === current ? ' active' : '');
+                    dots.appendChild(d);
+                }
+            }
+        }
+
+        function _agentMarkDotDone(iter, state) {
+            const dots = document.getElementById('cm-agent-iter-dots');
+            if (!dots) return;
+            const dot = dots.children[iter - 1];
+            if (dot) { dot.className = `agent-iter-dot ${state}`; }
+        }
+
+        function _agentBanner(type, msg) {
+            const feed = document.getElementById('cm-agent-feed');
+            const icon = type === 'success'
+                ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`
+                : type === 'giveup'
+                ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+                : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            const div = document.createElement('div');
+            div.className = `agent-banner ${type}`;
+            div.innerHTML = `${icon}<span>${msg}</span>`;
+            feed.appendChild(div);
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        // Run the code inside a hidden iframe and collect errors via postMessage
+        function _agentRunCode(code, lang) {
+            return new Promise((resolve) => {
+                const iframe = document.getElementById('cm-preview-iframe');
+                const errors = [];
+                let timeout;
+
+                const listener = (e) => {
+                    if (!e.data || e.data.type !== 'CM_CONSOLE') return;
+                    if (iframe.contentWindow !== e.source) return;
+                    const lvl = e.data.level?.toUpperCase();
+                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(e.data.msg);
+                    // Also feed the real console panel
+                    cmAppendLog(e.data.level, e.data.msg);
+                };
+                window.addEventListener('message', listener);
+
+                let src;
+                if (lang === 'html' || lang === 'xml') {
+                    let injected = code;
+                    if (/<head>/i.test(code)) injected = code.replace(/<head>/i, '<head>' + CM_BRIDGE);
+                    else injected = CM_BRIDGE + code;
+                    src = URL.createObjectURL(new Blob([injected], { type: 'text/html' }));
+                } else {
+                    src = URL.createObjectURL(new Blob([
+                        `<!DOCTYPE html><html><head>${CM_BRIDGE}</head><body>` + '<'+'script>try{' + code + '}catch(e){console.error(e.message);}<'+'/script></body></html>'
+                    ], { type: 'text/html' }));
+                }
+
+                iframe.onload = () => {
+                    URL.revokeObjectURL(src);
+                    // Give async errors 1.5s to arrive
+                    timeout = setTimeout(() => {
+                        window.removeEventListener('message', listener);
+                        resolve(errors);
+                    }, 1500);
+                };
+                iframe.src = src;
+            });
+        }
+
+        // Call the Claude API to fix the code
+        async function _agentCallAI(code, lang, errors, iteration, signal) {
+            const errList = errors.map((e, i) => `${i+1}. ${e}`).join('\n');
+            const prompt = `You are an expert ${lang} developer and debugger.
+
+The following ${lang} code has errors that need to be fixed:
+
+\`\`\`${lang}
+${code}
+\`\`\`
+
+Errors detected (iteration ${iteration}):
+${errList}
+
+Instructions:
+1. Analyse every error carefully
+2. Fix ALL errors in the code
+3. Do NOT explain -- just return the complete fixed code
+4. Return ONLY the fixed code block, nothing else, no markdown prose outside the fence
+5. The code must be complete and runnable
+
+Return format:
+\`\`\`${lang}
+[complete fixed code here]
+\`\`\``;
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 8000,
+                    messages: [{ role: 'user', content: prompt }]
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `API ${response.status}`);
+            }
+
+            const data = await response.json();
+            const text = data.content?.find(c => c.type === 'text')?.text || '';
+
+            // Extract code from fenced block
+            const match = text.match(/```(?:\w+)?\n([\s\S]*?)```/);
+            const fixedCode = match ? match[1].trim() : text.trim();
+
+            // Extract reasoning (everything outside the code fence)
+            const reasoning = text.replace(/```[\s\S]*?```/g, '').trim() || 'Analysed and applied fixes.';
+
+            return { fixedCode, reasoning };
+        }
+
+        async function agentRun() {
+            if (_agentRunning) return;
+            const { code, lang } = codeModalState;
+            const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
+            if (!canRun) { showToast(`Agent cannot run ${lang} -- HTML/JS only`); return; }
+
+            // Switch to agent tab
+            cmSwitchTab('agent');
+
+            _agentRunning = true;
+            _agentAbort = false;
+            _agentCurrentCode = code;
+
+            // UI state
+            document.getElementById('cm-agent-run-btn').disabled = true;
+            document.getElementById('cm-agent-stop-btn').classList.add('visible');
+            document.getElementById('cm-agent-welcome')?.remove();
+            cmClearConsole();
+            const badge = document.getElementById('cm-agent-badge');
+
+            const abortCtrl = new AbortController();
+            let abortRef = abortCtrl;
+
+            // Update codeModalState live so Copy/Download reflect latest fix
+            function _applyCode(newCode) {
+                _agentCurrentCode = newCode;
+                codeModalState.code = newCode;
+                // Refresh code panel
+                const validLang = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
+                const highlighted = hljs.highlight(newCode, { language: validLang }).value;
+                const lineCount = newCode.split('\n').length;
+                document.getElementById('cm-code-el').className = `hljs ${validLang}`;
+                document.getElementById('cm-code-el').innerHTML = highlighted;
+                document.getElementById('cm-line-nums').innerHTML =
+                    Array.from({ length: lineCount }, (_, i) => `<span>${i+1}</span>`).join('');
+            }
+
+            let iter = 0;
+            let solved = false;
+
+            try {
+                for (iter = 1; iter <= AGENT_MAX_ITER; iter++) {
+                    if (_agentAbort) break;
+                    _agentSetDots(iter, AGENT_MAX_ITER);
+                    _agentBuildCard(iter);
+                    cmSetStatus('running', `Agent iteration ${iter}...`);
+
+                    // Step 1 -- Run and detect errors
+                    _agentUpdateCard(iter, { thinking: `Running code to detect errors...` });
+                    const errors = await _agentRunCode(_agentCurrentCode, lang);
+
+                    // Also collect static problems
+                    cmAnalyseProblems(_agentCurrentCode, lang);
+                    const staticProbs = [];
+                    document.querySelectorAll('#cm-problems-panel .cm-prob-row.p-err').forEach(r => {
+                        const m = r.querySelector('.pm')?.textContent?.trim();
+                        if (m) staticProbs.push(`[STATIC] ${m}`);
+                    });
+                    const allErrors = [...new Set([...errors, ...staticProbs])];
+
+                    if (allErrors.length === 0) {
+                        // No errors found -- done
+                        _agentUpdateCard(iter, {
+                            badge: 'ok', title: `Iteration ${iter} -- No errors detected v`,
+                            thinking: 'Code ran without errors.',
+                            result: 'v All clear -- no fixes needed', resultClass: 'ok'
+                        });
+                        _agentMarkDotDone(iter, 'done');
+                        solved = true;
+                        break;
+                    }
+
+                    // Update card with error summary
+                    _agentUpdateCard(iter, {
+                        title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length > 1 ? 's' : ''} found`,
+                        thinking: `Errors found:\n${allErrors.join('\n')}\n\nSending to AI for analysis...`
+                    });
+                    if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
+
+                    if (_agentAbort) break;
+
+                    // Step 2 -- Ask AI to fix
+                    let fixedCode, reasoning;
+                    try {
+                        const result = await _agentCallAI(_agentCurrentCode, lang, allErrors, iter, abortRef.signal);
+                        fixedCode = result.fixedCode;
+                        reasoning = result.reasoning;
+                    } catch (apiErr) {
+                        if (_agentAbort) break;
+                        _agentUpdateCard(iter, {
+                            badge: 'err', title: `Iteration ${iter} -- AI call failed`,
+                            thinking: `API error: ${apiErr.message}`,
+                            result: `x ${apiErr.message}`, resultClass: 'err'
+                        });
+                        _agentMarkDotDone(iter, 'err');
+                        break;
+                    }
+
+                    if (_agentAbort) break;
+
+                    // Step 3 -- Diff and apply
+                    const diffLines = _agentDiff(_agentCurrentCode, fixedCode);
+                    const addCount = diffLines.filter(l => l.type === 'add').length;
+                    const remCount = diffLines.filter(l => l.type === 'rem').length;
+
+                    _agentUpdateCard(iter, {
+                        badge: 'fixed',
+                        title: `Iteration ${iter} -- Applied fix (+${addCount} -${remCount} lines)`,
+                        thinking: reasoning || 'Fixes applied.',
+                        diff: diffLines,
+                        result: `re Re-running with fixes...`, resultClass: 'info'
+                    });
+                    _agentMarkDotDone(iter, 'done');
+                    _applyCode(fixedCode);
+
+                    // Short pause so the UI renders the diff before re-running
+                    await new Promise(r => setTimeout(r, 400));
+                    if (_agentAbort) break;
+
+                    // Final run on last iteration to verify
+                    if (iter === AGENT_MAX_ITER) {
+                        const finalErrors = await _agentRunCode(fixedCode, lang);
+                        if (finalErrors.length === 0) {
+                            solved = true;
+                            _agentUpdateCard(iter, { result: 'v Verified -- all errors resolved', resultClass: 'ok', badge: 'ok' });
+                        } else {
+                            _agentUpdateCard(iter, {
+                                result: `x ${finalErrors.length} error(s) remain after max iterations`, resultClass: 'err'
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                if (!_agentAbort) console.error('Agent loop error:', e.message);
+            }
+
+            // Final banner
+            if (_agentAbort) {
+                _agentBanner('giveup', 'Agent stopped by user. Partial fixes (if any) have been applied to the Code tab.');
+                cmSetStatus('', 'Agent stopped');
+            } else if (solved) {
+                _agentBanner('success', `v All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                cmSetStatus('ok', 'Agent: all clear');
+                // Show a preview of the fixed code
+                document.getElementById('cm-tab-preview').style.display = lang === 'html' || lang === 'xml' ? '' : 'none';
+                if (lang === 'html' || lang === 'xml') {
+                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
+                }
+            } else {
+                _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Some errors may remain. Check the Code tab for the latest version.`);
+                cmSetStatus('err', 'Max iterations reached');
+            }
+
+            // Reset UI
+            _agentRunning = false;
+            document.getElementById('cm-agent-run-btn').disabled = false;
+            document.getElementById('cm-agent-run-btn').textContent = 're Re-run Agent';
+            document.getElementById('cm-agent-stop-btn').classList.remove('visible');
+            document.getElementById('cm-agent-iter-label').textContent = '';
+        }
+
+        function agentStop() {
+            _agentAbort = true;
+            _agentRunning = false;
+            document.getElementById('cm-agent-run-btn').disabled = false;
+            document.getElementById('cm-agent-stop-btn').classList.remove('visible');
         }
 
         /* ============================================================
@@ -2364,7 +2900,7 @@ ${code}
             if (!c) return;
             if (force) userScrolledUp = false;
             if (userScrolledUp) return;
-            // Don't fight the user's finger — if they are actively touching,
+            // Don't fight the user's finger -- if they are actively touching,
             // skip this tick; the rAF loop will catch the next one.
             if (isTouching) return;
             requestAnimationFrame(() => {
@@ -2572,7 +3108,7 @@ ${code}
                     }
                 }
 
-                // Final render (no streaming flag → no caret, no auto-close fences)
+                // Final render (no streaming flag -> no caret, no auto-close fences)
                 pendingRenderText = fullResponseText;
                 pendingRenderStreaming = false;
                 doStreamRender();
@@ -2592,20 +3128,20 @@ ${code}
                     aborted = true;
                     // Preserve partial response if any
                     if (fullResponseText.trim()) {
-                        pendingRenderText = fullResponseText + '\n\n*— stopped by user —*';
+                        pendingRenderText = fullResponseText + '\n\n*-- stopped by user --*';
                         pendingRenderStreaming = false;
                         doStreamRender();
-                        chatContext.push({ role: 'assistant', content: fullResponseText + '\n\n*— stopped by user —*' });
+                        chatContext.push({ role: 'assistant', content: fullResponseText + '\n\n*-- stopped by user --*' });
                         botRow.remove();
-                        addMessageVisual(fullResponseText + '\n\n*— stopped by user —*', 'bot-message', chatContext.length - 1);
+                        addMessageVisual(fullResponseText + '\n\n*-- stopped by user --*', 'bot-message', chatContext.length - 1);
                         saveHistory();
                     } else {
                         botRow.remove();
-                        addMessageVisual('⚠️ Stopped before any reply was received.', 'bot-message', chatContext.length);
+                        addMessageVisual('(!) Stopped before any reply was received.', 'bot-message', chatContext.length);
                     }
                 } else {
                     botRow.remove();
-                    addMessageVisual(`⚠️ **API Error:** ${error.message}`, 'bot-message', chatContext.length);
+                    addMessageVisual(`(!) **API Error:** ${error.message}`, 'bot-message', chatContext.length);
                 }
             } finally {
                 currentStreamController = null;
@@ -2648,11 +3184,11 @@ ${code}
 
         let attachedFiles = [];
 
-        // ── Touch scroll fix ───────────────────────────────────────────
+        // == Touch scroll fix ===========================================
         // Only prevent default (= rubber-band prevention) on surfaces that
         // should not scroll at all: the fixed header, input wrapper, toasts.
         // Everything else (chat container, code-body, sidebar, modals) must
-        // be able to scroll freely — including during active streaming.
+        // be able to scroll freely -- including during active streaming.
         const NON_SCROLL_SELECTORS = [
             '#input-wrapper', 'header', '#toast'
         ];
