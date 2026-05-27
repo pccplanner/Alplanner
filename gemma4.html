@@ -89,6 +89,45 @@
         }
         .header-btn:hover { background-color: var(--surface-color); color: var(--text-primary); }
 
+        /* Auto-agent toggle in header */
+        #auto-agent-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            width: 40px; height: 40px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: all 0.2s; position: relative;
+        }
+        #auto-agent-btn:hover { background-color: var(--surface-color); color: var(--text-primary); }
+        #auto-agent-btn.active { color: var(--accent-yellow); }
+        #auto-agent-btn .aa-dot {
+            position: absolute; top: 8px; right: 8px;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent-yellow); display: none;
+            box-shadow: 0 0 4px var(--accent-yellow);
+        }
+        #auto-agent-btn.active .aa-dot { display: block; animation: pulse 1.5s infinite ease-in-out; }
+
+        /* Auto-agent activity banner (replaces toast for agent events) */
+        #aa-banner {
+            position: fixed; top: calc(env(safe-area-inset-top, 0px) + 64px);
+            left: 50%; transform: translateX(-50%);
+            z-index: 500; min-width: 260px; max-width: 88vw;
+            background: var(--surface-elev); border: 1px solid var(--border-color);
+            border-radius: 14px; padding: 10px 14px;
+            display: none; align-items: center; gap: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s ease;
+        }
+        #aa-banner.visible { display: flex; }
+        #aa-banner .aa-icon { flex-shrink: 0; }
+        #aa-banner .aa-text { flex: 1; font-size: 0.88rem; color: var(--text-primary); font-weight: 500; }
+        #aa-banner .aa-sub  { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+        #aa-banner .aa-close {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 4px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #aa-banner .aa-close:hover { color: var(--text-primary); }
+
         /* ============================================================
            Sidebar (Recent + Snippets tabs)
            ============================================================ */
@@ -1069,7 +1108,22 @@
         <button class="header-btn" onclick="startNewChat()" aria-label="New Chat">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
         </button>
+        <button id="auto-agent-btn" onclick="toggleAutoAgent()" title="Auto-Fix: automatically run agent on every code reply">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <span class="aa-dot"></span>
+        </button>
     </header>
+
+    <div id="aa-banner">
+        <span class="aa-icon" id="aa-banner-icon"></span>
+        <div style="flex:1;min-width:0">
+            <div class="aa-text" id="aa-banner-text">Auto-Fix running...</div>
+            <div class="aa-sub"  id="aa-banner-sub"></div>
+        </div>
+        <button class="aa-close" onclick="document.getElementById('aa-banner').classList.remove('visible')" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
 
     <div id="toast">Model switched!</div>
 
@@ -1486,10 +1540,193 @@ Rules:
         let codeModalState = { code: '', lang: 'plaintext', wrap: false };
 
         /* ============================================================
+           Auto-Agent Engine
+           Automatically scans each bot reply for runnable code blocks.
+           If errors are found the IDE modal opens on the Agent tab and
+           the fix loop starts without any manual steps.
+           ============================================================ */
+        const STORAGE_AA_KEY = 'aiproxy_auto_agent';
+        const AA_RUNNABLE = new Set(['html','xml','javascript','js','typescript','ts']);
+
+        let _autoAgentEnabled = localStorage.getItem(STORAGE_AA_KEY) === 'true';
+
+        // Initialise button state on boot
+        function _autoAgentInitUI() {
+            const btn = document.getElementById('auto-agent-btn');
+            if (!btn) return;
+            btn.classList.toggle('active', _autoAgentEnabled);
+            btn.title = _autoAgentEnabled
+                ? 'Auto-Fix ON -- click to disable'
+                : 'Auto-Fix OFF -- click to enable';
+        }
+
+        function toggleAutoAgent() {
+            _autoAgentEnabled = !_autoAgentEnabled;
+            localStorage.setItem(STORAGE_AA_KEY, _autoAgentEnabled);
+            _autoAgentInitUI();
+            showToast(_autoAgentEnabled ? 'Auto-Fix ON -- agent will run on every code reply' : 'Auto-Fix OFF');
+        }
+
+        /* Show the activity banner above the chat */
+        let _aaBannerTimeout = null;
+        function _aaBanner(icon, text, sub, autoDismissMs) {
+            const el   = document.getElementById('aa-banner');
+            const iEl  = document.getElementById('aa-banner-icon');
+            const tEl  = document.getElementById('aa-banner-text');
+            const sEl  = document.getElementById('aa-banner-sub');
+            if (!el) return;
+            if (iEl) iEl.innerHTML = icon || '';
+            if (tEl) tEl.textContent = text || '';
+            if (sEl) sEl.textContent = sub || '';
+            el.classList.add('visible');
+            if (_aaBannerTimeout) clearTimeout(_aaBannerTimeout);
+            if (autoDismissMs) {
+                _aaBannerTimeout = setTimeout(() => el.classList.remove('visible'), autoDismissMs);
+            }
+        }
+        function _aaBannerHide() {
+            document.getElementById('aa-banner')?.classList.remove('visible');
+        }
+
+        /**
+         * Extract the first runnable code block from a markdown reply.
+         * Returns { code, lang } or null.
+         */
+        function _autoAgentExtractCode(markdownText) {
+            // Match fenced code blocks: ```lang\n...\n```
+            const re = /```(\w+)?\n([\s\S]*?)```/g;
+            let match;
+            while ((match = re.exec(markdownText)) !== null) {
+                const lang = (match[1] || '').toLowerCase();
+                const code = match[2];
+                if (AA_RUNNABLE.has(lang) && code.trim().length > 40) {
+                    return { code: code.trim(), lang };
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Called after every successful bot reply when auto-agent is ON.
+         * Runs the code silently, checks for errors, and if found opens the
+         * IDE modal and starts the agent loop automatically.
+         */
+        async function _autoAgentScanReply(markdownText) {
+            const block = _autoAgentExtractCode(markdownText);
+            if (!block) return; // no runnable code in this reply
+
+            const { code, lang } = block;
+
+            _aaBanner(
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                'Auto-Fix: scanning code...',
+                `Checking ${lang.toUpperCase()} block for errors`,
+                0  // no auto-dismiss while running
+            );
+
+            // Run silently in a hidden iframe and wait for errors
+            const errors = await _autoAgentRunSilent(code, lang);
+
+            if (errors.length === 0) {
+                _aaBanner(
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#81c995" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
+                    'Auto-Fix: no errors found',
+                    `${lang.toUpperCase()} code looks clean`,
+                    3000
+                );
+                return;
+            }
+
+            // Errors found — open IDE modal and start agent
+            _aaBanner(
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} detected`,
+                'Opening agent...',
+                0
+            );
+
+            // Short pause so banner is readable before modal opens
+            await new Promise(r => setTimeout(r, 600));
+
+            // Prime the IDE modal state with this code block
+            openCodeModal(code, lang);
+
+            // Switch straight to the Agent tab
+            cmSwitchTab('agent');
+
+            // Give the modal a tick to render, then auto-start
+            await new Promise(r => setTimeout(r, 300));
+
+            _aaBanner(
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                'Auto-Fix: agent running',
+                `Fixing ${errors.length} error${errors.length > 1 ? 's' : ''} with ${AVAILABLE_MODELS[currentModel] || currentModel}`,
+                0
+            );
+
+            // Pre-seed the console log so the agent's first run picks up the errors
+            errors.forEach(e => _cmLogs.push({ level: 'ERR', msg: e }));
+
+            // Start the agent (it will pick up codeModalState which we just set)
+            await agentRun();
+
+            _aaBannerHide();
+        }
+
+        /**
+         * Runs code in a temporary hidden iframe and collects runtime errors.
+         * Returns array of error strings.
+         */
+        function _autoAgentRunSilent(code, lang) {
+            return new Promise((resolve) => {
+                const errors = [];
+                let timer;
+
+                // Reuse the preview iframe that's already in the DOM (it's hidden when modal is closed)
+                const iframe = document.getElementById('cm-preview-iframe');
+                if (!iframe) { resolve([]); return; }
+
+                const listener = (e) => {
+                    if (!e.data || e.data.type !== 'CM_CONSOLE') return;
+                    if (iframe.contentWindow !== e.source) return;
+                    const lvl = (e.data.level || '').toUpperCase();
+                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(e.data.msg);
+                };
+                window.addEventListener('message', listener);
+
+                let src;
+                const bridge = CM_BRIDGE; // reuse existing bridge constant
+                if (lang === 'html' || lang === 'xml') {
+                    let injected = code;
+                    if (/<head>/i.test(code)) injected = code.replace(/<head>/i, '<head>' + bridge);
+                    else injected = bridge + code;
+                    src = URL.createObjectURL(new Blob([injected], { type: 'text/html' }));
+                } else {
+                    src = URL.createObjectURL(new Blob([
+                        '<!DOCTYPE html><html><head>' + bridge + '</head><body>' +
+                        '<' + 'script>try{' + code + '}catch(e){console.error(e.message);}<' + '/script>' +
+                        '</body></html>'
+                    ], { type: 'text/html' }));
+                }
+
+                iframe.onload = () => {
+                    URL.revokeObjectURL(src);
+                    // Wait 1.5s for async errors to arrive then resolve
+                    timer = setTimeout(() => {
+                        window.removeEventListener('message', listener);
+                        resolve(errors);
+                    }, 1500);
+                };
+                iframe.src = src;
+            });
+        }
+
+        /* ============================================================
            Boot
            ============================================================ */
         window.onload = async function() {
             loadSnippets();
+            _autoAgentInitUI();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
@@ -3656,6 +3893,12 @@ Return format:
                 botRow.remove();
                 addMessageVisual(fullResponseText, 'bot-message', chatContext.length - 1);
                 saveHistory();
+
+                // Auto-agent: if enabled, scan the reply for runnable code blocks
+                // and kick off the fix loop automatically if errors are found.
+                if (_autoAgentEnabled) {
+                    setTimeout(() => _autoAgentScanReply(fullResponseText), 800);
+                }
 
             } catch (error) {
                 clearTimeout(timeoutId);
