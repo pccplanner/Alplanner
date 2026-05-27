@@ -610,8 +610,156 @@
         .cm-prob-row .pi { flex-shrink:0; font-size:.95rem; }
         .cm-prob-row .pm { flex:1; color:#c4c7c5; word-break:break-word; }
 
+
         /* ── Agent panel ── */
         #cm-agent-panel { background: #0d0e0f; flex-direction: column; overflow: hidden; }
+
+        #cm-agent-topbar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; background: #161718;
+            border-bottom: 1px solid var(--border-soft); flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        #cm-agent-run-btn {
+            background: var(--accent-blue); color: #0d0e0f; border: none;
+            border-radius: 20px; padding: 7px 18px; font-family: var(--font-main);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+        }
+        #cm-agent-run-btn:hover { background: #b6d0fb; }
+        #cm-agent-run-btn:disabled { background: var(--surface-hover); color: var(--text-muted); cursor: not-allowed; }
+        #cm-agent-stop-btn {
+            background: var(--accent-red); color: #fff; border: none;
+            border-radius: 20px; padding: 7px 18px; font-family: var(--font-main);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; display: none;
+            align-items: center; gap: 6px;
+        }
+        #cm-agent-stop-btn.visible { display: flex; }
+        #cm-agent-collapse-btn {
+            background: transparent; border: 1px solid var(--border-soft);
+            border-radius: 16px; padding: 5px 12px; font-family: var(--font-main);
+            font-size: 0.78rem; font-weight: 500; color: var(--text-muted);
+            cursor: pointer; transition: all 0.15s; margin-left: auto;
+        }
+        #cm-agent-collapse-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .agent-iter-label {
+            font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
+        }
+        .agent-iter-dots { display: flex; gap: 4px; align-items: center; }
+        .agent-iter-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--border-color); transition: background 0.3s;
+        }
+        .agent-iter-dot.done { background: var(--accent-green); }
+        .agent-iter-dot.active { background: var(--accent-yellow); animation: pulse 0.8s infinite; }
+        .agent-iter-dot.err  { background: var(--accent-red); }
+
+        /* Feed: fills remaining height, scrolls on its own */
+        #cm-agent-feed {
+            flex: 1;
+            min-height: 0;                     /* allow flex child to shrink below content */
+            overflow-y: scroll;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 12px 14px 48px;           /* bottom pad so last card clears status bar */
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        /* Each agent iteration card */
+        .agent-card {
+            background: var(--surface-color); border: 1px solid var(--border-soft);
+            border-radius: 12px; overflow: hidden;
+            animation: fadeIn 0.3s ease;
+            flex-shrink: 0;                    /* never shrink — feed scrolls instead */
+        }
+        .agent-card-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; cursor: pointer; user-select: none;
+            border-bottom: 1px solid transparent; transition: background 0.15s;
+        }
+        .agent-card-header:hover { background: rgba(255,255,255,0.03); }
+        .agent-card.open .agent-card-header { border-bottom-color: var(--border-soft); }
+        .ac-step-badge {
+            flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
+        }
+        .ac-step-badge.pending  { background: var(--border-color); color: var(--text-muted); }
+        .ac-step-badge.running  { background: #fdd663; color: #000; animation: pulse 0.8s infinite; }
+        .ac-step-badge.ok       { background: var(--accent-green); color: #000; }
+        .ac-step-badge.err      { background: var(--accent-red); color: #fff; }
+        .ac-step-badge.fixed    { background: var(--accent-blue); color: #000; }
+
+        .ac-title { flex: 1; font-size: 0.88rem; font-weight: 500; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ac-subtitle { font-size: 0.75rem; color: var(--text-muted); flex-shrink: 0; }
+        .ac-chevron { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; flex-shrink: 0; }
+        .agent-card.open .ac-chevron { transform: rotate(90deg); }
+
+        .agent-card-body { display: none; padding: 12px 14px; }
+        .agent-card.open .agent-card-body { display: block; }
+
+        /* Thinking block — scrollable if long */
+        .ac-thinking {
+            font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
+            background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px;
+            margin-bottom: 10px; white-space: pre-wrap; word-break: break-word;
+            border-left: 2px solid var(--border-color); line-height: 1.55;
+            max-height: 140px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+
+        /* Diff block — capped at 260px, scrollable, expandable */
+        .ac-diff {
+            font-family: var(--font-mono); font-size: 0.78rem; border-radius: 8px;
+            border: 1px solid var(--border-soft);
+            max-height: 260px; overflow-y: auto; overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 4px;
+            position: relative;
+        }
+        .ac-diff.expanded { max-height: none; }
+        .ac-diff-footer {
+            position: sticky; bottom: 0;
+            text-align: center; padding: 5px 8px;
+            background: rgba(22,23,24,0.95);
+            border-top: 1px solid var(--border-soft);
+            font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-blue);
+            cursor: pointer; user-select: none;
+        }
+        .ac-diff-footer:hover { color: #b6d0fb; }
+        .ac-diff-line {
+            padding: 2px 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+        }
+        .ac-diff-line.add  { background: rgba(129,201,149,0.1); color: #81c995; }
+        .ac-diff-line.rem  { background: rgba(242,139,130,0.1); color: #f28b82; }
+        .ac-diff-line.ctx  { color: var(--text-muted); }
+        .ac-diff-spacer { height: 8px; }  /* space below diff before footer */
+
+        /* Result row */
+        .ac-result {
+            font-size: 0.82rem; font-family: var(--font-mono); padding: 6px 0 0;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .ac-result.ok   { color: var(--accent-green); }
+        .ac-result.err  { color: var(--accent-red); }
+        .ac-result.info { color: var(--accent-blue); }
+
+        /* Console-warn explanatory note */
+        .ac-warn-note {
+            font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-mono);
+            background: rgba(253,214,99,0.06); border: 1px solid rgba(253,214,99,0.18);
+            border-radius: 8px; padding: 8px 12px; line-height: 1.5; flex-shrink: 0;
+        }
+
+        /* Final success / give-up banner */
+        .agent-banner {
+            border-radius: 12px; padding: 14px 16px;
+            display: flex; align-items: flex-start; gap: 10px;
+            font-size: 0.9rem; font-weight: 500; animation: fadeIn 0.4s ease;
+            flex-shrink: 0;
+        }
+        .agent-banner.success { background: rgba(129,201,149,0.12); border: 1px solid rgba(129,201,149,0.3); color: var(--accent-green); }
+        .agent-banner.giveup  { background: rgba(242,139,130,0.10); border: 1px solid rgba(242,139,130,0.25); color: var(--accent-red); }
+        .agent-banner.info    { background: rgba(168,199,250,0.10); border: 1px solid rgba(168,199,250,0.25); color: var(--accent-blue); }
 
         #cm-agent-topbar {
             display: flex; align-items: center; gap: 8px;
@@ -996,6 +1144,7 @@
                 </button>
                 <span class="agent-iter-label" id="cm-agent-iter-label"></span>
                 <div class="agent-iter-dots" id="cm-agent-iter-dots"></div>
+                <button id="cm-agent-collapse-btn" onclick="agentCollapseAll()" title="Collapse all cards">Collapse all</button>
             </div>
             <div id="cm-agent-feed">
                 <div class="agent-banner info" id="cm-agent-welcome">
@@ -2398,6 +2547,17 @@ Rules:
                     df.innerHTML = diff.map(l =>
                         `<div class="ac-diff-line ${l.type}">${l.type === 'add' ? '+ ' : l.type === 'rem' ? '- ' : '  '}${escapeHtml(l.text)}</div>`
                     ).join('');
+                    // Add expand/collapse footer if diff is long enough to scroll
+                    if (diff.length > 12) {
+                        const footer = document.createElement('div');
+                        footer.className = 'ac-diff-footer';
+                        footer.textContent = `Show all ${diff.length} lines`;
+                        footer.onclick = function() {
+                            const expanded = df.classList.toggle('expanded');
+                            footer.textContent = expanded ? 'Collapse diff' : `Show all ${diff.length} lines`;
+                        };
+                        df.appendChild(footer);
+                    }
                 }
             }
             if (result !== undefined) {
@@ -2757,6 +2917,7 @@ Return format:
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
                 _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                _agentShowWarnNote();
                 cmSetStatus('ok', 'Agent: all clear');
                 document.getElementById('cm-tab-preview').style.display = lang === 'html' || lang === 'xml' ? '' : 'none';
                 if (lang === 'html' || lang === 'xml') {
@@ -2781,6 +2942,31 @@ Return format:
             _agentRunning = false;
             document.getElementById('cm-agent-run-btn').disabled = false;
             document.getElementById('cm-agent-stop-btn').classList.remove('visible');
+        }
+
+        function agentCollapseAll() {
+            // Toggle: if any card is open, collapse all; else expand all
+            const cards = document.querySelectorAll('#cm-agent-feed .agent-card');
+            const anyOpen = Array.from(cards).some(c => c.classList.contains('open'));
+            cards.forEach(c => c.classList.toggle('open', !anyOpen));
+            const btn = document.getElementById('cm-agent-collapse-btn');
+            if (btn) btn.textContent = anyOpen ? 'Expand all' : 'Collapse all';
+        }
+
+        function _agentShowWarnNote() {
+            // If console has WARN entries but no ERR entries, show an explanatory note
+            const hasErr = _cmLogs.some(l => l.level === 'ERR' || l.level === 'ERROR');
+            const hasWarn = _cmLogs.some(l => l.level === 'WARN');
+            if (!hasErr && hasWarn) {
+                const feed = document.getElementById('cm-agent-feed');
+                if (!feed) return;
+                const note = document.createElement('div');
+                note.className = 'ac-warn-note';
+                note.textContent = 'Note: Console shows WARN messages (e.g. Firebase, Tailwind CDN). ' +
+                    'These are informational notices from third-party libraries -- not JS errors -- ' +
+                    'so the agent does not act on them. Your code is error-free.';
+                feed.appendChild(note);
+            }
         }
 
         /* ============================================================
