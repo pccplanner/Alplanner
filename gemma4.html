@@ -218,6 +218,25 @@
         .bot-message blockquote { border-left: 3px solid var(--accent-blue); padding-left: 14px; margin: 12px 0; color: var(--text-secondary); }
         .bot-message hr { border: none; border-top: 1px solid var(--border-color); margin: 18px 0; }
 
+        /* Interrupted stream notice */
+        .interrupted-notice {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin-top: 10px; padding: 10px 14px; border-radius: 10px;
+            background: rgba(253,214,99,0.08); border: 1px solid rgba(253,214,99,0.25);
+            font-size: 0.82rem; color: var(--accent-yellow); font-family: var(--font-main);
+            line-height: 1.4;
+        }
+        .interrupted-notice svg { flex-shrink: 0; }
+        .interrupted-notice span { flex: 1; min-width: 0; }
+        .resume-btn {
+            background: var(--accent-blue); color: #0d0e0f; border: none;
+            border-radius: 14px; padding: 6px 14px; font-family: var(--font-main);
+            font-size: 0.82rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 5px;
+            transition: background 0.2s; flex-shrink: 0;
+        }
+        .resume-btn:hover { background: #b6d0fb; }
+
         /* Streaming caret */
         .stream-caret {
             display: inline-block; width: 8px; height: 1.05em;
@@ -3544,6 +3563,11 @@ Return format:
             const typingRowId = `typing-${Date.now()}`;
             addTypingIndicator(typingRowId);
 
+            // Auto-start silent audio on every streaming request so iOS does not
+            // suspend the JS thread when a phone call arrives or the screen dims.
+            const _streamAudio = _createStreamAudio();
+            _streamAudio.start();
+
             // Build the streaming bot container
             const botContent = document.createElement('div');
             botContent.className = 'bot-content';
@@ -3561,8 +3585,6 @@ Return format:
             currentBotMessageDiv = botMessageDiv;
             requestAutoScroll(true);
 
-            // Sliding-window trim: send only the system prompt + last HISTORY_WINDOW
-            // user/assistant messages. Display history is unaffected.
             const outgoingMessages = trimChatContext(
                 chatContext.filter(m => m.role !== undefined),
                 HISTORY_WINDOW
@@ -3576,8 +3598,7 @@ Return format:
 
             currentStreamController = new AbortController();
             const timeoutId = setTimeout(() => currentStreamController.abort('timeout'), 300000);
-            let fullResponseText = "";
-            let aborted = false;
+            let fullResponseText = '';
 
             try {
                 const response = await fetch(VPS_OLLAMA_URL, {
@@ -3597,11 +3618,10 @@ Return format:
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let buffer = "";
+                let buffer = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
-
                     if (done) {
                         if (buffer.trim()) {
                             try {
@@ -3609,15 +3629,13 @@ Return format:
                                 if (json.message && json.message.content) {
                                     fullResponseText = mergeStreamChunk(fullResponseText, json.message.content);
                                 }
-                            } catch (e) { /* ignore final partial */ }
+                            } catch (_) {}
                         }
                         break;
                     }
-
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
                     buffer = lines.pop();
-
                     for (const line of lines) {
                         if (!line.trim()) continue;
                         try {
@@ -3626,48 +3644,58 @@ Return format:
                                 fullResponseText = mergeStreamChunk(fullResponseText, json.message.content);
                                 scheduleStreamRender(fullResponseText, true);
                             }
-                        } catch (e) {
-                            console.warn("Skipped incomplete stream chunk");
-                        }
+                        } catch (_) { console.warn('Skipped incomplete stream chunk'); }
                     }
                 }
 
-                // Final render (no streaming flag -> no caret, no auto-close fences)
                 pendingRenderText = fullResponseText;
                 pendingRenderStreaming = false;
                 doStreamRender();
 
-                // Push to history and replace the streaming container with a proper message visual
-                // so that the action bar (Copy / Regenerate) is attached with the correct index.
                 chatContext.push({ role: 'assistant', content: fullResponseText });
-                // Remove the streaming row and re-render via addMessageVisual with proper actions
                 botRow.remove();
                 addMessageVisual(fullResponseText, 'bot-message', chatContext.length - 1);
                 saveHistory();
 
             } catch (error) {
                 clearTimeout(timeoutId);
-                console.error('API Error:', error);
-                if (error.name === 'AbortError' || currentStreamController.signal.aborted) {
-                    aborted = true;
-                    // Preserve partial response if any
+                console.error('Stream error:', error);
+
+                const isUserStop = error.name === 'AbortError' && currentStreamController && currentStreamController.signal.aborted;
+                const isInterruption = !isUserStop && (
+                    error.message.includes('Load failed') ||
+                    error.message.includes('network') ||
+                    error.name === 'TypeError'
+                );
+
+                if (isUserStop) {
                     if (fullResponseText.trim()) {
-                        pendingRenderText = fullResponseText + '\n\n*-- stopped by user --*';
-                        pendingRenderStreaming = false;
-                        doStreamRender();
-                        chatContext.push({ role: 'assistant', content: fullResponseText + '\n\n*-- stopped by user --*' });
+                        const saved = fullResponseText + '\n\n*-- stopped by user --*';
+                        pendingRenderText = saved; pendingRenderStreaming = false; doStreamRender();
+                        chatContext.push({ role: 'assistant', content: saved });
                         botRow.remove();
-                        addMessageVisual(fullResponseText + '\n\n*-- stopped by user --*', 'bot-message', chatContext.length - 1);
+                        addMessageVisual(saved, 'bot-message', chatContext.length - 1);
                         saveHistory();
                     } else {
                         botRow.remove();
-                        addMessageVisual('(!) Stopped before any reply was received.', 'bot-message', chatContext.length);
+                        addMessageVisual('Stopped before any reply was received.', 'bot-message', chatContext.length);
+                    }
+                } else if (isInterruption) {
+                    botRow.remove();
+                    if (fullResponseText.trim()) {
+                        const partialSaved = fullResponseText + '\n\n*-- connection interrupted --*';
+                        chatContext.push({ role: 'assistant', content: partialSaved });
+                        saveHistory();
+                        _addInterruptedMessage(fullResponseText, true);
+                    } else {
+                        _addInterruptedMessage('', false);
                     }
                 } else {
                     botRow.remove();
-                    addMessageVisual(`(!) **API Error:** ${error.message}`, 'bot-message', chatContext.length);
+                    addMessageVisual(`**(!) API Error:** ${error.message}`, 'bot-message', chatContext.length);
                 }
             } finally {
+                _streamAudio.stop();
                 currentStreamController = null;
                 currentBotContent = null;
                 currentBotMessageDiv = null;
@@ -3677,7 +3705,89 @@ Return format:
             }
         }
 
-        function stopGeneration() {
+        // Auto-silent-audio factory: creates a self-rescheduling 3-second silence loop.
+        // iOS requires an active AudioContext to keep JS alive during phone calls.
+        // The AudioContext is started inside a user-gesture context (send button tap).
+        function _createStreamAudio() {
+            let ctx = null, src = null, active = false;
+            function chunk() {
+                if (!active || !ctx) return;
+                try {
+                    const buf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+                    const s = ctx.createBufferSource();
+                    s.buffer = buf;
+                    s.connect(ctx.destination);
+                    s.onended = chunk;
+                    s.start();
+                    src = s;
+                } catch (_) {}
+            }
+            return {
+                start() {
+                    try {
+                        const AC = window.AudioContext || window.webkitAudioContext;
+                        if (!AC) return;
+                        ctx = new AC();
+                        active = true;
+                        if (ctx.state === 'running') chunk();
+                        else ctx.resume().then(chunk).catch(() => {});
+                    } catch (_) {}
+                },
+                stop() {
+                    active = false;
+                    try { if (src) { src.onended = null; src.stop(); } } catch (_) {}
+                    try { if (ctx) ctx.close(); } catch (_) {}
+                    ctx = null; src = null;
+                }
+            };
+        }
+
+        // Interrupted message card with Resume button
+        function _addInterruptedMessage(partialText, hasPartial) {
+            const row = document.createElement('div');
+            row.className = 'message-row bot-row';
+            row.innerHTML = BOT_AVATAR_SVG;
+            const content = document.createElement('div');
+            content.className = 'bot-content';
+
+            if (hasPartial && partialText.trim()) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'bot-message';
+                msgDiv.innerHTML = safeMarkdownRender(partialText);
+                content.appendChild(msgDiv);
+            }
+
+            const notice = document.createElement('div');
+            notice.className = 'interrupted-notice';
+            notice.innerHTML =
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+                '<span>' + (hasPartial ? 'Connection interrupted (phone call?) -- partial reply shown above.' : 'Connection interrupted before reply started (phone call?).') + '</span>' +
+                '<button class="resume-btn" onclick="resumeInterruptedStream(this)">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
+                'Resume</button>';
+            content.appendChild(notice);
+
+            const actions = document.createElement('div');
+            actions.className = 'msg-actions';
+            actions.innerHTML = '<button class="msg-action-btn" onclick="regenerateLastReply()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Regenerate</button>';
+            content.appendChild(actions);
+            row.appendChild(content);
+            document.getElementById('chat-container').appendChild(row);
+            requestAutoScroll(true);
+        }
+
+        function resumeInterruptedStream(btn) {
+            // Drop the interrupted partial from context so it isn't sent back
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') { chatContext.splice(i, 1); break; }
+            }
+            const row = btn.closest('.message-row');
+            if (row) row.remove();
+            showToast('Resuming...');
+            streamCompletionForCurrentContext();
+        }
+
+                function stopGeneration() {
             if (currentStreamController) {
                 try { currentStreamController.abort(); } catch (e) {}
             }
