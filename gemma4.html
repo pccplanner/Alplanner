@@ -2078,7 +2078,7 @@ Rules:
             out.appendChild(row);
             out.scrollTop = out.scrollHeight;
             // Update statusbar
-            if (lvl === 'ERR') cmSetStatus('err', 'Runtime error');
+            if (lvl === 'ERR') cmSetStatus('err', 'Error detected in code (agent analysing...)');
         }
 
         function cmConFilter(f) {
@@ -2487,12 +2487,25 @@ Rules:
         // Call the Claude API to fix the code
         async function _agentCallAI(code, lang, errors, iteration, signal) {
             const errList = errors.map((e, i) => `${i+1}. ${e}`).join('\n');
+
+            // Truncate very large code to avoid hitting model context limits.
+            // Keep the first 300 lines + last 50 lines if the file is huge.
+            const codeLines = code.split('\n');
+            let codeForPrompt = code;
+            if (codeLines.length > 400) {
+                codeForPrompt = [
+                    ...codeLines.slice(0, 300),
+                    `... [${codeLines.length - 350} lines truncated for context] ...`,
+                    ...codeLines.slice(-50)
+                ].join('\n');
+            }
+
             const prompt = `You are an expert ${lang} developer and debugger.
 
 The following ${lang} code has errors that need to be fixed:
 
 \`\`\`${lang}
-${code}
+${codeForPrompt}
 \`\`\`
 
 Errors detected (iteration ${iteration}):
@@ -2510,9 +2523,8 @@ Return format:
 [complete fixed code here]
 \`\`\``;
 
-            // Route through the VPS proxy using the currently selected Ollama model.
-            // This avoids CORS issues with api.anthropic.com and keeps the API key
-            // off the client side. The response format is Ollama NDJSON streaming.
+            // Use stream:false for the agent -- iOS Safari kills long streaming fetch requests
+            // ("Load failed") before they complete. A single JSON response is far more reliable.
             let response;
             try {
                 response = await fetch(VPS_OLLAMA_URL, {
@@ -2521,77 +2533,71 @@ Return format:
                     signal,
                     body: JSON.stringify({
                         model: currentModel,
-                        stream: true,
+                        stream: false,   // <-- key fix: single response, no streaming
                         messages: [
                             {
                                 role: 'system',
-                                content: `You are an expert ${lang} code debugger. When asked to fix code, return ONLY the complete fixed code inside a single fenced code block. No explanations, no prose outside the fence.`
+                                content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block. No explanations outside the fence.`
                             },
                             { role: 'user', content: prompt }
                         ]
                     })
                 });
             } catch (netErr) {
-                // Give a clear diagnosis of what failed
-                const isAbort = netErr.name === 'AbortError';
-                if (isAbort) throw netErr; // let the caller handle abort
-                throw new Error(
-                    `Network error reaching ${VPS_OLLAMA_URL} -- ` +
-                    `${netErr.message}. ` +
-                    `Check: (1) VPS is running, (2) model "${currentModel}" is loaded, ` +
-                    `(3) API key is correct.`
-                );
+                if (netErr.name === 'AbortError') throw netErr;
+                // Retry once -- iOS sometimes drops the first connection attempt
+                console.warn('Agent fetch failed, retrying once...', netErr.message);
+                try {
+                    await new Promise(r => setTimeout(r, 1200));
+                    response = await fetch(VPS_OLLAMA_URL, {
+                        method: 'POST',
+                        headers: apiHeaders(),
+                        signal,
+                        body: JSON.stringify({
+                            model: currentModel,
+                            stream: false,
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block.`
+                                },
+                                { role: 'user', content: prompt }
+                            ]
+                        })
+                    });
+                } catch (retryErr) {
+                    if (retryErr.name === 'AbortError') throw retryErr;
+                    throw new Error(
+                        `Network error (2 attempts): ${retryErr.message}. ` +
+                        `VPS: ${VPS_OLLAMA_URL}. ` +
+                        `Check VPS is running and model "${currentModel}" is loaded.`
+                    );
+                }
             }
 
             if (!response.ok) {
                 let errMsg = `HTTP ${response.status}`;
-                try {
-                    const errJson = await response.json();
-                    errMsg = errJson.error || errMsg;
-                } catch (_) {}
+                try { const j = await response.json(); errMsg = j.error || errMsg; } catch (_) {}
                 throw new Error(`VPS returned ${errMsg} for model "${currentModel}"`);
             }
 
-            // Read the streaming NDJSON response and accumulate with overlap-aware merger
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let fullText = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop(); // keep incomplete last line
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    try {
-                        const json = JSON.parse(line);
-                        if (json.message?.content) {
-                            fullText = mergeStreamChunk(fullText, json.message.content);
-                        }
-                        if (json.done) break;
-                    } catch (_) { /* skip malformed chunks */ }
-                }
-            }
-            // Flush any remaining buffer
-            if (buffer.trim()) {
-                try {
-                    const json = JSON.parse(buffer);
-                    if (json.message?.content) fullText = mergeStreamChunk(fullText, json.message.content);
-                } catch (_) {}
+            // Non-streaming: single JSON response
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseErr) {
+                throw new Error(`Invalid JSON from VPS: ${parseErr.message}`);
             }
 
+            const fullText = data?.message?.content || '';
             if (!fullText.trim()) throw new Error(`Model "${currentModel}" returned an empty response`);
 
             // Extract the fenced code block
             const match = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
             const fixedCode = match ? match[1].trim() : fullText.trim();
 
-            // Everything outside the code fence is the model's reasoning
-            const reasoning = fullText.replace(/```[\s\S]*?```/g, '').trim()
-                || 'Fixes applied.';
+            // Everything outside the code fence is the reasoning
+            const reasoning = fullText.replace(/```[\s\S]*?```/g, '').trim() || 'Fixes applied.';
 
             return { fixedCode, reasoning };
         }
@@ -2679,7 +2685,7 @@ Return format:
                     // Update card with error summary
                     _agentUpdateCard(iter, {
                         title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length > 1 ? 's' : ''} found`,
-                        thinking: `Errors found:\n${allErrors.join('\n')}\n\nSending to ${currentModel} for analysis...`
+                        thinking: `Errors found:\n${allErrors.join('\n')}\n\n[Waiting for ${currentModel} to respond... This may take 15-60s for large models. Do not close this panel.]`
                     });
                     if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
 
