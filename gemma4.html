@@ -4408,23 +4408,59 @@ Rewritten text:`;
         }
 
         /* Show a clear "pipeline complete" banner so the user knows all agents are done */
-        function _showPipelineComplete(botContent, debateOk, plagOk) {
+        function _showPipelineComplete(botContent, debateOk, plagOk, debateError, plagError) {
             if (!botContent) return;
-            // Remove any existing completion banner first
             botContent.querySelector('.pipeline-complete')?.remove();
 
             const banner = document.createElement('div');
             banner.className = 'pipeline-complete';
-            const debateLabel = debateOk ? '✓ Debate reviewed' : '— Debate skipped';
-            const plagLabel   = plagOk   ? '✓ Plagiarism checked' : '— Plagiarism skipped';
+
+            const debateLabel = debateOk  ? '✓ Debate reviewed'
+                              : debateError ? `✗ Debate error: ${debateError.slice(0, 60)}`
+                              : '— Debate skipped';
+            const plagLabel   = plagOk    ? '✓ Plagiarism checked'
+                              : plagError  ? `✗ Plagiarism error: ${plagError.slice(0, 60)}`
+                              : '— Plagiarism skipped';
+
+            const allOk = debateOk && plagOk;
+            const hasError = debateError || plagError;
+            banner.style.background = hasError
+                ? 'rgba(253,214,99,0.08)'   : 'rgba(129,201,149,0.08)';
+            banner.style.borderColor = hasError
+                ? 'rgba(253,214,99,0.3)'    : 'rgba(129,201,149,0.3)';
+            banner.style.color = hasError
+                ? 'var(--accent-yellow)'    : 'var(--accent-green)';
+
             banner.innerHTML = `
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${allOk ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg>
                 <div class="pc-text">
-                    <span class="pc-title">All checks complete — ready to use</span>
-                    <span class="pc-sub">${debateLabel} · ${plagLabel}</span>
+                    <span class="pc-title">${allOk ? 'All checks complete — ready to use' : 'Pipeline finished with issues'}</span>
+                    <span class="pc-sub">${escapeHtml(debateLabel)} · ${escapeHtml(plagLabel)}</span>
                 </div>`;
             botContent.appendChild(banner);
             setTimeout(() => banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300);
+        }
+
+        /* Show setup error when _debateRun throws before creating its own panel */
+        function _debateShowSetupError(botContent, errorMsg) {
+            botContent.querySelector('.debate-panel')?.remove();
+            const el = document.createElement('div');
+            el.className = 'debate-panel';
+            el.innerHTML = `
+                <div class="debate-header">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span class="debate-title">Debate Agent</span>
+                    <span class="debate-status-dot err"></span>
+                    <span class="debate-status-text">Setup failed</span>
+                    <button class="debate-close-btn" onclick="this.closest('.debate-panel').remove()">✕</button>
+                </div>
+                <div style="padding:14px 16px;font-size:0.82rem;color:var(--accent-red);line-height:1.55;">
+                    <strong>Error:</strong> ${escapeHtml(errorMsg)}<br>
+                    <span style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;display:block;">
+                        Tap the <strong>Debate</strong> button in the toolbar to retry manually, or check the Agent Settings model selection.
+                    </span>
+                </div>`;
+            botContent.appendChild(el);
         }
 
         /* ============================================================
@@ -7486,6 +7522,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         toolbarBtns.forEach(b => b.classList.add('running'));
 
                         let debateOk = false, plagOk = false;
+                        let debateError = '', plagError = '';
 
                         try {
                             // Step 1: Debate — improves content quality
@@ -7495,8 +7532,11 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             const dp = bc.querySelector('.debate-panel');
                             if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
+                            debateError = e.message || 'Unknown error';
                             console.error('Auto Debate error:', e);
                             _debateRunning = false;
+                            // Show the error visibly in the bot content
+                            _debateShowSetupError(bc, debateError);
                         }
 
                         // Brief pause between agents so mobile connection can breathe
@@ -7514,12 +7554,13 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             const pp = bc.querySelector('.plag-panel');
                             if (pp) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
+                            plagError = e.message || 'Unknown error';
                             console.error('Auto Plagiarism error:', e);
                             _plagRunning = false;
                         }
 
                         // Show a clear pipeline-complete banner so the user knows it's done
-                        _showPipelineComplete(bc, debateOk, plagOk);
+                        _showPipelineComplete(bc, debateOk, plagOk, debateError, plagError);
 
                         // Full UI reset after all agents complete
                         toolbarBtns.forEach(b => b.classList.remove('running'));
