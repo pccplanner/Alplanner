@@ -1,447 +1,727 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Standalone Staff Table</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RainCheck — Live Weather</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: rgba(255,255,255,0.06);
+      --surface-solid: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-dim: rgba(56,189,248,0.12);
+      --rain: #3b82f6;
+      --rain-heavy: #ef444;
+      --warn: #f59e0b;
+      --clear: #22c55e;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
 
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .table-container::-webkit-scrollbar { height: 8px; width: 8px; }
-        .table-container::-webkit-scrollbar-track { background: #f1f5f9; }
-        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        select {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.2rem center;
-            background-repeat: no-repeat;
-            background-size: 1.25em 1.25em;
-        }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        tr:hover .row-controls { opacity: 1; }
-        .row-controls { opacity: 0.3; transition: opacity 0.2s; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: radial-gradient(ellipse at top, #1e3a5f 0%, var(--bg) 60%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px;
+    }
 
-        /* Modal Backdrop */
-        #modal-backdrop {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.5);
-            backdrop-filter: blur(4px);
-            z-index: 50;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
+    .app {
+      width: 100%;
+      max-width: 640px;
+      animation: fadeIn 0.5s ease-out;
+    }
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, query } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
-        const firebaseConfig = {
-          apiKey: "AIzaSyAP7b4KcwRYPMZjNc2TWsNqMvC3ywImhOM",
-          authDomain: "roster-4a997.firebaseapp.com",
-          projectId: "roster-4a997",
-          storageBucket: "roster-4a997.firebasestorage.app",
-          messagingSenderId: "901381868881",
-          appId: "1:901381868881:web:92930481d6c1c85fedd770"
-        };
+    header { text-align: center; margin-bottom: 24px; }
+    header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 10px; }
+    header p { color: var(--text-muted); font-size: 0.9rem; margin-top: 6px; }
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+    .location-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 10px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      backdrop-filter: blur(12px);
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.2s;
+      user-select: none;
+    }
+    .location-bar:hover { background: var(--accent-dim); }
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'custom-roster-app';
-        
-        const SAVE_COLLECTION = 'rosters'; 
-        const SAVE_DOC_ID = 'standalone_draft';
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--clear);
+      border-radius: 50%;
+      box-shadow: 0 8px var(--clear);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
-        const DEFAULT_LOCATIONS = [
-            { name: "Pass Counter", slots: 2 },
-            { name: "KIOSK", slots: 1 },
-            { name: "Lobby", slots: 1 },
-            { name: "HHMD", slots: 1 },
-            { name: "Guard House", slots: 1 },
-            { name: "Report Room", slots: 1 },
-            { name: "Vertical Patrol", slots: 1 },
-            { name: "Tango Papa", slots: 1 }
-        ];
+    .alert {
+      padding: 14px 18px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+    .alert.raining { background: rgba(239,68,68,0.12); color: #fecaca; border-color: rgba(239,68,68,0.25); }
+    .alert.iminent { background: rgba(245,158,11,0.12); color: #fde68a; border-color: rgba(245,158,11,0.25); }
+    .alert.watch { background: rgba(59,130,246,0.12); color: #bfdbfe; border-color: rgba(59,130,246,0.25); }
+    .alert.clear { background: rgba(34,197,94,0.12); color: #bbf7d0; border-color: rgba(34,197,94,0.25); }
 
-        const TIMES = ["20:00", "21:00", "22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"];
+    .current-card {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+    }
+    .current-meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
+    .current-temp {
+      font-size: 4rem;
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .current-condition { margin-top: 8px; font-size: 1.05rem; font-weight: 500; color: var(--text-muted); }
+    .current-icon { font-size: 5rem; line-height: 1; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
 
-        let staffList = [];
-        let tableData = {};
-        let currentLocations = [...DEFAULT_LOCATIONS]; 
-        let currentUser = null;
+    .current-details {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 8px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .detail-item { text-align: center; }
+    .detail-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; }
+    .detail-value { font-size: 1.15rem; font-weight: 700; }
 
-        const initAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Auth Error:", error);
-                document.getElementById('status-text').textContent = "Auth Error: " + error.message;
-            }
-        };
+    .section-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      padding-left: 6px;
+      font-weight: 700;
+    }
+    .hourly-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('status-dot').classList.remove('bg-red-500');
-                document.getElementById('status-dot').classList.add('bg-green-500', 'animate-pulse');
-                document.getElementById('status-text').textContent = "Online & Connected";
-                
-                fetchStaffAndRender();
-                loadSavedTableData();
-            } else {
-                currentUser = null;
-                document.getElementById('status-dot').classList.add('bg-red-500');
-                document.getElementById('status-dot').classList.remove('bg-green-500', 'animate-pulse');
-            }
-        });
+    .hour-card {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 22px 14px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .hour-card:hover { transform: translateY(-3px); border-color: rgba(56,189,248,0.25); }
+    .hour-card.active { border-color: var(--accent); background: rgba(56,189,248,0.06); }
+    .hour-card.active::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--rain));
+    }
+    .hour-label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; }
+    .rain-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .rain-pill.wet { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .rain-pill.dry { background: rgba(34,197,94,0.1); color: #86efac; }
+    .rain-pill.warn { background: rgba(245,158,11,0.12); color: #fcd34d; }
+    .rain-pill.heavy { background: rgba(239,68,68,0.12); color: #fca5a5; }
 
-        function fetchStaffAndRender() {
-            const staffPath = collection(db, 'artifacts', appId, 'public', 'data', 'employees');
-            onSnapshot(query(staffPath), (snapshot) => {
-                staffList = snapshot.docs.map(doc => ({ 
-                    id: doc.id, 
-                    ...doc.data() 
-                }));
-                staffList.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
-                renderTable();
-            });
-        }
+    .hour-icon { font-size: 2.4rem; margin: 6px 0; line-height: 1; }
+    .hour-temp { font-size: 1.6rem; font-weight: 800; margin-bottom: 12px; }
 
-        window.moveRow = function(index, direction) {
-            const newIndex = index + direction;
-            if (newIndex < 0 || newIndex >= currentLocations.length) return;
-            const temp = currentLocations[index];
-            currentLocations[index] = currentLocations[newIndex];
-            currentLocations[newIndex] = temp;
-            renderTable();
-            updateSaveStatus("Unsaved changes (Order changed)");
-        };
+    .prob-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+    .prob-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+    .prob-fill.blue { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+    .prob-fill.green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .prob-fill.orange { background: linear-gradient(90deg, #f59e0b, #f97316); }
+    .prob-fill.red { background: linear-gradient(90deg, #ef444, #f871); }
 
-        function renderTable() {
-            const theadRow = document.getElementById('table-head-row');
-            const tbody = document.getElementById('table-body');
+    .prob-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+    .precip-amount { margin-top: 8px; font-size: 0.85rem; font-weight: 700; color: var(--accent); }
 
-            if (theadRow.children.length === 1) { 
-                TIMES.forEach(time => {
-                    const th = document.createElement('th');
-                    th.className = "px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 min-w-[120px]";
-                    th.textContent = time;
-                    theadRow.appendChild(th);
-                });
-            }
+    .mini-chart { display: flex; align-items: flex-end; justify-content: center; height: 36px; margin-top: 10px; }
+    .mini-bar { width: 6px; border-radius: 3px; background: linear-gradient(to top, var(--rain), var(--accent)); transition: height 0.6s ease; }
 
-            tbody.innerHTML = ''; 
-            
-            currentLocations.forEach((locConfig, index) => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors group";
+    .actions { display: flex; gap: 10px; }
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      backdrop-filter: blur(12px);
+    }
+    .btn:hover { background: rgba(255,255,255,0.08); border-color: var(--accent); }
+    .btn-primary { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+    .btn-primary:hover { opacity: 0.9; }
 
-                const tdLoc = document.createElement('td');
-                tdLoc.className = "px-4 py-2 text-sm text-slate-700 bg-white border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] align-middle";
-                
-                const contentDiv = document.createElement('div');
-                contentDiv.className = "flex items-center justify-between gap-2";
+    .search-wrap { position: relative; margin-bottom: 20px; display: none; }
+    .search-wrap.open { display: block; animation: fadeIn 0.3s ease; }
+    .search-wrap input {
+      width: 100%;
+      padding: 14px 52px 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 1rem;
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-wrap input::placeholder { color: var(--text-muted); }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap button {
+      position: absolute;
+      right: 6px;
+      top: 6px;
+      bottom: 6px;
+      width: 40px;
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: opacity 0.2s;
+    }
+    .search-wrap button:hover { opacity: 0.85; }
+    .search-results {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background: var(--surface-solid);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      z-index: 100;
+      overflow: hidden;
+      display: none;
+      box-shadow: var(--shadow);
+    }
+    .search-results.active { display: block; animation: slideDown 0.2s ease; }
+    @keyframes slideDown { from { opacity:0; transform: translateY(-6px);} to { opacity:1; transform: translateY(0);} }
+    .search-item {
+      padding: 12px 18px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .search-item:last-child { border-bottom: none; }
+    .search-item:hover { background: rgba(255,255,255,0.05); }
+    .search-name { font-weight: 600; font-size: 0.95rem; }
+    .search-meta { font-size: 0.8rem; color: var(--text-muted); }
 
-                const textDiv = document.createElement('div');
-                textDiv.innerHTML = `
-                    <div class="font-bold leading-tight">${locConfig.name}</div>
-                    ${locConfig.slots > 1 ? '<span class="text-[9px] text-slate-400 font-normal">(2 Staff)</span>' : ''}
-                `;
+    .loading, .error {
+      text-align: center;
+      padding: 48px 24px;
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(255,255,255,0.06);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); }
+    .error { color: #fca5a5; }
+    .error button {
+      margin-top: 14px;
+      padding: 10px 24px;
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .hidden { display: none !important; }
 
-                const controlsDiv = document.createElement('div');
-                controlsDiv.className = "row-controls flex flex-col gap-0.5";
-                
-                const upBtn = document.createElement('button');
-                upBtn.innerHTML = `<i data-lucide="chevron-up" class="w-3 h-3"></i>`;
-                upBtn.className = `p-0.5 rounded hover:bg-slate-100 ${index === 0 ? 'text-slate-200 cursor-default' : 'text-slate-400 hover:text-indigo-600'}`;
-                if (index > 0) upBtn.onclick = () => window.moveRow(index, -1);
-                
-                const downBtn = document.createElement('button');
-                downBtn.innerHTML = `<i data-lucide="chevron-down" class="w-3 h-3"></i>`;
-                downBtn.className = `p-0.5 rounded hover:bg-slate-100 ${index === currentLocations.length - 1 ? 'text-slate-200 cursor-default' : 'text-slate-400 hover:text-indigo-600'}`;
-                if (index < currentLocations.length - 1) downBtn.onclick = () => window.moveRow(index, 1);
-
-                controlsDiv.appendChild(upBtn);
-                controlsDiv.appendChild(downBtn);
-                contentDiv.appendChild(textDiv);
-                contentDiv.appendChild(controlsDiv);
-                tdLoc.appendChild(contentDiv);
-                tr.appendChild(tdLoc);
-
-                TIMES.forEach(time => {
-                    const td = document.createElement('td');
-                    td.className = "p-1 border-b border-r border-slate-100 min-w-[120px] align-top";
-                    const wrapper = document.createElement('div');
-                    wrapper.className = "flex flex-col gap-1";
-
-                    for (let i = 0; i < locConfig.slots; i++) {
-                        const select = document.createElement('select');
-                        select.className = "w-full text-xs p-1.5 border border-slate-200 rounded focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-slate-700 font-medium cursor-pointer font-mono";
-                        
-                        const defaultOpt = document.createElement('option');
-                        defaultOpt.value = "";
-                        defaultOpt.text = "-";
-                        select.appendChild(defaultOpt);
-
-                        staffList.forEach(staff => {
-                            const opt = document.createElement('option');
-                            opt.value = staff.staffId; 
-                            opt.text = String(staff.staffId || '').trim();
-                            select.appendChild(opt);
-                        });
-
-                        const key = `${locConfig.name}_${time}_${i}`;
-                        if (tableData[key]) select.value = tableData[key];
-
-                        select.addEventListener('change', (e) => {
-                            handleSelectionChange(locConfig.name, time, i, e.target.value);
-                        });
-                        wrapper.appendChild(select);
-                    }
-                    td.appendChild(wrapper);
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
-            });
-            if (window.lucide) lucide.createIcons();
-        }
-
-        function handleSelectionChange(locName, time, index, value) {
-            const key = `${locName}_${time}_${index}`;
-            if (value === "") delete tableData[key];
-            else tableData[key] = value;
-            updateSaveStatus("Unsaved changes");
-        }
-
-        function updateSaveStatus(msg, type = 'neutral') {
-            const el = document.getElementById('save-status');
-            el.textContent = msg;
-            if (type === 'success') el.className = "text-xs font-bold text-green-600";
-            else if (type === 'neutral') el.className = "text-xs font-bold text-amber-600";
-            else el.className = "text-xs font-bold text-slate-400";
-        }
-
-        async function saveTable() {
-            if (!currentUser) return;
-            const btn = document.getElementById('save-btn');
-            const originalContent = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...`;
-            lucide.createIcons();
-
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', SAVE_COLLECTION, SAVE_DOC_ID);
-                const rowOrder = currentLocations.map(l => l.name);
-                await setDoc(docRef, { 
-                    gridData: tableData,
-                    rowOrder: rowOrder,
-                    updatedAt: new Date().toISOString()
-                }, { merge: true });
-                updateSaveStatus("All changes saved", "success");
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Saved`;
-                    lucide.createIcons();
-                    setTimeout(() => {
-                         btn.innerHTML = originalContent;
-                         lucide.createIcons();
-                    }, 2000);
-                }, 500);
-            } catch (e) {
-                console.error("Save failed", e);
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
-                lucide.createIcons();
-            }
-        }
-
-        function loadSavedTableData() {
-            if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', SAVE_COLLECTION, SAVE_DOC_ID);
-            onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if(data.gridData) tableData = data.gridData;
-                    if (data.rowOrder && Array.isArray(data.rowOrder)) {
-                        const loadedOrder = [];
-                        data.rowOrder.forEach(name => {
-                            const config = DEFAULT_LOCATIONS.find(l => l.name === name);
-                            if (config) loadedOrder.push(config);
-                        });
-                        DEFAULT_LOCATIONS.forEach(def => {
-                            if (!loadedOrder.find(l => l.name === def.name)) loadedOrder.push(def);
-                        });
-                        currentLocations = loadedOrder;
-                    }
-                    renderTable();
-                    updateSaveStatus("Data loaded", "success");
-                }
-            }, (error) => console.warn("Load error:", error.message));
-        }
-
-        // --- Clear Functionality ---
-        window.openClearModal = function() {
-            document.getElementById('modal-backdrop').style.display = 'flex';
-        };
-
-        window.closeClearModal = function() {
-            document.getElementById('modal-backdrop').style.display = 'none';
-        };
-
-        window.confirmClear = function() {
-            tableData = {}; // Wipe local data
-            renderTable(); // Re-render empty grid
-            updateSaveStatus("Entries cleared (Unsaved)", "neutral");
-            closeClearModal();
-        };
-
-        function buildBlueprintJSON() {
-            const roster = {};
-            currentLocations.forEach(loc => {
-                const needed = Number(loc.needed ?? loc.slots ?? 1) || 1;
-                roster[loc.name] = {};
-                TIMES.forEach(t => {
-                    const arr = [];
-                    for (let i = 0; i < needed; i++) {
-                        const key = loc.name + '_' + t + '_' + i;
-                        arr.push(tableData[key] || "");
-                    }
-                    roster[loc.name][t] = arr;
-                });
-            });
-            return {
-                schema: "pcc_roster_blueprint_v2",
-                appId,
-                createdAt: new Date().toISOString(),
-                times: [...TIMES],
-                locations: currentLocations.map(l => ({
-                    name: l.name,
-                    needed: Number(l.needed ?? l.slots ?? 1) || 1,
-                    slots: Number(l.slots ?? l.needed ?? 1) || 1
-                })),
-                roster,
-                gridData: { ...tableData }
-            };
-        }
-
-        window.exportJSON = function() {
-            const data = buildBlueprintJSON();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'blueprint_' + new Date().toISOString().slice(0,10) + '.json';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            updateSaveStatus("JSON exported", "success");
-        };
-
-        window.saveTable = saveTable;
-        initAuth();
-        lucide.createIcons();
-    </script>
+    @media (max-width: 560px) {
+      .current-card { grid-template-columns: 1fr; text-align: center; }
+      .current-icon { font-size: 4rem; order: -1; }
+      .current-temp { font-size: 3.2rem; }
+      .current-details { grid-template-columns: 1fr; text-align: left; gap: 10px; }
+      .detail-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+      .detail-item:last-child { border-bottom: none; }
+      .hourly-grid { gap: 10px; }
+      .hour-card { padding: 18px 10px; }
+      .hour-icon { font-size: 2rem; }
+      .hour-temp { font-size: 1.3rem; }
+    }
+  </style>
 </head>
-<body class="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-800">
+<body>
 
-    <!-- Header -->
-    <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="p-2 bg-indigo-600 rounded-lg text-white">
-                <i data-lucide="table-2" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <h1 class="text-lg font-bold text-slate-800">Independent Roster Table</h1>
-                <div class="flex items-center gap-2">
-                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
-                    <span id="status-text" class="text-xs text-slate-500 font-medium">Connecting...</span>
-                </div>
-            </div>
-        </div>
-        <div class="flex items-center gap-3">
-             <span id="save-status" class="text-xs font-bold text-slate-400 mr-2"></span>
-            
-            <button onclick="openClearModal()" class="flex items-center gap-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                Clear Entries
-            </button>
+<div class="app">
+  <header>
+    <h1>🌧️ RainCheck</h1>
+    <p>Hyperlocal rain tracking for the next 2 hours</p>
+  </header>
 
-            <button id="export-btn" onclick="exportJSON()" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
-                <i data-lucide="download" class="w-4 h-4"></i>
-                Export JSON
-            </button>
-            <button id="save-btn" onclick="saveTable()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-semibold text-sm transition-all shadow-sm active:transform active:scale-95">
-                <i data-lucide="save" class="w-4 h-4"></i>
-                Save Table
-            </button>
-        </div>
+  <div class="location-bar" id="locationBar" onclick="toggleSearch()">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="locationName">Detecting location…</span>
+    <span style="opacity:0.7;">⌕</span>
+  </div>
+
+  <div class="search-wrap" id="searchWrap">
+    <input type="text" id="cityInput" placeholder="Search city…" autocomplete="off">
+    <button onclick="searchCity()">→</button>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <div id="content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div style="color: var(--text-muted);">Finding your location…</div>
     </div>
+  </div>
+</div>
 
-    <!-- Main Content -->
-    <div class="flex-1 p-6 overflow-hidden flex flex-col">
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
-            
-            <!-- Instructions -->
-            <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="info" class="w-3.5 h-3.5"></i>
-                    <span>Use arrows to reorder. <b>Clear Entries</b> wipes the staff IDs so you can start a new draft.</span>
-                </div>
-            </div>
+<script>
+  const weatherCodes = {
+    0: { icon: '☀️', label: 'Clear' },
+    1: { icon: '🌤️', label: 'Mainly Clear' },
+    2: { icon: '⛅', label: 'Partly Cloudy' },
+    3: { icon: '☁️', label: 'Overcast' },
+    45: { icon: '🌫️', label: 'Fog' },
+    48: { icon: '🌫️', label: 'Rime Fog' },
+    51: { icon: '🌦️', label: 'Light Drizzle' },
+    53: { icon: '🌦️', label: 'Drizzle' },
+    55: { icon: '🌧️', label: 'Heavy Drizzle' },
+    61: { icon: '🌧️', label: 'Light Rain' },
+    63: { icon: '🌧️', label: 'Rain' },
+    65: { icon: '🌧️', label: 'Heavy Rain' },
+    71: { icon: '🌨️', label: 'Snow' },
+    73: { icon: '🌨️', label: 'Snow' },
+    75: { icon: '❄️', label: 'Heavy Snow' },
+    77: { icon: '🌨️', label: 'Snow Grains' },
+    80: { icon: '🌦️', label: 'Showers' },
+    81: { icon: '🌧️', label: 'Heavy Showers' },
+    82: { icon: '🌧️', label: 'Violent Showers' },
+    95: { icon: '⛈️', label: 'Thunderstorm' },
+    96: { icon: '⛈️', label: 'Thunderstorm & Hail' },
+    99: { icon: '⛈️', label: 'Heavy Thunderstorm' }
+  };
 
-            <!-- Scrollable Table Wrapper -->
-            <div class="table-container flex-1 overflow-auto bg-white">
-                <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 z-20 shadow-sm">
-                        <tr id="table-head-row">
-                            <th class="p-3 bg-white border-b border-r border-slate-200 sticky left-0 z-30 w-48 min-w-[190px]">
-                                <span class="text-xs font-bold text-slate-400 uppercase">Location \ Time</span>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body">
-                        <tr><td colspan="10" class="p-8 text-center text-slate-400 italic">Loading data...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+  let currentLat = null;
+  let currentLon = null;
+  let currentCity = null;
+  let refreshTimer = null;
+  let searchTimeout = null;
 
-    <!-- Custom Modal -->
-    <div id="modal-backdrop">
-        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
-            <div class="flex items-center gap-3 text-red-600 mb-4">
-                <div class="p-2 bg-red-50 rounded-full">
-                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-                </div>
-                <h2 class="text-lg font-bold">Clear All Entries?</h2>
-            </div>
-            <p class="text-slate-600 text-sm mb-6 leading-relaxed">
-                This will remove all staff assignments from the current table. This action cannot be undone unless you have a previous JSON export.
-            </p>
-            <div class="flex gap-3 justify-end">
-                <button onclick="closeClearModal()" class="px-4 py-2 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
-                    Cancel
-                </button>
-                <button onclick="confirmClear()" class="px-4 py-2 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm">
-                    Yes, Clear Everything
-                </button>
-            </div>
-        </div>
-    </div>
+  const $ = id => document.getElementById(id);
+
+  function formatTime(dateObj) {
+    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getHourLabel(offsetHours) {
+    if (offsetHours === 0) return 'Now';
+    return 'In ' + offsetHours + ' hr' + (offsetHours > 1 ? 's' : '');
+  }
+
+  function getProb(data, idx) {
+    const arr = data.hourly.precipitation_probability;
+    if (arr && arr[idx] != null) return arr[idx];
+    return data.hourly.precipitation[idx] > 0 ? 100 : 0;
+  }
+
+  function getPrecip(data, idx) {
+    const p = data.hourly.precipitation[idx] || 0;
+    const r = data.hourly.rain[idx] || 0;
+    const s = data.hourly.showers ? (data.hourly.showers[idx] || 0) : 0;
+    return { total: p, rain: r + s };
+  }
+
+  function getBarColor(prob, precip) {
+    if (precip > 5) return 'red';
+    if (precip > 1) return 'orange';
+    if (prob > 60) return 'orange';
+    if (prob > 20) return 'blue';
+    return 'green';
+  }
+
+  function getPillClass(prob, precip) {
+    if (precip > 2.5) return 'heavy';
+    if (precip > 0.1 || prob > 70) return 'wet';
+    if (prob > 30) return 'warn';
+    return 'dry';
+  }
+
+  function getPillText(prob, precip) {
+    if (precip > 2.5) return 'Heavy rain ' + Math.round(prob) + '%';
+    if (precip > 0.1) return 'Rain ' + Math.round(prob) + '%';
+    if (prob > 0) return Math.round(prob) + '% chance';
+    return 'Dry';
+  }
+
+  async function reverseGeocode(lat, lon) {
+    try {
+      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en');
+      const data = await res.json();
+      return data.city || data.locality || data.principalSubdivision || 'Local Weather';
+    } catch (e) {
+      return 'Local Weather';
+    }
+  }
+
+  async function loadWeather(lat, lon, name) {
+    currentLat = lat;
+    currentLon = lon;
+    if (name) currentCity = name;
+
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+      '&current=temperature_2m,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,wind_speed_10m' +
+      '&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,weather_code' +
+      '&timezone=auto&forecast_hours=6';
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Weather service unavailable');
+      const data = await res.json();
+
+      const now = new Date();
+      let idx = 0;
+      for (let i = 0; i < data.hourly.time.length; i++) {
+        const t = new Date(data.hourly.time[i]);
+        if (t.getHours() === now.getHours() && t.getDate() === now.getDate()) {
+          idx = i;
+          break;
+        }
+      }
+
+      const current = data.current;
+      const hours = [0, 1, 2].map(function(i) {
+        const precip = getPrecip(data, idx + i);
+        const prob = getProb(data, idx + i);
+        return {
+          offset: i,
+          temp: data.hourly.temperature_2m[idx + i],
+          prob: prob,
+          precip: precip.total,
+          rain: precip.rain,
+          code: data.hourly.weather_code[idx + i],
+          label: getHourLabel(i)
+        };
+      });
+
+      if (!currentCity) currentCity = await reverseGeocode(lat, lon);
+      $('locationName').textContent = currentCity;
+
+      const nowPrecip = hours[0].precip;
+      const h1Precip = hours[1].precip;
+      const h2Precip = hours[2].precip;
+      const h1Prob = hours[1].prob;
+      const h2Prob = hours[2].prob;
+
+      let alertClass = 'clear';
+      let alertMsg = '☀️ No rain expected in the next 2 hours';
+
+      if (nowPrecip > 0.5) {
+        alertClass = 'raining';
+        alertMsg = '🌧️ Raining now — ' + nowPrecip.toFixed(1) + ' mm this hour';
+      } else if (h1Precip > 0.5 && h2Precip > 0.5) {
+        alertClass = 'iminent';
+        alertMsg = '☔ Rain expected over the next 2 hours';
+      } else if (h1Precip > 0.5) {
+        alertClass = 'iminent';
+        alertMsg = '☔ Rain expected in 1 hour';
+      } else if (h2Precip > 0.5) {
+        alertClass = 'watch';
+        alertMsg = '🌦️ Rain expected in 2 hours';
+      } else if (h1Prob > 40 || h2Prob > 40) {
+        alertClass = 'watch';
+        alertMsg = '👀 Low chance of rain — stay alert';
+      }
+
+      const curInfo = weatherCodes[current.weather_code] || { icon: '❓', label: 'Unknown' };
+
+      const hourlyHTML = hours.map(function(h, i) {
+        const info = weatherCodes[h.code] || { icon: '❓' };
+        const barColor = getBarColor(h.prob, h.precip);
+        const pillClass = getPillClass(h.prob, h.precip);
+        const pillText = getPillText(h.prob, h.precip);
+        const showAmount = h.precip > 0;
+        const barH = Math.max(4, Math.round((h.prob / 100) * 32));
+
+        return [
+          '<div class="hour-card ' + (i === 0 ? 'active' : '') + '">',
+            '<div class="hour-label">' + h.label + '</div>',
+            '<div class="rain-pill ' + pillClass + '">' + pillText + '</div>',
+            '<div class="hour-icon">' + info.icon + '</div>',
+            '<div class="hour-temp">' + Math.round(h.temp) + '°</div>',
+            '<div class="prob-track">',
+              '<div class="prob-fill ' + barColor + '" style="width:' + h.prob + '%"></div>',
+            '</div>',
+            '<div class="prob-label">',
+              '<span>Chance</span>',
+              '<span>' + Math.round(h.prob) + '%</span>',
+            '</div>',
+            showAmount ? '<div class="precip-amount">' + h.precip.toFixed(1) + ' mm</div>' : '<div class="precip-amount" style="color:var(--text-muted)">—</div>',
+            '<div class="mini-chart">',
+              '<div class="mini-bar" style="height:' + barH + 'px;opacity:' + (0.3 + (h.prob / 100) * 0.7) + '"></div>',
+            '</div>',
+          '</div>'
+        ].join('');
+      }).join(');
+
+      $('content').innerHTML = [
+        '<div class="alert ' + alertClass + '">' + alertMsg + '</div>',
+
+        '<div class="current-card">',
+          '<div>',
+            '<div class="current-meta" id="updateTime">Updated ' + formatTime(new Date()) + '</div>',
+            '<div class="current-temp">' + Math.round(current.temperature_2m) + '°</div>',
+            '<div class="current-condition">' + curInfo.icon + ' + curInfo.label + '</div>',
+          '</div>',
+          '<div class="current-icon">' + curInfo.icon + '</div>',
+
+          '<div class="current-details">',
+            '<div class="detail-item">',
+              '<div class="detail-label">Rain (now)</div>',
+              '<div class="detail-value">' + ((current.rain + (current.showers || 0)) > 0 ? (current.rain + (current.showers || 0)).toFixed(1) + ' mm' : '—') + '</div>',
+            '</div>',
+            '<div class="detail-item">',
+              '<div class="detail-label">Cloud Cover</div>',
+              '<div class="detail-value">' + current.cloud_cover + '%</div>',
+            '</div>',
+            '<div class="detail-item">',
+              '<div class="detail-label">Wind</div>',
+              '<div class="detail-value">' + Math.round(current.wind_speed_10m) + ' km/h</div>',
+            '</div>',
+          '</div>',
+        '</div>',
+
+        '<div class="section-title">Next 2 Hours</div>',
+        '<div class="hourly-grid">',
+          hourlyHTML,
+        '</div>',
+
+        '<div class="actions">',
+          '<button class="btn" onclick="init()">🔄 Refresh</button>',
+          '<button class="btn btn-primary" onclick="toggleSearch()">🔍 Change City</button>',
+        '</div>'
+      ].join(');
+
+      const dot = $('liveDot');
+      if (nowPrecip > 0) {
+        dot.style.background = 'var(--rain-heavy)';
+        dot.style.boxShadow = '0 0 10px var(--rain-heavy)';
+      } else if (h1Precip > 0 || h2Precip > 0) {
+        dot.style.background = 'var(--warn)';
+        dot.style.boxShadow = '0 0 10px var(--warn)';
+      } else {
+        dot.style.background = 'var(--clear)';
+        dot.style.boxShadow = '0 0 8px var(--clear)';
+      }
+
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(function() {
+        const el = $('updateTime');
+        if (el) el.textContent = 'Updated ' + formatTime(new Date());
+      }, 600);
+
+    } catch (err) {
+      $('content').innerHTML = [
+        '<div class="error">',
+          '<div style="font-size:1.2rem;margin-bottom:6px;">⚠️ Failed to load weather</div>',
+          '<div style="opacity:0.8;">' + err.message + '</div>',
+          '<button onclick="init()">Retry</button>',
+        '</div>'
+      ].join('');
+    }
+  }
+
+  function toggleSearch() {
+    const wrap = $('searchWrap');
+    wrap.classList.toggle('open');
+    if (wrap.classList.contains('open')) {
+      setTimeout(function() { $('cityInput').focus(); }, 100);
+    }
+  }
+
+  async function fetchCities(query) {
+    try {
+      const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(query) + '&count=6&language=en&format=json');
+      const data = await res.json();
+      const list = $('searchResults');
+      list.innerHTML = '';
+      if (!data.results) {
+        list.classList.remove('active');
+        return;
+      }
+      data.results.forEach(function(city) {
+        const div = document.createElement('div');
+        div.className = 'search-item';
+        div.innerHTML = [
+          '<div>',
+            '<div class="search-name">' + city.name + '</div>',
+            '<div class="search-meta">' + (city.admin1 || '') + (city.country ? ', ' + city.country : '') + '</div>',
+          '</div>'
+        ].join('');
+        div.onclick = function() {
+          currentCity = city.name;
+          loadWeather(city.latitude, city.longitude, city.name);
+          $('cityInput').value = '';
+          list.classList.remove('active');
+          $('searchWrap').classList.remove('open');
+        };
+        list.appendChild(div);
+      });
+      list.classList.add('active');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function searchCity() {
+    const q = $('cityInput').value.trim();
+    if (q) fetchCities(q);
+  }
+
+  $('cityInput').addEventListener('input', function(e) {
+    clearTimeout(searchTimeout);
+    if (e.target.value.length >= 2) {
+      searchTimeout = setTimeout(function() { fetchCities(e.target.value); }, 350);
+    } else {
+      $('searchResults').classList.remove('active');
+    }
+  });
+
+  $('cityInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') searchCity();
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-wrap') && !e.target.closest('.location-bar')) {
+      $('searchResults').classList.remove('active');
+    }
+  });
+
+  function init() {
+    $('content').innerHTML = [
+      '<div class="loading">',
+        '<div class="spinner"></div>',
+        '<div style="color: var(--text-muted);">Detecting your location…</div>',
+      '</div>'
+    ].join(');
+
+    if (!navigator.geolocation) {
+      $('content').innerHTML = [
+        '<div class="error">',
+          '<p>Geolocation is not supported. Use the search to find your city.</p>',
+          '<button onclick="toggleSearch()">Search City</button>',
+        '</div>'
+      ].join('');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        currentCity = null;
+        loadWeather(pos.coords.latitude, pos.coords.longitude);
+      },
+      function(err) {
+        console.error(err);
+        $('content').innerHTML = [
+          '<div class="error">',
+            '<p>Location access denied or unavailable.</p>',
+            '<button onclick="toggleSearch()">Search for a City</button>',
+          '</div>'
+        ].join('');
+      },
+      { enableHighAccuracy: false, timeout: 800, maximumAge: 300 }
+    );
+  }
+
+  setInterval(function() {
+    if (currentLat && currentLon) loadWeather(currentLat, currentLon, currentCity);
+  }, 6000);
+
+  init();
+</script>
 
 </body>
 </html>
-
