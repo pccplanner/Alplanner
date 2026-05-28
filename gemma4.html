@@ -92,19 +92,32 @@
         /* Auto-agent toggle in header */
         #auto-agent-btn {
             background: transparent; color: var(--text-muted); border: none;
-            width: 40px; height: 40px; cursor: pointer;
+            height: 36px; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            border-radius: 50%; transition: all 0.2s; position: relative;
+            border-radius: 18px; transition: all 0.2s; position: relative;
+            padding: 0 10px; gap: 5px;
+            font-family: var(--font-main); font-size: 0.8rem; font-weight: 600;
         }
         #auto-agent-btn:hover { background-color: var(--surface-color); color: var(--text-primary); }
-        #auto-agent-btn.active { color: var(--accent-yellow); }
+        /* OFF state: subtle border so user can see it's tappable */
+        #auto-agent-btn:not(.active) {
+            border: 1px solid var(--border-soft);
+            color: var(--text-muted);
+        }
+        /* ON state: bright yellow pill — unmistakably active */
+        #auto-agent-btn.active {
+            background: rgba(253,214,99,0.15);
+            border: 1px solid rgba(253,214,99,0.5);
+            color: var(--accent-yellow);
+            box-shadow: 0 0 8px rgba(253,214,99,0.2);
+        }
         #auto-agent-btn .aa-dot {
-            position: absolute; top: 8px; right: 8px;
             width: 6px; height: 6px; border-radius: 50%;
             background: var(--accent-yellow); display: none;
             box-shadow: 0 0 4px var(--accent-yellow);
         }
         #auto-agent-btn.active .aa-dot { display: block; animation: pulse 1.5s infinite ease-in-out; }
+        #auto-agent-btn .aa-label { font-size: 0.75rem; }
 
         /* Auto-agent activity banner (replaces toast for agent events) */
         #aa-banner {
@@ -1109,7 +1122,8 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
         </button>
         <button id="auto-agent-btn" onclick="toggleAutoAgent()" title="Auto-Fix: automatically run agent on every code reply">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <span class="aa-label" id="aa-label-text">Auto-Fix</span>
             <span class="aa-dot"></span>
         </button>
     </header>
@@ -1553,11 +1567,13 @@ Rules:
         // Initialise button state on boot
         function _autoAgentInitUI() {
             const btn = document.getElementById('auto-agent-btn');
+            const lbl = document.getElementById('aa-label-text');
             if (!btn) return;
             btn.classList.toggle('active', _autoAgentEnabled);
+            if (lbl) lbl.textContent = _autoAgentEnabled ? 'ON' : 'Auto-Fix';
             btn.title = _autoAgentEnabled
-                ? 'Auto-Fix ON -- click to disable'
-                : 'Auto-Fix OFF -- click to enable';
+                ? 'Auto-Fix is ON -- tap to disable'
+                : 'Auto-Fix is OFF -- tap to enable';
         }
 
         function toggleAutoAgent() {
@@ -1685,10 +1701,12 @@ Rules:
         function _autoAgentRunSilent(code, lang) {
             return new Promise((resolve) => {
                 const errors = [];
-                let timer;
 
-                // Reuse the preview iframe that's already in the DOM (it's hidden when modal is closed)
-                const iframe = document.getElementById('cm-preview-iframe');
+                // Use the dedicated off-screen scan iframe -- NOT the modal's iframe.
+                // The modal iframe lives inside display:none when the modal is closed,
+                // and iOS Safari refuses to execute JS in hidden iframes.
+                // The scan iframe is position:fixed off-screen so it's always live.
+                const iframe = document.getElementById('aa-scan-iframe');
                 if (!iframe) { resolve([]); return; }
 
                 const listener = (e) => {
@@ -1700,15 +1718,14 @@ Rules:
                 window.addEventListener('message', listener);
 
                 let src;
-                const bridge = CM_BRIDGE; // reuse existing bridge constant
                 if (lang === 'html' || lang === 'xml') {
                     let injected = code;
-                    if (/<head>/i.test(code)) injected = code.replace(/<head>/i, '<head>' + bridge);
-                    else injected = bridge + code;
+                    if (/<head>/i.test(code)) injected = code.replace(/<head>/i, '<head>' + CM_BRIDGE);
+                    else injected = CM_BRIDGE + code;
                     src = URL.createObjectURL(new Blob([injected], { type: 'text/html' }));
                 } else {
                     src = URL.createObjectURL(new Blob([
-                        '<!DOCTYPE html><html><head>' + bridge + '</head><body>' +
+                        '<!DOCTYPE html><html><head>' + CM_BRIDGE + '</head><body>' +
                         '<' + 'script>try{' + code + '}catch(e){console.error(e.message);}<' + '/script>' +
                         '</body></html>'
                     ], { type: 'text/html' }));
@@ -1716,12 +1733,15 @@ Rules:
 
                 iframe.onload = () => {
                     URL.revokeObjectURL(src);
-                    // Wait 1.5s for async errors to arrive then resolve
-                    timer = setTimeout(() => {
+                    // 2 seconds for async errors to arrive
+                    setTimeout(() => {
                         window.removeEventListener('message', listener);
+                        // Reset scan iframe to blank so it doesn't hold resources
+                        iframe.src = 'about:blank';
                         resolve(errors);
-                    }, 1500);
+                    }, 2000);
                 };
+
                 iframe.src = src;
             });
         }
@@ -4316,6 +4336,13 @@ Return format:
                 else if (document.getElementById('edit-modal').classList.contains('open')) closeEditModal();
             }
         });
-    </script>
+    </script>    <!-- Dedicated always-on iframe for silent auto-agent code scanning.
+         Positioned off-screen (not display:none) so iOS Safari executes JS inside it. -->
+    <iframe id="aa-scan-iframe"
+        sandbox="allow-scripts allow-same-origin"
+        style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;opacity:0;pointer-events:none;"
+        src="about:blank"
+        aria-hidden="true"></iframe>
+
 </body>
 </html>
