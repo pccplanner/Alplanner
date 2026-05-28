@@ -3257,53 +3257,114 @@ Rules:
         async function _agentCallAI(code, lang, errors, iteration, signal) {
             const errList = errors.map((e, i) => `${i+1}. ${e}`).join('\n');
 
-            // Truncate very large code to avoid hitting model context limits.
+            // ── Bracket-aware truncation ──────────────────────────────────────────
+            // A plain head+tail slice breaks structures that span the truncation
+            // boundary, which causes the model to "fix" EOF errors by adding closing
+            // brackets at the end — but the real unclosed bracket is in the middle.
+            //
+            // Strategy:
+            //   1. Send the full code if <= 500 lines
+            //   2. Otherwise find the line of lowest cumulative bracket depth
+            //      (the most "closed" point) near the midpoint and split there.
+            //      This ensures we never cut inside an open block.
             const codeLines = code.split('\n');
             let codeForPrompt = code;
-            if (codeLines.length > 400) {
+            let truncated = false;
+            let isEOFError = errors.some(e => /unexpected (eof|end of (file|input))/i.test(e));
+
+            if (codeLines.length > 500) {
+                truncated = true;
+                // Calculate cumulative depth at each line
+                let depth = 0;
+                const depths = codeLines.map(line => {
+                    depth += (line.match(/[\[({]/g) || []).length;
+                    depth -= (line.match(/[\])}]/g) || []).length;
+                    return Math.max(0, depth);
+                });
+
+                // Find the "shallowest" point in the middle third of the file
+                const mid = Math.floor(codeLines.length / 2);
+                const searchStart = Math.floor(codeLines.length * 0.35);
+                const searchEnd   = Math.floor(codeLines.length * 0.65);
+                let splitLine = mid, minDepth = Infinity;
+                for (let i = searchStart; i <= searchEnd; i++) {
+                    if (depths[i] < minDepth) { minDepth = depths[i]; splitLine = i; }
+                }
+
+                // Keep 200 lines before the split + 100 lines after
+                const keepBefore = Math.max(0, splitLine - 200);
+                const keepAfter  = Math.min(codeLines.length, splitLine + 100);
+                const skipped = keepAfter - keepBefore;
+
                 codeForPrompt = [
-                    ...codeLines.slice(0, 300),
-                    `... [${codeLines.length - 350} lines truncated for context] ...`,
-                    ...codeLines.slice(-50)
+                    ...codeLines.slice(0, keepBefore > 0 ? keepBefore : splitLine - 100),
+                    ``,
+                    `// ... [${skipped} lines omitted — split at bracket depth ${minDepth}] ...`,
+                    ``,
+                    ...codeLines.slice(keepAfter)
                 ].join('\n');
             }
 
-            // Deep-reasoning prompt — mirrors how a senior engineer diagnoses bugs:
-            // 1. Identify the ROOT CAUSE (not just the symptom)
-            // 2. Explain the mechanism (why this line fails, not just what fails)
-            // 3. Describe the structural fix
-            // 4. Apply it completely
-            // The <analysis> block is shown in the agent card so the user understands
-            // what changed and why — exactly like Claude explaining its own reasoning.
+            // ── EOF-specific diagnostic ──────────────────────────────────────────
+            // "Unexpected EOF" always means an unclosed bracket, tag, or string.
+            // We count the imbalance and tell the model exactly how many are missing
+            // so it doesn't guess — it knows precisely what to look for.
+            let eofContext = '';
+            if (isEOFError) {
+                let opens = 0, closes = 0, squareO = 0, squareC = 0, parenO = 0, parenC = 0;
+                for (const ch of code) {
+                    if (ch === '{') opens++;   else if (ch === '}') closes++;
+                    else if (ch === '[') squareO++; else if (ch === ']') squareC++;
+                    else if (ch === '(') parenO++;  else if (ch === ')') parenC++;
+                }
+                const missingBraces  = opens  - closes;
+                const missingSquare  = squareO - squareC;
+                const missingParens  = parenO  - parenC;
+                const balance = [];
+                if (missingBraces  > 0) balance.push(`${missingBraces} missing closing } brace${missingBraces > 1 ? 's' : ''}`);
+                if (missingSquare  > 0) balance.push(`${missingSquare} missing closing ] bracket${missingSquare > 1 ? 's' : ''}`);
+                if (missingParens  > 0) balance.push(`${missingParens} missing closing ) paren${missingParens > 1 ? 's' : ''}`);
+                if (missingBraces  < 0) balance.push(`${-missingBraces} extra } brace${-missingBraces > 1 ? 's' : ''}`);
+                if (missingSquare  < 0) balance.push(`${-missingSquare} extra ] bracket${-missingSquare > 1 ? 's' : ''}`);
+                if (missingParens  < 0) balance.push(`${-missingParens} extra ) paren${-missingParens > 1 ? 's' : ''}`);
+
+                eofContext = balance.length > 0
+                    ? `\n## Structure balance analysis\nThe full code (${codeLines.length} lines) has: ${balance.join(', ')}.\nThe parser reached EOF before these structures were closed. Locate and close them.`
+                    : `\n## Structure balance analysis\nBrackets appear balanced by count — the EOF is likely caused by an unclosed string literal or comment.`;
+            }
+
+            const truncatedNote = truncated
+                ? `\n\n> NOTE: This file is ${codeLines.length} lines. The code above is split at the point of lowest bracket depth to avoid cutting open structures. The full ${codeLines.length}-line file must be returned — do not truncate your output.`
+                : '';
+
+            // ── Deep-reasoning prompt ─────────────────────────────────────────────
             const prompt = `You are a senior ${lang} engineer performing a deep bug diagnosis.
 
-## Code under review (iteration ${iteration})
+## Code under review (iteration ${iteration})${truncatedNote}
 \`\`\`${lang}
 ${codeForPrompt}
 \`\`\`
 
 ## Errors detected
-${errList}
+${errList}${eofContext}
 
 ## Your task
 Perform a 4-step diagnosis and fix:
 
 STEP 1 — ROOT CAUSE: For each error, identify WHY it happens structurally.
   Do not just describe the symptom. Trace it back to the real cause.
-  Example: "The await is at top level because the enclosing function lost its
-  async keyword when the str_replace only replaced the opening block."
+  For EOF errors: identify which specific unclosed structure causes the parser to fail.
 
 STEP 2 — MECHANISM: Explain how the root cause produces the observed error.
   Be specific about the code path or structural issue.
 
 STEP 3 — FIX STRATEGY: Describe exactly what structural change will fix it.
-  Example: "Rebuild the entire function boundary-to-boundary rather than
-  patching just the opening declaration."
+  For EOF errors: state which line needs which closing bracket/tag.
 
 STEP 4 — FIXED CODE: Apply the fix completely. The code must be:
   - Complete and runnable (no omissions, no placeholders)
-  - Structurally sound (proper nesting, balanced braces, correct scoping)
-  - Self-verified (mentally trace through the fix to confirm it resolves each error)
+  - Structurally sound (balanced braces, brackets, parens)
+  - Self-verified: count opening vs closing brackets before returning
 
 ## Required output format
 <analysis>
@@ -3313,7 +3374,7 @@ FIX: [what you changed and why]
 </analysis>
 
 \`\`\`${lang}
-[complete fixed code here]
+[complete fixed code here — ALL ${codeLines.length} lines, not truncated]
 \`\`\``;
 
             const systemPrompt = `You are a senior ${lang} engineer who diagnoses bugs by identifying root causes, not symptoms.
