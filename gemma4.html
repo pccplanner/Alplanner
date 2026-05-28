@@ -1618,6 +1618,7 @@ Rules:
         }
 
         function toggleAutoAgent() {
+            _primeAudio(); // user tap — prime the audio context now
             _autoAgentEnabled = !_autoAgentEnabled;
             localStorage.setItem(STORAGE_AA_KEY, _autoAgentEnabled);
             _autoAgentInitUI();
@@ -3374,6 +3375,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         let _notifGranted = false;
 
         function toggleBgMode() {
+            _primeAudio(); // user tap
             _bgModeEnabled = !_bgModeEnabled;
             const btn = document.getElementById('cm-bg-mode-btn');
             if (!btn) return;
@@ -3418,50 +3420,14 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         // buffer of silence keeps the audio session alive, which in turn
         // keeps the JS thread running even with the screen off.
         function _bgStartSilentAudio() {
-            if (_silentAudio) return; // already running
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                _silentAudio = new AudioContext();
-
-                function _scheduleChunk() {
-                    if (!_bgModeEnabled || !_agentRunning) {
-                        _bgStopSilentAudio();
-                        return;
-                    }
-                    // Create a 2-second silent buffer and schedule the next one
-                    // before it ends so there is no gap (gap = suspension).
-                    const bufferSize = _silentAudio.sampleRate * 2;
-                    const buf = _silentAudio.createBuffer(1, bufferSize, _silentAudio.sampleRate);
-                    // Buffer is zeroed by default -- pure silence
-                    const src = _silentAudio.createBufferSource();
-                    src.buffer = buf;
-                    src.connect(_silentAudio.destination);
-                    src.onended = _scheduleChunk;
-                    src.start();
-                    _silentSource = src;
-                }
-
-                // AudioContext requires a user gesture to start on iOS.
-                // toggleBgMode() is called by a button tap -- that IS a user gesture.
-                if (_silentAudio.state === 'suspended') {
-                    _silentAudio.resume().then(_scheduleChunk).catch(() => {});
-                } else {
-                    _scheduleChunk();
-                }
-                console.log('Silent audio loop started');
-            } catch (e) {
-                console.warn('Silent audio failed:', e.message);
-            }
+            // Route through the global persistent AudioContext so we don't need
+            // a fresh user gesture. _primeAudio() was called from toggleBgMode().
+            _startGlobalAudio();
+            console.log('Silent audio loop started (global context)');
         }
 
         function _bgStopSilentAudio() {
-            try {
-                if (_silentSource) { _silentSource.onended = null; _silentSource.stop(); }
-            } catch (_) {}
-            try { if (_silentAudio) _silentAudio.close(); } catch (_) {}
-            _silentAudio = null;
-            _silentSource = null;
+            _stopGlobalAudio();
         }
 
         // ── 3. Page Visibility / Suspension Recovery ─────────────────
@@ -3475,10 +3441,12 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgSetStatus('Background mode active -- safe to lock screen or switch apps');
                 // Re-acquire wake lock if it was released while hidden
                 if (_agentRunning) _bgAcquireWakeLock();
-                // Resume AudioContext if iOS paused it
-                if (_silentAudio && _silentAudio.state === 'suspended') {
-                    _silentAudio.resume().catch(() => {});
+                // Resume global AudioContext if iOS paused it
+                if (_globalAudioCtx && _globalAudioCtx.state === 'suspended') {
+                    _globalAudioCtx.resume().catch(() => {});
                 }
+                // Restart silence loop if it was running
+                if (_globalAudioLoop && !_globalAudioSrc) _globalAudioChunk();
             }
         });
 
@@ -3642,7 +3610,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     if (iter === 1 && initialErrors && initialErrors.length > 0) {
                         allErrors = initialErrors;
                         _agentUpdateCard(iter, {
-                            thinking: `Errors found (pre-detected):\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond...]`
+                            thinking: `ERRORS DETECTED:\n${allErrors.join('\n')}\n\nROOT CAUSE: Analysing...\nMECHANISM: Analysing...\nFIX: Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond...`
                         });
                     } else {
                         _agentUpdateCard(iter, { thinking: `Running code to detect errors...` });
@@ -3761,6 +3729,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
                 async function agentRun() {
             if (_agentRunning) return;
+            _primeAudio(); // user tap — ensure AudioContext is live
             const { code, lang } = codeModalState;
             const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
             if (!canRun) { showToast(`Agent cannot run ${lang} -- HTML/JS only`); return; }
@@ -3848,7 +3817,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     // Update card with error summary
                     _agentUpdateCard(iter, {
                         title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length > 1 ? 's' : ''} found`,
-                        thinking: `Errors found:\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond... This may take 15-60s for large models. Do not close this panel.]`
+                        thinking: `ERRORS DETECTED:\n${allErrors.join('\n')}\n\nROOT CAUSE: Analysing...\nMECHANISM: Analysing...\nFIX: Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond... This may take 15-60s for large models. Do not close this panel.`
                     });
                     if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
 
@@ -4269,6 +4238,9 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
         async function sendMessage() {
             if (isWaitingForReply) return;
+            // Prime the global AudioContext from this user gesture so it's
+            // available for any subsequent auto-agent or streaming audio needs.
+            _primeAudio();
             let text = document.getElementById('user-input').value.trim();
             if (!text && attachedFiles.length === 0) return;
             if (!currentModel) {
@@ -4466,40 +4438,83 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             }
         }
 
-        // Auto-silent-audio factory: creates a self-rescheduling 3-second silence loop.
-        // iOS requires an active AudioContext to keep JS alive during phone calls.
-        // The AudioContext is started inside a user-gesture context (send button tap).
-        function _createStreamAudio() {
-            let ctx = null, src = null, active = false;
-            function chunk() {
-                if (!active || !ctx) return;
+        // ── Persistent global AudioContext ───────────────────────────────────────
+        // iOS only allows AudioContext.resume() from a user-gesture handler.
+        // Instead of creating a new context per-request (which fails when called
+        // from setTimeout / auto-agent), we create ONE context on the first user
+        // tap and keep it alive for the entire session.
+        // _globalAudioCtx is initialised by _primeAudio() which is called from
+        // every user-interaction point (Send, Auto-Fix toggle, agent buttons).
+        let _globalAudioCtx  = null;
+        let _globalAudioSrc  = null;
+        let _globalAudioLoop = false;
+
+        function _primeAudio() {
+            // Must be called from a synchronous user-gesture handler.
+            // Creates the context if not already created; resumes it if suspended.
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                if (!_globalAudioCtx) {
+                    _globalAudioCtx = new AC();
+                }
+                if (_globalAudioCtx.state === 'suspended') {
+                    _globalAudioCtx.resume().catch(() => {});
+                }
+            } catch (_) {}
+        }
+
+        function _globalAudioChunk() {
+            if (!_globalAudioLoop || !_globalAudioCtx) return;
+            if (_globalAudioCtx.state === 'suspended') {
+                _globalAudioCtx.resume().then(_globalAudioChunk).catch(() => {});
+                return;
+            }
+            try {
+                const buf = _globalAudioCtx.createBuffer(1, _globalAudioCtx.sampleRate * 3, _globalAudioCtx.sampleRate);
+                const s = _globalAudioCtx.createBufferSource();
+                s.buffer = buf;
+                s.connect(_globalAudioCtx.destination);
+                s.onended = _globalAudioChunk;
+                s.start();
+                _globalAudioSrc = s;
+            } catch (_) {}
+        }
+
+        function _startGlobalAudio() {
+            if (_globalAudioLoop) return; // already running
+            _globalAudioLoop = true;
+            if (!_globalAudioCtx) {
+                // Context not yet primed by a gesture — try anyway (works if
+                // a gesture happened recently in the same event loop tick)
                 try {
-                    const buf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
-                    const s = ctx.createBufferSource();
-                    s.buffer = buf;
-                    s.connect(ctx.destination);
-                    s.onended = chunk;
-                    s.start();
-                    src = s;
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) _globalAudioCtx = new AC();
                 } catch (_) {}
             }
-            return {
-                start() {
-                    try {
-                        const AC = window.AudioContext || window.webkitAudioContext;
-                        if (!AC) return;
-                        ctx = new AC();
-                        active = true;
-                        if (ctx.state === 'running') chunk();
-                        else ctx.resume().then(chunk).catch(() => {});
-                    } catch (_) {}
-                },
-                stop() {
-                    active = false;
-                    try { if (src) { src.onended = null; src.stop(); } } catch (_) {}
-                    try { if (ctx) ctx.close(); } catch (_) {}
-                    ctx = null; src = null;
+            if (_globalAudioCtx) {
+                if (_globalAudioCtx.state === 'suspended') {
+                    _globalAudioCtx.resume().then(_globalAudioChunk).catch(() => {});
+                } else {
+                    _globalAudioChunk();
                 }
+            }
+        }
+
+        function _stopGlobalAudio() {
+            _globalAudioLoop = false;
+            try { if (_globalAudioSrc) { _globalAudioSrc.onended = null; _globalAudioSrc.stop(); } } catch (_) {}
+            _globalAudioSrc = null;
+            // Keep the context alive — do NOT close it. Closing and reopening
+            // requires another user gesture. We just stop the silence loop.
+        }
+
+        // Compatibility shim — replaces the old factory for stream-level audio.
+        // Returns an object with start/stop that uses the global context.
+        function _createStreamAudio() {
+            return {
+                start() { _startGlobalAudio(); },
+                stop()  { _stopGlobalAudio();  }
             };
         }
 
