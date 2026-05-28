@@ -1687,6 +1687,46 @@ Rules:
             return null;
         }
 
+        /**
+         * Triggers the inline code block preview for the last code block
+         * in the chat. This is the "Run" button equivalent — finds the most
+         * recent code-wrapper with a matching language and programmatically
+         * clicks its Run button so the preview panel opens inside the chat.
+         *
+         * Falls back to opening the fullscreen IDE modal if no inline block found.
+         */
+        function _triggerInlinePreview(code, lang) {
+            const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
+            if (!canRun) return;
+
+            // Find the last code-wrapper in the chat container
+            const chatContainer = document.getElementById('chat-container');
+            if (!chatContainer) return;
+            const wrappers = chatContainer.querySelectorAll('.code-wrapper');
+            if (!wrappers.length) return;
+
+            // Find the wrapper whose code matches (or just use the last one)
+            let target = wrappers[wrappers.length - 1];
+            for (let i = wrappers.length - 1; i >= 0; i--) {
+                const w = wrappers[i];
+                if (w.dataset.lang === lang) { target = w; break; }
+            }
+
+            // Simulate clicking the Run button on that block
+            const runBtn = target.querySelector('[data-action="run"]');
+            if (runBtn) {
+                runBtn.click();
+                // Scroll the code block into view so the user sees the preview open
+                setTimeout(() => {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 300);
+            } else {
+                // No inline run button (e.g. non-runnable lang) — fall back to IDE modal
+                openCodeModal(code, lang);
+                setTimeout(() => cmSwitchTab('preview'), 400);
+            }
+        }
+
         function _autoAgentDetectFirstLang(markdownText) {
             const m = markdownText.match(/```(\w+)?/);
             return m ? (m[1] || 'code').toLowerCase() : null;
@@ -1777,13 +1817,15 @@ Rules:
             _aaSetBtnState('active');
 
             if (errors.length === 0) {
-                _aaSetChip('clean', `Auto-Fix: no errors found`);
+                _aaSetChip('clean', `Auto-Fix: code is clean -- launching preview`);
                 _aaBanner(
                     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#81c995" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
                     'Auto-Fix: code is clean',
-                    `${lang.toUpperCase()} ran without errors`,
-                    4000
+                    `${lang.toUpperCase()} ran without errors — opening preview`,
+                    5000
                 );
+                // Run the inline preview on the last code block in the chat
+                _triggerInlinePreview(code, lang);
                 return;
             }
 
@@ -4098,7 +4140,11 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             const isHTML = lang === 'html' || lang === 'xml';
             const isJS   = ['javascript','js','typescript','ts'].includes(lang);
 
-            // Make Preview tab visible for runnable code
+            // Also trigger the inline code block preview in the chat so the user
+            // can see the result without needing to stay in the IDE modal
+            _triggerInlinePreview(codeModalState.code, lang);
+
+            // Make Preview tab visible in the IDE modal
             if (isHTML) {
                 document.getElementById('cm-tab-preview').style.display = '';
             }
@@ -4106,17 +4152,14 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             // Short delay so the success banner renders before the tab switch
             setTimeout(() => {
                 if (isHTML) {
-                    // Run the fixed code in the iframe
+                    // Run the fixed code in the modal iframe too
                     runCodeModal();
-                    // Switch to Preview after the iframe has loaded (~400ms)
                     setTimeout(() => {
                         cmSwitchTab('preview');
                         cmSetStatus('ok', 'Preview ready -- fixed code running');
-                        // Append a persistent "Back to Agent report" pill inside the preview panel
                         _agentAddPreviewBackBtn();
                     }, 400);
                 } else if (isJS) {
-                    // Run JS in the console, switch to console tab
                     runCodeModal();
                     setTimeout(() => {
                         cmSwitchTab('console');
