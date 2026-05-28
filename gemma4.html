@@ -1290,6 +1290,91 @@
             #research-banner-inline .rbi-text { display: none; }
         }
 
+        /* ── Web Search button ── */
+        #websearch-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            height: 34px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 17px; transition: all 0.2s;
+            padding: 0 12px; gap: 5px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            border: 1px solid var(--border-soft); flex-shrink: 0;
+        }
+        #websearch-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+        #websearch-btn.active {
+            background: rgba(168,199,250,0.15);
+            border-color: rgba(168,199,250,0.5);
+            color: var(--accent-blue);
+            box-shadow: 0 0 8px rgba(168,199,250,0.15);
+        }
+        #websearch-btn.searching {
+            background: rgba(168,199,250,0.12);
+            border-color: rgba(168,199,250,0.4);
+            color: var(--accent-blue);
+            animation: aaBtnPulse 1.2s ease-in-out infinite;
+        }
+        #websearch-btn .ws-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent-blue); display: none;
+            box-shadow: 0 0 4px var(--accent-blue);
+        }
+        #websearch-btn.active .ws-dot  { display: block; animation: pulse 1.5s infinite ease-in-out; }
+        #websearch-btn.searching .ws-dot { display: block; animation: pulse 0.8s infinite ease-in-out; }
+
+        /* Settings gear button */
+        #wskey-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            width: 30px; height: 30px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: all 0.2s; flex-shrink: 0;
+            margin-left: -4px;
+        }
+        #wskey-btn:hover { background: var(--surface-hover); color: var(--accent-blue); transform: rotate(30deg); }
+
+        /* Search progress chip shown above response */
+        .ws-searching-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 12px; border-radius: 20px; margin-bottom: 8px;
+            font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600;
+            background: rgba(168,199,250,0.1); border: 1px solid rgba(168,199,250,0.3);
+            color: var(--accent-blue); animation: fadeIn 0.3s ease;
+        }
+        .ws-searching-chip .ws-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 0.8s infinite ease-in-out; }
+
+        /* Sources panel below the research toolbar */
+        .ws-sources {
+            margin-top: 6px; padding: 10px 12px;
+            background: var(--surface-elev); border-radius: 10px;
+            border: 1px solid var(--border-soft);
+            animation: fadeIn 0.3s ease;
+        }
+        .ws-sources-title {
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em;
+            text-transform: uppercase; color: var(--accent-blue);
+            margin-bottom: 7px;
+        }
+        .ws-source-item {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 5px 0; border-bottom: 1px solid var(--border-soft);
+            font-size: 0.8rem; line-height: 1.4;
+        }
+        .ws-source-item:last-child { border-bottom: none; }
+        .ws-source-num {
+            flex-shrink: 0; width: 16px; height: 16px; border-radius: 4px;
+            background: rgba(168,199,250,0.15); color: var(--accent-blue);
+            font-size: 0.65rem; font-weight: 700; display: flex;
+            align-items: center; justify-content: center; margin-top: 1px;
+        }
+        .ws-source-title {
+            flex: 1; color: var(--text-secondary); font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ws-source-item a {
+            color: var(--accent-blue); text-decoration: none; font-size: 0.72rem;
+            flex-shrink: 0; white-space: nowrap;
+        }
+        .ws-source-item a:hover { text-decoration: underline; }
+
         /* ── Export dropdown ── */
         .rv-export-wrap { position: relative; display: inline-flex; }
         .rv-export-menu {
@@ -1530,6 +1615,14 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
             <span id="research-label-text">Research</span>
             <span class="res-dot"></span>
+        </button>
+        <button id="websearch-btn" onclick="toggleWebSearch()" title="Web Search — requires Tavily API key">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span id="websearch-label-text">Web Search</span>
+            <span class="ws-dot"></span>
+        </button>
+        <button id="wskey-btn" onclick="openWsSettings()" title="Web Search Settings">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
         </button>
         <div id="research-banner-inline">
             <span class="rbi-text">Research Mode active</span>
@@ -1779,6 +1872,71 @@
             </button>
         </div>
         <div id="research-modal-body"></div>
+    </div>
+
+    <!-- Web Search Settings Modal -->
+    <div id="ws-settings-modal" class="modal" style="background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--surface-color);border-radius:20px;padding:24px;max-width:460px;width:calc(100% - 32px);border:1px solid var(--border-color);box-shadow:0 16px 48px rgba(0,0,0,0.6);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span style="font-size:1rem;font-weight:600;color:var(--text-primary);">Web Search Settings</span>
+            </div>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:16px;line-height:1.55;">
+                Web Search uses the <strong style="color:var(--text-secondary)">Tavily API</strong> to fetch real-time results before each research reply.
+                Free tier: <strong style="color:var(--accent-blue)">1,000 searches/month</strong>.
+                <a href="https://app.tavily.com/sign-up" target="_blank" style="color:var(--accent-blue);text-decoration:underline;">Get a free API key →</a>
+            </p>
+
+            <label style="font-size:0.75rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">Tavily API Key</label>
+            <div style="display:flex;gap:8px;margin-bottom:14px;">
+                <input id="ws-api-key-input" type="password"
+                    placeholder="tvly-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    style="flex:1;background:var(--surface-elev);border:1px solid var(--border-color);
+                           border-radius:10px;padding:10px 12px;color:var(--text-primary);
+                           font-family:var(--font-mono);font-size:0.82rem;outline:none;min-width:0;"
+                />
+                <button onclick="wsToggleKeyVisibility()" id="ws-eye-btn"
+                    style="background:var(--surface-elev);border:1px solid var(--border-color);border-radius:10px;
+                           padding:0 12px;color:var(--text-muted);cursor:pointer;flex-shrink:0;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </div>
+
+            <label style="font-size:0.75rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">Results per search</label>
+            <select id="ws-max-results"
+                style="background:var(--surface-elev);border:1px solid var(--border-color);border-radius:10px;
+                       padding:9px 12px;color:var(--text-primary);font-family:var(--font-main);
+                       font-size:0.88rem;outline:none;width:100%;margin-bottom:14px;appearance:none;">
+                <option value="3">3 results (faster)</option>
+                <option value="5" selected>5 results (recommended)</option>
+                <option value="8">8 results (thorough)</option>
+                <option value="10">10 results (deep research)</option>
+            </select>
+
+            <label style="font-size:0.75rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">Search depth</label>
+            <select id="ws-search-depth"
+                style="background:var(--surface-elev);border:1px solid var(--border-color);border-radius:10px;
+                       padding:9px 12px;color:var(--text-primary);font-family:var(--font-main);
+                       font-size:0.88rem;outline:none;width:100%;margin-bottom:20px;appearance:none;">
+                <option value="basic">Basic (fast, uses 1 credit)</option>
+                <option value="advanced" selected>Advanced (deep, uses 2 credits)</option>
+            </select>
+
+            <p id="ws-key-status" style="font-size:0.78rem;min-height:18px;margin-bottom:12px;"></p>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="closeWsSettings()"
+                    style="background:transparent;border:1px solid var(--border-color);border-radius:16px;
+                           padding:8px 18px;color:var(--text-secondary);font-family:var(--font-main);
+                           font-size:0.88rem;font-weight:500;cursor:pointer;">Cancel</button>
+                <button onclick="wsTestKey()"
+                    style="background:var(--surface-elev);border:1px solid var(--accent-blue);border-radius:16px;
+                           padding:8px 18px;color:var(--accent-blue);font-family:var(--font-main);
+                           font-size:0.88rem;font-weight:600;cursor:pointer;">Test Key</button>
+                <button onclick="wsSaveSettings()"
+                    style="background:var(--accent-blue);border:none;border-radius:16px;padding:8px 22px;
+                           color:#0d0e0f;font-family:var(--font-main);font-size:0.88rem;font-weight:700;cursor:pointer;">Save</button>
+            </div>
+        </div>
     </div>
 
     <!-- Google Docs Import Modal -->
@@ -2052,6 +2210,162 @@ When answering research questions, ALWAYS structure your response as follows:
             localStorage.setItem(STORAGE_RESEARCH_KEY, _researchMode);
             _researchInitUI();
             showToast(_researchMode ? 'Research Mode ON' : 'Research Mode OFF');
+        }
+
+        /* ============================================================
+           Web Search Engine  (Tavily API)
+           ============================================================ */
+        const STORAGE_WS_KEY       = 'aiproxy_websearch_on';
+        const STORAGE_WS_APIKEY    = 'aiproxy_tavily_key';
+        const STORAGE_WS_MAXRES    = 'aiproxy_ws_maxresults';
+        const STORAGE_WS_DEPTH     = 'aiproxy_ws_depth';
+
+        let _webSearchEnabled = localStorage.getItem(STORAGE_WS_KEY) === 'true';
+        let _wsLastSources    = [];   // [{title, url}] from last search
+
+        function _wsInitUI() {
+            const btn = document.getElementById('websearch-btn');
+            const lbl = document.getElementById('websearch-label-text');
+            if (!btn) return;
+            const hasKey = !!localStorage.getItem(STORAGE_WS_APIKEY);
+            btn.classList.toggle('active', _webSearchEnabled && hasKey);
+            if (lbl) lbl.textContent = _webSearchEnabled && hasKey ? 'Web: ON' : 'Web Search';
+            btn.title = !hasKey
+                ? 'Web Search — click ⚙ to add Tavily API key'
+                : _webSearchEnabled ? 'Web Search ON (click to disable)' : 'Web Search OFF (click to enable)';
+        }
+
+        function toggleWebSearch() {
+            const hasKey = !!localStorage.getItem(STORAGE_WS_APIKEY);
+            if (!hasKey) {
+                openWsSettings();
+                showToast('Add your Tavily API key first');
+                return;
+            }
+            _webSearchEnabled = !_webSearchEnabled;
+            localStorage.setItem(STORAGE_WS_KEY, _webSearchEnabled);
+            _wsInitUI();
+            showToast(_webSearchEnabled ? 'Web Search ON' : 'Web Search OFF');
+        }
+
+        /* ── Settings modal ── */
+        function openWsSettings() {
+            const modal = document.getElementById('ws-settings-modal');
+            if (!modal) return;
+            modal.style.display = 'flex';
+            const stored = localStorage.getItem(STORAGE_WS_APIKEY) || '';
+            document.getElementById('ws-api-key-input').value = stored;
+            document.getElementById('ws-max-results').value =
+                localStorage.getItem(STORAGE_WS_MAXRES) || '5';
+            document.getElementById('ws-search-depth').value =
+                localStorage.getItem(STORAGE_WS_DEPTH) || 'advanced';
+            document.getElementById('ws-key-status').textContent = '';
+        }
+        function closeWsSettings() {
+            const modal = document.getElementById('ws-settings-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        function wsToggleKeyVisibility() {
+            const inp = document.getElementById('ws-api-key-input');
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+        }
+        function wsSaveSettings() {
+            const key   = document.getElementById('ws-api-key-input').value.trim();
+            const maxR  = document.getElementById('ws-max-results').value;
+            const depth = document.getElementById('ws-search-depth').value;
+            if (!key) {
+                document.getElementById('ws-key-status').style.color = 'var(--accent-red)';
+                document.getElementById('ws-key-status').textContent = 'API key cannot be empty.';
+                return;
+            }
+            localStorage.setItem(STORAGE_WS_APIKEY, key);
+            localStorage.setItem(STORAGE_WS_MAXRES, maxR);
+            localStorage.setItem(STORAGE_WS_DEPTH, depth);
+            _webSearchEnabled = true;
+            localStorage.setItem(STORAGE_WS_KEY, 'true');
+            _wsInitUI();
+            closeWsSettings();
+            showToast('Web Search enabled ✓');
+        }
+        async function wsTestKey() {
+            const key = document.getElementById('ws-api-key-input').value.trim();
+            const statusEl = document.getElementById('ws-key-status');
+            if (!key) { statusEl.style.color='var(--accent-red)'; statusEl.textContent='Enter a key first.'; return; }
+            statusEl.style.color = 'var(--accent-blue)';
+            statusEl.textContent = 'Testing…';
+            try {
+                const r = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: key, query: 'test', max_results: 1, search_depth: 'basic' })
+                });
+                if (r.ok) {
+                    statusEl.style.color = 'var(--accent-green)';
+                    statusEl.textContent = '✓ Key is valid — ready to use!';
+                } else {
+                    const j = await r.json().catch(()=>({}));
+                    statusEl.style.color = 'var(--accent-red)';
+                    statusEl.textContent = 'Invalid key: ' + (j.detail || j.message || `HTTP ${r.status}`);
+                }
+            } catch(e) {
+                statusEl.style.color = 'var(--accent-red)';
+                statusEl.textContent = 'Network error: ' + e.message;
+            }
+        }
+
+        /* ── Core search function ── */
+        async function _wsSearch(query) {
+            const apiKey   = localStorage.getItem(STORAGE_WS_APIKEY);
+            const maxRes   = parseInt(localStorage.getItem(STORAGE_WS_MAXRES) || '5');
+            const depth    = localStorage.getItem(STORAGE_WS_DEPTH) || 'advanced';
+
+            const resp = await fetch('https://api.tavily.com/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    query,
+                    max_results: maxRes,
+                    search_depth: depth,
+                    include_answer: true,
+                    include_raw_content: false
+                })
+            });
+            if (!resp.ok) {
+                const j = await resp.json().catch(()=>({}));
+                throw new Error(j.detail || j.message || `Tavily API error: HTTP ${resp.status}`);
+            }
+            return resp.json();
+        }
+
+        /* Build the context string injected before the AI's system prompt */
+        function _wsFormatContext(query, data) {
+            _wsLastSources = (data.results || []).map(r => ({ title: r.title, url: r.url }));
+            let ctx = `## Web Search Results for: "${query}"\n`;
+            ctx += `*Search performed: ${new Date().toISOString().slice(0,19).replace('T',' ')} UTC*\n\n`;
+            if (data.answer) ctx += `**Quick Answer:** ${data.answer}\n\n`;
+            (data.results || []).forEach((r, i) => {
+                ctx += `### [${i+1}] ${r.title}\n`;
+                ctx += `Source: ${r.url}\n`;
+                ctx += `${r.content || ''}\n\n`;
+            });
+            return ctx;
+        }
+
+        /* Show a sources panel under the bot reply */
+        function _wsShowSources(botContent, sources) {
+            if (!sources || sources.length === 0) return;
+            const panel = document.createElement('div');
+            panel.className = 'ws-sources';
+            const items = sources.map((s, i) =>
+                `<div class="ws-source-item">
+                    <span class="ws-source-num">${i+1}</span>
+                    <span class="ws-source-title">${escapeHtml(s.title || s.url)}</span>
+                    <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">Open ↗</a>
+                </div>`
+            ).join('');
+            panel.innerHTML = `<div class="ws-sources-title">🌐 Web Sources (${sources.length})</div>${items}`;
+            botContent.appendChild(panel);
         }
 
         /** Called after a research reply is added to the DOM. Injects a view-switcher. */
@@ -2983,6 +3297,7 @@ ${html}
             loadSnippets();
             _autoAgentInitUI();
             _researchInitUI();
+            _wsInitUI();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
@@ -5607,10 +5922,49 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 HISTORY_WINDOW
             );
 
+            // ── Web Search injection ──────────────────────────────────
+            let wsContextBlock = '';
+            _wsLastSources = [];
+            const wsActive = _webSearchEnabled && _researchMode &&
+                             !!localStorage.getItem(STORAGE_WS_APIKEY);
+
+            if (wsActive) {
+                // Extract query from the last user message
+                const lastUser = [...outgoingMessages].reverse().find(m => m.role === 'user');
+                const rawQuery = typeof lastUser?.content === 'string'
+                    ? lastUser.content.replace(/---.*?---[\s\S]*/,'').trim().slice(0, 300)
+                    : '';
+
+                if (rawQuery) {
+                    // Show searching indicator
+                    const wsBtn = document.getElementById('websearch-btn');
+                    if (wsBtn) wsBtn.classList.add('searching');
+                    const chip = document.createElement('div');
+                    chip.className = 'ws-searching-chip';
+                    chip.innerHTML = `<span class="ws-chip-dot"></span>Searching the web for: <em>${escapeHtml(rawQuery.slice(0,60))}…</em>`;
+                    currentBotMessageDiv.parentElement.insertBefore(chip, currentBotMessageDiv);
+
+                    try {
+                        const wsData = await _wsSearch(rawQuery);
+                        wsContextBlock = _wsFormatContext(rawQuery, wsData);
+                        chip.remove();
+                    } catch (wsErr) {
+                        console.warn('Web search failed:', wsErr.message);
+                        chip.innerHTML = `<span class="ws-chip-dot"></span>Web search failed: ${escapeHtml(wsErr.message)} — continuing without search results`;
+                        setTimeout(() => chip.remove(), 4000);
+                    } finally {
+                        if (wsBtn) wsBtn.classList.remove('searching');
+                    }
+                }
+            }
+
             // Prepend the active system prompt (research or coder)
             const activeSystemPrompt = _researchMode ? RESEARCH_SYSTEM_PROMPT : SYSTEM_PROMPT;
+            const wsSystemAddition = wsContextBlock
+                ? `\n\n---\nThe following real-time web search results were retrieved for this query. Use them to supplement your knowledge, cite sources by number where relevant, and note when information is from the web vs your training data:\n\n${wsContextBlock}`
+                : '';
             const messagesWithSystem = [
-                { role: 'system', content: activeSystemPrompt },
+                { role: 'system', content: activeSystemPrompt + wsSystemAddition },
                 ...outgoingMessages.filter(m => m.role !== 'system')
             ];
 
@@ -5691,6 +6045,10 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                                 const bc = lastRow.querySelector('.bot-content');
                                 if (bc && !bc.querySelector('.research-toolbar')) {
                                     _addResearchToolbar(bc, fullResponseText);
+                                    // Show web sources if available
+                                    if (_wsLastSources.length > 0) {
+                                        _wsShowSources(bc, _wsLastSources);
+                                    }
                                 }
                             }
                         } catch(e) {
@@ -6034,7 +6392,8 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         // ESC closes modals
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                if (document.getElementById('gdoc-modal')?.style.display === 'flex') closeGdocModal();
+                if (document.getElementById('ws-settings-modal')?.style.display === 'flex') closeWsSettings();
+                else if (document.getElementById('gdoc-modal')?.style.display === 'flex') closeGdocModal();
                 else if (document.getElementById('research-modal').classList.contains('open')) closeResearchModal();
                 else if (document.getElementById('canvas-modal').classList.contains('open')) closeCanvas();
                 else if (document.getElementById('code-modal').classList.contains('open')) closeCodeModal();
