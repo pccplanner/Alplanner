@@ -4501,7 +4501,7 @@ Rewritten text:`;
                     _debateUpdateRoundBadge(round, 'writing');
 
                     try {
-                        currentText = await _debateRewrite(currentText, review.issues, writerModel);
+                        currentText = await _debateRewrite(currentText, review.issues, writerModel, round);
                         // Update bot message in DOM and chat context
                         const botMsg = botContent.querySelector('.bot-message');
                         if (botMsg) botMsg.innerHTML = safeMarkdownRender(currentText);
@@ -4524,7 +4524,44 @@ Rewritten text:`;
             }
         }
 
-        /* ── Reviewer: sends text to model, returns structured JSON ── */
+        /* ── Shared streaming collector for debate calls ──
+           Streams from Ollama, calls onChunk(text) each token,
+           returns the full accumulated string. Aborts after timeoutMs. */
+        async function _debateStreamCollect(messages, model, onChunk, timeoutMs = 120000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const resp = await fetch(VPS_OLLAMA_URL, {
+                    method: 'POST',
+                    headers: apiHeaders(),
+                    signal: controller.signal,
+                    body: JSON.stringify({ model: model || currentModel, stream: true, messages })
+                });
+                if (!resp.ok) throw new Error(`API HTTP ${resp.status}`);
+                const reader = resp.body.getReader();
+                const dec = new TextDecoder();
+                let full = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const lines = dec.decode(value, { stream: true }).split('\n');
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const j = JSON.parse(line);
+                            const tok = j?.message?.content || '';
+                            if (tok) { full += tok; onChunk(full); }
+                            if (j.done) return full;
+                        } catch (_) { /* partial line */ }
+                    }
+                }
+                return full;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        /* ── Reviewer: streams response, parses accumulated text as JSON ── */
         async function _debateReview(text, model) {
             const prompt = `You are a strict academic reviewer for university project papers. Evaluate the text below and return ONLY a valid JSON object — no markdown fences, no preamble, no text outside the JSON.
 
@@ -4548,32 +4585,19 @@ JSON FORMAT (return exactly this structure):
   ]
 }
 
-Scoring guide:
-- 85-100: Approve. Well-cited, original, strong arguments, clear structure.
-- 60-84: Reject. Some issues but fixable in one rewrite.
-- 0-59: Reject. Significant problems — missing citations, weak arguments, or plagiarism risk.
+Scoring: 85-100 Approve (well-cited, original, strong). 60-84 Reject (fixable). 0-59 Reject (major issues).
+Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON object:`;
 
-Set "approved": true ONLY if score >= 85.
-Focus your issues list on the most critical problems (max 6 issues).
-Return only the JSON object:`;
+            let raw = '';
+            await _debateStreamCollect(
+                [
+                    { role: 'system', content: 'You are an academic reviewer. Output ONLY valid JSON. No markdown fences. No text before or after the JSON.' },
+                    { role: 'user',   content: prompt }
+                ],
+                model, (acc) => { raw = acc; }, 90000
+            );
 
-            const resp = await fetch(VPS_OLLAMA_URL, {
-                method: 'POST',
-                headers: apiHeaders(),
-                body: JSON.stringify({
-                    model: model || currentModel,
-                    stream: false,
-                    messages: [
-                        { role: 'system', content: 'You are an academic reviewer. Output ONLY valid JSON. Never use markdown code fences. Never add text before or after the JSON.' },
-                        { role: 'user', content: prompt }
-                    ]
-                })
-            });
-            if (!resp.ok) throw new Error(`Reviewer API HTTP ${resp.status}`);
-            const data = await resp.json();
-            let raw = (data?.message?.content || '').trim()
-                .replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-
+            raw = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
             let result;
             try { result = JSON.parse(raw); }
             catch (_) {
@@ -4581,7 +4605,6 @@ Return only the JSON object:`;
                 if (!m) throw new Error('Reviewer returned invalid JSON. Try a different model.');
                 result = JSON.parse(m[0]);
             }
-
             result.score    = Math.min(100, Math.max(0, parseInt(result.score) || 50));
             result.approved = result.score >= 85 || result.approved === true;
             result.summary  = String(result.summary || '').slice(0, 200);
@@ -4589,8 +4612,8 @@ Return only the JSON object:`;
             return result;
         }
 
-        /* ── Writer: rewrites text addressing reviewer issues ── */
-        async function _debateRewrite(text, issues, model) {
+        /* ── Writer: streams rewrite with live char counter in round card ── */
+        async function _debateRewrite(text, issues, model, round) {
             const issueList = issues.map((iss, i) =>
                 `${i+1}. [${(iss.type||'issue').toUpperCase()}] ${iss.text||''}\n   FIX: ${iss.fix||''}`
             ).join('\n\n');
@@ -4615,132 +4638,148 @@ ${text}
 
 Improved text:`;
 
-            const resp = await fetch(VPS_OLLAMA_URL, {
-                method: 'POST',
-                headers: apiHeaders(),
-                body: JSON.stringify({
-                    model: model || currentModel,
-                    stream: false,
-                    messages: [
-                        { role: 'system', content: `${getActiveSystemPrompt()}\n\nYou are rewriting academic content to address reviewer feedback. Preserve all citations and the References section exactly. Return only the improved text.` },
-                        { role: 'user', content: prompt }
-                    ]
-                })
-            });
-            if (!resp.ok) throw new Error(`Writer API HTTP ${resp.status}`);
-            const data = await resp.json();
-            const out  = (data?.message?.content || '').trim();
-            if (!out) throw new Error('Writer returned empty rewrite');
-            return out;
-        }
+            // Live char counter in round card body
+            const body = document.getElementById(`debate-body-${round}`);
+            if (body) body.innerHTML = `<div id="debate-wp-${round}" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);padding:6px 2px;display:flex;align-items:center;gap:6px;"><span style="animation:pulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent-blue);flex-shrink:0;"></span>Writer rewriting... <span id="debate-chars-${round}" style="color:var(--accent-blue);font-weight:700;">0</span> chars</div>`;
 
+            let result = '';
+            await _debateStreamCollect(
+                [
+                    { role: 'system', content: `${getActiveSystemPrompt()}\n\nYou are rewriting academic content to address reviewer feedback. Preserve all citations and References section exactly. Return only the improved text.` },
+                    { role: 'user',   content: prompt }
+                ],
+                model,
+                (accumulated) => {
+                    result = accumulated;
+                    const el = document.getElementById(`debate-chars-${round}`);
+                    if (el) el.textContent = accumulated.length.toLocaleString();
+                },
+                180000
+            );
+
+            if (!result) throw new Error('Writer returned empty rewrite');
+            const prog = document.getElementById(`debate-wp-${round}`);
+            if (prog) prog.remove();
+            return result;
+        }
         /* ── Panel DOM builders ── */
 
-        function _debateBuildPanel(botContent) {
-            const writerModel   = getDebateWriterModel();
-            const reviewerModel = getDebateReviewerModel();
+        function _plagBuildPanel(botContent) {
             const panel = document.createElement('div');
-            panel.className = 'debate-panel';
+            panel.className = 'plag-panel';
             panel.innerHTML = `
-                <div class="debate-header">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    <span class="debate-title">Debate Agent</span>
-                    <span class="debate-status-dot reviewing"></span>
-                    <span class="debate-status-text">Initialising...</span>
-                    <button class="debate-close-btn" onclick="this.closest('.debate-panel').remove()">✕</button>
+                <div class="plag-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span class="plag-title">Plagiarism Check</span>
+                    <span class="plag-status-dot scanning"></span>
+                    <span class="plag-status-text">Initialising...</span>
+                    <button class="plag-close-btn" onclick="this.closest('.plag-panel').remove()">✕</button>
                 </div>
-                <div class="debate-models-row">
-                    <span class="debate-model-badge writer">
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
-                        ✍️ ${escapeHtml(_debateShortName(writerModel))}
-                    </span>
-                    <span class="debate-vs">VS</span>
-                    <span class="debate-model-badge reviewer">
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        🔍 ${escapeHtml(_debateShortName(reviewerModel))}
-                    </span>
-                    <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);margin-left:auto;">Max ${DEBATE_MAX_ROUNDS} rounds · Approve ≥ 85/100</span>
+                <div class="plag-score-row">
+                    <div class="plag-score-ring">
+                        <svg viewBox="0 0 36 36" class="plag-ring-svg">
+                            <circle class="plag-ring-bg"   cx="18" cy="18" r="15.9"/>
+                            <circle class="plag-ring-fill" cx="18" cy="18" r="15.9" stroke-dashoffset="25"/>
+                        </svg>
+                        <span class="plag-score-num">—</span>
+                    </div>
+                    <div class="plag-score-meta">
+                        <div class="plag-score-label">Analysing text...</div>
+                        <div class="plag-threshold-note">Threshold: ≤ ${getPlagThreshold()}%  ·  Max ${PLAG_MAX_ITER} iterations</div>
+                    </div>
                 </div>
-                <div class="debate-feed" id="debate-feed-${Date.now()}"></div>`;
+                <div class="plag-iter-feed"></div>`;
             botContent.appendChild(panel);
             return panel;
         }
 
-        function _debateSetStatus(panel, state, text) {
-            const dot = panel.querySelector('.debate-status-dot');
-            const txt = panel.querySelector('.debate-status-text');
-            if (dot) dot.className = `debate-status-dot ${state}`;
+        function _plagPanelSetStatus(panel, state, text) {
+            const dot = panel.querySelector('.plag-status-dot');
+            const txt = panel.querySelector('.plag-status-text');
+            if (dot) dot.className = `plag-status-dot ${state}`;
             if (txt) txt.textContent = text;
         }
 
-        function _debateAddRoundCard(panel, round) {
-            const feed = panel.querySelector('.debate-feed');
+        function _plagPanelSetScore(panel, score) {
+            const num   = panel.querySelector('.plag-score-num');
+            const fill  = panel.querySelector('.plag-ring-fill');
+            const label = panel.querySelector('.plag-score-label');
+            const thresh = getPlagThreshold();
+            const color  = score <= thresh ? '#81c995' : score <= 35 ? '#fdd663' : '#f28b82';
+            const tag    = score <= thresh ? '✓ Within Threshold'
+                         : score <= 35     ? '⚠ Medium Risk — Rewriting'
+                         :                   '✗ High Risk — Rewriting';
+            if (num)   { num.textContent = score + '%'; num.style.color = color; }
+            if (fill)  { fill.style.stroke = color; fill.setAttribute('stroke-dasharray', `${score} ${100-score}`); }
+            if (label) { label.textContent = tag; label.style.color = color; }
+        }
+
+        function _plagAddIterCard(panel, iter) {
+            const feed = panel.querySelector('.plag-iter-feed');
             if (!feed) return;
             const card = document.createElement('div');
-            card.className = 'debate-round-card open';
-            card.id = `debate-card-${round}`;
+            card.className = 'plag-iter-card open';
+            card.id = `plag-card-${iter}`;
             card.innerHTML = `
-                <div class="debate-round-header" onclick="this.closest('.debate-round-card').classList.toggle('open')">
-                    <span class="debate-round-badge reviewing" id="debate-badge-${round}">${round}</span>
-                    <span class="debate-round-title" id="debate-title-${round}">Reviewing...</span>
-                    <span class="debate-round-score" id="debate-score-${round}" style="color:var(--text-muted);">—/100</span>
-                    <span class="debate-round-chevron">›</span>
+                <div class="plag-iter-header" onclick="this.closest('.plag-iter-card').classList.toggle('open')">
+                    <span class="plag-iter-badge running">${iter}</span>
+                    <span class="plag-iter-title" id="plag-title-${iter}">Analysing...</span>
+                    <span class="plag-iter-chevron">›</span>
                 </div>
-                <div class="debate-round-body" id="debate-body-${round}"></div>`;
+                <div class="plag-iter-body" id="plag-body-${iter}"></div>`;
             feed.appendChild(card);
+            feed.scrollTop = feed.scrollHeight;
         }
 
-        function _debateUpdateRoundBadge(round, state) {
-            const badge = document.getElementById(`debate-badge-${round}`);
-            if (badge) badge.className = `debate-round-badge ${state}`;
-        }
-
-        function _debateUpdateRoundCard(round, state, title, score, summary, issues, scoreColor) {
-            _debateUpdateRoundBadge(round, state);
-            const titleEl = document.getElementById(`debate-title-${round}`);
-            const scoreEl = document.getElementById(`debate-score-${round}`);
-            const body    = document.getElementById(`debate-body-${round}`);
+        function _plagUpdateIterCard(panel, iter, state, title, summary, flagged) {
+            const card  = document.getElementById(`plag-card-${iter}`);
+            const badge = card?.querySelector('.plag-iter-badge');
+            const titleEl = document.getElementById(`plag-title-${iter}`);
+            const body    = document.getElementById(`plag-body-${iter}`);
+            if (badge)   badge.className = `plag-iter-badge ${state}`;
             if (titleEl) titleEl.textContent = title;
-            if (scoreEl) { scoreEl.textContent = `${score}/100`; scoreEl.style.color = scoreColor || 'var(--text-muted)'; }
             if (!body)   return;
 
-            const issueHtml = (issues && issues.length > 0)
-                ? `<div class="debate-issue-list">${issues.map(iss => `
-                    <div class="debate-issue-item ${iss.severity||'medium'}">
-                        <span class="debate-issue-tag ${iss.type||'clarity'}">${(iss.type||'note').slice(0,6)}</span>
-                        <div class="debate-issue-content">
-                            <div class="debate-issue-text">${escapeHtml((iss.text||'').slice(0,160))}</div>
-                            ${iss.fix ? `<div class="debate-issue-fix">→ ${escapeHtml(iss.fix)}</div>` : ''}
+            const flagHtml = (flagged && flagged.length > 0)
+                ? `<div class="plag-flag-list">${flagged.map(f => `
+                    <div class="plag-flag-item ${f.risk||'medium'}">
+                        <span class="plag-flag-risk ${f.risk||'medium'}">${(f.risk||'MED').toUpperCase().slice(0,4)}</span>
+                        <div class="plag-flag-content">
+                            <div class="plag-flag-orig">"${escapeHtml((f.sentence||'').slice(0,120))}"</div>
+                            <div class="plag-flag-reason">${escapeHtml(f.reason||'')}</div>
+                            ${f.rewrite ? `<div class="plag-flag-rewrite">→ ${escapeHtml(f.rewrite)}</div>` : ''}
                         </div>
                     </div>`).join('')}</div>`
                 : '';
 
-            body.innerHTML = `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;">${escapeHtml(summary||'')}</div>${issueHtml}`;
+            body.innerHTML = `<div class="plag-iter-summary">${escapeHtml(summary||'')}</div>${flagHtml}`;
         }
 
-        function _debateShowVerdict(panel, type, text) {
-            const feed = panel.querySelector('.debate-feed');
-            if (!feed) return;
-            const v = document.createElement('div');
-            v.className = `debate-verdict ${type}`;
-            v.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${type==='approved'?'<polyline points="20 6 9 17 4 12"/>':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg>${escapeHtml(text)}`;
-            feed.after(v);
-        }
-
-        function _debateMarkBtn(botContent, state) {
-            const btn = botContent.querySelector('.debate-check-btn');
+        function _plagMarkToolbarBtn(botContent, result, score) {
+            const btn = botContent.querySelector('.plag-check-btn');
             if (!btn) return;
-            btn.classList.remove('running', 'approved', 'maxed');
-            btn.classList.add(state);
-            btn.innerHTML = state === 'approved'
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ✓ Approved`
-                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ⚠ Re-debate`;
+            btn.classList.remove('running', 'passed', 'failed');
+            btn.classList.add(result);
+            btn.innerHTML = result === 'passed'
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ✓ ${score}% — Passed`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ⚠ ${score}% — Re-check`;
         }
 
-        function _debateShortName(modelId) {
-            if (!modelId) return 'current';
-            return (AVAILABLE_MODELS[modelId] || modelId).split(':')[0].slice(0, 18);
-        }
+        /* ============================================================
+           Debate / Challenger Agent
+           Pattern 1: Writer generates → Reviewer critiques →
+           Writer rewrites → loop until approved or max rounds.
+           ============================================================ */
+        const DEBATE_MAX_ROUNDS   = 3;
+        const STORAGE_DEBATE_WRITER   = 'aiproxy_debate_writer_model';
+        const STORAGE_DEBATE_REVIEWER = 'aiproxy_debate_reviewer_model';
+
+        let _debateRunning = false;
+
+        function getDebateWriterModel()   { return localStorage.getItem(STORAGE_DEBATE_WRITER)   || currentModel; }
+        function getDebateReviewerModel() { return localStorage.getItem(STORAGE_DEBATE_REVIEWER) || currentModel; }
+
+        /* Populate model dropdowns in Agent Settings from AVAILABLE_MODELS */
 
         /* ============================================================
            Boot
