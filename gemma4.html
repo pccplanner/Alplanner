@@ -7549,7 +7549,13 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 }
 
                 // Plagiarism agent + Debate agent: auto-run in University mode
-                if (_researchMode && localStorage.getItem(STORAGE_AGENT_PRESET_KEY) === 'university') {
+                // Only fires on a COMPLETE reply — never on interrupted/partial responses
+                const _replyIsComplete = fullResponseText.trim() &&
+                    !fullResponseText.includes('-- connection interrupted --') &&
+                    !fullResponseText.includes('-- stopped by user --');
+
+                if (_researchMode && _replyIsComplete &&
+                    localStorage.getItem(STORAGE_AGENT_PRESET_KEY) === 'university') {
                     // Reset stuck flags from any previous failed run
                     _debateRunning = false;
                     _plagRunning   = false;
@@ -7593,7 +7599,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
                         // Clear running state from toolbar buttons
                         toolbarBtns.forEach(b => b.classList.remove('running'));
-                    }, 1800); // slightly longer delay — gives DOM time to settle on mobile
+                    }, 1800);
                 }
 
             } catch (error) {
@@ -7787,12 +7793,22 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
             const notice = document.createElement('div');
             notice.className = 'interrupted-notice';
+
+            // In University + Research mode, also show a "Run Agents" button
+            const isUniversityMode = _researchMode &&
+                localStorage.getItem(STORAGE_AGENT_PRESET_KEY) === 'university';
+            const agentBtn = hasPartial && isUniversityMode
+                ? '<button class="resume-btn" style="background:rgba(253,214,99,0.15);border-color:rgba(253,214,99,0.4);color:var(--accent-yellow);" onclick="_runAgentsOnPartial(this)">' +
+                  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
+                  'Run Agents on Partial</button>'
+                : '';
+
             notice.innerHTML =
                 '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
                 '<span>' + (hasPartial ? 'Connection interrupted (phone call?) -- partial reply shown above.' : 'Connection interrupted before reply started (phone call?).') + '</span>' +
                 '<button class="resume-btn" onclick="resumeInterruptedStream(this)">' +
                 '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' +
-                'Resume</button>';
+                'Resume</button>' + agentBtn;
             content.appendChild(notice);
 
             const actions = document.createElement('div');
@@ -7802,6 +7818,38 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             row.appendChild(content);
             document.getElementById('chat-container').appendChild(row);
             requestAutoScroll(true);
+        }
+
+        /* Run Debate + Plagiarism agents on a partial/interrupted reply */
+        async function _runAgentsOnPartial(btn) {
+            const botContent = btn.closest('.bot-content');
+            if (!botContent) return;
+            let text = '';
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') { text = chatContext[i].content; break; }
+            }
+            // Strip the interruption marker
+            text = text.replace(/\n\n\*-- connection interrupted --\*/, '').trim();
+            if (!text) { showToast('No content to process'); return; }
+
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            _debateRunning = false;
+            _plagRunning   = false;
+
+            try {
+                await _debateRun(text, botContent);
+                let finalText = text;
+                for (let i = chatContext.length - 1; i >= 0; i--) {
+                    if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
+                }
+                await _plagRun(finalText, botContent);
+                btn.style.display = 'none';
+            } catch (e) {
+                btn.disabled = false;
+                btn.textContent = 'Run Agents on Partial';
+                showToast('Agent error: ' + e.message);
+            }
         }
 
         function resumeInterruptedStream(btn) {
