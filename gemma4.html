@@ -2385,16 +2385,16 @@ Rules:
             if (slider) { slider.value = savedIter; }
             if (countEl) { countEl.textContent = savedIter; }
 
-            // Populate textarea
+            // Populate textarea — always editable
             const ta = document.getElementById('agent-system-prompt-input');
             const preset = localStorage.getItem(STORAGE_AGENT_PRESET_KEY) || 'coder';
             if (ta) {
-                const savedCustom = localStorage.getItem(STORAGE_AGENT_PROMPT_KEY) || '';
                 if (preset === 'custom') {
-                    ta.value = savedCustom || '';
+                    ta.value = localStorage.getItem(STORAGE_AGENT_PROMPT_KEY) || '';
                 } else {
                     ta.value = AGENT_PRESETS[preset]?.prompt || '';
                 }
+                ta.readOnly = false;
                 document.getElementById('as-char-count').textContent = ta.value.length + ' chars';
             }
 
@@ -2402,6 +2402,8 @@ Rules:
             _refreshPresetButtons(preset);
 
             modal.style.display = 'flex';
+            // Auto-focus the textarea after a brief delay so keyboard appears
+            setTimeout(() => { if (ta) ta.focus(); }, 150);
         }
 
         function closeAgentSettings() {
@@ -2414,16 +2416,15 @@ Rules:
             document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Fill textarea with preset prompt
+            // Fill textarea with preset prompt — always editable
             const ta = document.getElementById('agent-system-prompt-input');
             if (ta) {
                 const prompt = presetKey === 'custom'
                     ? (localStorage.getItem(STORAGE_AGENT_PROMPT_KEY) || '')
                     : (AGENT_PRESETS[presetKey]?.prompt || '');
                 ta.value = prompt;
+                ta.readOnly = false;
                 document.getElementById('as-char-count').textContent = ta.value.length + ' chars';
-                // For custom: allow the user to type freely
-                ta.readOnly = (presetKey !== 'custom');
             }
         }
 
@@ -2431,31 +2432,43 @@ Rules:
             document.querySelectorAll('.preset-btn').forEach(b => {
                 b.classList.toggle('active', b.dataset.preset === activePreset);
             });
+            // Textarea is always editable
             const ta = document.getElementById('agent-system-prompt-input');
-            if (ta) ta.readOnly = (activePreset !== 'custom');
+            if (ta) ta.readOnly = false;
         }
 
         function saveAgentSettings() {
-            // Determine active preset
+            // Determine active preset button
             const activeBtn = document.querySelector('.preset-btn.active');
-            const preset = activeBtn ? activeBtn.dataset.preset : 'coder';
-            localStorage.setItem(STORAGE_AGENT_PRESET_KEY, preset);
+            let preset = activeBtn ? activeBtn.dataset.preset : 'coder';
 
-            // Save custom prompt if in custom mode
+            // If the user edited the text and it no longer matches the preset, save as custom
+            const ta = document.getElementById('agent-system-prompt-input');
+            const currentText = ta ? ta.value.trim() : '';
+            const presetText  = (AGENT_PRESETS[preset]?.prompt || '').trim();
+
+            if (preset !== 'custom' && currentText !== presetText) {
+                // User modified a preset — store it as custom
+                preset = 'custom';
+                // Visually update the preset buttons
+                document.querySelectorAll('.preset-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.preset === 'custom');
+                });
+            }
+
+            localStorage.setItem(STORAGE_AGENT_PRESET_KEY, preset);
             if (preset === 'custom') {
-                const ta = document.getElementById('agent-system-prompt-input');
-                localStorage.setItem(STORAGE_AGENT_PROMPT_KEY, ta ? ta.value.trim() : '');
+                localStorage.setItem(STORAGE_AGENT_PROMPT_KEY, currentText);
             }
 
             // Save iterations
             const slider = document.getElementById('iter-slider');
-            if (slider) {
-                localStorage.setItem(STORAGE_AGENT_ITER_KEY, slider.value);
-            }
+            if (slider) localStorage.setItem(STORAGE_AGENT_ITER_KEY, slider.value);
 
             _agentSettingsUpdateModeChip();
             closeAgentSettings();
-            showToast(`Agent settings saved — ${AGENT_PRESETS[preset]?.label || 'Custom'} mode, ${getAgentMaxIter()} max iterations`);
+            const modeLabel = preset === 'custom' ? 'Custom' : (AGENT_PRESETS[preset]?.label || preset);
+            showToast(`Agent: ${modeLabel} mode · ${getAgentMaxIter()} max iterations`);
         }
 
         function resetAgentSettings() {
@@ -2471,8 +2484,8 @@ Rules:
             const ta = document.getElementById('agent-system-prompt-input');
             if (ta) {
                 ta.value = AGENT_PRESETS.coder.prompt;
+                ta.readOnly = false;
                 document.getElementById('as-char-count').textContent = ta.value.length + ' chars';
-                ta.readOnly = true;
             }
 
             _refreshPresetButtons('coder');
@@ -6791,7 +6804,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             <p class="iter-hint">Higher values allow the agent to attempt more fix cycles on stubborn bugs. 3–5 is recommended for most tasks; 7–10 for complex structural issues.</p>
 
             <!-- System prompt -->
-            <span class="as-section-label">System Prompt</span>
+            <span class="as-section-label">System Prompt <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent-blue);">— always editable, presets load a starting template</span></span>
             <textarea id="agent-system-prompt-input"
                 placeholder="Enter custom system prompt..."
                 oninput="document.getElementById('as-char-count').textContent=this.value.length+' chars'"></textarea>
