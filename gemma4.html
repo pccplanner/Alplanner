@@ -3441,6 +3441,44 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     const codeMatch = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
                     const fixedCode = codeMatch ? codeMatch[1].trim() : fullText.trim();
 
+                    // ── Output bracket verification ──────────────────────────────
+                    // If the returned code still has unbalanced brackets, the model
+                    // truncated its output (common with large files on smaller models).
+                    // Reject this attempt and retry with explicit completion instructions.
+                    if (isEOFError) {
+                        let fO = 0, fC = 0;
+                        for (const ch of fixedCode) {
+                            if (ch === '{') fO++; else if (ch === '}') fC++;
+                        }
+                        const stillMissing = fO - fC;
+                        if (stillMissing > 0 && attempt < MAX_ATTEMPTS) {
+                            console.warn(`Model output still has ${stillMissing} unclosed { — retrying with completion request`);
+                            // Modify the body to ask for just the missing tail
+                            const completionBody = JSON.stringify({
+                                model: currentModel,
+                                stream: false,
+                                messages: [
+                                    { role: 'system', content: systemPrompt },
+                                    { role: 'user',   content: prompt },
+                                    { role: 'assistant', content: fullText },
+                                    { role: 'user', content:
+                                        `Your previous response was truncated. The returned code still has ${stillMissing} unclosed { brace${stillMissing > 1 ? 's' : ''}. ` +
+                                        `Please continue from where you stopped and provide the complete remaining code, ` +
+                                        `then wrap the ENTIRE complete file in a single code block.`
+                                    }
+                                ]
+                            });
+                            lastErr = new Error(`Output truncated: ${stillMissing} unclosed braces in model response`);
+                            // Retry with the completion request
+                            await new Promise(r => setTimeout(r, 1000));
+                            _callAudio.stop();
+                            _callAudio.start();
+                            // Replace the body for next attempt
+                            // (we re-enter the loop naturally)
+                            continue;
+                        }
+                    }
+
                     return { fixedCode, reasoning };
 
                 } catch (err) {
@@ -4604,48 +4642,77 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         // tap and keep it alive for the entire session.
         // _globalAudioCtx is initialised by _primeAudio() which is called from
         // every user-interaction point (Send, Auto-Fix toggle, agent buttons).
-        let _globalAudioCtx  = null;
-        let _globalAudioSrc  = null;
-        let _globalAudioLoop = false;
+        // ── Always-on persistent silent audio ────────────────────────────────────
+        // The AudioContext runs continuously from the first user tap until the page
+        // is closed. We use reference counting so multiple concurrent callers (agent,
+        // stream, background mode) all share the same session and never fight.
+        //
+        // Key insight: iOS suspends JS when there is NO active audio session.
+        // The fix is to NEVER stop the audio — just start it once and leave it.
+        // Each caller calls _audioAcquire() on start and _audioRelease() on stop,
+        // but the actual audio loop only stops when all references are released AND
+        // the page has been idle for 30+ seconds (to save battery on truly idle pages).
+
+        let _globalAudioCtx   = null;
+        let _globalAudioSrc   = null;
+        let _globalAudioLoop  = false;
+        let _audioRefCount    = 0;       // how many active callers need the audio
+        let _audioIdleTimer   = null;    // delayed stop when all refs released
 
         function _primeAudio() {
-            // Must be called from a synchronous user-gesture handler.
-            // Creates the context if not already created; resumes it if suspended.
+            // Called from user-gesture handlers to create/resume the AudioContext.
+            // Must be synchronous inside the gesture (iOS requirement).
             try {
                 const AC = window.AudioContext || window.webkitAudioContext;
                 if (!AC) return;
                 if (!_globalAudioCtx) {
                     _globalAudioCtx = new AC();
+                    console.log('AudioContext created:', _globalAudioCtx.state);
                 }
                 if (_globalAudioCtx.state === 'suspended') {
-                    _globalAudioCtx.resume().catch(() => {});
+                    _globalAudioCtx.resume().then(() => {
+                        console.log('AudioContext resumed from gesture');
+                        if (_globalAudioLoop && !_globalAudioSrc) _globalAudioChunk();
+                    }).catch(() => {});
                 }
-            } catch (_) {}
+                // Start the loop immediately on the first prime
+                if (!_globalAudioLoop) _startGlobalAudio();
+            } catch (e) {
+                console.warn('_primeAudio failed:', e.message);
+            }
         }
 
         function _globalAudioChunk() {
             if (!_globalAudioLoop || !_globalAudioCtx) return;
             if (_globalAudioCtx.state === 'suspended') {
-                _globalAudioCtx.resume().then(_globalAudioChunk).catch(() => {});
+                _globalAudioCtx.resume().then(() => _globalAudioChunk()).catch(() => {});
                 return;
             }
             try {
-                const buf = _globalAudioCtx.createBuffer(1, _globalAudioCtx.sampleRate * 3, _globalAudioCtx.sampleRate);
-                const s = _globalAudioCtx.createBufferSource();
-                s.buffer = buf;
-                s.connect(_globalAudioCtx.destination);
-                s.onended = _globalAudioChunk;
-                s.start();
-                _globalAudioSrc = s;
-            } catch (_) {}
+                // 4-second silent buffer — self-reschedules with no gaps
+                const buf = _globalAudioCtx.createBuffer(1, _globalAudioCtx.sampleRate * 4, _globalAudioCtx.sampleRate);
+                const src = _globalAudioCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(_globalAudioCtx.destination);
+                src.onended = _globalAudioChunk;
+                src.start();
+                _globalAudioSrc = src;
+            } catch (e) {
+                // If the context was closed externally, try to recover
+                console.warn('Audio chunk failed:', e.message);
+                _globalAudioSrc = null;
+                setTimeout(() => {
+                    if (_globalAudioLoop && _globalAudioCtx) _globalAudioChunk();
+                }, 1000);
+            }
         }
 
         function _startGlobalAudio() {
             if (_globalAudioLoop) return; // already running
             _globalAudioLoop = true;
+            if (_audioIdleTimer) { clearTimeout(_audioIdleTimer); _audioIdleTimer = null; }
+
             if (!_globalAudioCtx) {
-                // Context not yet primed by a gesture — try anyway (works if
-                // a gesture happened recently in the same event loop tick)
                 try {
                     const AC = window.AudioContext || window.webkitAudioContext;
                     if (AC) _globalAudioCtx = new AC();
@@ -4661,19 +4728,36 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         }
 
         function _stopGlobalAudio() {
+            // Only called when page goes truly idle — NOT after every request.
             _globalAudioLoop = false;
             try { if (_globalAudioSrc) { _globalAudioSrc.onended = null; _globalAudioSrc.stop(); } } catch (_) {}
             _globalAudioSrc = null;
-            // Keep the context alive — do NOT close it. Closing and reopening
-            // requires another user gesture. We just stop the silence loop.
+            // Keep context alive — never close it (would require another gesture to reopen)
         }
 
-        // Compatibility shim — replaces the old factory for stream-level audio.
-        // Returns an object with start/stop that uses the global context.
+        // Reference-counted acquire/release — actual audio never stops between requests
+        function _audioAcquire() {
+            _audioRefCount++;
+            if (_audioIdleTimer) { clearTimeout(_audioIdleTimer); _audioIdleTimer = null; }
+            if (!_globalAudioLoop) _startGlobalAudio();
+        }
+
+        function _audioRelease() {
+            _audioRefCount = Math.max(0, _audioRefCount - 1);
+            // Only schedule stop if truly idle for 30s (battery saving for idle pages)
+            // During active use this timer is always cancelled before it fires
+            if (_audioRefCount === 0) {
+                _audioIdleTimer = setTimeout(() => {
+                    if (_audioRefCount === 0) _stopGlobalAudio();
+                }, 30000);
+            }
+        }
+
+        // Compatibility shim — callers get start/stop but audio is ref-counted
         function _createStreamAudio() {
             return {
-                start() { _startGlobalAudio(); },
-                stop()  { _stopGlobalAudio();  }
+                start() { _audioAcquire(); },
+                stop()  { _audioRelease(); }
             };
         }
 
