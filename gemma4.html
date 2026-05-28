@@ -3053,87 +3053,83 @@ Rules:
         function _renderAnalysis(el, text) {
             if (!text) { el.textContent = ''; return; }
 
-            // Try to parse structured sections from the <analysis> block or
-            // from "ROOT CAUSE:" / "MECHANISM:" / "FIX:" inline labels.
+            // Section definitions — each has ONE exact label string (no aliases that
+            // are substrings of each other, which caused duplicate headings).
+            // The regex matches the label followed by an optional colon and whitespace.
             const SECTIONS = [
-                { key: 'ROOT CAUSE', cls: 'root',  aliases: ['ROOT CAUSE', 'ROOT:', 'CAUSE'] },
-                { key: 'MECHANISM',  cls: 'mech',  aliases: ['MECHANISM', 'HOW IT FAILS', 'MECHANISM:'] },
-                { key: 'FIX',        cls: 'fix',   aliases: ['FIX', 'FIX STRATEGY', 'FIX:'] },
+                { label: 'ROOT CAUSE',   cls: 'root' },
+                { label: 'MECHANISM',    cls: 'mech' },
+                { label: 'FIX STRATEGY', cls: 'fix'  },
+                { label: 'HOW IT FAILS', cls: 'mech' },
+                { label: 'FIX',          cls: 'fix'  },  // must be last so FIX STRATEGY matches first
             ];
 
-            // Check if any section labels are present
-            const hasStructure = SECTIONS.some(s =>
-                s.aliases.some(a => text.toUpperCase().includes(a + ':') || text.toUpperCase().includes(a + '\n'))
+            // Build one regex that splits the text on any section marker.
+            // Pattern: newline or start + LABEL + optional colon + whitespace
+            // We use a capturing split so we keep the matched label in the result.
+            const labelPattern = SECTIONS.map(s => s.label.replace(/ /g, '\\s+')).join('|');
+            const splitRe = new RegExp(
+                `(?:^|\\n)[ \\t]*(${labelPattern})\\b:?[ \\t]*(?:\\n|(?=\\S))`,
+                'gi'
             );
 
-            if (!hasStructure) {
-                // Plain mode — just show as pre-wrap text
+            // Check if any structured section is present
+            if (!splitRe.test(text)) {
                 el.className = 'ac-thinking plain-mode';
                 el.textContent = text;
                 return;
             }
+            splitRe.lastIndex = 0; // reset after test()
 
             el.className = 'ac-thinking';
             el.innerHTML = '';
 
-            // Split by section labels
-            let remaining = text;
-            let lastEnd = 0;
-            const found = [];
-
-            SECTIONS.forEach(sec => {
-                sec.aliases.forEach(alias => {
-                    const re = new RegExp(`${alias}:?\\s*`, 'i');
-                    const m = remaining.match(re);
-                    if (m) {
-                        const start = remaining.indexOf(m[0]);
-                        found.push({ start, label: sec.key, cls: sec.cls, match: m[0] });
-                    }
-                });
-            });
-
-            if (found.length === 0) {
-                el.className = 'ac-thinking plain-mode';
-                el.textContent = text;
-                return;
+            // Find all section positions using exec()
+            const markers = [];
+            let m;
+            while ((m = splitRe.exec(text)) !== null) {
+                const labelRaw = m[1].replace(/\s+/g, ' ').toUpperCase().trim();
+                const sec = SECTIONS.find(s =>
+                    s.label === labelRaw || labelRaw.startsWith(s.label)
+                ) || { label: labelRaw, cls: 'plain' };
+                markers.push({ index: m.index, length: m[0].length, sec });
             }
 
-            // Sort by position
-            found.sort((a, b) => a.start - b.start);
+            // Render preamble (text before first section)
+            const preamble = text.slice(0, markers.length ? markers[0].index : text.length).trim();
+            if (preamble) {
+                const div = document.createElement('div');
+                div.className = 'ac-section';
+                const body = document.createElement('div');
+                body.className = 'ac-section-body';
+                body.textContent = preamble;
+                div.appendChild(body);
+                el.appendChild(div);
+            }
 
             // Render each section
-            found.forEach((sec, i) => {
-                const bodyStart = sec.start + sec.match.length;
-                const bodyEnd = i + 1 < found.length ? found[i + 1].start : remaining.length;
-                const body = remaining.slice(bodyStart, bodyEnd).trim();
+            markers.forEach((marker, i) => {
+                const contentStart = marker.index + marker.length;
+                const contentEnd = i + 1 < markers.length ? markers[i + 1].index : text.length;
+                const content = text.slice(contentStart, contentEnd).trim();
 
                 const div = document.createElement('div');
                 div.className = 'ac-section';
 
-                const label = document.createElement('span');
-                label.className = `ac-section-label ${sec.cls}`;
-                label.textContent = sec.label;
-                div.appendChild(label);
+                const lbl = document.createElement('span');
+                lbl.className = `ac-section-label ${marker.sec.cls}`;
+                lbl.textContent = marker.sec.label;
+                div.appendChild(lbl);
 
-                const bodyEl = document.createElement('div');
-                bodyEl.className = 'ac-section-body';
-                bodyEl.textContent = body;
-                div.appendChild(bodyEl);
+                if (content) {
+                    const body = document.createElement('div');
+                    body.className = 'ac-section-body';
+                    body.textContent = content;
+                    div.appendChild(body);
+                }
 
                 el.appendChild(div);
             });
-
-            // Show any text before the first section as a preamble
-            const preamble = remaining.slice(0, found[0].start).trim();
-            if (preamble) {
-                const pre = document.createElement('div');
-                pre.className = 'ac-section';
-                const preBody = document.createElement('div');
-                preBody.className = 'ac-section-body';
-                preBody.textContent = preamble;
-                pre.appendChild(preBody);
-                el.insertBefore(pre, el.firstChild);
-            }
         }
 
         function _agentUpdateCard(iter, { badge, title, subtitle, thinking, diff, result, resultClass }) {
