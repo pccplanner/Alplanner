@@ -846,13 +846,32 @@
         .agent-card-body { display: none; padding: 12px 14px; }
         .agent-card.open .agent-card-body { display: block; }
 
-        /* Thinking block — scrollable if long */
+        /* Thinking block — structured root-cause analysis */
         .ac-thinking {
             font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
-            background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px;
-            margin-bottom: 10px; white-space: pre-wrap; word-break: break-word;
-            border-left: 2px solid var(--border-color); line-height: 1.55;
-            max-height: 140px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            background: rgba(0,0,0,0.25); border-radius: 8px; padding: 0;
+            margin-bottom: 10px; word-break: break-word;
+            border-left: 2px solid var(--border-color); line-height: 1.6;
+            max-height: 240px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .ac-thinking .ac-section {
+            padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .ac-thinking .ac-section:last-child { border-bottom: none; }
+        .ac-thinking .ac-section-label {
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; margin-bottom: 4px; display: block;
+        }
+        .ac-thinking .ac-section-label.root  { color: var(--accent-red); }
+        .ac-thinking .ac-section-label.mech  { color: var(--accent-yellow); }
+        .ac-thinking .ac-section-label.fix   { color: var(--accent-green); }
+        .ac-thinking .ac-section-label.plain { color: var(--accent-blue); }
+        .ac-thinking .ac-section-body {
+            white-space: pre-wrap; color: var(--text-secondary);
+        }
+        /* Plain pre-wrap fallback for non-structured thinking */
+        .ac-thinking.plain-mode {
+            padding: 10px 12px; white-space: pre-wrap;
         }
 
         /* Diff block — capped at 260px, scrollable, expandable */
@@ -978,13 +997,6 @@
         .agent-card-body { display: none; padding: 12px 14px; }
         .agent-card.open .agent-card-body { display: block; }
 
-        /* Thinking / reasoning block */
-        .ac-thinking {
-            font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
-            background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px;
-            margin-bottom: 10px; white-space: pre-wrap; word-break: break-word;
-            border-left: 2px solid var(--border-color); line-height: 1.55;
-        }
         /* Diff block */
         .ac-diff {
             font-family: var(--font-mono); font-size: 0.78rem; border-radius: 8px;
@@ -2982,6 +2994,98 @@ Rules:
             return card;
         }
 
+        /**
+         * Render the model's structured analysis into the thinking block.
+         * Parses ROOT CAUSE / MECHANISM / FIX sections and applies colour-coded
+         * labels — the same visual style as the reasoning shown in the screenshot.
+         * Falls back to plain pre-wrap text if no structure is detected.
+         */
+        function _renderAnalysis(el, text) {
+            if (!text) { el.textContent = ''; return; }
+
+            // Try to parse structured sections from the <analysis> block or
+            // from "ROOT CAUSE:" / "MECHANISM:" / "FIX:" inline labels.
+            const SECTIONS = [
+                { key: 'ROOT CAUSE', cls: 'root',  aliases: ['ROOT CAUSE', 'ROOT:', 'CAUSE'] },
+                { key: 'MECHANISM',  cls: 'mech',  aliases: ['MECHANISM', 'HOW IT FAILS', 'MECHANISM:'] },
+                { key: 'FIX',        cls: 'fix',   aliases: ['FIX', 'FIX STRATEGY', 'FIX:'] },
+            ];
+
+            // Check if any section labels are present
+            const hasStructure = SECTIONS.some(s =>
+                s.aliases.some(a => text.toUpperCase().includes(a + ':') || text.toUpperCase().includes(a + '\n'))
+            );
+
+            if (!hasStructure) {
+                // Plain mode — just show as pre-wrap text
+                el.className = 'ac-thinking plain-mode';
+                el.textContent = text;
+                return;
+            }
+
+            el.className = 'ac-thinking';
+            el.innerHTML = '';
+
+            // Split by section labels
+            let remaining = text;
+            let lastEnd = 0;
+            const found = [];
+
+            SECTIONS.forEach(sec => {
+                sec.aliases.forEach(alias => {
+                    const re = new RegExp(`${alias}:?\\s*`, 'i');
+                    const m = remaining.match(re);
+                    if (m) {
+                        const start = remaining.indexOf(m[0]);
+                        found.push({ start, label: sec.key, cls: sec.cls, match: m[0] });
+                    }
+                });
+            });
+
+            if (found.length === 0) {
+                el.className = 'ac-thinking plain-mode';
+                el.textContent = text;
+                return;
+            }
+
+            // Sort by position
+            found.sort((a, b) => a.start - b.start);
+
+            // Render each section
+            found.forEach((sec, i) => {
+                const bodyStart = sec.start + sec.match.length;
+                const bodyEnd = i + 1 < found.length ? found[i + 1].start : remaining.length;
+                const body = remaining.slice(bodyStart, bodyEnd).trim();
+
+                const div = document.createElement('div');
+                div.className = 'ac-section';
+
+                const label = document.createElement('span');
+                label.className = `ac-section-label ${sec.cls}`;
+                label.textContent = sec.label;
+                div.appendChild(label);
+
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'ac-section-body';
+                bodyEl.textContent = body;
+                div.appendChild(bodyEl);
+
+                el.appendChild(div);
+            });
+
+            // Show any text before the first section as a preamble
+            const preamble = remaining.slice(0, found[0].start).trim();
+            if (preamble) {
+                const pre = document.createElement('div');
+                pre.className = 'ac-section';
+                const preBody = document.createElement('div');
+                preBody.className = 'ac-section-body';
+                preBody.textContent = preamble;
+                pre.appendChild(preBody);
+                el.insertBefore(pre, el.firstChild);
+            }
+        }
+
         function _agentUpdateCard(iter, { badge, title, subtitle, thinking, diff, result, resultClass }) {
             if (badge !== undefined) {
                 const b = document.getElementById(`ac-badge-${iter}`);
@@ -2997,7 +3101,7 @@ Rules:
             }
             if (thinking !== undefined) {
                 const th = document.getElementById(`ac-think-${iter}`);
-                if (th) th.textContent = thinking;
+                if (th) _renderAnalysis(th, thinking);
             }
             if (diff !== undefined) {
                 const df = document.getElementById(`ac-diff-${iter}`);
@@ -3117,44 +3221,76 @@ Rules:
                 ].join('\n');
             }
 
-            const prompt = `You are an expert ${lang} developer and debugger.
+            // Deep-reasoning prompt — mirrors how a senior engineer diagnoses bugs:
+            // 1. Identify the ROOT CAUSE (not just the symptom)
+            // 2. Explain the mechanism (why this line fails, not just what fails)
+            // 3. Describe the structural fix
+            // 4. Apply it completely
+            // The <analysis> block is shown in the agent card so the user understands
+            // what changed and why — exactly like Claude explaining its own reasoning.
+            const prompt = `You are a senior ${lang} engineer performing a deep bug diagnosis.
 
-The following ${lang} code has errors that need to be fixed:
-
+## Code under review (iteration ${iteration})
 \`\`\`${lang}
 ${codeForPrompt}
 \`\`\`
 
-Errors detected (iteration ${iteration}):
+## Errors detected
 ${errList}
 
-Instructions:
-1. Analyse every error carefully
-2. Fix ALL errors in the code
-3. Do NOT explain -- just return the complete fixed code
-4. Return ONLY the fixed code block, nothing else, no markdown prose outside the fence
-5. The code must be complete and runnable
+## Your task
+Perform a 4-step diagnosis and fix:
 
-Return format:
+STEP 1 — ROOT CAUSE: For each error, identify WHY it happens structurally.
+  Do not just describe the symptom. Trace it back to the real cause.
+  Example: "The await is at top level because the enclosing function lost its
+  async keyword when the str_replace only replaced the opening block."
+
+STEP 2 — MECHANISM: Explain how the root cause produces the observed error.
+  Be specific about the code path or structural issue.
+
+STEP 3 — FIX STRATEGY: Describe exactly what structural change will fix it.
+  Example: "Rebuild the entire function boundary-to-boundary rather than
+  patching just the opening declaration."
+
+STEP 4 — FIXED CODE: Apply the fix completely. The code must be:
+  - Complete and runnable (no omissions, no placeholders)
+  - Structurally sound (proper nesting, balanced braces, correct scoping)
+  - Self-verified (mentally trace through the fix to confirm it resolves each error)
+
+## Required output format
+<analysis>
+ROOT CAUSE: [your root cause analysis]
+MECHANISM: [how it produces the error]
+FIX: [what you changed and why]
+</analysis>
+
 \`\`\`${lang}
 [complete fixed code here]
 \`\`\``;
+
+            const systemPrompt = `You are a senior ${lang} engineer who diagnoses bugs by identifying root causes, not symptoms.
+
+When fixing code you:
+1. Trace errors back to their structural origin
+2. Explain the mechanism that produces each error
+3. Apply complete structural fixes, never partial patches
+4. Verify the fix mentally before returning it
+
+Always respond with an <analysis> block followed by a complete fixed code block.
+The analysis must identify the ROOT CAUSE of each error — not just restate the error message.`;
 
             const body = JSON.stringify({
                 model: currentModel,
                 stream: false,
                 messages: [
-                    {
-                        role: 'system',
-                        content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block. No explanations outside the fence.`
-                    },
-                    { role: 'user', content: prompt }
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user',   content: prompt }
                 ]
             });
 
             // CRITICAL: start silent audio BEFORE the fetch so iOS does not suspend
             // the JS thread when the user switches apps or the screen dims.
-            // This runs even if the user hasn't enabled Background mode manually.
             const _callAudio = _createStreamAudio();
             _callAudio.start();
 
@@ -3187,9 +3323,15 @@ Return format:
 
                     _callAudio.stop();
 
-                    const match = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
-                    const fixedCode = match ? match[1].trim() : fullText.trim();
-                    const reasoning = fullText.replace(/```[\s\S]*?```/g, '').trim() || 'Fixes applied.';
+                    // Extract structured analysis block
+                    const analysisMatch = fullText.match(/<analysis>([\s\S]*?)<\/analysis>/i);
+                    const reasoning = analysisMatch
+                        ? analysisMatch[1].trim()
+                        : fullText.replace(/```[\s\S]*?```/g, '').trim() || 'Analysis not provided.';
+
+                    // Extract fixed code block
+                    const codeMatch = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
+                    const fixedCode = codeMatch ? codeMatch[1].trim() : fullText.trim();
 
                     return { fixedCode, reasoning };
 
@@ -3198,11 +3340,9 @@ Return format:
                     lastErr = err;
 
                     if (attempt < MAX_ATTEMPTS) {
-                        // Exponential backoff: 1.5s, 3s between retries
                         const delay = 1500 * attempt;
                         console.warn(`Agent fetch attempt ${attempt} failed (${err.message}), retrying in ${delay}ms...`);
                         await new Promise(r => setTimeout(r, delay));
-                        // Re-start audio in case iOS closed it during the wait
                         _callAudio.stop();
                         _callAudio.start();
                     }
