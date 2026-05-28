@@ -7573,17 +7573,23 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         }
                         if (!bc) { console.warn('University auto-trigger: bot-content not found'); return; }
 
-                        // Show a brief "starting agents" notice in the toolbar
+                        // Mark toolbar buttons as running
                         const toolbarBtns = bc.querySelectorAll('.debate-check-btn, .plag-check-btn');
                         toolbarBtns.forEach(b => b.classList.add('running'));
 
                         try {
                             // Step 1: Debate — improves content quality
                             await _debateRun(fullResponseText, bc);
+                            // Scroll debate panel into view
+                            const dp = bc.querySelector('.debate-panel');
+                            if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
                             console.error('Auto Debate error:', e);
                             _debateRunning = false;
                         }
+
+                        // Brief pause between agents so mobile connection can breathe
+                        await new Promise(r => setTimeout(r, 800));
 
                         // Step 2: Plagiarism — check the (possibly rewritten) text
                         let finalText = fullResponseText;
@@ -7592,13 +7598,24 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         }
                         try {
                             await _plagRun(finalText, bc);
+                            // Scroll plagiarism panel into view
+                            const pp = bc.querySelector('.plag-panel');
+                            if (pp) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
                             console.error('Auto Plagiarism error:', e);
                             _plagRunning = false;
                         }
 
-                        // Clear running state from toolbar buttons
+                        // Full UI reset after all agents complete
                         toolbarBtns.forEach(b => b.classList.remove('running'));
+                        _debateRunning = false;
+                        _plagRunning   = false;
+                        // Ensure send button is re-enabled and input is focusable
+                        setStreamingUiState(false);
+                        updateSendButtonState();
+                        const inp = document.getElementById('user-input');
+                        if (inp) inp.disabled = false;
+                        requestAutoScroll(false);
                     }, 1800);
                 }
 
