@@ -1852,7 +1852,7 @@ Rules:
                     if (!e.data || e.data.type !== 'CM_CONSOLE') return;
                     if (iframe.contentWindow !== e.source) return;
                     const lvl = (e.data.level || '').toUpperCase();
-                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(e.data.msg);
+                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(_sanitizeError(e.data.msg));
                 };
                 window.addEventListener('message', listener);
 
@@ -2436,31 +2436,29 @@ Rules:
         // Listen for messages from any iframe
         window.addEventListener('message', (e) => {
             if (!e.data || e.data.type !== 'IDE_CONSOLE') return;
-            // Find which iframe sent this
             const iframes = document.querySelectorAll('.ide-preview-iframe');
             iframes.forEach(iframe => {
                 if (iframe.contentWindow !== e.source) return;
                 const wrapper = _iframeToWrapper.get(iframe);
                 if (!wrapper) return;
-                _ideAppendLog(wrapper, e.data.level, e.data.msg);
+                _ideAppendLog(wrapper, e.data.level, _sanitizeError(e.data.msg));
             });
         });
 
         function _ideAppendLog(wrapper, level, msg) {
+            const cleanMsg = _sanitizeError(msg);
             const output = wrapper.querySelector('.ide-console-output');
             if (!output) return;
-            // Remove the empty-state placeholder on first real entry
             const empty = output.querySelector('.ide-console-empty');
             if (empty) empty.remove();
 
             const row = document.createElement('div');
             const lvlClass = { LOG:'LOG', INFO:'INFO', WARN:'WARN', ERROR:'ERR', ERR:'ERR' }[level] || 'LOG';
             row.className = `ide-log-row ${lvlClass.toLowerCase()}`;
-            row.innerHTML = `<span class="il-lvl ${lvlClass}">${lvlClass}</span><span class="il-msg">${escapeHtml(msg)}</span>`;
+            row.innerHTML = `<span class="il-lvl ${lvlClass}">${lvlClass}</span><span class="il-msg">${escapeHtml(cleanMsg)}</span>`;
             output.appendChild(row);
             output.scrollTop = output.scrollHeight;
 
-            // Update badge + tab state
             if (lvlClass === 'ERR' || lvlClass === 'WARN') {
                 const consoleTab = wrapper.querySelector('[data-ide-tab="console"]');
                 if (consoleTab) {
@@ -2693,11 +2691,12 @@ Rules:
             if (!e.data || e.data.type !== 'CM_CONSOLE') return;
             const iframe = document.getElementById('cm-preview-iframe');
             if (iframe.contentWindow !== e.source) return;
-            cmAppendLog(e.data.level, e.data.msg);
+            cmAppendLog(e.data.level, _sanitizeError(e.data.msg));
         });
 
         function cmAppendLog(level, msg) {
-            _cmLogs.push({ level, msg });
+            const cleanMsg = _sanitizeError(msg);
+            _cmLogs.push({ level, msg: cleanMsg });
             const lvl = { LOG:'LOG', INFO:'INFO', WARN:'WARN', ERROR:'ERR', ERR:'ERR' }[level] || 'LOG';
             // update badge
             if (lvl === 'ERR' || lvl === 'WARN') {
@@ -2713,7 +2712,7 @@ Rules:
             if (empty) empty.remove();
             const row = document.createElement('div');
             row.className = `cm-log-row ${lvl === 'ERR' ? 'err-r' : lvl === 'WARN' ? 'warn-r' : ''}`;
-            row.innerHTML = `<span class="cm-lv ${lvl}">${lvl}</span><span class="cm-msg">${escapeHtml(msg)}</span>`;
+            row.innerHTML = `<span class="cm-lv ${lvl}">${lvl}</span><span class="cm-msg">${escapeHtml(cleanMsg)}</span>`;
             out.appendChild(row);
             out.scrollTop = out.scrollHeight;
             // Update statusbar
@@ -3021,6 +3020,36 @@ Rules:
          * labels — the same visual style as the reasoning shown in the screenshot.
          * Falls back to plain pre-wrap text if no structure is detected.
          */
+        /**
+         * Strip blob: URLs from browser error messages.
+         *
+         * When code runs inside a sandboxed iframe created with
+         * URL.createObjectURL(), the browser reports error locations as:
+         *   SyntaxError: Unexpected EOF (blob:https://pccplanner.github.io/uuid:817:0)
+         *
+         * The UUID and GitHub host are irrelevant noise — the useful information
+         * is the line and column number. This function replaces the blob URL with
+         * a clean "line N, col C" reference so:
+         *   - The developer card shows a readable location
+         *   - The AI model receives a meaningful error context (not a random UUID)
+         *   - The user doesn't see their own GitHub URL in the error output
+         *
+         * Input:  "SyntaxError: Unexpected EOF (blob:https://host/uuid:817:0)"
+         * Output: "SyntaxError: Unexpected EOF (line 817, col 0)"
+         */
+        function _sanitizeError(msg) {
+            if (!msg) return msg;
+            // Replace blob: URLs in error messages with just the line/col number.
+            // Browser error format: "SyntaxError: msg (blob:https://host/uuid:LINE:COL)"
+            // The UUID contains hyphens, the host and path contain slashes and dots —
+            // so we match everything between "blob:" and the final ":LINE:COL)" greedily.
+            return String(msg)
+                // (blob:....:LINE:COL) — with parentheses
+                .replace(/\(blob:[^)]+:(\d+):(\d+)\)/g, '(line $1, col $2)')
+                // blob:...:LINE:COL — without parentheses
+                .replace(/blob:\S+:(\d+):(\d+)/g, 'line $1:$2');
+        }
+
         function _renderAnalysis(el, text) {
             if (!text) { el.textContent = ''; return; }
 
@@ -3197,9 +3226,10 @@ Rules:
                     if (!e.data || e.data.type !== 'CM_CONSOLE') return;
                     if (iframe.contentWindow !== e.source) return;
                     const lvl = e.data.level?.toUpperCase();
-                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(e.data.msg);
-                    // Also feed the real console panel
-                    cmAppendLog(e.data.level, e.data.msg);
+                    const cleanMsg = _sanitizeError(e.data.msg);
+                    if (lvl === 'ERR' || lvl === 'ERROR') errors.push(cleanMsg);
+                    // Also feed the real console panel (already sanitized via cmAppendLog)
+                    cmAppendLog(e.data.level, cleanMsg);
                 };
                 window.addEventListener('message', listener);
 
