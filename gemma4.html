@@ -119,6 +119,35 @@
         #auto-agent-btn.active .aa-dot { display: block; animation: pulse 1.5s infinite ease-in-out; }
         #auto-agent-btn .aa-label { font-size: 0.75rem; }
 
+        /* Scanning state — blue pulse while background scan is running */
+        #auto-agent-btn.scanning {
+            background: rgba(168,199,250,0.12);
+            border: 1px solid rgba(168,199,250,0.4);
+            color: var(--accent-blue);
+            animation: aaBtnPulse 1.2s ease-in-out infinite;
+        }
+        #auto-agent-btn.scanning .aa-dot { display: block; background: var(--accent-blue); box-shadow: 0 0 4px var(--accent-blue); animation: pulse 1.2s infinite ease-in-out; }
+        @keyframes aaBtnPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(168,199,250,0); }
+            50%       { box-shadow: 0 0 0 4px rgba(168,199,250,0.2); }
+        }
+
+        /* Inline scan chip shown below each code block */
+        .aa-scan-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin: 6px 0 0; padding: 5px 12px; border-radius: 20px;
+            font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600;
+            border: 1px solid var(--border-soft);
+            background: var(--surface-elev); color: var(--text-muted);
+            animation: fadeIn 0.3s ease; transition: background 0.3s, color 0.3s, border-color 0.3s;
+        }
+        .aa-scan-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+        .aa-scan-chip.scanning { color: var(--accent-blue);   border-color: rgba(168,199,250,0.35); background: rgba(168,199,250,0.08); }
+        .aa-scan-chip.clean    { color: var(--accent-green);  border-color: rgba(129,201,149,0.35); background: rgba(129,201,149,0.08); }
+        .aa-scan-chip.errors   { color: var(--accent-yellow); border-color: rgba(253,214,99,0.35);  background: rgba(253,214,99,0.08);  }
+        .aa-scan-chip.skipped  { color: var(--text-muted); }
+        .aa-scan-chip.scanning .chip-dot { animation: pulse 1s infinite ease-in-out; }
+
         /* Auto-agent activity banner (replaces toast for agent events) */
         #aa-banner {
             position: fixed; top: calc(env(safe-area-inset-top, 0px) + 64px);
@@ -1608,8 +1637,11 @@ Rules:
          * Extract the first runnable code block from a markdown reply.
          * Returns { code, lang } or null.
          */
+        /**
+         * Extract ALL code blocks from a reply, returning the first runnable one
+         * and the language of the FIRST block found (any language) for feedback.
+         */
         function _autoAgentExtractCode(markdownText) {
-            // Match fenced code blocks: ```lang\n...\n```
             const re = /```(\w+)?\n([\s\S]*?)```/g;
             let match;
             while ((match = re.exec(markdownText)) !== null) {
@@ -1622,75 +1654,149 @@ Rules:
             return null;
         }
 
+        function _autoAgentDetectFirstLang(markdownText) {
+            const m = markdownText.match(/```(\w+)?/);
+            return m ? (m[1] || 'code').toLowerCase() : null;
+        }
+
+        /** Set the Auto-Fix button into scanning/active/idle state */
+        function _aaSetBtnState(state) {
+            const btn = document.getElementById('auto-agent-btn');
+            const lbl = document.getElementById('aa-label-text');
+            if (!btn) return;
+            btn.classList.remove('scanning');
+            if (state === 'scanning') {
+                btn.classList.add('scanning');
+                if (lbl) lbl.textContent = 'Scanning...';
+            } else if (state === 'active') {
+                if (lbl) lbl.textContent = 'ON';
+            } else {
+                if (lbl) lbl.textContent = _autoAgentEnabled ? 'ON' : 'Auto-Fix';
+            }
+        }
+
+        /**
+         * Attach (or update) the inline scan chip below the last bot message's
+         * first code block. Creates it if it doesn't exist yet.
+         */
+        function _aaSetChip(state, text) {
+            // Find the last bot message row in the chat
+            const rows = document.querySelectorAll('#chat-container .bot-row');
+            if (!rows.length) return;
+            const lastRow = rows[rows.length - 1];
+            const wrapper = lastRow.querySelector('.code-wrapper');
+            if (!wrapper) return;
+
+            let chip = lastRow.querySelector('.aa-scan-chip');
+            if (!chip) {
+                chip = document.createElement('div');
+                chip.className = 'aa-scan-chip';
+                // Insert after the code wrapper
+                wrapper.insertAdjacentElement('afterend', chip);
+            }
+            chip.className = `aa-scan-chip ${state}`;
+            chip.innerHTML = `<span class="chip-dot"></span>${text}`;
+
+            // Auto-remove the chip after 6s for clean/skipped states
+            if (state === 'clean' || state === 'skipped') {
+                setTimeout(() => { chip.style.opacity = '0'; setTimeout(() => chip.remove(), 400); }, 6000);
+            }
+        }
+
         /**
          * Called after every successful bot reply when auto-agent is ON.
-         * Runs the code silently, checks for errors, and if found opens the
-         * IDE modal and starts the agent loop automatically.
          */
         async function _autoAgentScanReply(markdownText) {
+            const firstLang = _autoAgentDetectFirstLang(markdownText);
             const block = _autoAgentExtractCode(markdownText);
-            if (!block) return;
+
+            // Always show feedback — even for non-runnable languages
+            if (!block) {
+                if (firstLang) {
+                    // Has code but not runnable (bash, python, etc.)
+                    _aaSetChip('skipped', `Auto-Fix: ${firstLang.toUpperCase()} not runnable in browser`);
+                    _aaBanner(
+                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a8d8e" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                        `Auto-Fix: skipped (${firstLang.toUpperCase()})`,
+                        'Only HTML/JS can be scanned in-browser',
+                        4000
+                    );
+                }
+                // No code at all — no feedback needed
+                return;
+            }
 
             const { code, lang } = block;
 
+            // Show scanning state immediately
+            _aaSetBtnState('scanning');
+            _aaSetChip('scanning', `Auto-Fix: scanning ${lang.toUpperCase()}...`);
             _aaBanner(
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-                'Auto-Fix: scanning code...',
-                `Checking ${lang.toUpperCase()} block for errors`,
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a8c7fa" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+                `Auto-Fix: scanning ${lang.toUpperCase()} block...`,
+                'Running code in background to detect errors',
                 0
             );
 
             const errors = await _autoAgentRunSilent(code, lang);
 
+            // Restore button state
+            _aaSetBtnState('active');
+
             if (errors.length === 0) {
+                _aaSetChip('clean', `Auto-Fix: no errors found`);
                 _aaBanner(
                     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#81c995" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
-                    'Auto-Fix: no errors found',
-                    `${lang.toUpperCase()} code looks clean`,
-                    3000
+                    'Auto-Fix: code is clean',
+                    `${lang.toUpperCase()} ran without errors`,
+                    4000
                 );
                 return;
             }
 
-            // Errors found — show countdown banner then open IDE
+            // Errors found — update chip and start countdown
+            _aaSetChip('errors', `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} — fixing in 3s`);
             _aaBanner(
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
                 `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} found — starting in 3s`,
-                'Tap banner X to cancel',
+                'Tap X to cancel',
                 0
             );
 
-            // 3-second countdown so user can cancel if they want
             let cancelled = false;
             const cancelHandler = () => { cancelled = true; };
             document.querySelector('#aa-banner .aa-close')?.addEventListener('click', cancelHandler, { once: true });
 
             for (let i = 3; i >= 1; i--) {
                 await new Promise(r => setTimeout(r, 1000));
-                if (cancelled) { _aaBannerHide(); return; }
+                if (cancelled) {
+                    _aaSetChip('errors', `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} — cancelled`);
+                    _aaBannerHide();
+                    return;
+                }
+                const countdown = i - 1;
                 document.getElementById('aa-banner-text').textContent =
-                    `Auto-Fix: starting in ${i - 1 > 0 ? i - 1 + 's' : 'now...'}`;
+                    `Auto-Fix: starting${countdown > 0 ? ' in ' + countdown + 's' : ' now...'}`;
+                _aaSetChip('errors', `Auto-Fix: starting${countdown > 0 ? ' in ' + countdown + 's' : '...'}` );
             }
             if (cancelled) { _aaBannerHide(); return; }
 
-            // Open IDE modal and go straight to Agent tab
+            _aaSetChip('errors', 'Auto-Fix: agent running...');
             openCodeModal(code, lang);
             cmSwitchTab('agent');
 
-            // Wait for modal CSS transition + iOS rendering (needs ~500ms on Safari)
             await new Promise(r => setTimeout(r, 500));
 
             _aaBanner(
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
                 `Auto-Fix: running with ${AVAILABLE_MODELS[currentModel] || currentModel}`,
-                `${errors.length} error${errors.length > 1 ? 's' : ''} to fix`,
+                `Fixing ${errors.length} error${errors.length > 1 ? 's' : ''}`,
                 0
             );
 
-            // Call the agent with pre-detected errors injected directly,
-            // bypassing the agent's own initial iframe run (faster + avoids race).
             await _agentRunWithErrors(code, lang, errors);
 
+            _aaSetChip('clean', 'Auto-Fix: done');
             _aaBannerHide();
         }
 
@@ -4346,4 +4452,3 @@ Return format:
 
 </body>
 </html>
-
