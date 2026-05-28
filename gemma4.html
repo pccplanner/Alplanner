@@ -4540,8 +4540,15 @@ Rewritten text:`;
                     try {
                         review = await _debateReview(currentText, reviewerModel);
                     } catch (err) {
-                        _debateUpdateRoundCard(round, 'err', `Reviewer error: ${err.message}`, 0, err.message, []);
-                        _debateSetStatus(panel, 'err', `Reviewer failed: ${err.message}`);
+                        // If it's a timeout/abort, show a retrying message before failing
+                        const isTimeout = err.name === 'AbortError' || err.message.includes('aborted') || err.message.includes('Fetch is aborted');
+                        _debateUpdateRoundCard(round, 'err',
+                            isTimeout ? `Reviewer timed out — increase timeout or use a faster model` : `Reviewer error: ${err.message}`,
+                            0, isTimeout
+                                ? `The reviewer (${_debateShortName(reviewerModel)}) did not respond in time. Consider using a faster model as Reviewer in Agent Settings.`
+                                : err.message,
+                            []);
+                        _debateSetStatus(panel, 'err', isTimeout ? 'Reviewer timed out' : `Reviewer failed: ${err.message}`);
                         _debateMarkBtn(botContent, 'maxed');
                         break;
                     }
@@ -4599,30 +4606,43 @@ Rewritten text:`;
         }
 
         /* ── Shared non-streaming API call for debate ──
-           Uses stream:false — same pattern as _plagAnalyze which works
-           across all model backends (Ollama, Gemini, etc).
-           Retries once on empty response. Aborts after timeoutMs via signal. */
-        async function _debateCall(messages, model, timeoutMs = 120000) {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), timeoutMs);
+           Uses stream:false across all model backends.
+           Retries ONCE automatically on abort/timeout. */
+        async function _debateCall(messages, model, timeoutMs = 180000) {
+            async function attempt() {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                    const resp = await fetch(VPS_OLLAMA_URL, {
+                        method: 'POST',
+                        headers: apiHeaders(),
+                        signal: controller.signal,
+                        body: JSON.stringify({
+                            model: model || currentModel,
+                            stream: false,
+                            messages
+                        })
+                    });
+                    if (!resp.ok) throw new Error(`API HTTP ${resp.status}`);
+                    const data = await resp.json();
+                    const content = data?.message?.content || '';
+                    if (!content) throw new Error('Empty response from model');
+                    return content.trim();
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+
             try {
-                const resp = await fetch(VPS_OLLAMA_URL, {
-                    method: 'POST',
-                    headers: apiHeaders(),
-                    signal: controller.signal,
-                    body: JSON.stringify({
-                        model: model || currentModel,
-                        stream: false,
-                        messages
-                    })
-                });
-                if (!resp.ok) throw new Error(`API HTTP ${resp.status}`);
-                const data = await resp.json();
-                const content = data?.message?.content || '';
-                if (!content) throw new Error('Empty response from model');
-                return content.trim();
-            } finally {
-                clearTimeout(timer);
+                return await attempt();
+            } catch (err) {
+                // Retry once on timeout/network abort
+                if (err.name === 'AbortError' || err.message === 'Fetch is aborted' ||
+                    err.message.includes('aborted') || err.message.includes('network')) {
+                    await new Promise(r => setTimeout(r, 2000)); // 2s pause before retry
+                    return await attempt();
+                }
+                throw err;
             }
         }
 
@@ -4653,13 +4673,23 @@ JSON FORMAT (return exactly this structure):
 Scoring: 85-100 Approve (well-cited, original, strong). 60-84 Reject (fixable). 0-59 Reject (major issues).
 Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON object:`;
 
-            let raw = await _debateCall(
-                [
-                    { role: 'system', content: 'You are an academic reviewer. Output ONLY valid JSON. No markdown fences. No text before or after the JSON.' },
-                    { role: 'user',   content: prompt }
-                ],
-                model, 90000
-            );
+            let raw = '';
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    raw = await _debateCall(
+                        [
+                            { role: 'system', content: 'You are an academic reviewer. Output ONLY valid JSON. No markdown fences. No text before or after the JSON.' },
+                            { role: 'user',   content: prompt }
+                        ],
+                        model, 240000
+                    );
+                    break; // success — exit retry loop
+                } catch (err) {
+                    if (attempt === 2) throw err; // both attempts failed
+                    // pause 3s before retry
+                    await new Promise(r => setTimeout(r, 3000));
+                }
+            }
 
             raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
             let result;
