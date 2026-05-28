@@ -4105,7 +4105,9 @@ ${html}
 
         /* Main entry point */
         async function _plagRun(text, botContent) {
-            if (_plagRunning) { showToast('Plagiarism check already running'); return; }
+            if (_plagRunning) {
+                _plagRunning = false; // reset and allow this run
+            }
             if (!currentModel) { showToast('No model selected'); return; }
             _plagRunning = true;
 
@@ -4445,7 +4447,9 @@ Rewritten text:`;
 
         /* ── Main debate loop ── */
         async function _debateRun(text, botContent) {
-            if (_debateRunning) { showToast('Debate already running'); return; }
+            if (_debateRunning) {
+                _debateRunning = false; // reset and allow this run
+            }
             _debateRunning = true;
 
             botContent.querySelector('.debate-panel')?.remove();
@@ -7546,20 +7550,50 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
                 // Plagiarism agent + Debate agent: auto-run in University mode
                 if (_researchMode && localStorage.getItem(STORAGE_AGENT_PRESET_KEY) === 'university') {
+                    // Reset stuck flags from any previous failed run
+                    _debateRunning = false;
+                    _plagRunning   = false;
+
                     setTimeout(async () => {
-                        const rows = document.querySelectorAll('#chat-container .bot-row');
-                        if (!rows.length) return;
-                        const bc = rows[rows.length - 1].querySelector('.bot-content');
-                        if (!bc) return;
-                        // Debate first — improves the content
-                        await _debateRun(fullResponseText, bc);
-                        // Then plagiarism check on the (possibly rewritten) text
+                        // Retry finding the bot row up to 5 times (DOM may not be ready on slow devices)
+                        let bc = null;
+                        for (let attempt = 0; attempt < 5; attempt++) {
+                            const rows = document.querySelectorAll('#chat-container .bot-row');
+                            if (rows.length) {
+                                bc = rows[rows.length - 1].querySelector('.bot-content');
+                                if (bc) break;
+                            }
+                            await new Promise(r => setTimeout(r, 400));
+                        }
+                        if (!bc) { console.warn('University auto-trigger: bot-content not found'); return; }
+
+                        // Show a brief "starting agents" notice in the toolbar
+                        const toolbarBtns = bc.querySelectorAll('.debate-check-btn, .plag-check-btn');
+                        toolbarBtns.forEach(b => b.classList.add('running'));
+
+                        try {
+                            // Step 1: Debate — improves content quality
+                            await _debateRun(fullResponseText, bc);
+                        } catch (e) {
+                            console.error('Auto Debate error:', e);
+                            _debateRunning = false;
+                        }
+
+                        // Step 2: Plagiarism — check the (possibly rewritten) text
                         let finalText = fullResponseText;
                         for (let i = chatContext.length - 1; i >= 0; i--) {
                             if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content; break; }
                         }
-                        await _plagRun(finalText, bc);
-                    }, 1000);
+                        try {
+                            await _plagRun(finalText, bc);
+                        } catch (e) {
+                            console.error('Auto Plagiarism error:', e);
+                            _plagRunning = false;
+                        }
+
+                        // Clear running state from toolbar buttons
+                        toolbarBtns.forEach(b => b.classList.remove('running'));
+                    }, 1800); // slightly longer delay — gives DOM time to settle on mobile
                 }
 
             } catch (error) {
