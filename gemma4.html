@@ -653,8 +653,28 @@
         #cm-code-pre.wrap { white-space: pre-wrap; word-break: break-word; }
         #cm-code-pre code { background: transparent; padding: 0; }
 
-        /* Preview panel */
-        #cm-preview-panel { background: #fff; }
+        /* Agent preview back-bar — shown at top of preview after agent fix */
+        .agent-preview-back {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 12px; background: rgba(129,201,149,0.1);
+            border-bottom: 1px solid rgba(129,201,149,0.25);
+            flex-shrink: 0;
+        }
+        .agent-preview-back button {
+            background: transparent; border: 1px solid rgba(129,201,149,0.35);
+            border-radius: 14px; padding: 4px 10px; color: var(--accent-green);
+            font-family: var(--font-main); font-size: 0.75rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+            transition: background 0.15s;
+        }
+        .agent-preview-back button:hover { background: rgba(129,201,149,0.1); }
+        .agent-preview-back span {
+            flex: 1; font-size: 0.75rem; color: var(--accent-green);
+            font-family: var(--font-mono); font-weight: 600;
+        }
+
+        /* Preview panel needs flex-direction column for back-bar + iframe */
+        #cm-preview-panel { display: flex; flex-direction: column; background: #fff; }
         #cm-preview-iframe { width: 100%; flex: 1; border: none; }
 
         /* Console panel */
@@ -3705,14 +3725,11 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, 'AI call failed after auto-resume attempts.');
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Launching preview...`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
                 cmSetStatus('ok', 'Agent: all clear');
-                document.getElementById('cm-tab-preview').style.display = (lang === 'html' || lang === 'xml') ? '' : 'none';
-                if (lang === 'html' || lang === 'xml') {
-                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
-                }
+                _agentLaunchPreview(lang);
             } else {
                 _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Check Code tab for latest version.`);
                 _bgOnComplete(false, 'Max iterations reached.');
@@ -3919,14 +3936,11 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, `AI call failed for model "${AVAILABLE_MODELS[currentModel] || currentModel}".`);
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Launching preview...`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
                 cmSetStatus('ok', 'Agent: all clear');
-                document.getElementById('cm-tab-preview').style.display = lang === 'html' || lang === 'xml' ? '' : 'none';
-                if (lang === 'html' || lang === 'xml') {
-                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
-                }
+                _agentLaunchPreview(lang);
             } else {
                 _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Some errors may remain. Check the Code tab for the latest version.`);
                 _bgOnComplete(false, `Max iterations reached. Some errors may still remain.`);
@@ -3947,6 +3961,64 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             _agentRunning = false;
             document.getElementById('cm-agent-run-btn').disabled = false;
             document.getElementById('cm-agent-stop-btn').classList.remove('visible');
+        }
+
+        /**
+         * Called after agent successfully fixes all errors.
+         * For HTML/XML: runs the fixed code and switches to Preview tab,
+         * then appends a success banner with "Back to Agent" button.
+         * For JS/TS: switches to Console tab (output-only, no visual preview).
+         */
+        function _agentLaunchPreview(lang) {
+            const isHTML = lang === 'html' || lang === 'xml';
+            const isJS   = ['javascript','js','typescript','ts'].includes(lang);
+
+            // Make Preview tab visible for runnable code
+            if (isHTML) {
+                document.getElementById('cm-tab-preview').style.display = '';
+            }
+
+            // Short delay so the success banner renders before the tab switch
+            setTimeout(() => {
+                if (isHTML) {
+                    // Run the fixed code in the iframe
+                    runCodeModal();
+                    // Switch to Preview after the iframe has loaded (~400ms)
+                    setTimeout(() => {
+                        cmSwitchTab('preview');
+                        cmSetStatus('ok', 'Preview ready -- fixed code running');
+                        // Append a persistent "Back to Agent report" pill inside the preview panel
+                        _agentAddPreviewBackBtn();
+                    }, 400);
+                } else if (isJS) {
+                    // Run JS in the console, switch to console tab
+                    runCodeModal();
+                    setTimeout(() => {
+                        cmSwitchTab('console');
+                        cmSetStatus('ok', 'Script executed -- check Console for output');
+                    }, 400);
+                }
+            }, 500);
+        }
+
+        /** Adds a small "Back to Agent report" button at the top of the preview panel */
+        function _agentAddPreviewBackBtn() {
+            const panel = document.getElementById('cm-preview-panel');
+            if (!panel) return;
+            // Remove any previous back-btn
+            panel.querySelector('.agent-preview-back')?.remove();
+
+            const bar = document.createElement('div');
+            bar.className = 'agent-preview-back';
+            bar.innerHTML =
+                '<button onclick="cmSwitchTab(\'agent\')" title="Return to agent report">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>' +
+                'Agent report</button>' +
+                '<span>Fixed code is live</span>' +
+                '<button onclick="downloadCodeModal()" title="Download fixed code">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+                'Download</button>';
+            panel.insertBefore(bar, panel.firstChild);
         }
 
         function agentCollapseAll() {
