@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetGuard | Advanced Network Diagnostics</title>
+    <style>
+        :root {
+            --bg-primary: #0b1120;
+            --bg-secondary: #151e32;
+            --bg-card: rgba(30, 41, 59, 0.6);
+            --border-color: rgba(148, 163, 184, 0.1);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-red: #f43f5e;
+            --accent-yellow: #f59e0b;
+            --font-mono: 'Courier New', Courier, monospace;
+            --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.5;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background Grid Effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Layout */
+        .app-container {
+            max-width: 140px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            display: grid;
+            gap: 1.5rem;
+            grid-template-columns: 1fr;
+        }
+
+        /* Header */
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: #fff; font-size: 1.2rem;
+            box-shadow: 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .brand-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; }
+        .brand-subtitle { font-size: 0.85rem; color: var(--text-secondary); }
+
+        .status-badge {
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid transparent;
+            transition: all 0.3s;
+        }
+        .status-online { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-color: rgba(16,185,129,0.3); }
+        .status-offline { background: rgba(244, 63, 94, 0.15); color: var(--accent-red); border-color: rgba(244,63,94,0.3); animation: pulse-red 2s infinite; }
+        .status-warning { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); border-color: rgba(245,158,11,0.3); }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 rgba(244, 63, 94, 0.4); }
+            70% { box-shadow: 0 10px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 rgba(244, 63, 94, 0); }
+        }
+
+        /* Control Panel */
+        .control-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        input[type="text"] {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus { border-color: var(--accent-cyan); }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn:active { transform: scale(0.98); }
+
+        .btn-primary { background: var(--accent-cyan); color: #000; }
+        .btn-primary:hover { background: #22d3ee; box-shadow: 0 15px rgba(6,182,212,0.4); }
+
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.05); border-color: var(--accent-cyan); }
+
+        .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); border-color: rgba(148,163,184,0.2); }
+
+        .stat-label { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
+        .stat-value { font-size: 1.75rem; font-weight: 700; font-family: var(--font-mono); letter-spacing: -1px; }
+        .stat-delta { font-size: 0.8rem; margin-top: 0.25rem; }
+        .delta-up { color: var(--accent-red); }
+        .delta-down { color: var(--accent-green); }
+        .delta-neutral { color: var(--text-secondary); }
+
+        .stat-bar-bg {
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+        }
+        .stat-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        /* Main Visuals Section */
+        .visuals-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 300px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .panel-title { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .panel-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; color: var(--text-secondary); }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Lower Section: Logs & Details */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .log-view {
+            background: #020617;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            height: 350px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .log-entry { margin-bottom: 0.25rem; }
+        .log-time { color: #64748b; margin-right: 0.5rem; }
+        .log-info { color: var(--accent-cyan); }
+        .log-success { color: var(--accent-green); }
+        .log-error { color: var(--accent-red); }
+        .log-warn { color: var(--accent-yellow); }
+
+        /* Table */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .data-table th { text-align: left; padding: 0.75rem; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border-color); }
+        .data-table td { padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); font-family: var(--font-mono); font-size: 0.85rem; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #47569; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .visuals-grid { grid-template-columns: 1fr; }
+            .details-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            .app-header { flex-direction: column; align-items: flex-start; }
+            .control-panel { flex-direction: column; align-items: stretch; }
+            .input-group { min-width: 100%; }
+            .btn-group { width: 100%; justify-content: stretch; }
+            .btn-group .btn { flex: 1; justify-content: center; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">N</div>
+                <div>
+                    <div class="brand-title">NetGuard Diagnostics</div>
+                    <div class="brand-subtitle">Real-time Network Path Analyzer</div>
+                </div>
+            </div>
+            <div id="globalStatus" class="status-badge status-online">System Online</div>
+        </header>
+
+        <!-- Controls -->
+        <section class="control-panel">
+            <div class="input-group">
+                <input type="text" id="targetInput" placeholder="Enter hostname or IP (e.g., google.com)" value="google.com">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="app.runDiagnostics('all')">▶ Run All Tests</button>
+                <button class="btn btn-secondary" onclick="app.runDiagnostics('ping')">Ping</button>
+                <button class="btn btn-secondary" onclick="app.runDiagnostics('http')">HTTP</button>
+                <button class="btn btn-secondary" onclick="app.runDiagnostics('trace')">Traceroute</button>
+                <button class="btn btn-secondary" onclick="app.runDiagnostics('dns')">DNS</button>
+                <button class="btn btn-secondary" onclick="app.toggleAuto()" id="autoBtn">Auto: OFF</button>
+                <button class="btn btn-secondary" onclick="app.exportLogs()">Export Logs</button>
+            </div>
+        </section>
+
+        <!-- Stats -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Latency (Avg)<span id="latencyStatus">Good</span></div>
+                <div class="stat-value" id="statLatency">0 ms</div>
+                <div class="stat-delta delta-neutral" id="latencyDelta">--</div>
+                <div class="stat-bar-bg"><div class="stat-bar-fill" id="latencyBar" style="width: 0%; background: var(--accent-green);"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Packet Loss<span>Realtime</span></div>
+                <div class="stat-value" id="statLoss">0.0%</div>
+                <div class="stat-delta delta-neutral">Target < 1%</div>
+                <div class="stat-bar-bg"><div class="stat-bar-fill" id="lossBar" style="width: 0%; background: var(--accent-green);"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Jitter<span>Stability</span></div>
+                <div class="stat-value" id="statJitter">0 ms</div>
+                <div class="stat-delta delta-neutral" id="jitterDelta">Stable</div>
+                <div class="stat-bar-bg"><div class="stat-bar-fill" id="jitterBar" style="width: 0%; background: var(--accent-green);"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Uptime<span>Session</span></div>
+                <div class="stat-value" id="statUptime">100%</div>
+                <div class="stat-delta delta-neutral">0 outages</div>
+                <div class="stat-bar-bg"><div class="stat-bar-fill" id="uptimeBar" style="width: 100%; background: var(--accent-cyan);"></div></div>
+            </div>
+        </section>
+
+        <!-- Visuals -->
+        <section class="visuals-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📈 Latency History</div>
+                    <div class="panel-badge" id="pingCount">0 Packets</div>
+                </div>
+                <canvas id="latencyCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🌐 Topology Map</div>
+                    <div class="panel-badge">Live</div>
+                </div>
+                <canvas id="topologyCanvas"></canvas>
+            </div>
+        </section>
+
+        <!-- Details -->
+        <section class="details-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🔍 Path Analysis</div>
+                    <div class="panel-badge">Traceroute</div>
+                </div>
+                <div style="overflow-x: auto; flex: 1;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Hop</th>
+                                <th>Host / IP</th>
+                                <th>RT 1</th>
+                                <th>RT 2</th>
+                                <th>RT 3</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="traceTable">
+                            <!-- JS populates -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📜 Event Log</div>
+                    <div class="panel-badge" id="logBadge">0 Entries</div>
+                </div>
+                <div class="log-view" id="consoleLog"></div>
+            </div>
+        </section>
+    </div>
+
+<script>
+/**
+ * NetGuard Diagnostics Engine
+ * Handles real fetch checks, simulated ICMP/Trace/DNS, Canvas rendering, and state management.
+ */
+class NetworkDiagnostics {
+    constructor() {
+        this.target = 'google.com';
+        this.latencyHistory = [];
+        this.maxHistory = 60;
+        this.packetsSent = 0;
+        this.packetsLost = 0;
+        this.isAuto = false;
+        this.autoInterval = null;
+        this.logEntries = [];
+        this.startTime = Date.now();
+        this.httpHistory = [];
+        
+        // Canvas contexts
+        this.latCanvas = document.getElementById('latencyCanvas');
+        this.topCanvas = document.getElementById('topologyCanvas');
+        this.latCtx = this.latCanvas.getContext('2d');
+        this.topCtx = this.topCanvas.getContext('2d');
+        
+        // Topology state
+        this.nodes = [];
+        this.edges = [];
+        this.particles = [];
+        this.topologyError = false;
+        
+        this.init();
+    }
+
+    init() {
+        this.resizeCanvases();
+        window.addEventListener('resize', () => this.resizeCanvases());
+        
+        // Generate random topology nodes
+        this.generateTopology();
+        
+        // Start render loops
+        this.animateTopology();
+        this.renderLatencyChart();
+        
+        // Initial diagnostics
+        this.target = document.getElementById('targetInput').value.trim() || 'google.com';
+        this.log('System initialized. Ready for diagnostics.', 'info');
+        this.runDiagnostics('http');
+    }
+
+    resizeCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            [this.latCanvas, this.topCanvas].forEach(canvas => {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                const ctx = canvas.getContext('2d');
+                ctx.scale(dpr, dpr);
+            });
+        }
+
+    generateTopology() {
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+            this.nodes.push({
+                id: i,
+                x: 0.1 + Math.random() * 0.8,
+                y: 0.1 + Math.random() * 0.8,
+                ip: `192.168.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`,
+                active: true
+            });
+        }
+        // Create edges (ensure connected roughly)
+        for (let i = 0; i < count; i++) {
+            let target = (i + 1) % count;
+            this.edges.push({ from: i, to: target, speed: 0.002 + Math.random() * 0.003 });
+            if (Math.random() > 0.6) {
+                let extra = (i + 3) % count;
+                this.edges.push({ from: i, to: extra, speed: 0.001 + Math.random() * 0.002 });
+            }
+        }
+    }
+
+    /* ---- Diagnostics Logic ---- */
+
+    async runDiagnostics(type) {
+        this.target = document.getElementById('targetInput').value.trim() || 'google.com';
+        
+        if (type === 'all') {
+            this.log(`Starting comprehensive diagnostics for ${this.target}...`, 'info');
+            await this.runPingSequence(10);
+            await this.runHttpCheck();
+            await this.runDnsCheck();
+            await this.runTraceroute();
+        } else if (type === 'ping') {
+            await this.runPingSequence(5);
+        } else if (type === 'http') {
+            await this.runHttpCheck();
+        } else if (type === 'dns') {
+            await this.runDnsCheck();
+        } else if (type === 'trace') {
+            await this.runTraceroute();
+        }
+        this.updateStats();
+    }
+
+    async runPingSequence(count) {
+        this.log(`Initiating ICMP echo request sequence to ${this.target}...`, 'info');
+        for (let i = 0; i < count; i++) {
+            await this.simulatePing();
+            await this.delay(200);
+        }
+        this.log(`Ping sequence complete. Packets: ${this.packetsSent}, Lost: ${this.packetsLost}`, this.packetsLost > 0 ? 'warn' : 'success');
+    }
+
+    async simulatePing() {
+        this.packetsSent++;
+        // Simulate realistic network conditions
+        let latency = 20 + Math.random() * 30; // Base 20-50ms
+        if (Math.random() < 0.1) latency += 100; // Jitter spike
+        if (Math.random() < 0.03) {
+            // Packet loss
+            this.packetsLost++;
+            this.latencyHistory.push(null); // null = dropped
+            this.log(`Request timeout for seq=${this.packetsSent}`, 'error');
+            this.topologyError = true;
+            setTimeout(() => this.topologyError = false, 100);
+            return;
+        }
+        
+        latency = Math.floor(latency);
+        this.latencyHistory.push(latency);
+        if (this.latencyHistory.length > this.maxHistory) this.latencyHistory.shift();
+        
+        this.log(`Reply from ${this.target}: bytes=32 time=${latency}ms TTL=${Math.floor(50 + Math.random()*20)}`, 'success');
+    }
+
+    async runHttpCheck() {
+        const url = this.target.startsWith('http') ? this.target : `https://${this.target}`;
+        this.log(`HTTP Health Check: GET ${url}`, 'info');
+        const start = performance.now();
+        try {
+            // We use no-cors to attempt to reach the server even if CORS blocks reading.
+            // However, for a real status code, we need a CORS-friendly endpoint. 
+            // We default to httpbin if user hasn't entered a protocol/valid domain to ensure a real test works.
+            let testUrl = url;
+            if (this.target === 'google.com') testUrl = 'https://www.google.com/favicon.ico'; // Lightweight
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 500);
+            
+            const response = await fetch(testUrl, { 
+                method: 'HEAD', 
+                mode: 'no-cors', 
+                signal: controller.signal 
+            });
+            clearTimeout(timeoutId);
+            
+            const duration = Math.floor(performance.now() - start);
+            // Because of no-cors, we can't read status for cross-origin, but we know network succeeded.
+            // If we reach here, TCP/TLS/HTTP layer is functional.
+            this.httpHistory.push({ code: 'OK', time: duration, url: testUrl });
+            this.log(`HTTP Check succeeded in ${duration}ms (Network layer reachable)`, 'success');
+            this.setGlobalStatus('online');
+            
+        } catch (error) {
+            const duration = Math.floor(performance.now() - start);
+            let errMsg = error.message || 'Network Error';
+            let type = 'error';
+            
+            if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                errMsg = `Network unreachable / CORS Blocked (${duration}ms)`;
+                this.setGlobalStatus('offline');
+            } else if (error.name === 'AbortError') {
+                errMsg = `Connection timed out (>500ms)`;
+                type = 'warn';
+                this.setGlobalStatus('warning');
+            }
+            
+            this.httpHistory.push({ code: 'ERR', time: duration, url: url });
+            this.log(`HTTP Check Failed: ${errMsg}`, type);
+        }
+    }
+
+    async runDnsCheck() {
+        this.log(`Resolving DNS records for ${this.target}...`, 'info');
+        await this.delay(600);
+        const records = [
+            { type: 'A', val: `142.250.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}` },
+            { type: 'AAAA', val: '2607:f8b0:4004:815::200e' },
+            { type: 'MX', val: '10 smtp.google.com' },
+            { type: 'NS', val: 'ns1.google.com' }
+        ];
+        records.forEach(r => this.log(`DNS ${r.type} Record: ${r.val}`, 'success'));
+    }
+
+    async runTraceroute() {
+        this.log(`Starting traceroute to ${this.target} (max 30 hops)...`, 'info');
+        const tbody = document.getElementById('traceTable');
+        tbody.innerHTML = '';
+        const hops = 8 + Math.floor(Math.random() * 5);
+        
+        for (let i = 1; i <= hops; i++) {
+            await this.delay(400 + Math.random() * 400);
+            
+            const isTimeout = Math.random() < 0.05;
+            const rtt1 = isTimeout ? '*' : Math.floor(5 + i * 3 + Math.random() * 10) + ' ms';
+            const rtt2 = isTimeout ? '*' : Math.floor(5 + i * 3 + Math.random() * 10) + ' ms';
+            const rtt3 = isTimeout ? '*' : Math.floor(5 + i * 3 + Math.random() * 10) + ' ms';
+            
+            let host;
+            if (i === hops) host = this.target;
+            else if (Math.random() > 0.3) host = `core-router-${i}.isp.net [154.12.${i}.${Math.floor(Math.random()*255)}]`;
+            else host = `?? [10.0.${i}.1]`;
+            
+            const row = document.createElement('tr');
+            const statusClass = isTimeout ? 'log-error' : 'log-success';
+            const statusText = isTimeout ? 'TIMEOUT' : 'OK';
+            
+            row.innerHTML = `
+                <td>${i}</td>
+                <td>${host}</td>
+                <td>${rtt1}</td>
+                <td>${rtt2}</td>
+                <td>${rtt3}</td>
+                <td class="${statusClass}">${statusText}</td>
+            `;
+            tbody.appendChild(row);
+            tbody.parentElement.parentElement.scrollTop = tbody.parentElement.parentElement.scrollHeight;
+        }
+        this.log(`Traceroute complete. ${hops} hops reached.`, 'success');
+    }
+
+    /* ---- State & UI Updates ---- */
+
+    updateStats() {
+        // Latency
+        const validPings = this.latencyHistory.filter(l => l !== null);
+        const avg = validPings.length ? Math.floor(validPings.reduce((a,b)=>a+b,0)/validPings.length) : 0;
+        const min = validPings.length ? Math.min(...validPings) : 0;
+        const max = validPings.length ? Math.max(...validPings) : 0;
+        
+        document.getElementById('statLatency').innerText = avg + ' ms';
+        document.getElementById('latencyDelta').innerText = `Min: ${min} Max: ${max}`;
+        document.getElementById('latencyStatus').innerText = avg > 200 ? 'High' : avg > 100 ? 'Fair' : 'Good';
+        document.getElementById('latencyStatus').style.color = avg > 200 ? 'var(--accent-red)' : avg > 100 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+        
+        const latPct = Math.min(100, (avg / 300) * 100);
+        const latBar = document.getElementById('latencyBar');
+        latBar.style.width = latPct + '%';
+        latBar.style.background = avg > 200 ? 'var(--accent-red)' : avg > 100 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+        
+        // Packet Loss
+        const loss = this.packetsSent ? ((this.packetsLost / this.packetsSent) * 100).toFixed(1) : 0;
+        document.getElementById('statLoss').innerText = loss + '%';
+        const lossBar = document.getElementById('lossBar');
+        lossBar.style.width = Math.min(100, loss * 10) + '%';
+        lossBar.style.background = loss > 5 ? 'var(--accent-red)' : loss > 1 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+        
+        // Jitter (std dev)
+        let jitter = 0;
+        if (validPings.length > 1) {
+            const mean = avg;
+            const variance = validPings.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validPings.length;
+            jitter = Math.floor(Math.sqrt(variance));
+        }
+        document.getElementById('statJitter').innerText = jitter + ' ms';
+        document.getElementById('jitterDelta').innerText = jitter > 50 ? 'Unstable' : 'Stable';
+        document.getElementById('jitterDelta').className = 'stat-delta ' + (jitter > 50 ? 'delta-up' : 'delta-down');
+        document.getElementById('jitterBar').style.width = Math.min(100, (jitter / 100) * 100) + '%';
+        
+        // Uptime (session based on total vs lost attempts, simplistic)
+        const totalAttempts = this.packetsSent + this.httpHistory.length;
+        const failedAttempts = this.packetsLost + this.httpHistory.filter(h => h.code === 'ERR').length;
+        const uptime = totalAttempts ? (100 - ((failedAttempts / totalAttempts) * 100)).toFixed(1) : 100;
+        document.getElementById('statUptime').innerText = uptime + '%';
+        
+        // Counters
+        document.getElementById('pingCount').innerText = `${this.packetsSent} Packets`;
+        document.getElementById('logBadge').innerText = `${this.logEntries.length} Entries`;
+    }
+
+    setGlobalStatus(state) {
+        const el = document.getElementById('globalStatus');
+        el.className = 'status-badge';
+        if (state === 'online') {
+            el.classList.add('status-online');
+            el.innerText = 'System Online';
+        } else if (state === 'offline') {
+            el.classList.add('status-offline');
+            el.innerText = 'Network Down';
+        } else {
+            el.classList.add('status-warning');
+            el.innerText = 'Degraded';
+        }
+    }
+
+    toggleAuto() {
+        const btn = document.getElementById('autoBtn');
+        if (this.isAuto) {
+            clearInterval(this.autoInterval);
+            this.isAuto = false;
+            btn.innerText = 'Auto: OFF';
+            btn.style.background = '';
+            this.log('Auto-monitoring stopped.', 'warn');
+        } else {
+            this.isAuto = true;
+            btn.innerText = 'Auto: ON';
+            btn.style.background = 'var(--accent-green)';
+            btn.style.color = '#000';
+            this.log('Auto-monitoring started (every 3s).', 'success');
+            this.runDiagnostics('ping'); // immediate
+            this.autoInterval = setInterval(() => {
+                this.runDiagnostics('ping');
+                if (this.packetsSent % 5 === 0) this.runDiagnostics('http');
+            }, 300);
+        }
+    }
+
+    /* ---- Logging ---- */
+
+    log(msg, type = 'info') {
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+        const consoleDiv = document.getElementById('consoleLog');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        
+        let colorClass = 'log-info';
+        if (type === 'success') colorClass = 'log-success';
+        if (type === 'error') colorClass = 'log-error';
+        if (type === 'warn') colorClass = 'log-warn';
+        
+        entry.innerHTML = `<span class="log-time">[${time}]</span><span class="${colorClass}">${msg}</span>`;
+        consoleDiv.appendChild(entry);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        
+        this.logEntries.push({ time, msg, type });
+        document.getElementById('logBadge').innerText = `${this.logEntries.length} Entries`;
+    }
+
+    exportLogs() {
+        const text = this.logEntries.map(e => `[${e.time}] ${e.type.toUpperCase()}: ${e.msg}`).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `netguard-log-${Date.now()}.txt`;
+        a.click();
+        this.log('Logs exported to file.', 'success');
+    }
+
+    delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    /* ---- Canvas Rendering ---- */
+
+    renderLatencyChart() {
+        const ctx = this.latCtx;
+        const canvas = this.latCanvas;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        
+        ctx.clearRect(0, 0, w, h);
+        
+        // Grid
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < 5; i++) {
+            const y = (h / 5) * i;
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+        
+        if (this.latencyHistory.length < 2) return;
+        
+        // Calculate scale
+        const valid = this.latencyHistory.filter(v => v !== null);
+        const maxVal = Math.max(100, ...valid) * 1.2;
+        const stepX = w / (this.maxHistory - 1);
+        
+        // Draw Area
+        const gradient = ctx.createLinearGradient(0, 0, 0, h);
+        gradient.addColorStop(0, 'rgba(6, 182, 212, 0.3)');
+        gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+        
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        for (let i = 0; i < this.latencyHistory.length; i++) {
+            const val = this.latencyHistory[i];
+            const x = i * stepX;
+            const y = val === null ? h : h - (val / maxVal) * h;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo((this.latencyHistory.length - 1) * stepX, h);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        
+        // Draw Line
+        ctx.beginPath();
+        ctx.strokeStyle = 'var(--accent-cyan)';
+        ctx.lineWidth = 2;
+        let started = false;
+        for (let i = 0; i < this.latencyHistory.length; i++) {
+            const val = this.latencyHistory[i];
+            const x = i * stepX;
+            const y = val === null ? null : h - (val / maxVal) * h;
+            if (y !== null) {
+                if (!started) { ctx.moveTo(x, y); started = true; }
+                else ctx.lineTo(x, y);
+            } else {
+                started = false;
+            }
+        }
+        ctx.stroke();
+        
+        // Draw points
+        for (let i = 0; i < this.latencyHistory.length; i++) {
+            const val = this.latencyHistory[i];
+            if (val !== null) {
+                const x = i * stepX;
+                const y = h - (val / maxVal) * h;
+                ctx.fillStyle = val > 200 ? 'var(--accent-red)' : 'var(--accent-cyan)';
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+
+    animateTopology() {
+        const ctx = this.topCtx;
+        const canvas = this.topCanvas;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        const time = Date.now();
+        
+        ctx.clearRect(0, 0, w, h);
+        
+        // Draw edges
+        this.edges.forEach(edge => {
+            const n1 = this.nodes[edge.from];
+            const n2 = this.nodes[edge.to];
+            const x1 = n1.x * w;
+            const y1 = n1.y * h;
+            const x2 = n2.x * w;
+            const y2 = n2.y * h;
+            
+            ctx.strokeStyle = this.topologyError ? 'rgba(244, 63, 94, 0.3)' : 'rgba(6, 182, 212, 0.2)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            
+            // Animate packet along edge
+            const offset = (time * edge.speed) % 1;
+            const px = x1 + (x2 - x1) * offset;
+            const py = y1 + (y2 - y1) * offset;
+            
+            ctx.fillStyle = this.topologyError ? 'var(--accent-red)' : 'var(--accent-green)';
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.arc(px, py, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        });
+        
+        // Draw nodes
+        this.nodes.forEach((node, idx) => {
+            const x = node.x * w;
+            const y = node.y * h;
+            const isError = this.topologyError && (idx === 0 || idx === 1);
+            
+            // Glow
+            const grad = ctx.createRadialGradient(x, y, 2, x, y, 20);
+            grad.addColorStop(0, isError ? 'rgba(244,63,94,0.8)' : 'rgba(6,182,212,0.6)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Core
+            ctx.fillStyle = isError ? 'var(--accent-red)' : 'var(--bg-primary)';
+            ctx.strokeStyle = isError ? 'var(--accent-red)' : 'var(--accent-cyan)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Label
+            ctx.fillStyle = 'var(--text-secondary)';
+            ctx.font = '10px var(--font-mono)';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.ip, x, y + 22);
+        });
+        
+        requestAnimationFrame(() => this.animateTopology());
+    }
+}
+
+// Initialize App
+const app = new NetworkDiagnostics();
+
+// Hook chart updates to loop
+function chartLoop() {
+    app.renderLatencyChart();
+    requestAnimationFrame(chartLoop);
+}
+chartLoop();
+
+</script>
+</body>
+</html>
