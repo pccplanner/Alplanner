@@ -3425,10 +3425,7 @@ Return format:
             if (feed) feed.querySelectorAll('.agent-card, .agent-banner').forEach(el => el.remove());
             cmClearConsole();
 
-            // ALWAYS start a private silent audio session for the entire agent run,
-            // regardless of whether the Background button is on. This prevents iOS
-            // from suspending the JS thread when the user switches apps or locks the
-            // screen mid-run. _bgActivate() is also called to acquire the wake lock.
+            // Always start silent audio regardless of Background mode toggle
             const _runAudio = _createStreamAudio();
             _runAudio.start();
             _bgActivate();
@@ -3447,12 +3444,9 @@ Return format:
                     Array.from({ length: lc }, (_, i) => `<span>${i+1}</span>`).join('');
             }
 
-            // Intelligent API call with auto-resume.
-            // On any network failure the agent waits and retries up to AUTO_RESUME_ATTEMPTS
-            // times before giving up. Each retry re-starts the silent audio session so iOS
-            // doesn't get a gap it can use to suspend the thread.
+            // Auto-resume wrapper: retries on network failures with escalating backoff
             const AUTO_RESUME_ATTEMPTS = 3;
-            const AUTO_RESUME_DELAY_MS = [4000, 8000, 15000]; // escalating backoff
+            const AUTO_RESUME_DELAY_MS = [4000, 8000, 15000];
 
             async function _callWithResume(currentCode, errors, iteration) {
                 for (let attempt = 1; attempt <= AUTO_RESUME_ATTEMPTS; attempt++) {
@@ -3469,33 +3463,26 @@ Return format:
 
                         if (!isNetwork || attempt >= AUTO_RESUME_ATTEMPTS) throw err;
 
-                        // Network failure — auto-resume with countdown
                         const delay = AUTO_RESUME_DELAY_MS[attempt - 1] || 10000;
                         const delaySec = Math.round(delay / 1000);
 
                         _agentUpdateCard(iteration, {
                             badge: 'running',
                             title: `Iteration ${iteration} -- Network failure, auto-resuming...`,
-                            thinking: `Attempt ${attempt} failed: ${err.message}\n\nAuto-resuming in ${delaySec}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})...\nSilent audio restarting to keep connection alive.`
+                            thinking: `Attempt ${attempt} failed: ${err.message}\n\nAuto-resuming in ${delaySec}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})...`
                         });
                         cmSetStatus('running', `Auto-resume in ${delaySec}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
 
-                        // Countdown in the status bar
-                        for (let s = delaySec; s > 0; s--) {
+                        for (let sc = delaySec; sc > 0; sc--) {
                             if (_agentAbort) throw new DOMException('Aborted', 'AbortError');
                             await new Promise(r => setTimeout(r, 1000));
-                            cmSetStatus('running', `Auto-resume in ${s - 1}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
+                            cmSetStatus('running', `Auto-resume in ${sc - 1}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
                         }
                         if (_agentAbort) throw new DOMException('Aborted', 'AbortError');
 
-                        // Re-start audio before next attempt so there's no gap
+                        // Re-start audio before retry so no gap for iOS to suspend
                         _runAudio.stop();
                         _runAudio.start();
-
-                        _agentUpdateCard(iteration, {
-                            thinking: `Attempt ${attempt} failed: ${err.message}\n\nResuming now (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})...`
-                        });
-                        cmSetStatus('running', `Resuming... (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
                     }
                 }
             }
@@ -3511,7 +3498,6 @@ Return format:
                     _agentBuildCard(iter);
                     cmSetStatus('running', `Agent iteration ${iter}...`);
 
-                    // Iteration 1: use pre-detected errors. Subsequent: run fresh.
                     let allErrors;
                     if (iter === 1 && initialErrors && initialErrors.length > 0) {
                         allErrors = initialErrors;
@@ -3599,7 +3585,6 @@ Return format:
             } catch (e) {
                 if (!_agentAbort) console.error('Agent loop error:', e.message);
             } finally {
-                // Always stop the run-level audio session when agent finishes
                 _runAudio.stop();
             }
 
@@ -3634,151 +3619,7 @@ Return format:
             document.getElementById('cm-agent-iter-label').textContent = '';
         }
 
-            const abortCtrl = new AbortController();
-
-            function _applyCode(newCode) {
-                _agentCurrentCode = newCode;
-                codeModalState.code = newCode;
-                const vl = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
-                const hi = hljs.highlight(newCode, { language: vl }).value;
-                const lc = newCode.split('\n').length;
-                document.getElementById('cm-code-el').className = `hljs ${vl}`;
-                document.getElementById('cm-code-el').innerHTML = hi;
-                document.getElementById('cm-line-nums').innerHTML =
-                    Array.from({ length: lc }, (_, i) => `<span>${i+1}</span>`).join('');
-            }
-
-            let iter = 0;
-            let solved = false;
-            let apiCallFailed = false;
-
-            try {
-                for (iter = 1; iter <= AGENT_MAX_ITER; iter++) {
-                    if (_agentAbort) break;
-                    _agentSetDots(iter, AGENT_MAX_ITER);
-                    _agentBuildCard(iter);
-                    cmSetStatus('running', `Agent iteration ${iter}...`);
-
-                    // Iteration 1: use pre-detected errors. Subsequent iterations: run fresh.
-                    let allErrors;
-                    if (iter === 1 && initialErrors && initialErrors.length > 0) {
-                        allErrors = initialErrors;
-                        _agentUpdateCard(iter, {
-                            thinking: `Errors found (pre-detected):\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond...]`
-                        });
-                    } else {
-                        _agentUpdateCard(iter, { thinking: `Running code to detect errors...` });
-                        const runtimeErrors = await _agentRunCode(_agentCurrentCode, lang);
-                        cmAnalyseProblems(_agentCurrentCode, lang);
-                        const staticProbs = [];
-                        document.querySelectorAll('#cm-problems-panel .cm-prob-row.p-err').forEach(r => {
-                            const m = r.querySelector('.pm')?.textContent?.trim();
-                            if (m) staticProbs.push(`[STATIC] ${m}`);
-                        });
-                        allErrors = [...new Set([...runtimeErrors, ...staticProbs])];
-                    }
-
-                    _agentUpdateCard(iter, {
-                        title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length !== 1 ? 's' : ''} found`
-                    });
-
-                    if (allErrors.length === 0) {
-                        _agentUpdateCard(iter, {
-                            badge: 'ok', title: `Iteration ${iter} -- No errors detected`,
-                            thinking: 'Code ran without errors.',
-                            result: 'All clear -- no fixes needed', resultClass: 'ok'
-                        });
-                        _agentMarkDotDone(iter, 'done');
-                        solved = true;
-                        break;
-                    }
-
-                    const badge = document.getElementById('cm-agent-badge');
-                    if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
-
-                    if (_agentAbort) break;
-
-                    let fixedCode, reasoning;
-                    try {
-                        const result = await _agentCallAI(_agentCurrentCode, lang, allErrors, iter, abortCtrl.signal);
-                        fixedCode = result.fixedCode;
-                        reasoning = result.reasoning;
-                    } catch (apiErr) {
-                        if (_agentAbort || apiErr.name === 'AbortError') break;
-                        apiCallFailed = true;
-                        _agentUpdateCard(iter, {
-                            badge: 'err', title: `Iteration ${iter} -- AI call failed`,
-                            thinking: apiErr.message, result: apiErr.message, resultClass: 'err'
-                        });
-                        _agentMarkDotDone(iter, 'err');
-                        break;
-                    }
-
-                    if (_agentAbort) break;
-
-                    const diffLines = _agentDiff(_agentCurrentCode, fixedCode);
-                    const addCount = diffLines.filter(l => l.type === 'add').length;
-                    const remCount = diffLines.filter(l => l.type === 'rem').length;
-
-                    _agentUpdateCard(iter, {
-                        badge: 'fixed',
-                        title: `Iteration ${iter} -- Applied fix (+${addCount} -${remCount} lines)`,
-                        thinking: reasoning || 'Fixes applied.',
-                        diff: diffLines,
-                        result: `Re-running with fixes...`, resultClass: 'info'
-                    });
-                    _agentMarkDotDone(iter, 'done');
-                    _applyCode(fixedCode);
-
-                    await new Promise(r => setTimeout(r, 400));
-                    if (_agentAbort) break;
-
-                    if (iter === AGENT_MAX_ITER) {
-                        const finalErrors = await _agentRunCode(fixedCode, lang);
-                        if (finalErrors.length === 0) {
-                            solved = true;
-                            _agentUpdateCard(iter, { result: 'Verified -- all errors resolved', resultClass: 'ok', badge: 'ok' });
-                        } else {
-                            _agentUpdateCard(iter, { result: `${finalErrors.length} error(s) remain`, resultClass: 'err' });
-                        }
-                    }
-                }
-            } catch (e) {
-                if (!_agentAbort) console.error('Agent loop error:', e.message);
-            }
-
-            if (_agentAbort) {
-                _agentBanner('giveup', 'Agent stopped by user.');
-                _bgOnComplete(false, 'Agent stopped manually.');
-                cmSetStatus('', 'Agent stopped');
-            } else if (apiCallFailed) {
-                _agentBanner('giveup', `AI call failed. Check model "${currentModel}" on VPS.`);
-                _bgOnComplete(false, 'AI call failed.');
-                cmSetStatus('err', 'AI call failed');
-            } else if (solved) {
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
-                _agentShowWarnNote();
-                _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
-                cmSetStatus('ok', 'Agent: all clear');
-                document.getElementById('cm-tab-preview').style.display = (lang === 'html' || lang === 'xml') ? '' : 'none';
-                if (lang === 'html' || lang === 'xml') {
-                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
-                }
-            } else {
-                _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Check Code tab for latest version.`);
-                _bgOnComplete(false, 'Max iterations reached.');
-                cmSetStatus('err', 'Max iterations reached');
-            }
-
-            _agentRunning = false;
-            document.getElementById('cm-agent-run-btn').disabled = false;
-            document.getElementById('cm-agent-run-btn').innerHTML =
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Re-run Agent';
-            document.getElementById('cm-agent-stop-btn').classList.remove('visible');
-            document.getElementById('cm-agent-iter-label').textContent = '';
-        }
-
-        async function agentRun() {
+                async function agentRun() {
             if (_agentRunning) return;
             const { code, lang } = codeModalState;
             const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
