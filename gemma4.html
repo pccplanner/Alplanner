@@ -3424,7 +3424,215 @@ Return format:
             const feed = document.getElementById('cm-agent-feed');
             if (feed) feed.querySelectorAll('.agent-card, .agent-banner').forEach(el => el.remove());
             cmClearConsole();
+
+            // ALWAYS start a private silent audio session for the entire agent run,
+            // regardless of whether the Background button is on. This prevents iOS
+            // from suspending the JS thread when the user switches apps or locks the
+            // screen mid-run. _bgActivate() is also called to acquire the wake lock.
+            const _runAudio = _createStreamAudio();
+            _runAudio.start();
             _bgActivate();
+
+            const abortCtrl = new AbortController();
+
+            function _applyCode(newCode) {
+                _agentCurrentCode = newCode;
+                codeModalState.code = newCode;
+                const vl = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
+                const hi = hljs.highlight(newCode, { language: vl }).value;
+                const lc = newCode.split('\n').length;
+                document.getElementById('cm-code-el').className = `hljs ${vl}`;
+                document.getElementById('cm-code-el').innerHTML = hi;
+                document.getElementById('cm-line-nums').innerHTML =
+                    Array.from({ length: lc }, (_, i) => `<span>${i+1}</span>`).join('');
+            }
+
+            // Intelligent API call with auto-resume.
+            // On any network failure the agent waits and retries up to AUTO_RESUME_ATTEMPTS
+            // times before giving up. Each retry re-starts the silent audio session so iOS
+            // doesn't get a gap it can use to suspend the thread.
+            const AUTO_RESUME_ATTEMPTS = 3;
+            const AUTO_RESUME_DELAY_MS = [4000, 8000, 15000]; // escalating backoff
+
+            async function _callWithResume(currentCode, errors, iteration) {
+                for (let attempt = 1; attempt <= AUTO_RESUME_ATTEMPTS; attempt++) {
+                    if (_agentAbort) throw new DOMException('Aborted', 'AbortError');
+                    try {
+                        return await _agentCallAI(currentCode, lang, errors, iteration, abortCtrl.signal);
+                    } catch (err) {
+                        if (err.name === 'AbortError' || _agentAbort) throw err;
+
+                        const isNetwork = err.message.includes('Load failed') ||
+                                          err.message.includes('network') ||
+                                          err.name === 'TypeError' ||
+                                          err.message.includes('Network error');
+
+                        if (!isNetwork || attempt >= AUTO_RESUME_ATTEMPTS) throw err;
+
+                        // Network failure — auto-resume with countdown
+                        const delay = AUTO_RESUME_DELAY_MS[attempt - 1] || 10000;
+                        const delaySec = Math.round(delay / 1000);
+
+                        _agentUpdateCard(iteration, {
+                            badge: 'running',
+                            title: `Iteration ${iteration} -- Network failure, auto-resuming...`,
+                            thinking: `Attempt ${attempt} failed: ${err.message}\n\nAuto-resuming in ${delaySec}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})...\nSilent audio restarting to keep connection alive.`
+                        });
+                        cmSetStatus('running', `Auto-resume in ${delaySec}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
+
+                        // Countdown in the status bar
+                        for (let s = delaySec; s > 0; s--) {
+                            if (_agentAbort) throw new DOMException('Aborted', 'AbortError');
+                            await new Promise(r => setTimeout(r, 1000));
+                            cmSetStatus('running', `Auto-resume in ${s - 1}s (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
+                        }
+                        if (_agentAbort) throw new DOMException('Aborted', 'AbortError');
+
+                        // Re-start audio before next attempt so there's no gap
+                        _runAudio.stop();
+                        _runAudio.start();
+
+                        _agentUpdateCard(iteration, {
+                            thinking: `Attempt ${attempt} failed: ${err.message}\n\nResuming now (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})...`
+                        });
+                        cmSetStatus('running', `Resuming... (attempt ${attempt + 1}/${AUTO_RESUME_ATTEMPTS})`);
+                    }
+                }
+            }
+
+            let iter = 0;
+            let solved = false;
+            let apiCallFailed = false;
+
+            try {
+                for (iter = 1; iter <= AGENT_MAX_ITER; iter++) {
+                    if (_agentAbort) break;
+                    _agentSetDots(iter, AGENT_MAX_ITER);
+                    _agentBuildCard(iter);
+                    cmSetStatus('running', `Agent iteration ${iter}...`);
+
+                    // Iteration 1: use pre-detected errors. Subsequent: run fresh.
+                    let allErrors;
+                    if (iter === 1 && initialErrors && initialErrors.length > 0) {
+                        allErrors = initialErrors;
+                        _agentUpdateCard(iter, {
+                            thinking: `Errors found (pre-detected):\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond...]`
+                        });
+                    } else {
+                        _agentUpdateCard(iter, { thinking: `Running code to detect errors...` });
+                        const runtimeErrors = await _agentRunCode(_agentCurrentCode, lang);
+                        cmAnalyseProblems(_agentCurrentCode, lang);
+                        const staticProbs = [];
+                        document.querySelectorAll('#cm-problems-panel .cm-prob-row.p-err').forEach(r => {
+                            const m = r.querySelector('.pm')?.textContent?.trim();
+                            if (m) staticProbs.push(`[STATIC] ${m}`);
+                        });
+                        allErrors = [...new Set([...runtimeErrors, ...staticProbs])];
+                    }
+
+                    _agentUpdateCard(iter, {
+                        title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length !== 1 ? 's' : ''} found`
+                    });
+
+                    if (allErrors.length === 0) {
+                        _agentUpdateCard(iter, {
+                            badge: 'ok', title: `Iteration ${iter} -- No errors detected`,
+                            thinking: 'Code ran without errors.',
+                            result: 'All clear -- no fixes needed', resultClass: 'ok'
+                        });
+                        _agentMarkDotDone(iter, 'done');
+                        solved = true;
+                        break;
+                    }
+
+                    const badge = document.getElementById('cm-agent-badge');
+                    if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
+                    if (_agentAbort) break;
+
+                    let fixedCode, reasoning;
+                    try {
+                        const result = await _callWithResume(_agentCurrentCode, allErrors, iter);
+                        fixedCode = result.fixedCode;
+                        reasoning = result.reasoning;
+                    } catch (apiErr) {
+                        if (_agentAbort || apiErr.name === 'AbortError') break;
+                        apiCallFailed = true;
+                        _agentUpdateCard(iter, {
+                            badge: 'err',
+                            title: `Iteration ${iter} -- AI call failed after ${AUTO_RESUME_ATTEMPTS} attempts`,
+                            thinking: apiErr.message,
+                            result: apiErr.message, resultClass: 'err'
+                        });
+                        _agentMarkDotDone(iter, 'err');
+                        break;
+                    }
+
+                    if (_agentAbort) break;
+
+                    const diffLines = _agentDiff(_agentCurrentCode, fixedCode);
+                    const addCount = diffLines.filter(l => l.type === 'add').length;
+                    const remCount = diffLines.filter(l => l.type === 'rem').length;
+
+                    _agentUpdateCard(iter, {
+                        badge: 'fixed',
+                        title: `Iteration ${iter} -- Applied fix (+${addCount} -${remCount} lines)`,
+                        thinking: reasoning || 'Fixes applied.',
+                        diff: diffLines,
+                        result: `Re-running with fixes...`, resultClass: 'info'
+                    });
+                    _agentMarkDotDone(iter, 'done');
+                    _applyCode(fixedCode);
+
+                    await new Promise(r => setTimeout(r, 400));
+                    if (_agentAbort) break;
+
+                    if (iter === AGENT_MAX_ITER) {
+                        const finalErrors = await _agentRunCode(fixedCode, lang);
+                        if (finalErrors.length === 0) {
+                            solved = true;
+                            _agentUpdateCard(iter, { result: 'Verified -- all errors resolved', resultClass: 'ok', badge: 'ok' });
+                        } else {
+                            _agentUpdateCard(iter, { result: `${finalErrors.length} error(s) remain`, resultClass: 'err' });
+                        }
+                    }
+                }
+            } catch (e) {
+                if (!_agentAbort) console.error('Agent loop error:', e.message);
+            } finally {
+                // Always stop the run-level audio session when agent finishes
+                _runAudio.stop();
+            }
+
+            if (_agentAbort) {
+                _agentBanner('giveup', 'Agent stopped by user.');
+                _bgOnComplete(false, 'Agent stopped manually.');
+                cmSetStatus('', 'Agent stopped');
+            } else if (apiCallFailed) {
+                _agentBanner('giveup', `AI call failed after ${AUTO_RESUME_ATTEMPTS} attempts. Check model "${AVAILABLE_MODELS[currentModel] || currentModel}" on VPS.`);
+                _bgOnComplete(false, 'AI call failed after auto-resume attempts.');
+                cmSetStatus('err', 'AI call failed');
+            } else if (solved) {
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                _agentShowWarnNote();
+                _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
+                cmSetStatus('ok', 'Agent: all clear');
+                document.getElementById('cm-tab-preview').style.display = (lang === 'html' || lang === 'xml') ? '' : 'none';
+                if (lang === 'html' || lang === 'xml') {
+                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
+                }
+            } else {
+                _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Check Code tab for latest version.`);
+                _bgOnComplete(false, 'Max iterations reached.');
+                cmSetStatus('err', 'Max iterations reached');
+            }
+
+            _agentRunning = false;
+            document.getElementById('cm-agent-run-btn').disabled = false;
+            document.getElementById('cm-agent-run-btn').innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Re-run Agent';
+            document.getElementById('cm-agent-stop-btn').classList.remove('visible');
+            document.getElementById('cm-agent-iter-label').textContent = '';
+        }
 
             const abortCtrl = new AbortController();
 
@@ -3581,7 +3789,10 @@ Return format:
                 return;
             }
 
-            // Activate background mode (wake lock + silent audio) if enabled
+            // ALWAYS start a private silent audio session — prevents iOS suspending
+            // the thread when user switches apps, even without Background mode on.
+            const _manualRunAudio = _createStreamAudio();
+            _manualRunAudio.start();
             _bgActivate();
 
             // Switch to agent tab
@@ -3662,12 +3873,39 @@ Return format:
 
                     if (_agentAbort) break;
 
-                    // Step 2 -- Ask AI to fix
+                    // Step 2 -- Ask AI to fix (with auto-resume on network failures)
                     let fixedCode, reasoning;
                     try {
-                        const result = await _agentCallAI(_agentCurrentCode, lang, allErrors, iter, abortRef.signal);
-                        fixedCode = result.fixedCode;
-                        reasoning = result.reasoning;
+                        // Inline auto-resume: same logic as _agentRunWithErrors
+                        const AUTO_RESUME = 3;
+                        const DELAYS = [4000, 8000, 15000];
+                        let lastErr2 = null;
+                        let callResult = null;
+                        for (let att = 1; att <= AUTO_RESUME; att++) {
+                            if (_agentAbort) break;
+                            try {
+                                callResult = await _agentCallAI(_agentCurrentCode, lang, allErrors, iter, abortRef.signal);
+                                break;
+                            } catch (e2) {
+                                if (e2.name === 'AbortError' || _agentAbort) { lastErr2 = e2; break; }
+                                const isNet = e2.message.includes('Load failed') || e2.message.includes('network') || e2.name === 'TypeError' || e2.message.includes('Network error');
+                                if (!isNet || att >= AUTO_RESUME) { lastErr2 = e2; break; }
+                                lastErr2 = e2;
+                                const d = DELAYS[att - 1] || 10000;
+                                const ds = Math.round(d / 1000);
+                                _agentUpdateCard(iter, { badge: 'running', title: `Iteration ${iter} -- Network failure, resuming in ${ds}s...`, thinking: `Attempt ${att} failed: ${e2.message}\n\nAuto-resuming in ${ds}s (attempt ${att + 1}/${AUTO_RESUME})...` });
+                                cmSetStatus('running', `Auto-resume in ${ds}s`);
+                                for (let sc = ds; sc > 0; sc--) {
+                                    if (_agentAbort) break;
+                                    await new Promise(r => setTimeout(r, 1000));
+                                    cmSetStatus('running', `Auto-resume in ${sc - 1}s`);
+                                }
+                                _manualRunAudio.stop(); _manualRunAudio.start();
+                            }
+                        }
+                        if (!callResult) throw lastErr2 || new Error('All resume attempts failed');
+                        fixedCode = callResult.fixedCode;
+                        reasoning = callResult.reasoning;
                     } catch (apiErr) {
                         if (_agentAbort || apiErr.name === 'AbortError') break;
                         apiCallFailed = true;
@@ -3678,7 +3916,7 @@ Return format:
                             result: apiErr.message, resultClass: 'err'
                         });
                         _agentMarkDotDone(iter, 'err');
-                        break; // stop the loop — no point retrying if the model is unreachable
+                        break;
                     }
 
                     if (_agentAbort) break;
@@ -3717,6 +3955,8 @@ Return format:
                 }
             } catch (e) {
                 if (!_agentAbort) console.error('Agent loop error:', e.message);
+            } finally {
+                _manualRunAudio.stop();
             }
 
             // Final banner — exactly one, chosen by priority
@@ -3725,7 +3965,7 @@ Return format:
                 _bgOnComplete(false, 'Agent was stopped manually.');
                 cmSetStatus('', 'Agent stopped');
             } else if (apiCallFailed) {
-                _agentBanner('giveup', `AI call failed. Make sure model "${currentModel}" is running on your VPS and the API key is correct.`);
+                _agentBanner('giveup', `AI call failed after auto-resume attempts. Check model "${AVAILABLE_MODELS[currentModel] || currentModel}" on VPS.`);
                 _bgOnComplete(false, `AI call failed for model "${AVAILABLE_MODELS[currentModel] || currentModel}".`);
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
