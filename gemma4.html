@@ -4718,6 +4718,114 @@ Improved text:`;
             if (prog) prog.remove();
             return result;
         }
+        /* ── Debate Panel DOM builders ── */
+
+        function _debateBuildPanel(botContent) {
+            const writerModel   = getDebateWriterModel();
+            const reviewerModel = getDebateReviewerModel();
+            const panel = document.createElement('div');
+            panel.className = 'debate-panel';
+            panel.innerHTML = `
+                <div class="debate-header">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span class="debate-title">Debate Agent</span>
+                    <span class="debate-status-dot reviewing"></span>
+                    <span class="debate-status-text">Initialising...</span>
+                    <button class="debate-close-btn" onclick="this.closest('.debate-panel').remove()">✕</button>
+                </div>
+                <div class="debate-models-row">
+                    <span class="debate-model-badge writer">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
+                        ✍️ ${escapeHtml(_debateShortName(writerModel))}
+                    </span>
+                    <span class="debate-vs">VS</span>
+                    <span class="debate-model-badge reviewer">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        🔍 ${escapeHtml(_debateShortName(reviewerModel))}
+                    </span>
+                    <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);margin-left:auto;">Max ${DEBATE_MAX_ROUNDS} rounds · Approve ≥ 85/100</span>
+                </div>
+                <div class="debate-feed"></div>`;
+            botContent.appendChild(panel);
+            return panel;
+        }
+
+        function _debateSetStatus(panel, state, text) {
+            const dot = panel.querySelector('.debate-status-dot');
+            const txt = panel.querySelector('.debate-status-text');
+            if (dot) dot.className = `debate-status-dot ${state}`;
+            if (txt) txt.textContent = text;
+        }
+
+        function _debateAddRoundCard(panel, round) {
+            const feed = panel.querySelector('.debate-feed');
+            if (!feed) return;
+            const card = document.createElement('div');
+            card.className = 'debate-round-card open';
+            card.id = `debate-card-${round}`;
+            card.innerHTML = `
+                <div class="debate-round-header" onclick="this.closest('.debate-round-card').classList.toggle('open')">
+                    <span class="debate-round-badge reviewing" id="debate-badge-${round}">${round}</span>
+                    <span class="debate-round-title" id="debate-title-${round}">Reviewing...</span>
+                    <span class="debate-round-score" id="debate-score-${round}" style="color:var(--text-muted);">—/100</span>
+                    <span class="debate-round-chevron">›</span>
+                </div>
+                <div class="debate-round-body" id="debate-body-${round}"></div>`;
+            feed.appendChild(card);
+        }
+
+        function _debateUpdateRoundBadge(round, state) {
+            const badge = document.getElementById(`debate-badge-${round}`);
+            if (badge) badge.className = `debate-round-badge ${state}`;
+        }
+
+        function _debateUpdateRoundCard(round, state, title, score, summary, issues, scoreColor) {
+            _debateUpdateRoundBadge(round, state);
+            const titleEl = document.getElementById(`debate-title-${round}`);
+            const scoreEl = document.getElementById(`debate-score-${round}`);
+            const body    = document.getElementById(`debate-body-${round}`);
+            if (titleEl) titleEl.textContent = title;
+            if (scoreEl) { scoreEl.textContent = `${score}/100`; scoreEl.style.color = scoreColor || 'var(--text-muted)'; }
+            if (!body)   return;
+
+            const issueHtml = (issues && issues.length > 0)
+                ? `<div class="debate-issue-list">${issues.map(iss => `
+                    <div class="debate-issue-item ${iss.severity||'medium'}">
+                        <span class="debate-issue-tag ${iss.type||'clarity'}">${(iss.type||'note').slice(0,6)}</span>
+                        <div class="debate-issue-content">
+                            <div class="debate-issue-text">${escapeHtml((iss.text||'').slice(0,160))}</div>
+                            ${iss.fix ? `<div class="debate-issue-fix">→ ${escapeHtml(iss.fix)}</div>` : ''}
+                        </div>
+                    </div>`).join('')}</div>`
+                : '';
+
+            body.innerHTML = `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;">${escapeHtml(summary||'')}</div>${issueHtml}`;
+        }
+
+        function _debateShowVerdict(panel, type, text) {
+            const feed = panel.querySelector('.debate-feed');
+            if (!feed) return;
+            const v = document.createElement('div');
+            v.className = `debate-verdict ${type}`;
+            v.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${type==='approved'?'<polyline points="20 6 9 17 4 12"/>':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg>${escapeHtml(text)}`;
+            feed.after(v);
+        }
+
+        function _debateMarkBtn(botContent, state) {
+            const btn = botContent.querySelector('.debate-check-btn');
+            if (!btn) return;
+            btn.classList.remove('running', 'approved', 'maxed');
+            btn.classList.add(state);
+            btn.innerHTML = state === 'approved'
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ✓ Approved`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ⚠ Re-debate`;
+        }
+
+        function _debateShortName(modelId) {
+            if (!modelId) return 'current';
+            return (AVAILABLE_MODELS[modelId] || modelId).split(':')[0].slice(0, 18);
+        }
+
         /* ============================================================
            Boot
            ============================================================ */
