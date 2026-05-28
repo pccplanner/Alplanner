@@ -1738,6 +1738,20 @@
         .debate-check-btn.approved{ background: rgba(129,201,149,0.1); border-color: rgba(129,201,149,0.4); color: var(--accent-green); }
         .debate-check-btn.maxed   { background: rgba(253,214,99,0.1);  border-color: rgba(253,214,99,0.4);  color: var(--accent-yellow); }
 
+        /* Pipeline complete banner */
+        .pipeline-complete {
+            margin-top: 12px; padding: 12px 16px;
+            background: rgba(129,201,149,0.08);
+            border: 1px solid rgba(129,201,149,0.3);
+            border-radius: 12px;
+            display: flex; align-items: center; gap: 11px;
+            color: var(--accent-green);
+            animation: fadeIn 0.4s ease;
+        }
+        .pipeline-complete .pc-text { display: flex; flex-direction: column; gap: 2px; }
+        .pipeline-complete .pc-title { font-size: 0.86rem; font-weight: 700; }
+        .pipeline-complete .pc-sub { font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); }
+
         /* Model role selectors in Agent Settings */
         .role-select-row {
             display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
@@ -4393,6 +4407,26 @@ Rewritten text:`;
                 : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ⚠ ${score}% — Re-check`;
         }
 
+        /* Show a clear "pipeline complete" banner so the user knows all agents are done */
+        function _showPipelineComplete(botContent, debateOk, plagOk) {
+            if (!botContent) return;
+            // Remove any existing completion banner first
+            botContent.querySelector('.pipeline-complete')?.remove();
+
+            const banner = document.createElement('div');
+            banner.className = 'pipeline-complete';
+            const debateLabel = debateOk ? '✓ Debate reviewed' : '— Debate skipped';
+            const plagLabel   = plagOk   ? '✓ Plagiarism checked' : '— Plagiarism skipped';
+            banner.innerHTML = `
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <div class="pc-text">
+                    <span class="pc-title">All checks complete — ready to use</span>
+                    <span class="pc-sub">${debateLabel} · ${plagLabel}</span>
+                </div>`;
+            botContent.appendChild(banner);
+            setTimeout(() => banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300);
+        }
+
         /* ============================================================
            Debate / Challenger Agent
            Pattern 1: Writer generates → Reviewer critiques →
@@ -4528,10 +4562,11 @@ Rewritten text:`;
             }
         }
 
-        /* ── Shared streaming collector for debate calls ──
-           Streams from Ollama, calls onChunk(text) each token,
-           returns the full accumulated string. Aborts after timeoutMs. */
-        async function _debateStreamCollect(messages, model, onChunk, timeoutMs = 120000) {
+        /* ── Shared non-streaming API call for debate ──
+           Uses stream:false — same pattern as _plagAnalyze which works
+           across all model backends (Ollama, Gemini, etc).
+           Retries once on empty response. Aborts after timeoutMs via signal. */
+        async function _debateCall(messages, model, timeoutMs = 120000) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
@@ -4539,33 +4574,23 @@ Rewritten text:`;
                     method: 'POST',
                     headers: apiHeaders(),
                     signal: controller.signal,
-                    body: JSON.stringify({ model: model || currentModel, stream: true, messages })
+                    body: JSON.stringify({
+                        model: model || currentModel,
+                        stream: false,
+                        messages
+                    })
                 });
                 if (!resp.ok) throw new Error(`API HTTP ${resp.status}`);
-                const reader = resp.body.getReader();
-                const dec = new TextDecoder();
-                let full = '';
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    const lines = dec.decode(value, { stream: true }).split('\n');
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-                        try {
-                            const j = JSON.parse(line);
-                            const tok = j?.message?.content || '';
-                            if (tok) { full += tok; onChunk(full); }
-                            if (j.done) return full;
-                        } catch (_) { /* partial line */ }
-                    }
-                }
-                return full;
+                const data = await resp.json();
+                const content = data?.message?.content || '';
+                if (!content) throw new Error('Empty response from model');
+                return content.trim();
             } finally {
                 clearTimeout(timer);
             }
         }
 
-        /* ── Reviewer: streams response, parses accumulated text as JSON ── */
+        /* ── Reviewer: calls model, returns structured JSON ── */
         async function _debateReview(text, model) {
             const prompt = `You are a strict academic reviewer for university project papers. Evaluate the text below and return ONLY a valid JSON object — no markdown fences, no preamble, no text outside the JSON.
 
@@ -4592,21 +4617,20 @@ JSON FORMAT (return exactly this structure):
 Scoring: 85-100 Approve (well-cited, original, strong). 60-84 Reject (fixable). 0-59 Reject (major issues).
 Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON object:`;
 
-            let raw = '';
-            await _debateStreamCollect(
+            let raw = await _debateCall(
                 [
                     { role: 'system', content: 'You are an academic reviewer. Output ONLY valid JSON. No markdown fences. No text before or after the JSON.' },
                     { role: 'user',   content: prompt }
                 ],
-                model, (acc) => { raw = acc; }, 90000
+                model, 90000
             );
 
-            raw = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+            raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
             let result;
             try { result = JSON.parse(raw); }
             catch (_) {
                 const m = raw.match(/\{[\s\S]*\}/);
-                if (!m) throw new Error('Reviewer returned invalid JSON. Try a different model.');
+                if (!m) throw new Error('Reviewer returned invalid JSON — try a different model.');
                 result = JSON.parse(m[0]);
             }
             result.score    = Math.min(100, Math.max(0, parseInt(result.score) || 50));
@@ -4616,7 +4640,7 @@ Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON obj
             return result;
         }
 
-        /* ── Writer: streams rewrite with live char counter in round card ── */
+        /* ── Writer: rewrites text addressing reviewer issues ── */
         async function _debateRewrite(text, issues, model, round) {
             const issueList = issues.map((iss, i) =>
                 `${i+1}. [${(iss.type||'issue').toUpperCase()}] ${iss.text||''}\n   FIX: ${iss.fix||''}`
@@ -4642,138 +4666,22 @@ ${text}
 
 Improved text:`;
 
-            // Live char counter in round card body
+            // Show processing indicator in round card body
             const body = document.getElementById(`debate-body-${round}`);
-            if (body) body.innerHTML = `<div id="debate-wp-${round}" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);padding:6px 2px;display:flex;align-items:center;gap:6px;"><span style="animation:pulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent-blue);flex-shrink:0;"></span>Writer rewriting... <span id="debate-chars-${round}" style="color:var(--accent-blue);font-weight:700;">0</span> chars</div>`;
+            if (body) body.innerHTML = `<div id="debate-wp-${round}" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);padding:6px 2px;display:flex;align-items:center;gap:8px;"><span style="animation:pulse 1s infinite ease-in-out;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent-blue);flex-shrink:0;"></span>Writer rewriting — please wait...</div>`;
 
-            let result = '';
-            await _debateStreamCollect(
+            const result = await _debateCall(
                 [
                     { role: 'system', content: `${getActiveSystemPrompt()}\n\nYou are rewriting academic content to address reviewer feedback. Preserve all citations and References section exactly. Return only the improved text.` },
                     { role: 'user',   content: prompt }
                 ],
-                model,
-                (accumulated) => {
-                    result = accumulated;
-                    const el = document.getElementById(`debate-chars-${round}`);
-                    if (el) el.textContent = accumulated.length.toLocaleString();
-                },
-                180000
+                model, 180000
             );
 
-            if (!result) throw new Error('Writer returned empty rewrite');
             const prog = document.getElementById(`debate-wp-${round}`);
             if (prog) prog.remove();
             return result;
         }
-        /* ── Panel DOM builders ── */
-
-        function _plagBuildPanel(botContent) {
-            const panel = document.createElement('div');
-            panel.className = 'plag-panel';
-            panel.innerHTML = `
-                <div class="plag-header">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span class="plag-title">Plagiarism Check</span>
-                    <span class="plag-status-dot scanning"></span>
-                    <span class="plag-status-text">Initialising...</span>
-                    <button class="plag-close-btn" onclick="this.closest('.plag-panel').remove()">✕</button>
-                </div>
-                <div class="plag-score-row">
-                    <div class="plag-score-ring">
-                        <svg viewBox="0 0 36 36" class="plag-ring-svg">
-                            <circle class="plag-ring-bg"   cx="18" cy="18" r="15.9"/>
-                            <circle class="plag-ring-fill" cx="18" cy="18" r="15.9" stroke-dashoffset="25"/>
-                        </svg>
-                        <span class="plag-score-num">—</span>
-                    </div>
-                    <div class="plag-score-meta">
-                        <div class="plag-score-label">Analysing text...</div>
-                        <div class="plag-threshold-note">Threshold: ≤ ${getPlagThreshold()}%  ·  Max ${PLAG_MAX_ITER} iterations</div>
-                    </div>
-                </div>
-                <div class="plag-iter-feed"></div>`;
-            botContent.appendChild(panel);
-            return panel;
-        }
-
-        function _plagPanelSetStatus(panel, state, text) {
-            const dot = panel.querySelector('.plag-status-dot');
-            const txt = panel.querySelector('.plag-status-text');
-            if (dot) dot.className = `plag-status-dot ${state}`;
-            if (txt) txt.textContent = text;
-        }
-
-        function _plagPanelSetScore(panel, score) {
-            const num   = panel.querySelector('.plag-score-num');
-            const fill  = panel.querySelector('.plag-ring-fill');
-            const label = panel.querySelector('.plag-score-label');
-            const thresh = getPlagThreshold();
-            const color  = score <= thresh ? '#81c995' : score <= 35 ? '#fdd663' : '#f28b82';
-            const tag    = score <= thresh ? '✓ Within Threshold'
-                         : score <= 35     ? '⚠ Medium Risk — Rewriting'
-                         :                   '✗ High Risk — Rewriting';
-            if (num)   { num.textContent = score + '%'; num.style.color = color; }
-            if (fill)  { fill.style.stroke = color; fill.setAttribute('stroke-dasharray', `${score} ${100-score}`); }
-            if (label) { label.textContent = tag; label.style.color = color; }
-        }
-
-        function _plagAddIterCard(panel, iter) {
-            const feed = panel.querySelector('.plag-iter-feed');
-            if (!feed) return;
-            const card = document.createElement('div');
-            card.className = 'plag-iter-card open';
-            card.id = `plag-card-${iter}`;
-            card.innerHTML = `
-                <div class="plag-iter-header" onclick="this.closest('.plag-iter-card').classList.toggle('open')">
-                    <span class="plag-iter-badge running">${iter}</span>
-                    <span class="plag-iter-title" id="plag-title-${iter}">Analysing...</span>
-                    <span class="plag-iter-chevron">›</span>
-                </div>
-                <div class="plag-iter-body" id="plag-body-${iter}"></div>`;
-            feed.appendChild(card);
-            feed.scrollTop = feed.scrollHeight;
-        }
-
-        function _plagUpdateIterCard(panel, iter, state, title, summary, flagged) {
-            const card  = document.getElementById(`plag-card-${iter}`);
-            const badge = card?.querySelector('.plag-iter-badge');
-            const titleEl = document.getElementById(`plag-title-${iter}`);
-            const body    = document.getElementById(`plag-body-${iter}`);
-            if (badge)   badge.className = `plag-iter-badge ${state}`;
-            if (titleEl) titleEl.textContent = title;
-            if (!body)   return;
-
-            const flagHtml = (flagged && flagged.length > 0)
-                ? `<div class="plag-flag-list">${flagged.map(f => `
-                    <div class="plag-flag-item ${f.risk||'medium'}">
-                        <span class="plag-flag-risk ${f.risk||'medium'}">${(f.risk||'MED').toUpperCase().slice(0,4)}</span>
-                        <div class="plag-flag-content">
-                            <div class="plag-flag-orig">"${escapeHtml((f.sentence||'').slice(0,120))}"</div>
-                            <div class="plag-flag-reason">${escapeHtml(f.reason||'')}</div>
-                            ${f.rewrite ? `<div class="plag-flag-rewrite">→ ${escapeHtml(f.rewrite)}</div>` : ''}
-                        </div>
-                    </div>`).join('')}</div>`
-                : '';
-
-            body.innerHTML = `<div class="plag-iter-summary">${escapeHtml(summary||'')}</div>${flagHtml}`;
-        }
-
-        function _plagMarkToolbarBtn(botContent, result, score) {
-            const btn = botContent.querySelector('.plag-check-btn');
-            if (!btn) return;
-            btn.classList.remove('running', 'passed', 'failed');
-            btn.classList.add(result);
-            btn.innerHTML = result === 'passed'
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ✓ ${score}% — Passed`
-                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ⚠ ${score}% — Re-check`;
-        }
-
-        /* ============================================================
-           Debate / Challenger Agent
-           Pattern 1: Writer generates → Reviewer critiques →
-           Writer rewrites → loop until approved or max rounds.
-           ============================================================ */
         /* ============================================================
            Boot
            ============================================================ */
@@ -7577,10 +7485,13 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         const toolbarBtns = bc.querySelectorAll('.debate-check-btn, .plag-check-btn');
                         toolbarBtns.forEach(b => b.classList.add('running'));
 
+                        let debateOk = false, plagOk = false;
+
                         try {
                             // Step 1: Debate — improves content quality
+                            showToast('Step 1/2: Debate Agent reviewing...');
                             await _debateRun(fullResponseText, bc);
-                            // Scroll debate panel into view
+                            debateOk = true;
                             const dp = bc.querySelector('.debate-panel');
                             if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
@@ -7597,8 +7508,9 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content; break; }
                         }
                         try {
+                            showToast('Step 2/2: Plagiarism Agent checking...');
                             await _plagRun(finalText, bc);
-                            // Scroll plagiarism panel into view
+                            plagOk = true;
                             const pp = bc.querySelector('.plag-panel');
                             if (pp) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
@@ -7606,11 +7518,13 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             _plagRunning = false;
                         }
 
+                        // Show a clear pipeline-complete banner so the user knows it's done
+                        _showPipelineComplete(bc, debateOk, plagOk);
+
                         // Full UI reset after all agents complete
                         toolbarBtns.forEach(b => b.classList.remove('running'));
                         _debateRunning = false;
                         _plagRunning   = false;
-                        // Ensure send button is re-enabled and input is focusable
                         setStreamingUiState(false);
                         updateSendButtonState();
                         const inp = document.getElementById('user-input');
