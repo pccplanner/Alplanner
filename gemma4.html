@@ -1613,7 +1613,7 @@ Rules:
          */
         async function _autoAgentScanReply(markdownText) {
             const block = _autoAgentExtractCode(markdownText);
-            if (!block) return; // no runnable code in this reply
+            if (!block) return;
 
             const { code, lang } = block;
 
@@ -1621,10 +1621,9 @@ Rules:
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
                 'Auto-Fix: scanning code...',
                 `Checking ${lang.toUpperCase()} block for errors`,
-                0  // no auto-dismiss while running
+                0
             );
 
-            // Run silently in a hidden iframe and wait for errors
             const errors = await _autoAgentRunSilent(code, lang);
 
             if (errors.length === 0) {
@@ -1637,38 +1636,44 @@ Rules:
                 return;
             }
 
-            // Errors found — open IDE modal and start agent
+            // Errors found — show countdown banner then open IDE
             _aaBanner(
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-                `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} detected`,
-                'Opening agent...',
+                `Auto-Fix: ${errors.length} error${errors.length > 1 ? 's' : ''} found — starting in 3s`,
+                'Tap banner X to cancel',
                 0
             );
 
-            // Short pause so banner is readable before modal opens
-            await new Promise(r => setTimeout(r, 600));
+            // 3-second countdown so user can cancel if they want
+            let cancelled = false;
+            const cancelHandler = () => { cancelled = true; };
+            document.querySelector('#aa-banner .aa-close')?.addEventListener('click', cancelHandler, { once: true });
 
-            // Prime the IDE modal state with this code block
+            for (let i = 3; i >= 1; i--) {
+                await new Promise(r => setTimeout(r, 1000));
+                if (cancelled) { _aaBannerHide(); return; }
+                document.getElementById('aa-banner-text').textContent =
+                    `Auto-Fix: starting in ${i - 1 > 0 ? i - 1 + 's' : 'now...'}`;
+            }
+            if (cancelled) { _aaBannerHide(); return; }
+
+            // Open IDE modal and go straight to Agent tab
             openCodeModal(code, lang);
-
-            // Switch straight to the Agent tab
             cmSwitchTab('agent');
 
-            // Give the modal a tick to render, then auto-start
-            await new Promise(r => setTimeout(r, 300));
+            // Wait for modal CSS transition + iOS rendering (needs ~500ms on Safari)
+            await new Promise(r => setTimeout(r, 500));
 
             _aaBanner(
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fdd663" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-                'Auto-Fix: agent running',
-                `Fixing ${errors.length} error${errors.length > 1 ? 's' : ''} with ${AVAILABLE_MODELS[currentModel] || currentModel}`,
+                `Auto-Fix: running with ${AVAILABLE_MODELS[currentModel] || currentModel}`,
+                `${errors.length} error${errors.length > 1 ? 's' : ''} to fix`,
                 0
             );
 
-            // Pre-seed the console log so the agent's first run picks up the errors
-            errors.forEach(e => _cmLogs.push({ level: 'ERR', msg: e }));
-
-            // Start the agent (it will pick up codeModalState which we just set)
-            await agentRun();
+            // Call the agent with pre-detected errors injected directly,
+            // bypassing the agent's own initial iframe run (faster + avoids race).
+            await _agentRunWithErrors(code, lang, errors);
 
             _aaBannerHide();
         }
@@ -2976,7 +2981,6 @@ Rules:
             const errList = errors.map((e, i) => `${i+1}. ${e}`).join('\n');
 
             // Truncate very large code to avoid hitting model context limits.
-            // Keep the first 300 lines + last 50 lines if the file is huge.
             const codeLines = code.split('\n');
             let codeForPrompt = code;
             if (codeLines.length > 400) {
@@ -3010,83 +3014,81 @@ Return format:
 [complete fixed code here]
 \`\`\``;
 
-            // Use stream:false for the agent -- iOS Safari kills long streaming fetch requests
-            // ("Load failed") before they complete. A single JSON response is far more reliable.
-            let response;
-            try {
-                response = await fetch(VPS_OLLAMA_URL, {
-                    method: 'POST',
-                    headers: apiHeaders(),
-                    signal,
-                    body: JSON.stringify({
-                        model: currentModel,
-                        stream: false,   // <-- key fix: single response, no streaming
-                        messages: [
-                            {
-                                role: 'system',
-                                content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block. No explanations outside the fence.`
-                            },
-                            { role: 'user', content: prompt }
-                        ]
-                    })
-                });
-            } catch (netErr) {
-                if (netErr.name === 'AbortError') throw netErr;
-                // Retry once -- iOS sometimes drops the first connection attempt
-                console.warn('Agent fetch failed, retrying once...', netErr.message);
+            const body = JSON.stringify({
+                model: currentModel,
+                stream: false,
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block. No explanations outside the fence.`
+                    },
+                    { role: 'user', content: prompt }
+                ]
+            });
+
+            // CRITICAL: start silent audio BEFORE the fetch so iOS does not suspend
+            // the JS thread when the user switches apps or the screen dims.
+            // This runs even if the user hasn't enabled Background mode manually.
+            const _callAudio = _createStreamAudio();
+            _callAudio.start();
+
+            const MAX_ATTEMPTS = 3;
+            let lastErr = null;
+
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                if (signal && signal.aborted) { _callAudio.stop(); throw new DOMException('Aborted', 'AbortError'); }
+
                 try {
-                    await new Promise(r => setTimeout(r, 1200));
-                    response = await fetch(VPS_OLLAMA_URL, {
+                    const response = await fetch(VPS_OLLAMA_URL, {
                         method: 'POST',
                         headers: apiHeaders(),
                         signal,
-                        body: JSON.stringify({
-                            model: currentModel,
-                            stream: false,
-                            messages: [
-                                {
-                                    role: 'system',
-                                    content: `You are an expert ${lang} code debugger. Return ONLY the complete fixed code inside a single fenced code block.`
-                                },
-                                { role: 'user', content: prompt }
-                            ]
-                        })
+                        body
                     });
-                } catch (retryErr) {
-                    if (retryErr.name === 'AbortError') throw retryErr;
-                    throw new Error(
-                        `Network error (2 attempts): ${retryErr.message}. ` +
-                        `VPS: ${VPS_OLLAMA_URL}. ` +
-                        `Check VPS is running and model "${currentModel}" is loaded.`
-                    );
+
+                    if (!response.ok) {
+                        let errMsg = `HTTP ${response.status}`;
+                        try { const j = await response.json(); errMsg = j.error || errMsg; } catch (_) {}
+                        throw new Error(`VPS returned ${errMsg} for model "${currentModel}"`);
+                    }
+
+                    let data;
+                    try { data = await response.json(); }
+                    catch (parseErr) { throw new Error(`Invalid JSON from VPS: ${parseErr.message}`); }
+
+                    const fullText = data?.message?.content || '';
+                    if (!fullText.trim()) throw new Error(`Model "${currentModel}" returned an empty response`);
+
+                    _callAudio.stop();
+
+                    const match = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
+                    const fixedCode = match ? match[1].trim() : fullText.trim();
+                    const reasoning = fullText.replace(/```[\s\S]*?```/g, '').trim() || 'Fixes applied.';
+
+                    return { fixedCode, reasoning };
+
+                } catch (err) {
+                    if (err.name === 'AbortError') { _callAudio.stop(); throw err; }
+                    lastErr = err;
+
+                    if (attempt < MAX_ATTEMPTS) {
+                        // Exponential backoff: 1.5s, 3s between retries
+                        const delay = 1500 * attempt;
+                        console.warn(`Agent fetch attempt ${attempt} failed (${err.message}), retrying in ${delay}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        // Re-start audio in case iOS closed it during the wait
+                        _callAudio.stop();
+                        _callAudio.start();
+                    }
                 }
             }
 
-            if (!response.ok) {
-                let errMsg = `HTTP ${response.status}`;
-                try { const j = await response.json(); errMsg = j.error || errMsg; } catch (_) {}
-                throw new Error(`VPS returned ${errMsg} for model "${currentModel}"`);
-            }
-
-            // Non-streaming: single JSON response
-            let data;
-            try {
-                data = await response.json();
-            } catch (parseErr) {
-                throw new Error(`Invalid JSON from VPS: ${parseErr.message}`);
-            }
-
-            const fullText = data?.message?.content || '';
-            if (!fullText.trim()) throw new Error(`Model "${currentModel}" returned an empty response`);
-
-            // Extract the fenced code block
-            const match = fullText.match(/```(?:\w+)?\n([\s\S]*?)```/);
-            const fixedCode = match ? match[1].trim() : fullText.trim();
-
-            // Everything outside the code fence is the reasoning
-            const reasoning = fullText.replace(/```[\s\S]*?```/g, '').trim() || 'Fixes applied.';
-
-            return { fixedCode, reasoning };
+            _callAudio.stop();
+            throw new Error(
+                `Network error (${MAX_ATTEMPTS} attempts): ${lastErr?.message}. ` +
+                `VPS: ${VPS_OLLAMA_URL}. ` +
+                `Check VPS is running and model "${currentModel}" is loaded.`
+            );
         }
 
         /* ============================================================
@@ -3271,6 +3273,175 @@ Return format:
             if (!_bgModeEnabled) return;
             const title = success ? 'Agent: All errors fixed!' : 'Agent: Run complete';
             _bgNotify(title, summary || 'Open AI Pro Coder to see the results.');
+        }
+
+        /**
+         * Auto-agent entry point: skips the first iframe run and injects the
+         * errors detected by the silent pre-scan directly into iteration 1.
+         * This avoids the race condition where agentRun() re-runs the code
+         * but the iframe hasn't finished initialising yet.
+         */
+        async function _agentRunWithErrors(code, lang, initialErrors) {
+            if (_agentRunning) return;
+            if (!currentModel) return;
+
+            _agentRunning = true;
+            _agentAbort = false;
+            _agentCurrentCode = code;
+            codeModalState.code = code;
+            codeModalState.lang = lang;
+
+            // Reset agent UI
+            document.getElementById('cm-agent-run-btn').disabled = true;
+            document.getElementById('cm-agent-stop-btn').classList.add('visible');
+            document.getElementById('cm-agent-welcome')?.remove();
+            const feed = document.getElementById('cm-agent-feed');
+            if (feed) feed.querySelectorAll('.agent-card, .agent-banner').forEach(el => el.remove());
+            cmClearConsole();
+            _bgActivate();
+
+            const abortCtrl = new AbortController();
+
+            function _applyCode(newCode) {
+                _agentCurrentCode = newCode;
+                codeModalState.code = newCode;
+                const vl = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
+                const hi = hljs.highlight(newCode, { language: vl }).value;
+                const lc = newCode.split('\n').length;
+                document.getElementById('cm-code-el').className = `hljs ${vl}`;
+                document.getElementById('cm-code-el').innerHTML = hi;
+                document.getElementById('cm-line-nums').innerHTML =
+                    Array.from({ length: lc }, (_, i) => `<span>${i+1}</span>`).join('');
+            }
+
+            let iter = 0;
+            let solved = false;
+            let apiCallFailed = false;
+
+            try {
+                for (iter = 1; iter <= AGENT_MAX_ITER; iter++) {
+                    if (_agentAbort) break;
+                    _agentSetDots(iter, AGENT_MAX_ITER);
+                    _agentBuildCard(iter);
+                    cmSetStatus('running', `Agent iteration ${iter}...`);
+
+                    // Iteration 1: use pre-detected errors. Subsequent iterations: run fresh.
+                    let allErrors;
+                    if (iter === 1 && initialErrors && initialErrors.length > 0) {
+                        allErrors = initialErrors;
+                        _agentUpdateCard(iter, {
+                            thinking: `Errors found (pre-detected):\n${allErrors.join('\n')}\n\n[Waiting for ${AVAILABLE_MODELS[currentModel] || currentModel} to respond...]`
+                        });
+                    } else {
+                        _agentUpdateCard(iter, { thinking: `Running code to detect errors...` });
+                        const runtimeErrors = await _agentRunCode(_agentCurrentCode, lang);
+                        cmAnalyseProblems(_agentCurrentCode, lang);
+                        const staticProbs = [];
+                        document.querySelectorAll('#cm-problems-panel .cm-prob-row.p-err').forEach(r => {
+                            const m = r.querySelector('.pm')?.textContent?.trim();
+                            if (m) staticProbs.push(`[STATIC] ${m}`);
+                        });
+                        allErrors = [...new Set([...runtimeErrors, ...staticProbs])];
+                    }
+
+                    _agentUpdateCard(iter, {
+                        title: `Iteration ${iter} -- ${allErrors.length} error${allErrors.length !== 1 ? 's' : ''} found`
+                    });
+
+                    if (allErrors.length === 0) {
+                        _agentUpdateCard(iter, {
+                            badge: 'ok', title: `Iteration ${iter} -- No errors detected`,
+                            thinking: 'Code ran without errors.',
+                            result: 'All clear -- no fixes needed', resultClass: 'ok'
+                        });
+                        _agentMarkDotDone(iter, 'done');
+                        solved = true;
+                        break;
+                    }
+
+                    const badge = document.getElementById('cm-agent-badge');
+                    if (badge) { badge.classList.add('on'); badge.textContent = allErrors.length; }
+
+                    if (_agentAbort) break;
+
+                    let fixedCode, reasoning;
+                    try {
+                        const result = await _agentCallAI(_agentCurrentCode, lang, allErrors, iter, abortCtrl.signal);
+                        fixedCode = result.fixedCode;
+                        reasoning = result.reasoning;
+                    } catch (apiErr) {
+                        if (_agentAbort || apiErr.name === 'AbortError') break;
+                        apiCallFailed = true;
+                        _agentUpdateCard(iter, {
+                            badge: 'err', title: `Iteration ${iter} -- AI call failed`,
+                            thinking: apiErr.message, result: apiErr.message, resultClass: 'err'
+                        });
+                        _agentMarkDotDone(iter, 'err');
+                        break;
+                    }
+
+                    if (_agentAbort) break;
+
+                    const diffLines = _agentDiff(_agentCurrentCode, fixedCode);
+                    const addCount = diffLines.filter(l => l.type === 'add').length;
+                    const remCount = diffLines.filter(l => l.type === 'rem').length;
+
+                    _agentUpdateCard(iter, {
+                        badge: 'fixed',
+                        title: `Iteration ${iter} -- Applied fix (+${addCount} -${remCount} lines)`,
+                        thinking: reasoning || 'Fixes applied.',
+                        diff: diffLines,
+                        result: `Re-running with fixes...`, resultClass: 'info'
+                    });
+                    _agentMarkDotDone(iter, 'done');
+                    _applyCode(fixedCode);
+
+                    await new Promise(r => setTimeout(r, 400));
+                    if (_agentAbort) break;
+
+                    if (iter === AGENT_MAX_ITER) {
+                        const finalErrors = await _agentRunCode(fixedCode, lang);
+                        if (finalErrors.length === 0) {
+                            solved = true;
+                            _agentUpdateCard(iter, { result: 'Verified -- all errors resolved', resultClass: 'ok', badge: 'ok' });
+                        } else {
+                            _agentUpdateCard(iter, { result: `${finalErrors.length} error(s) remain`, resultClass: 'err' });
+                        }
+                    }
+                }
+            } catch (e) {
+                if (!_agentAbort) console.error('Agent loop error:', e.message);
+            }
+
+            if (_agentAbort) {
+                _agentBanner('giveup', 'Agent stopped by user.');
+                _bgOnComplete(false, 'Agent stopped manually.');
+                cmSetStatus('', 'Agent stopped');
+            } else if (apiCallFailed) {
+                _agentBanner('giveup', `AI call failed. Check model "${currentModel}" on VPS.`);
+                _bgOnComplete(false, 'AI call failed.');
+                cmSetStatus('err', 'AI call failed');
+            } else if (solved) {
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Fixed code is ready in the Code tab.`);
+                _agentShowWarnNote();
+                _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
+                cmSetStatus('ok', 'Agent: all clear');
+                document.getElementById('cm-tab-preview').style.display = (lang === 'html' || lang === 'xml') ? '' : 'none';
+                if (lang === 'html' || lang === 'xml') {
+                    setTimeout(() => { runCodeModal(); cmSwitchTab('agent'); }, 600);
+                }
+            } else {
+                _agentBanner('giveup', `Max iterations (${AGENT_MAX_ITER}) reached. Check Code tab for latest version.`);
+                _bgOnComplete(false, 'Max iterations reached.');
+                cmSetStatus('err', 'Max iterations reached');
+            }
+
+            _agentRunning = false;
+            document.getElementById('cm-agent-run-btn').disabled = false;
+            document.getElementById('cm-agent-run-btn').innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Re-run Agent';
+            document.getElementById('cm-agent-stop-btn').classList.remove('visible');
+            document.getElementById('cm-agent-iter-label').textContent = '';
         }
 
         async function agentRun() {
