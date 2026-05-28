@@ -1172,11 +1172,12 @@
            ============================================================ */
         #research-btn {
             background: transparent; color: var(--text-muted); border: none;
-            height: 36px; cursor: pointer;
+            height: 34px; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            border-radius: 18px; transition: all 0.2s; position: relative;
-            padding: 0 10px; gap: 5px;
-            font-family: var(--font-main); font-size: 0.8rem; font-weight: 600;
+            border-radius: 17px; transition: all 0.2s; position: relative;
+            padding: 0 9px; gap: 4px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            flex-shrink: 0;
         }
         #research-btn:not(.active) {
             border: 1px solid var(--border-soft); color: var(--text-muted);
@@ -1195,32 +1196,79 @@
         #research-btn.active .res-dot { display: block; animation: pulse 1.5s infinite ease-in-out; }
         #research-btn:hover { background-color: var(--surface-color); color: var(--text-primary); }
 
+        /* Shrink both mode pills on mobile so they never overflow */
+        @media (max-width: 520px) {
+            #auto-agent-btn .aa-label,
+            #research-label-text { display: none; }
+            #auto-agent-btn, #research-btn {
+                width: 34px; padding: 0; border-radius: 50%;
+                justify-content: center;
+            }
+            #auto-agent-btn .aa-dot,
+            #research-btn .res-dot { display: block !important; }
+            /* show dots always on mobile so state is visible */
+            #auto-agent-btn:not(.active) .aa-dot { background: var(--text-muted); box-shadow: none; animation: none; }
+            #research-btn:not(.active) .res-dot   { background: var(--text-muted); box-shadow: none; animation: none; }
+        }
+
         /* Research mode banner under header */
         #research-banner {
-            background: rgba(129,201,149,0.08);
-            border-bottom: 1px solid rgba(129,201,149,0.2);
-            padding: 8px 14px;
-            display: none; flex-direction: column; gap: 6px;
-            font-size: 0.82rem; color: var(--accent-green); font-weight: 500;
+            background: rgba(129,201,149,0.1);
+            border-bottom: 1px solid rgba(129,201,149,0.25);
+            padding: 7px 14px 7px 10px;
+            display: none; align-items: center; gap: 8px;
+            font-size: 0.8rem; color: var(--accent-green); font-weight: 500;
             flex-shrink: 0;
         }
         #research-banner.visible { display: flex; }
-        #research-banner .rb-row {
-            display: flex; align-items: center; gap: 8px; width: 100%;
+        #research-banner .rb-icon { flex-shrink: 0; opacity: 0.8; }
+        #research-banner .rb-text {
+            flex: 1; min-width: 0; font-size: 0.79rem; line-height: 1.35;
         }
-        #research-banner .rb-icon { flex-shrink: 0; }
-        #research-banner .rb-text { flex: 1; min-width: 0; font-size: 0.8rem; }
-        #research-banner .rb-actions {
-            display: flex; gap: 6px; flex-shrink: 0; align-items: center;
-        }
-        #research-banner button {
-            background: transparent; border: 1px solid rgba(129,201,149,0.45);
-            border-radius: 16px; padding: 5px 14px; color: var(--accent-green);
-            font-family: var(--font-main); font-size: 0.8rem; font-weight: 700;
-            cursor: pointer; transition: background 0.15s; white-space: nowrap;
+        #research-banner .rb-disable {
             flex-shrink: 0;
+            background: transparent; border: 1.5px solid rgba(129,201,149,0.5);
+            border-radius: 20px; padding: 5px 16px;
+            color: var(--accent-green); font-family: var(--font-main);
+            font-size: 0.8rem; font-weight: 700; cursor: pointer;
+            transition: background 0.15s; white-space: nowrap;
         }
-        #research-banner button:hover { background: rgba(129,201,149,0.15); }
+        #research-banner .rb-disable:hover { background: rgba(129,201,149,0.15); }
+
+        /* ── Export dropdown ── */
+        .rv-export-wrap { position: relative; display: inline-flex; }
+        .rv-export-menu {
+            display: none; position: absolute; bottom: calc(100% + 6px); right: 0;
+            background: var(--surface-elev); border: 1px solid var(--border-color);
+            border-radius: 14px; padding: 6px; min-width: 190px; z-index: 400;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.6);
+            animation: fadeIn 0.18s ease;
+        }
+        .rv-export-menu.open { display: block; }
+        .rv-export-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-radius: 9px; cursor: pointer;
+            font-family: var(--font-main); font-size: 0.85rem; font-weight: 500;
+            color: var(--text-secondary); transition: all 0.15s; border: none;
+            background: transparent; width: 100%; text-align: left;
+        }
+        .rv-export-item:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .rv-export-item svg { flex-shrink: 0; width: 16px; height: 16px; }
+        .rv-export-item .ei-badge {
+            margin-left: auto; font-size: 0.65rem; font-weight: 700;
+            letter-spacing: 0.06em; text-transform: uppercase;
+            padding: 2px 6px; border-radius: 5px;
+        }
+        .rv-export-item.ei-md  .ei-badge { background: rgba(168,199,250,0.15); color: var(--accent-blue); }
+        .rv-export-item.ei-pdf .ei-badge { background: rgba(242,139,130,0.15); color: var(--accent-red); }
+        .rv-export-item.ei-doc .ei-badge { background: rgba(168,199,250,0.15); color: var(--accent-blue); }
+        .rv-export-item.ei-copy .ei-badge { background: rgba(129,201,149,0.15); color: var(--accent-green); }
+
+        /* Print stylesheet — used by PDF export */
+        @media print {
+            body > *:not(#research-print-frame) { display: none !important; }
+            #research-print-frame { display: block !important; }
+        }
 
         /* Research view-switcher toolbar attached to each research reply */
         .research-toolbar {
@@ -1422,15 +1470,11 @@
     </header>
 
     <div id="research-banner">
-        <div class="rb-row">
-            <span class="rb-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            </span>
-            <span class="rb-text">Research Mode active — multi-format view switcher enabled</span>
-            <div class="rb-actions">
-                <button onclick="toggleResearchMode()">Disable</button>
-            </div>
-        </div>
+        <span class="rb-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </span>
+        <span class="rb-text">Research Mode active — multi-format switcher enabled</span>
+        <button class="rb-disable" onclick="toggleResearchMode()">Disable</button>
     </div>
 
     <div id="aa-banner">
@@ -1632,13 +1676,21 @@
         <div class="modal-header">
             <span class="modal-title" id="research-modal-title">Research Results</span>
             <div class="modal-header-actions">
-                <button class="modal-btn" onclick="copyResearchModal()">
+                <button class="modal-btn" onclick="_rvExport(this,'copy')">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     Copy
                 </button>
-                <button class="modal-btn" onclick="downloadResearchModal()">
+                <button class="modal-btn" onclick="_rvExport(this,'md')">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download
+                    .md
+                </button>
+                <button class="modal-btn" onclick="_rvExport(this,'doc')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Word
+                </button>
+                <button class="modal-btn" onclick="_rvExport(this,'pdf')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    PDF
                 </button>
                 <button class="modal-btn" onclick="closeResearchModal()">✕ Close</button>
             </div>
@@ -1936,11 +1988,35 @@ When answering research questions, ALWAYS structure your response as follows:
                     Table
                 </button>
                 <div class="rt-actions">
-                    <button class="rv-btn download-btn"
-                        onclick="_rvDownload(this)" title="Save as Markdown file">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Save
-                    </button>
+                    <div class="rv-export-wrap">
+                        <button class="rv-btn download-btn"
+                            onclick="_rvToggleExport(this)" title="Export research">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Export
+                        </button>
+                        <div class="rv-export-menu">
+                            <button class="rv-export-item ei-md"  onclick="_rvExport(this,'md')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                Save as Markdown
+                                <span class="ei-badge">.md</span>
+                            </button>
+                            <button class="rv-export-item ei-doc" onclick="_rvExport(this,'doc')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                Save as Word Doc
+                                <span class="ei-badge">.doc</span>
+                            </button>
+                            <button class="rv-export-item ei-pdf" onclick="_rvExport(this,'pdf')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                Save as PDF
+                                <span class="ei-badge">PDF</span>
+                            </button>
+                            <button class="rv-export-item ei-copy" onclick="_rvExport(this,'copy')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                Copy to Clipboard
+                                <span class="ei-badge">Copy</span>
+                            </button>
+                        </div>
+                    </div>
                     <button class="rv-btn"
                         onclick="_rvExpand(this)" title="Open fullscreen view">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
@@ -1998,18 +2074,117 @@ When answering research questions, ALWAYS structure your response as follows:
             openResearchModal(rawMd, fmt);
         }
 
-        /** Download research content as a Markdown file */
-        function _rvDownload(btn) {
+        /** Toggle the export dropdown */
+        function _rvToggleExport(btn) {
+            const wrap = btn.closest('.rv-export-wrap');
+            if (!wrap) return;
+            const menu = wrap.querySelector('.rv-export-menu');
+            if (!menu) return;
+            const isOpen = menu.classList.toggle('open');
+            // Close on outside click
+            if (isOpen) {
+                const close = (e) => {
+                    if (!wrap.contains(e.target)) {
+                        menu.classList.remove('open');
+                        document.removeEventListener('click', close);
+                    }
+                };
+                setTimeout(() => document.addEventListener('click', close), 10);
+            }
+        }
+
+        /** Unified export handler */
+        function _rvExport(btn, fmt) {
+            // Close menu
+            btn.closest('.rv-export-menu')?.classList.remove('open');
+
             const toolbar = btn.closest('.research-toolbar');
-            if (!toolbar) return;
-            const rawMd = toolbar.dataset.raw || '';
-            if (!rawMd.trim()) { showToast('Nothing to save'); return; }
-            // Generate filename from first heading or first line
+            const rawMd = (toolbar?.dataset?.raw) || _researchModalContent || '';
+            if (!rawMd.trim()) { showToast('Nothing to export'); return; }
+
             const firstHeading = rawMd.match(/^#{1,3} (.+)/m);
             const firstLine = firstHeading ? firstHeading[1] : rawMd.split('\n')[0];
-            const slug = firstLine.replace(/[^a-z0-9]+/gi,'_').toLowerCase().replace(/^_|_$/g,'').slice(0,48) || 'research';
+            const slug = firstLine.replace(/[^a-z0-9]+/gi,'_').toLowerCase()
+                            .replace(/^_|_$/g,'').slice(0,48) || 'research';
             const ts = new Date().toISOString().slice(0,10);
-            downloadAsFile(rawMd, `${slug}_${ts}.md`);
+
+            if (fmt === 'md') {
+                downloadAsFile(rawMd, `${slug}_${ts}.md`);
+
+            } else if (fmt === 'copy') {
+                copyToClipboard(rawMd)
+                    .then(() => showToast('Copied to clipboard'))
+                    .catch(() => showToast('Copy failed'));
+
+            } else if (fmt === 'doc') {
+                // Word-compatible HTML export (.doc)
+                const html = _safeMd(rawMd);
+                const docHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<title>${escapeHtml(firstLine)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>
+<w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 2cm; line-height: 1.5; }
+  h1,h2,h3 { color: #1a5c2e; }
+  h1 { font-size: 18pt; } h2 { font-size: 14pt; } h3 { font-size: 12pt; }
+  strong { font-weight: bold; } ul, ol { margin-left: 1.2cm; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; }
+  th { background: #e8f5e9; font-weight: bold; }
+</style></head>
+<body>${html}</body></html>`;
+                downloadAsFile(docHtml, `${slug}_${ts}.doc`);
+                showToast('Word document saved — open in Microsoft Word');
+
+            } else if (fmt === 'pdf') {
+                // PDF via browser print dialog
+                const html = _safeMd(rawMd);
+                const win = window.open('', '_blank',
+                    'width=800,height=600,menubar=yes,toolbar=yes');
+                if (!win) { showToast('Allow popups to save PDF'); return; }
+                win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>${escapeHtml(firstLine)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.65;
+         color: #111; padding: 2.5cm; max-width: 21cm; margin: 0 auto; }
+  h1 { font-size: 20pt; color: #1a5c2e; margin: 0 0 16px; padding-bottom: 8px;
+       border-bottom: 2px solid #1a5c2e; }
+  h2 { font-size: 14pt; color: #1a5c2e; margin: 24px 0 8px; }
+  h3 { font-size: 12pt; color: #2d7d4f; margin: 16px 0 6px; }
+  p  { margin-bottom: 10px; }
+  ul, ol { margin: 8px 0 10px 24px; }
+  li { margin-bottom: 4px; }
+  strong { font-weight: 700; }
+  code { background: #f4f4f4; padding: 1px 5px; border-radius: 3px;
+         font-family: monospace; font-size: 9.5pt; }
+  pre  { background: #f4f4f4; padding: 12px; border-radius: 6px;
+         margin-bottom: 12px; overflow-x: auto; font-size: 9pt; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+  th { background: #e8f5e9; font-weight: bold; }
+  .doc-title { font-size: 9pt; color: #666; margin-bottom: 28px; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 2cm; }
+  }
+</style></head><body>
+<div class="doc-title">Exported ${ts} — AI Pro Coder Research</div>
+${html}
+<script>
+  window.onload = function() {
+    window.print();
+    setTimeout(function(){ window.close(); }, 800);
+  };
+<\/script>
+</body></html>`);
+                win.document.close();
+            }
         }
 
         /** Render markdown into a chosen format, returns HTML string */
