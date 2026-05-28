@@ -1688,43 +1688,62 @@ Rules:
         }
 
         /**
-         * Triggers the inline code block preview for the last code block
-         * in the chat. This is the "Run" button equivalent — finds the most
-         * recent code-wrapper with a matching language and programmatically
-         * clicks its Run button so the preview panel opens inside the chat.
-         *
-         * Falls back to opening the fullscreen IDE modal if no inline block found.
+         * Triggers the inline code block preview for the last matching code block
+         * in the chat. Calls runCodeInBlock directly (no simulated click needed).
+         * Falls back to the fullscreen IDE modal if no inline block is found.
+         */
+                /**
+         * Triggers the inline preview on the last matching code block.
+         * Uses a proxy element so runCodeInBlock() works exactly as if
+         * the user tapped the Run button — reads code from wrapper.dataset.raw.
          */
         function _triggerInlinePreview(code, lang) {
             const canRun = ['html','xml','javascript','js','typescript','ts'].includes(lang);
             if (!canRun) return;
 
-            // Find the last code-wrapper in the chat container
-            const chatContainer = document.getElementById('chat-container');
-            if (!chatContainer) return;
-            const wrappers = chatContainer.querySelectorAll('.code-wrapper');
-            if (!wrappers.length) return;
+            // Delay so the message DOM has fully rendered
+            setTimeout(() => {
+                const chat = document.getElementById('chat-container');
+                if (!chat) { _triggerIDEPreview(code, lang); return; }
 
-            // Find the wrapper whose code matches (or just use the last one)
-            let target = wrappers[wrappers.length - 1];
-            for (let i = wrappers.length - 1; i >= 0; i--) {
-                const w = wrappers[i];
-                if (w.dataset.lang === lang) { target = w; break; }
-            }
+                // Find last code-wrapper with matching lang
+                const wrappers = [...chat.querySelectorAll('.code-wrapper')];
+                let target = null;
+                for (let i = wrappers.length - 1; i >= 0; i--) {
+                    if (wrappers[i].dataset.lang === lang) { target = wrappers[i]; break; }
+                }
+                if (!target && wrappers.length) target = wrappers[wrappers.length - 1];
+                if (!target) { _triggerIDEPreview(code, lang); return; }
 
-            // Simulate clicking the Run button on that block
-            const runBtn = target.querySelector('[data-action="run"]');
-            if (runBtn) {
-                runBtn.click();
-                // Scroll the code block into view so the user sees the preview open
-                setTimeout(() => {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }, 300);
-            } else {
-                // No inline run button (e.g. non-runnable lang) — fall back to IDE modal
-                openCodeModal(code, lang);
+                // Verify inline IDE panels exist
+                const panels = target.querySelector('.ide-panels');
+                const iframe = target.querySelector('.ide-preview-iframe');
+                if (!panels || !iframe) { _triggerIDEPreview(code, lang); return; }
+
+                // Build a proxy that satisfies btn.closest('.code-wrapper')
+                // so runCodeInBlock reads the correct dataset.raw from the DOM
+                const proxy = {
+                    closest:       (sel) => sel === '.code-wrapper' ? target : null,
+                    querySelector: (sel) => target.querySelector(sel)
+                };
+
+                // Call the real function — identical path to tapping Run
+                runCodeInBlock(proxy);
+
+                // Scroll into view after preview opens
+                setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 500);
+
+            }, 600);
+        }
+
+        /** Fallback: open the fullscreen IDE modal on the Preview tab */
+        function _triggerIDEPreview(code, lang) {
+            openCodeModal(code, lang);
+            setTimeout(() => {
+                document.getElementById('cm-tab-preview').style.display = '';
+                runCodeModal();
                 setTimeout(() => cmSwitchTab('preview'), 400);
-            }
+            }, 300);
         }
 
         function _autoAgentDetectFirstLang(markdownText) {
