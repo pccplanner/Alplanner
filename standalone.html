@@ -14,7 +14,7 @@
       --accent: #38bdf8;
       --accent-dim: rgba(56,189,248,0.12);
       --rain: #3b82f6;
-      --rain-heavy: #ef444;
+      --rain-heavy: #ef4444;
       --warn: #f59e0b;
       --clear: #22c55e;
       --border: rgba(255,255,255,0.08);
@@ -194,7 +194,7 @@
     .prob-fill.blue { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
     .prob-fill.green { background: linear-gradient(90deg, #22c55e, #4ade80); }
     .prob-fill.orange { background: linear-gradient(90deg, #f59e0b, #f97316); }
-    .prob-fill.red { background: linear-gradient(90deg, #ef444, #f871); }
+    .prob-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
 
     .prob-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
     .precip-amount { margin-top: 8px; font-size: 0.85rem; font-weight: 700; color: var(--accent); }
@@ -302,7 +302,11 @@
       animation: spin 0.9s linear infinite;
       margin: 0 auto 16px;
     }
-    @keyframes spin { to { transform: rotate(360deg); }
+    
+    @keyframes spin { 
+      to { transform: rotate(360deg); } 
+    } 
+    
     .error { color: #fca5a5; }
     .error button {
       margin-top: 14px;
@@ -341,7 +345,7 @@
 
   <div class="location-bar" id="locationBar" onclick="toggleSearch()">
     <span class="live-dot" id="liveDot"></span>
-    <span id="locationName">Detecting location…</span>
+    <span id="locationName">Waiting for location…</span>
     <span style="opacity:0.7;">⌕</span>
   </div>
 
@@ -352,10 +356,7 @@
   </div>
 
   <div id="content">
-    <div class="loading">
-      <div class="spinner"></div>
-      <div style="color: var(--text-muted);">Finding your location…</div>
-    </div>
+    <!-- Content injected here by JS -->
   </div>
 </div>
 
@@ -391,7 +392,7 @@
   let refreshTimer = null;
   let searchTimeout = null;
 
-  const $ = id => document.getElementById(id);
+  const getEl = id => document.getElementById(id);
 
   function formatTime(dateObj) {
     return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -399,7 +400,7 @@
 
   function getHourLabel(offsetHours) {
     if (offsetHours === 0) return 'Now';
-    return 'In ' + offsetHours + ' hr' + (offsetHours > 1 ? 's' : '');
+    return `In ${offsetHours} hr${offsetHours > 1 ? 's' : ''}`;
   }
 
   function getProb(data, idx) {
@@ -431,15 +432,27 @@
   }
 
   function getPillText(prob, precip) {
-    if (precip > 2.5) return 'Heavy rain ' + Math.round(prob) + '%';
-    if (precip > 0.1) return 'Rain ' + Math.round(prob) + '%';
-    if (prob > 0) return Math.round(prob) + '% chance';
+    if (precip > 2.5) return `Heavy rain ${Math.round(prob)}%`;
+    if (precip > 0.1) return `Rain ${Math.round(prob)}%`;
+    if (prob > 0) return `${Math.round(prob)}% chance`;
     return 'Dry';
+  }
+
+  function showErrorUI(msg) {
+    getEl('content').innerHTML = `
+      <div class="error" style="display:flex; flex-direction:column; gap:12px; align-items:center;">
+        <div style="font-size: 2rem;">⚠️</div>
+        <div style="font-weight: 600;">Location Error</div>
+        <div style="opacity:0.8; font-size: 0.9rem; line-height: 1.4;">${msg}</div>
+        <button class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="requestLocation()">📍 Try Again</button>
+        <button class="btn" style="width: 100%;" onclick="toggleSearch()">🔍 Search City Manually</button>
+      </div>
+    `;
   }
 
   async function reverseGeocode(lat, lon) {
     try {
-      const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en');
+      const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
       const data = await res.json();
       return data.city || data.locality || data.principalSubdivision || 'Local Weather';
     } catch (e) {
@@ -452,10 +465,7 @@
     currentLon = lon;
     if (name) currentCity = name;
 
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-      '&current=temperature_2m,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,wind_speed_10m' +
-      '&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,weather_code' +
-      '&timezone=auto&forecast_hours=6';
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,wind_speed_10m&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,weather_code&timezone=auto&forecast_hours=6`;
 
     try {
       const res = await fetch(url);
@@ -488,7 +498,7 @@
       });
 
       if (!currentCity) currentCity = await reverseGeocode(lat, lon);
-      $('locationName').textContent = currentCity;
+      getEl('locationName').textContent = currentCity;
 
       const nowPrecip = hours[0].precip;
       const h1Precip = hours[1].precip;
@@ -501,7 +511,7 @@
 
       if (nowPrecip > 0.5) {
         alertClass = 'raining';
-        alertMsg = '🌧️ Raining now — ' + nowPrecip.toFixed(1) + ' mm this hour';
+        alertMsg = `🌧️ Raining now — ${nowPrecip.toFixed(1)} mm this hour`;
       } else if (h1Precip > 0.5 && h2Precip > 0.5) {
         alertClass = 'iminent';
         alertMsg = '☔ Rain expected over the next 2 hours';
@@ -517,6 +527,7 @@
       }
 
       const curInfo = weatherCodes[current.weather_code] || { icon: '❓', label: 'Unknown' };
+      const currentRainValue = (current.rain + (current.showers || 0));
 
       const hourlyHTML = hours.map(function(h, i) {
         const info = weatherCodes[h.code] || { icon: '❓' };
@@ -526,66 +537,66 @@
         const showAmount = h.precip > 0;
         const barH = Math.max(4, Math.round((h.prob / 100) * 32));
 
-        return [
-          '<div class="hour-card ' + (i === 0 ? 'active' : '') + '">',
-            '<div class="hour-label">' + h.label + '</div>',
-            '<div class="rain-pill ' + pillClass + '">' + pillText + '</div>',
-            '<div class="hour-icon">' + info.icon + '</div>',
-            '<div class="hour-temp">' + Math.round(h.temp) + '°</div>',
-            '<div class="prob-track">',
-              '<div class="prob-fill ' + barColor + '" style="width:' + h.prob + '%"></div>',
-            '</div>',
-            '<div class="prob-label">',
-              '<span>Chance</span>',
-              '<span>' + Math.round(h.prob) + '%</span>',
-            '</div>',
-            showAmount ? '<div class="precip-amount">' + h.precip.toFixed(1) + ' mm</div>' : '<div class="precip-amount" style="color:var(--text-muted)">—</div>',
-            '<div class="mini-chart">',
-              '<div class="mini-bar" style="height:' + barH + 'px;opacity:' + (0.3 + (h.prob / 100) * 0.7) + '"></div>',
-            '</div>',
-          '</div>'
-        ].join('');
-      }).join(');
+        return `
+          <div class="hour-card ${i === 0 ? 'active' : ''}">
+            <div class="hour-label">${h.label}</div>
+            <div class="rain-pill ${pillClass}">${pillText}</div>
+            <div class="hour-icon">${info.icon}</div>
+            <div class="hour-temp">${Math.round(h.temp)}°</div>
+            <div class="prob-track">
+              <div class="prob-fill ${barColor}" style="width:${h.prob}%"></div>
+            </div>
+            <div class="prob-label">
+              <span>Chance</span>
+              <span>${Math.round(h.prob)}%</span>
+            </div>
+            ${showAmount ? `<div class="precip-amount">${h.precip.toFixed(1)} mm</div>` : `<div class="precip-amount" style="color:var(--text-muted)">—</div>`}
+            <div class="mini-chart">
+              <div class="mini-bar" style="height:${barH}px;opacity:${0.3 + (h.prob / 100) * 0.7}"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
 
-      $('content').innerHTML = [
-        '<div class="alert ' + alertClass + '">' + alertMsg + '</div>',
+      getEl('content').innerHTML = `
+        <div class="alert ${alertClass}">${alertMsg}</div>
 
-        '<div class="current-card">',
-          '<div>',
-            '<div class="current-meta" id="updateTime">Updated ' + formatTime(new Date()) + '</div>',
-            '<div class="current-temp">' + Math.round(current.temperature_2m) + '°</div>',
-            '<div class="current-condition">' + curInfo.icon + ' + curInfo.label + '</div>',
-          '</div>',
-          '<div class="current-icon">' + curInfo.icon + '</div>',
+        <div class="current-card">
+          <div>
+            <div class="current-meta" id="updateTime">Updated ${formatTime(new Date())}</div>
+            <div class="current-temp">${Math.round(current.temperature_2m)}°</div>
+            <div class="current-condition">${curInfo.icon} ${curInfo.label}</div>
+          </div>
+          <div class="current-icon">${curInfo.icon}</div>
 
-          '<div class="current-details">',
-            '<div class="detail-item">',
-              '<div class="detail-label">Rain (now)</div>',
-              '<div class="detail-value">' + ((current.rain + (current.showers || 0)) > 0 ? (current.rain + (current.showers || 0)).toFixed(1) + ' mm' : '—') + '</div>',
-            '</div>',
-            '<div class="detail-item">',
-              '<div class="detail-label">Cloud Cover</div>',
-              '<div class="detail-value">' + current.cloud_cover + '%</div>',
-            '</div>',
-            '<div class="detail-item">',
-              '<div class="detail-label">Wind</div>',
-              '<div class="detail-value">' + Math.round(current.wind_speed_10m) + ' km/h</div>',
-            '</div>',
-          '</div>',
-        '</div>',
+          <div class="current-details">
+            <div class="detail-item">
+              <div class="detail-label">Rain (now)</div>
+              <div class="detail-value">${currentRainValue > 0 ? currentRainValue.toFixed(1) + ' mm' : '—'}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Cloud Cover</div>
+              <div class="detail-value">${current.cloud_cover}%</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Wind</div>
+              <div class="detail-value">${Math.round(current.wind_speed_10m)} km/h</div>
+            </div>
+          </div>
+        </div>
 
-        '<div class="section-title">Next 2 Hours</div>',
-        '<div class="hourly-grid">',
-          hourlyHTML,
-        '</div>',
+        <div class="section-title">Next 2 Hours</div>
+        <div class="hourly-grid">
+          ${hourlyHTML}
+        </div>
 
-        '<div class="actions">',
-          '<button class="btn" onclick="init()">🔄 Refresh</button>',
-          '<button class="btn btn-primary" onclick="toggleSearch()">🔍 Change City</button>',
-        '</div>'
-      ].join(');
+        <div class="actions">
+          <button class="btn" onclick="init()">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="toggleSearch()">🔍 Change City</button>
+        </div>
+      `;
 
-      const dot = $('liveDot');
+      const dot = getEl('liveDot');
       if (nowPrecip > 0) {
         dot.style.background = 'var(--rain-heavy)';
         dot.style.boxShadow = '0 0 10px var(--rain-heavy)';
@@ -599,34 +610,28 @@
 
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(function() {
-        const el = $('updateTime');
-        if (el) el.textContent = 'Updated ' + formatTime(new Date());
+        const el = getEl('updateTime');
+        if (el) el.textContent = `Updated ${formatTime(new Date())}`;
       }, 600);
 
     } catch (err) {
-      $('content').innerHTML = [
-        '<div class="error">',
-          '<div style="font-size:1.2rem;margin-bottom:6px;">⚠️ Failed to load weather</div>',
-          '<div style="opacity:0.8;">' + err.message + '</div>',
-          '<button onclick="init()">Retry</button>',
-        '</div>'
-      ].join('');
+      showErrorUI(`Failed to load weather: ${err.message}`);
     }
   }
 
   function toggleSearch() {
-    const wrap = $('searchWrap');
+    const wrap = getEl('searchWrap');
     wrap.classList.toggle('open');
     if (wrap.classList.contains('open')) {
-      setTimeout(function() { $('cityInput').focus(); }, 100);
+      setTimeout(function() { getEl('cityInput').focus(); }, 100);
     }
   }
 
   async function fetchCities(query) {
     try {
-      const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(query) + '&count=6&language=en&format=json');
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`);
       const data = await res.json();
-      const list = $('searchResults');
+      const list = getEl('searchResults');
       list.innerHTML = '';
       if (!data.results) {
         list.classList.remove('active');
@@ -635,18 +640,18 @@
       data.results.forEach(function(city) {
         const div = document.createElement('div');
         div.className = 'search-item';
-        div.innerHTML = [
-          '<div>',
-            '<div class="search-name">' + city.name + '</div>',
-            '<div class="search-meta">' + (city.admin1 || '') + (city.country ? ', ' + city.country : '') + '</div>',
-          '</div>'
-        ].join('');
+        div.innerHTML = `
+          <div>
+            <div class="search-name">${city.name}</div>
+            <div class="search-meta">${city.admin1 || ''}${city.country ? ', ' + city.country : ''}</div>
+          </div>
+        `;
         div.onclick = function() {
           currentCity = city.name;
           loadWeather(city.latitude, city.longitude, city.name);
-          $('cityInput').value = '';
+          getEl('cityInput').value = '';
           list.classList.remove('active');
-          $('searchWrap').classList.remove('open');
+          getEl('searchWrap').classList.remove('open');
         };
         list.appendChild(div);
       });
@@ -657,47 +662,51 @@
   }
 
   function searchCity() {
-    const q = $('cityInput').value.trim();
+    const q = getEl('cityInput').value.trim();
     if (q) fetchCities(q);
   }
 
-  $('cityInput').addEventListener('input', function(e) {
+  getEl('cityInput').addEventListener('input', function(e) {
     clearTimeout(searchTimeout);
     if (e.target.value.length >= 2) {
       searchTimeout = setTimeout(function() { fetchCities(e.target.value); }, 350);
     } else {
-      $('searchResults').classList.remove('active');
+      getEl('searchResults').classList.remove('active');
     }
   });
 
-  $('cityInput').addEventListener('keypress', function(e) {
+  getEl('cityInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') searchCity();
   });
 
   document.addEventListener('click', function(e) {
     if (!e.target.closest('.search-wrap') && !e.target.closest('.location-bar')) {
-      $('searchResults').classList.remove('active');
+      getEl('searchResults').classList.remove('active');
     }
   });
 
-  function init() {
-    $('content').innerHTML = [
-      '<div class="loading">',
-        '<div class="spinner"></div>',
-        '<div style="color: var(--text-muted);">Detecting your location…</div>',
-      '</div>'
-    ].join(');
+  function showIOSPromptUI() {
+    getEl('content').innerHTML = `
+      <div class="current-card" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; padding: 40px 20px;">
+        <div style="font-size: 3rem;">📍</div>
+        <h2 style="font-size: 1.3rem;">Location Access Needed</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5;">
+          Safari blocked automatic location access. Please tap the button below to allow it, or search for your city manually.
+        </p>
+        <button class="btn btn-primary" style="width: 100%;" onclick="requestLocation()">Allow Location</button>
+        <button class="btn" style="width: 100%;" onclick="toggleSearch()">🔍 Search Manually</button>
+      </div>
+    `;
+  }
 
-    if (!navigator.geolocation) {
-      $('content').innerHTML = [
-        '<div class="error">',
-          '<p>Geolocation is not supported. Use the search to find your city.</p>',
-          '<button onclick="toggleSearch()">Search City</button>',
-        '</div>'
-      ].join('');
-      return;
-    }
-
+  function requestLocation() {
+    getEl('content').innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        <div style="color: var(--text-muted);">Finding your location…</div>
+      </div>
+    `;
+    
     navigator.geolocation.getCurrentPosition(
       function(pos) {
         currentCity = null;
@@ -705,23 +714,57 @@
       },
       function(err) {
         console.error(err);
-        $('content').innerHTML = [
-          '<div class="error">',
-            '<p>Location access denied or unavailable.</p>',
-            '<button onclick="toggleSearch()">Search for a City</button>',
-          '</div>'
-        ].join('');
+        showErrorUI("Location access denied. Please check your device Settings > Privacy > Location Services.");
       },
-      { enableHighAccuracy: false, timeout: 800, maximumAge: 300 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+    );
+  }
+
+  let hasAttemptedAuto = false;
+
+  function init() {
+    getEl('content').innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        <div style="color: var(--text-muted);">Requesting location…</div>
+      </div>
+    `;
+
+    if (!navigator.geolocation) {
+      showErrorUI("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    // Try once automatically. If iOS ignores it, show the manual button after 3 seconds.
+    let fallbackTimer = setTimeout(() => {
+      hasAttemptedAuto = true;
+      showIOSPromptUI();
+    }, 3000);
+
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        clearTimeout(fallbackTimer);
+        if (hasAttemptedAuto) return; 
+        currentCity = null;
+        loadWeather(pos.coords.latitude, pos.coords.longitude);
+      },
+      function(err) {
+        clearTimeout(fallbackTimer);
+        if (hasAttemptedAuto) return; 
+        showIOSPromptUI();
+      },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300 }
     );
   }
 
   setInterval(function() {
     if (currentLat && currentLon) loadWeather(currentLat, currentLon, currentCity);
-  }, 6000);
+  }, 300000);
 
   init();
 </script>
 
 </body>
 </html>
+
+
