@@ -734,12 +734,33 @@
         /* ── Agent panel ── */
         #cm-agent-panel { background: #0d0e0f; flex-direction: column; overflow: hidden; }
 
-        #cm-agent-topbar {
-            display: flex; align-items: center; gap: 8px;
-            padding: 10px 14px; background: #161718;
-            border-bottom: 1px solid var(--border-soft); flex-shrink: 0;
-            flex-wrap: wrap;
+        /* IDE Pipeline Phase Bar */
+        #cm-pipeline-bar {
+            display: none; align-items: center; gap: 0;
+            padding: 0 14px 8px; background: #161718; flex-shrink: 0;
+            border-bottom: 1px solid var(--border-soft);
         }
+        #cm-pipeline-bar.visible { display: flex; }
+        .cm-phase {
+            display: flex; align-items: center; gap: 6px;
+            padding: 5px 10px; border-radius: 8px;
+            font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+            color: var(--text-muted); transition: all 0.3s; flex: 1; justify-content: center;
+        }
+        .cm-phase.active { background: rgba(168,199,250,0.12); color: var(--accent-blue); }
+        .cm-phase.done   { background: rgba(129,201,149,0.1);  color: var(--accent-green); }
+        .cm-phase.waiting{ color: var(--border-color); }
+        .cm-phase-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+        .cm-phase.active .cm-phase-dot { animation: pulse 1s infinite ease-in-out; }
+        .cm-phase-arrow { color: var(--border-color); font-size: 0.7rem; flex-shrink: 0; padding: 0 2px; }
+        .cm-pipeline-toggle {
+            background: transparent; border: 1px solid var(--border-soft);
+            border-radius: 10px; padding: 3px 9px; font-family: var(--font-mono);
+            font-size: 0.68rem; font-weight: 600; color: var(--text-muted);
+            cursor: pointer; transition: all 0.15s; flex-shrink: 0; margin-left: 6px;
+        }
+        .cm-pipeline-toggle:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .cm-pipeline-toggle.on { border-color: rgba(168,199,250,0.4); color: var(--accent-blue); background: rgba(168,199,250,0.08); }
         #cm-agent-run-btn {
             background: var(--accent-blue); color: #0d0e0f; border: none;
             border-radius: 20px; padding: 7px 18px; font-family: var(--font-main);
@@ -2568,6 +2589,30 @@
                     <span class="bg-dot"></span>Background
                 </button>
             </div>
+
+            <!-- Pipeline phase indicator — shows all phases and current progress -->
+            <div id="cm-pipeline-bar">
+                <div class="cm-phase waiting" id="cm-phase-1">
+                    <span class="cm-phase-dot"></span>Phase 1: Auto-Fix
+                </div>
+                <span class="cm-phase-arrow">›</span>
+                <div class="cm-phase waiting" id="cm-phase-2">
+                    <span class="cm-phase-dot"></span>Review
+                </div>
+                <span class="cm-phase-arrow">›</span>
+                <div class="cm-phase waiting" id="cm-phase-3">
+                    <span class="cm-phase-dot"></span>Refactor
+                </div>
+                <span class="cm-phase-arrow">›</span>
+                <div class="cm-phase waiting" id="cm-phase-4">
+                    <span class="cm-phase-dot"></span>Security
+                </div>
+                <button class="cm-pipeline-toggle on" id="cm-pipeline-toggle"
+                    onclick="_toggleIdePipeline(this)" title="Toggle post-fix pipeline">
+                    Pipeline ON
+                </button>
+            </div>
+
             <div id="cm-agent-feed">
                 <div id="cm-bg-status-bar">
                     <span class="bg-pulse"></span>
@@ -2575,7 +2620,8 @@
                 </div>
                 <div class="agent-banner info" id="cm-agent-welcome">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-                    Click <strong>Auto-Fix</strong> to run your code, detect errors, and let the selected model fix them automatically -- up to 5 iterations.
+                    Click <strong>Auto-Fix</strong> to run your code and fix errors automatically.<br>
+                    <span style="font-size:0.8rem;opacity:0.75;margin-top:4px;display:block;">After errors are resolved: <strong>Code Review → Refactor → Security</strong> run automatically.</span>
                 </div>
             </div>
         </div>
@@ -8574,6 +8620,10 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 return;
             }
 
+            // Show unified pipeline bar — Phase 1: Auto-Fix active
+            _ideShowPipelineBar();
+            _idePipelinePhase(1);
+
             // ALWAYS start a private silent audio session — prevents iOS suspending
             // the thread when user switches apps, even without Background mode on.
             const _manualRunAudio = _createStreamAudio();
@@ -8841,68 +8891,115 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             panel.insertBefore(bar, panel.firstChild);
         }
 
-        /* Run Code Review → Refactor → Security in the IDE modal agent feed */
+        /* IDE Pipeline phase bar controls */
+        function _ideShowPipelineBar() {
+            const bar = document.getElementById('cm-pipeline-bar');
+            if (bar) bar.classList.add('visible');
+            _idePipelinePhase(0); // reset all to waiting
+            // Sync toggle state
+            const tog = document.getElementById('cm-pipeline-toggle');
+            if (tog) {
+                const on = getCodePipelineAutoEnabled();
+                tog.className = `cm-pipeline-toggle ${on ? 'on' : ''}`;
+                tog.textContent = on ? 'Pipeline ON' : 'Pipeline OFF';
+            }
+        }
+        function _idePipelinePhase(phase) {
+            // phase: 1=AutoFix active, 2=Review active, 3=Refactor active, 4=Security active, 0=reset
+            const phases = ['cm-phase-1','cm-phase-2','cm-phase-3','cm-phase-4'];
+            phases.forEach((id, i) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const phaseNum = i + 1;
+                if (phase === 0) { el.className = 'cm-phase waiting'; }
+                else if (phaseNum < phase) { el.className = 'cm-phase done'; }
+                else if (phaseNum === phase) { el.className = 'cm-phase active'; }
+                else { el.className = 'cm-phase waiting'; }
+            });
+        }
+        function _idePipelinePhaseComplete() {
+            // Mark all 4 as done
+            ['cm-phase-1','cm-phase-2','cm-phase-3','cm-phase-4'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.className = 'cm-phase done';
+            });
+        }
+        function _toggleIdePipeline(btn) {
+            const current = getCodePipelineAutoEnabled();
+            const next = !current;
+            localStorage.setItem(STORAGE_CODE_PIPELINE_AUTO, next);
+            btn.className = `cm-pipeline-toggle ${next ? 'on' : ''}`;
+            btn.textContent = next ? 'Pipeline ON' : 'Pipeline OFF';
+            showToast(next ? 'Post-fix pipeline ON' : 'Post-fix pipeline OFF');
+        }
+        /* Run full 4-phase pipeline in the IDE modal agent feed */
         async function _ideRunCodingPipeline(code, lang) {
-            if (!code || !getCodePipelineAutoEnabled()) return;
+            if (!code || !getCodePipelineAutoEnabled()) { _idePipelinePhase(0); return; }
             const feed = document.getElementById('cm-agent-feed'); if (!feed) return;
-            // Wrap code in fence so agents can work on it
-            const wrappedCode = `\`\`\`${lang}\n${code}\n\`\`\``;
-            // Add a separator card
+            const wrappedCode = '```' + lang + '\n' + code + '\n```';
+            // Phase separator banner
             const sep = document.createElement('div');
-            sep.className = 'agent-banner info';
-            sep.style.marginTop = '8px';
-            sep.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Code Pipeline</strong> — Review · Refactor · Security running on fixed code...</span>`;
+            sep.className = 'agent-banner info'; sep.style.marginTop = '8px';
+            sep.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Phase 2 — Code Quality Pipeline</strong><br><span style="font-size:0.78rem;opacity:0.8;">Code Review &#8594; Refactor &#8594; Security Audit</span></span>';
             feed.appendChild(sep); feed.scrollTop = feed.scrollHeight;
-            // Create a synthetic botContent div in the feed for the agents to append panels to
             const pipelineDiv = document.createElement('div');
-            pipelineDiv.style.cssText = 'padding:0;';
-            feed.appendChild(pipelineDiv); feed.scrollTop = feed.scrollHeight;
-
-            let reviewOk=false, refactorOk=false, securityOk=false;
-            // Simulate chatContext entry for agent reads
+            feed.appendChild(pipelineDiv);
             const tempEntry = { role:'assistant', content: wrappedCode };
             chatContext.push(tempEntry);
+            let reviewOk=false, refactorOk=false, securityOk=false;
             try {
-                showToast('IDE Pipeline: Code Review...');
+                // Phase 2: Code Review
+                _idePipelinePhase(2);
+                cmSetStatus('running','Phase 2: Code Review...');
+                showToast('Phase 2/4: Code Review...');
                 const ok = await _codeReviewRun(wrappedCode, pipelineDiv);
                 reviewOk = ok === true;
+                feed.scrollTop = feed.scrollHeight;
                 await new Promise(r => setTimeout(r, 500));
+                // Phase 3: Refactor
+                _idePipelinePhase(3);
+                cmSetStatus('running','Phase 3: Refactoring...');
                 if (getRefactorAutoEnabled()) {
-                    showToast('IDE Pipeline: Refactoring...');
-                    // Get latest content (review may have updated it)
+                    showToast('Phase 3/4: Refactoring code...');
                     let latest = wrappedCode;
                     for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latest=chatContext[i].content;break;} }
                     await _refactorRun(latest, pipelineDiv, null, true);
                     refactorOk = true;
+                    feed.scrollTop = feed.scrollHeight;
                     await new Promise(r => setTimeout(r, 500));
                 }
+                // Phase 4: Security
+                _idePipelinePhase(4);
+                cmSetStatus('running','Phase 4: Security Audit...');
+                showToast('Phase 4/4: Security Audit...');
                 let finalCode = wrappedCode;
                 for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalCode=chatContext[i].content;break;} }
-                showToast('IDE Pipeline: Security Audit...');
                 await _securityRun(finalCode, pipelineDiv);
                 securityOk = true;
+                feed.scrollTop = feed.scrollHeight;
             } finally {
-                // Remove temp entry
                 const idx = chatContext.lastIndexOf(tempEntry);
                 if (idx > -1) chatContext.splice(idx, 1);
             }
-            // Update the code modal with final code if modified
-            const finalMsg = pipelineDiv.querySelector('.bot-message');
-            if (finalMsg) {
-                const finalContent = finalMsg.innerText || finalMsg.textContent;
-                const codeMatch = finalContent.match(/```[\w]*\n([\s\S]*?)```/);
-                if (codeMatch) {
-                    codeModalState.code = codeMatch[1].trim();
+            // All phases done
+            _idePipelinePhaseComplete();
+            const allOk = reviewOk && securityOk;
+            const parts = [reviewOk?'✓ Reviewed':'✗ Review', getRefactorAutoEnabled()?(refactorOk?'✓ Refactored':'✗ Refactor'):null, securityOk?'✓ Secure':'✗ Security'].filter(Boolean);
+            const banner = document.createElement('div');
+            banner.className = 'agent-banner ' + (allOk?'success':'info');
+            banner.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong>Full pipeline complete</strong> — ' + parts.join(' · ') + '</span>';
+            feed.appendChild(banner); feed.scrollTop = feed.scrollHeight;
+            cmSetStatus(allOk?'ok':'err','Pipeline: ' + parts.join(' · '));
+            // Update code panel with final refactored code
+            const bm = pipelineDiv.querySelector('.bot-message');
+            if (bm) {
+                const cm = (bm.innerText||bm.textContent||'').match(/```[\w]*\n([\s\S]*?)```/);
+                if (cm) {
+                    codeModalState.code = cm[1].trim();
                     const vl=(lang&&hljs.getLanguage(lang))?lang:'plaintext';
-                    document.getElementById('cm-code-el').innerHTML = hljs.highlight(codeModalState.code,{language:vl}).value;
+                    const el=document.getElementById('cm-code-el');
+                    if(el) el.innerHTML = hljs.highlight(codeModalState.code,{language:vl}).value;
                 }
             }
-            const banner = document.createElement('div');
-            banner.className = `agent-banner ${(reviewOk&&securityOk)?'success':'info'}`;
-            const parts = [reviewOk?'✓ Reviewed':'✗ Review issue', getRefactorAutoEnabled()?(refactorOk?'✓ Refactored':'✗ Refactor issue'):null, securityOk?'✓ Secure':'✗ Security issue'].filter(Boolean);
-            banner.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Pipeline: ${parts.join(' · ')}</span>`;
-            feed.appendChild(banner); feed.scrollTop = feed.scrollHeight;
-            cmSetStatus(reviewOk&&securityOk?'ok':'err', `Pipeline: ${parts.join(' · ')}`);
         }
 
         function agentCollapseAll() {
