@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
-    <title>AI Pro Coder</title>
+    <title>AI Pro Coder v54</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5934,11 +5934,34 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
 
         async function _crReview(text, model) {
             const threshold = getCodeReviewThreshold();
-            const prompt = `You are a senior software engineer reviewing code quality. Evaluate the code and explanations in this response. Return ONLY valid JSON — no markdown fences.
 
-RESPONSE TO REVIEW:
+            // Extract code blocks for review — send actual code, not truncated prose
+            const codeBlocks = [];
+            const re = /```(\w+)?\n([\s\S]*?)```/g;
+            let m;
+            while ((m = re.exec(text)) !== null) {
+                codeBlocks.push({ lang: m[1] || 'code', code: m[2] });
+            }
+            // Use extracted code if available, otherwise full text
+            // Cap at 8000 chars to handle large files — take from START and END to capture both structure and JS logic
+            let reviewContent;
+            if (codeBlocks.length > 0) {
+                const fullCode = codeBlocks.map(b => `\`\`\`${b.lang}\n${b.code}\n\`\`\``).join('\n\n');
+                if (fullCode.length <= 8000) {
+                    reviewContent = fullCode;
+                } else {
+                    // Large file: send first 4000 + last 2000 chars so reviewer sees both structure AND logic
+                    reviewContent = fullCode.slice(0, 4000) + '\n\n... [middle section omitted for length] ...\n\n' + fullCode.slice(-2000);
+                }
+            } else {
+                reviewContent = text.slice(0, 6000);
+            }
+
+            const prompt = `You are a senior software engineer reviewing code quality. Evaluate the code below and return ONLY valid JSON — no markdown fences.
+
+CODE TO REVIEW:
 """
-${text.slice(0,4000)}
+${reviewContent}
 """
 
 JSON FORMAT:
@@ -5957,6 +5980,7 @@ JSON FORMAT:
 }
 
 Scoring: ${threshold}-100 Approve (production-ready, correct, secure). ${Math.round(threshold*0.75)}-${threshold-1} Reject (fixable). 0-${Math.round(threshold*0.75)-1} Reject (major bugs/issues).
+If the code is a large complete file, evaluate the full visible portion — do not penalise for length cutoff.
 "approved": true ONLY if score >= ${threshold}. Max 6 issues. Return only JSON:`;
             let raw = await _debateCall(
                 [{role:'system',content:'You are a code reviewer. Output ONLY valid JSON. No markdown fences.'},{role:'user',content:prompt}],
@@ -6328,7 +6352,7 @@ Improved response:`
                     const passed=result.risk_level==='low'&&result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium').length===0;
                     _secPanelSetRisk(panel,result.risk_level,result.vuln_count);
                     _secUpdateIterCard(panel,iter,passed?'ok':'warn',
-                        `${result.risk_level.toUpperCase()} Risk — ${result.vuln_count} vulnerability${result.vuln_count!==1?'ies':'y'} found`,
+                        `${result.risk_level.toUpperCase()} Risk — ${result.vuln_count} ${result.vuln_count!==1?'vulnerabilities':'vulnerability'} found`,
                         result.summary, result.vulnerabilities);
                     if(passed){
                         _secSetStatus(panel,'ok','✓ No High/Medium vulnerabilities found');
@@ -6351,11 +6375,27 @@ Improved response:`
         }
 
         async function _secAnalyze(text) {
+            // Extract code blocks — security scan should focus on actual code, not prose
+            const codeBlocks = [];
+            const re2 = /```(\w+)?\n([\s\S]*?)```/g;
+            let m2;
+            while ((m2 = re2.exec(text)) !== null) {
+                codeBlocks.push(m2[2]);
+            }
+            let scanContent;
+            if (codeBlocks.length > 0) {
+                const full = codeBlocks.join('\n\n');
+                scanContent = full.length <= 6000 ? full
+                    : full.slice(0, 3500) + '\n\n... [truncated] ...\n\n' + full.slice(-1500);
+            } else {
+                scanContent = text.slice(0, 4000);
+            }
+
             const prompt=`You are a security engineer auditing code. Return ONLY valid JSON — no markdown fences.
 
 CODE TO AUDIT:
 """
-${text.slice(0,3500)}
+${scanContent}
 """
 
 JSON FORMAT:
@@ -6440,7 +6480,7 @@ Fixed response:`;
             const b=panel.querySelector('#sec-risk-badge'),c=panel.querySelector('#sec-vuln-count');
             if(b){b.textContent=level.toUpperCase()+' Risk';b.className=`sec-risk-badge ${level}`;}
             const color=level==='low'?'var(--accent-green)':level==='medium'?'var(--accent-yellow)':'var(--accent-red)';
-            if(c){c.textContent=`${count} vulnerability${count!==1?'ies':'y'} detected`;c.style.color=color;}
+            if(c){c.textContent=`${count} ${count!==1?'vulnerabilities':'vulnerability'} detected`;c.style.color=color;}
         }
         function _secAddIterCard(panel,iter){
             const feed=panel.querySelector('.sec-iter-feed');if(!feed)return;
@@ -6525,6 +6565,7 @@ Fixed response:`;
             _wsInitUI();
             _agentSettingsInit();
             _polishSettingsInit();
+            console.log('%c AI Pro Coder v54 — Coding Pipeline Ready ✓', 'color:#a8c7fa;font-weight:bold;font-size:14px;');
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
@@ -6766,6 +6807,23 @@ Fixed response:`;
             if (!hasMessages) renderWelcomeScreen();
             if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
             renderSidebar();
+            // Re-attach coding toolbars to loaded code responses
+            setTimeout(() => {
+                if (!_researchMode && _isCodingPreset()) {
+                    document.querySelectorAll('#chat-container .bot-row').forEach(row => {
+                        const bc = row.querySelector('.bot-content');
+                        const bm = bc?.querySelector('.bot-message');
+                        if (!bc || !bm) return;
+                        const text = bm.innerText || bm.textContent || '';
+                        if (_responseHasCode(text) && !bc.querySelector('.coding-toolbar')) {
+                            // Get raw markdown from chatContext
+                            const msgs = chatContext.filter(m => m.role === 'assistant');
+                            const match = msgs.find(m => (m.content || '').includes('```'));
+                            if (match) _addCodingToolbar(bc, match.content);
+                        }
+                    });
+                }
+            }, 500);
         }
 
         function deleteChat(id, event) {
