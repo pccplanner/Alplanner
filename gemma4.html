@@ -5251,8 +5251,10 @@ Improved text:`
             });
         }
 
-        /* ── Main enhancement loop ── */
-        async function _polishRun(text, botContent, btn) {
+        /* ── Main enhancement loop ──
+           autoApply=true  → pipeline mode: apply changes immediately, show revert option
+           autoApply=false → manual mode:   show Accept/Reject bar before applying */
+        async function _polishRun(text, botContent, btn, autoApply = false) {
             if (_polishRunning) { _polishRunning = false; }
             if (!currentModel) { showToast('No model selected'); return; }
             _polishRunning = true;
@@ -5331,13 +5333,23 @@ Improved text:`
                     // Score display is optional — don't fail the whole agent
                 }
 
-                // Show accept/reject bar
+                // Show accept/reject bar OR auto-apply depending on mode
                 const totalDiff = _agentDiff(originalText, currentText);
                 const totalChanges = Math.round(totalDiff.filter(l => l.type === 'add' || l.type === 'rem').length / 2);
-                _polishShowAcceptBar(panel, originalText, currentText, botContent, totalChanges);
-                _polishSetStatus(panel, 'done', `✓ Enhancement complete — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
-                _updateBtnText(`${totalChanges} changes — review below`);
-                // Scroll to accept bar so user sees the decision prompt
+
+                if (autoApply) {
+                    // Pipeline mode — apply immediately so Plagiarism checks the right text
+                    _polishApplyToContext(currentText, botContent);
+                    _polishShowRevertBar(panel, originalText, currentText, botContent, totalChanges);
+                    _polishSetStatus(panel, 'done', `✓ Auto-applied — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
+                    if (btn) { const s = document.getElementById('polish-btn-status'); if (s) s.textContent = `Auto-applied ${totalChanges} changes`; }
+                } else {
+                    // Manual mode — show Accept/Reject bar before applying
+                    _polishShowAcceptBar(panel, originalText, currentText, botContent, totalChanges);
+                    _polishSetStatus(panel, 'done', `✓ Enhancement complete — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
+                    if (btn) { const s = document.getElementById('polish-btn-status'); if (s) s.textContent = `${totalChanges} changes — review below`; }
+                }
+                // Scroll to panel so user sees completion
                 setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
 
             } finally {
@@ -5499,6 +5511,44 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
             row.style.display = 'flex';
             row.style.flexDirection = 'column';
             row.style.gap = '8px';
+        }
+
+        /* Apply enhanced text to DOM + chatContext immediately (used in pipeline mode) */
+        function _polishApplyToContext(enhanced, botContent) {
+            const botMsg = botContent.querySelector('.bot-message');
+            if (botMsg) botMsg.innerHTML = safeMarkdownRender(enhanced);
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') { chatContext[i].content = enhanced; break; }
+            }
+            const researchToolbar = botContent.querySelector('.research-toolbar');
+            if (researchToolbar) researchToolbar.dataset.raw = enhanced;
+            saveHistory();
+        }
+
+        /* Show a revert option after auto-apply (pipeline mode) */
+        function _polishShowRevertBar(panel, originalText, enhancedText, botContent, totalChanges) {
+            const bar = document.getElementById('polish-accept-bar');
+            if (!bar) return;
+            bar.dataset.originalText  = originalText;
+            bar.dataset.enhancedText  = enhancedText;
+            bar.innerHTML = `
+                <span class="pa-hint" style="color:#c792e9;">✓ ${totalChanges} changes auto-applied</span>
+                <button class="polish-reject-btn" onclick="_polishRevert(this)" title="Undo enhancement changes">
+                    ↩ Revert to original
+                </button>`;
+            bar.style.display = 'flex';
+        }
+
+        /* Revert auto-applied changes back to original (pipeline mode) */
+        function _polishRevert(btn) {
+            const bar = btn.closest('.polish-accept-bar');
+            if (!bar) return;
+            const original = bar.dataset.originalText;
+            if (!original) { showToast('No original text stored'); return; }
+            const botContent = bar.closest('.bot-content');
+            if (botContent) _polishApplyToContext(original, botContent);
+            bar.innerHTML = `<span style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">↩ Original text restored</span>`;
+            showToast('Original text restored');
         }
 
         function _polishShowAcceptBar(panel, originalText, enhancedText, botContent, totalChanges) {
@@ -8415,7 +8465,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             }
                             try {
                                 showToast('Step 2/3: Writing Enhancer polishing...');
-                                await _polishRun(latestText, bc, null);
+                                await _polishRun(latestText, bc, null, true); // autoApply=true — applies before Plagiarism runs
                                 enhanceOk = true;
                                 const ep = bc.querySelector('.polish-panel');
                                 if (ep) ep.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -8701,7 +8751,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
                 }
                 if (getPolishAutoEnabled()) {
-                    await _polishRun(latestText, botContent, null);
+                    await _polishRun(latestText, botContent, null, true); // autoApply=true
                     for (let i = chatContext.length - 1; i >= 0; i--) {
                         if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
                     }
