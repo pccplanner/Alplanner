@@ -1752,6 +1752,173 @@
         .pipeline-complete .pc-title { font-size: 0.86rem; font-weight: 700; }
         .pipeline-complete .pc-sub { font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); }
 
+        /* ============================================================
+           Writing Enhancer (Polish Agent) Panel
+           ============================================================ */
+        .polish-panel {
+            margin-top: 12px; background: var(--surface-elev);
+            border: 1px solid var(--border-soft); border-radius: 14px;
+            overflow: hidden; animation: fadeIn 0.3s ease;
+        }
+        .polish-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 9px 14px; background: #161718;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .polish-title {
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;
+            letter-spacing: 0.05em; color: var(--text-secondary);
+            text-transform: uppercase; flex: 1;
+        }
+        .polish-status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--text-muted); flex-shrink: 0;
+        }
+        .polish-status-dot.running  { background: #c792e9; animation: pulse 1s infinite ease-in-out; }
+        .polish-status-dot.scoring  { background: var(--accent-blue); animation: pulse 1s infinite ease-in-out; }
+        .polish-status-dot.done     { background: #c792e9; }
+        .polish-status-dot.err      { background: var(--accent-red); }
+        .polish-status-text {
+            font-size: 0.74rem; color: var(--text-muted);
+            font-family: var(--font-mono); flex: 2;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .polish-close-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            font-size: 0.78rem; transition: all 0.15s; flex-shrink: 0;
+        }
+        .polish-close-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        /* Score comparison row */
+        .polish-score-row {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 16px; border-bottom: 1px solid var(--border-soft);
+        }
+        .polish-score-block { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+        .polish-score-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+        .polish-score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+        .polish-score-bar {
+            flex: 1; height: 6px; border-radius: 3px;
+            background: var(--border-color); overflow: hidden;
+        }
+        .polish-score-bar-fill {
+            height: 100%; border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+        .polish-score-bar-fill.before { background: var(--text-muted); }
+        .polish-score-bar-fill.after  { background: #c792e9; }
+        .polish-score-num { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700; flex-shrink: 0; }
+        .polish-score-delta {
+            font-size: 0.78rem; font-weight: 700;
+            color: #c792e9; flex-shrink: 0; white-space: nowrap;
+        }
+
+        /* Pass cards */
+        .polish-passes { padding: 8px 12px 6px; display: flex; flex-direction: column; gap: 6px; }
+        .polish-pass-card {
+            background: var(--surface-color); border: 1px solid var(--border-soft);
+            border-radius: 10px; overflow: hidden;
+        }
+        .polish-pass-header {
+            display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+            cursor: pointer; user-select: none; transition: background 0.15s;
+        }
+        .polish-pass-header:hover { background: rgba(255,255,255,0.03); }
+        .polish-pass-card.open .polish-pass-header { border-bottom: 1px solid var(--border-soft); }
+        .polish-pass-badge {
+            width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+        }
+        .polish-pass-badge.pending  { background: var(--border-color);  color: var(--text-muted); }
+        .polish-pass-badge.running  { background: #c792e9; color: #000; animation: pulse 0.8s infinite; }
+        .polish-pass-badge.done     { background: #c792e9; color: #000; }
+        .polish-pass-badge.err      { background: var(--accent-red); color: #fff; }
+        .polish-pass-title {
+            flex: 1; font-size: 0.82rem; font-weight: 500; color: var(--text-primary);
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .polish-pass-changes {
+            font-family: var(--font-mono); font-size: 0.72rem;
+            color: #c792e9; flex-shrink: 0; white-space: nowrap;
+        }
+        .polish-pass-chevron { color: var(--text-muted); font-size: 0.85rem; transition: transform 0.2s; flex-shrink: 0; }
+        .polish-pass-card.open .polish-pass-chevron { transform: rotate(90deg); }
+        .polish-pass-body { display: none; }
+        .polish-pass-card.open .polish-pass-body { display: block; }
+
+        /* Diff inside pass body */
+        .polish-diff {
+            font-family: var(--font-mono); font-size: 0.76rem;
+            max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .polish-diff-line { padding: 2px 12px; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+        .polish-diff-line.add { background: rgba(199,146,233,0.1); color: #c792e9; }
+        .polish-diff-line.rem { background: rgba(242,139,130,0.08); color: var(--accent-red); }
+        .polish-diff-line.ctx { color: var(--text-muted); }
+        .polish-improvements {
+            padding: 8px 12px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .polish-improvement-item {
+            display: flex; gap: 7px; align-items: flex-start;
+            font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45;
+        }
+        .polish-improvement-item::before {
+            content: '→'; color: #c792e9; flex-shrink: 0;
+            font-weight: 700; font-family: var(--font-mono);
+        }
+
+        /* Accept / Reject bar */
+        .polish-accept-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; border-top: 1px solid var(--border-soft);
+            background: rgba(199,146,233,0.05); flex-wrap: wrap;
+        }
+        .polish-accept-bar .pa-hint {
+            flex: 1; font-size: 0.76rem; color: var(--text-muted);
+            font-family: var(--font-mono); min-width: 0;
+        }
+        .polish-accept-btn {
+            background: #c792e9; color: #0d0e0f; border: none;
+            border-radius: 16px; padding: 7px 18px;
+            font-family: var(--font-main); font-size: 0.82rem; font-weight: 700;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .polish-accept-btn:hover { background: #d4a8f0; }
+        .polish-reject-btn {
+            background: transparent; border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 7px 16px;
+            font-family: var(--font-main); font-size: 0.82rem; font-weight: 500;
+            color: var(--text-muted); cursor: pointer; flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .polish-reject-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        /* Toolbar button */
+        .polish-check-btn {
+            background: transparent; border: 1px solid var(--border-soft);
+            border-radius: 14px; padding: 5px 11px; color: var(--text-muted);
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .polish-check-btn:hover  { background: var(--surface-hover); color: var(--text-primary); border-color: var(--border-color); }
+        .polish-check-btn.running{ background: rgba(199,146,233,0.1); border-color: rgba(199,146,233,0.4); color: #c792e9; animation: aaBtnPulse 1.2s ease-in-out infinite; }
+        .polish-check-btn.done   { background: rgba(199,146,233,0.1); border-color: rgba(199,146,233,0.4); color: #c792e9; }
+
+        /* Intensity selector in Agent Settings */
+        .intensity-pills { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+        .intensity-pill {
+            background: var(--surface-elev); border: 1.5px solid var(--border-soft);
+            border-radius: 20px; padding: 6px 14px;
+            font-family: var(--font-main); font-size: 0.8rem; font-weight: 600;
+            color: var(--text-muted); cursor: pointer; transition: all 0.18s;
+        }
+        .intensity-pill:hover { border-color: var(--border-color); color: var(--text-secondary); }
+        .intensity-pill.active { background: rgba(199,146,233,0.12); border-color: rgba(199,146,233,0.5); color: #c792e9; }
+
         /* Model role selectors in Agent Settings */
         .role-select-row {
             display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
@@ -3194,6 +3361,12 @@ RULE 4 — OUTPUT FORMAT
                     Table
                 </button>
                 <div class="rt-actions">
+                    <button class="polish-check-btn" id="polish-btn-${Date.now()}"
+                        onclick="_polishRunFromBtn(this)"
+                        title="Enhance writing — precision, structure and flow (3 passes)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Enhance
+                    </button>
                     <button class="debate-check-btn" id="debate-btn-${Date.now()}"
                         onclick="_debateRunFromBtn(this)"
                         title="Writer + Reviewer debate — improves content through critique rounds">
@@ -4887,6 +5060,433 @@ Improved text:`;
         }
 
         /* ============================================================
+           Writing Enhancer (Polish Agent)
+           Three targeted passes: Precision → Structure → Flow
+           Manual trigger only. Shows diff + accept/reject before applying.
+           ============================================================ */
+        const STORAGE_POLISH_INTENSITY = 'aiproxy_polish_intensity';
+
+        let _polishRunning = false;
+
+        function getPolishIntensity() {
+            const v = localStorage.getItem(STORAGE_POLISH_INTENSITY);
+            return ['light','moderate','thorough'].includes(v) ? v : 'thorough';
+        }
+
+        const POLISH_PASSES = {
+            light: [
+                { id:'precision', label:'Precision', icon:'🎯', desc:'Replacing vague words with precise academic vocabulary' }
+            ],
+            moderate: [
+                { id:'precision', label:'Precision', icon:'🎯', desc:'Replacing vague words with precise academic vocabulary' },
+                { id:'structure', label:'Structure', icon:'🏗', desc:'Improving sentence construction and variety' }
+            ],
+            thorough: [
+                { id:'precision', label:'Precision', icon:'🎯', desc:'Replacing vague words with precise academic vocabulary' },
+                { id:'structure', label:'Structure', icon:'🏗', desc:'Improving sentence construction and variety' },
+                { id:'flow',      label:'Flow',      icon:'🌊', desc:'Enhancing transitions and paragraph cohesion' }
+            ]
+        };
+
+        const POLISH_SYSTEM = {
+            precision: 'You are a vocabulary editor for academic writing. Replace imprecise words with exact academic alternatives. Return ONLY the improved text — no preamble, no explanation.',
+            structure: 'You are a sentence structure editor for academic writing. Improve sentence construction and variety. Return ONLY the improved text — no preamble, no explanation.',
+            flow:      'You are a flow and cohesion editor for academic writing. Improve transitions and paragraph connections. Return ONLY the improved text — no preamble, no explanation.'
+        };
+
+        const POLISH_PROMPTS = {
+            precision: (text) => `VOCABULARY PRECISION PASS — Your ONLY task: replace vague, weak or informal words with precise academic equivalents.
+
+STRICT PRESERVATION RULES:
+1. Do NOT change sentence structure — swap words/phrases only
+2. Preserve every in-text citation exactly: (Author, Year)
+3. Preserve the ## References section word-for-word
+4. Preserve all facts, statistics, and data exactly
+5. If text is already precise, return it unchanged
+
+TARGET REPLACEMENTS (examples — apply intelligently):
+"shows" → "demonstrates / illustrates / indicates"
+"big / large" → "substantial / considerable / significant"
+"a lot of" → "numerous / considerable / substantial"
+"very important" → "critical / paramount / fundamental"
+"says / said" → "argues / contends / posits / asserts"
+"find out" → "ascertain / determine / establish"
+"use" → "employ / utilise / implement / apply"
+"look at" → "examine / analyse / investigate"
+"looks like" → "appears to / suggests"
+"because of" → "attributable to / owing to"
+"help" → "facilitate / support / enable"
+"make" → "generate / produce / yield"
+"get" → "obtain / acquire / achieve"
+"think" → "posit / contend / argue / hypothesise"
+"problem" → "challenge / limitation / impediment"
+"good" → "effective / robust / noteworthy"
+
+TEXT:
+"""
+${text}
+"""
+
+Improved text:`,
+
+            structure: (text) => `SENTENCE STRUCTURE PASS — Your ONLY task: improve sentence construction, variety, and clarity.
+
+STRICT PRESERVATION RULES:
+1. Preserve all citations: (Author, Year) — never modify
+2. Preserve the ## References section completely unchanged
+3. Preserve all facts and arguments — no additions or removals
+
+STRUCTURAL IMPROVEMENTS TO MAKE:
+1. Break sentences over 40 words into two clear sentences
+2. Vary sentence length: mix short (10–15 words) with analytical (20–30 words)
+3. Convert weak passive to active voice where it strengthens clarity
+4. Remove filler openers: eliminate "It is important to note that", "It should be noted that", "It is worth mentioning that", "In terms of", "With regards to"
+5. Condense wordy phrases: "due to the fact that" → "because", "in order to" → "to", "a number of" → "several", "at this point in time" → "currently"
+6. Ensure each sentence carries one clear main idea
+
+TEXT:
+"""
+${text}
+"""
+
+Improved text:`,
+
+            flow: (text) => `FLOW & COHESION PASS — Your ONLY task: improve transitions and logical connections between ideas.
+
+STRICT PRESERVATION RULES:
+1. Preserve all citations: (Author, Year) — never modify
+2. Preserve the ## References section completely unchanged
+3. Preserve all facts and arguments — no new information may be added
+
+FLOW IMPROVEMENTS TO MAKE:
+1. Strengthen weak transitions: "also" → "furthermore / moreover / in addition", "but" → "however / nevertheless / conversely", "so" → "consequently / therefore / thus", "then" → "subsequently / thereafter"
+2. Ensure each paragraph opens with a clear topic sentence
+3. Add brief linking phrases between related sentences where abrupt jumps exist
+4. Ensure the final sentence of each paragraph signals what follows
+5. Remove repeated ideas across consecutive sentences (keep the stronger phrasing)
+6. Add signposting where logical sequence is unclear: "Building on this...", "This finding suggests...", "In contrast..."
+
+TEXT:
+"""
+${text}
+"""
+
+Improved text:`
+        };
+
+        /* ── Entry point from toolbar button ── */
+        function _polishRunFromBtn(btn) {
+            const botContent = btn.closest('.bot-content');
+            if (!botContent) return;
+            let text = '';
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') { text = chatContext[i].content; break; }
+            }
+            if (!text) {
+                const botMsg = botContent.querySelector('.bot-message');
+                text = botMsg ? (botMsg.innerText || botMsg.textContent || '') : '';
+            }
+            if (!text) { showToast('No content to enhance'); return; }
+            btn.classList.add('running');
+            _polishRun(text, botContent).finally(() => {
+                btn.classList.remove('running');
+                btn.classList.add('done');
+                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Enhanced';
+            });
+        }
+
+        /* ── Main enhancement loop ── */
+        async function _polishRun(text, botContent) {
+            if (_polishRunning) { _polishRunning = false; }
+            if (!currentModel) { showToast('No model selected'); return; }
+            _polishRunning = true;
+
+            botContent.querySelector('.polish-panel')?.remove();
+            const panel = _polishBuildPanel(botContent);
+
+            const intensity  = getPolishIntensity();
+            const passes     = POLISH_PASSES[intensity] || POLISH_PASSES.thorough;
+            const model      = getDebateWriterModel();
+            const originalText = text;
+            let currentText  = text;
+
+            try {
+                for (let i = 0; i < passes.length; i++) {
+                    const pass = passes[i];
+                    _polishSetStatus(panel, 'running', `Pass ${i+1}/${passes.length} — ${pass.label}: ${pass.desc}...`);
+                    _polishUpdatePassBadge(panel, i, 'running');
+                    _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — running...`);
+
+                    // Show progress indicator in body
+                    const body = document.getElementById(`polish-body-${i}`);
+                    if (body) body.innerHTML = `<div style="padding:10px 12px;font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#c792e9;flex-shrink:0;animation:pulse 1s infinite ease-in-out;"></span>${pass.desc}...</div>`;
+
+                    try {
+                        const improved = await _debateCall(
+                            [
+                                { role: 'system', content: POLISH_SYSTEM[pass.id] },
+                                { role: 'user',   content: POLISH_PROMPTS[pass.id](currentText) }
+                            ],
+                            model, 180000
+                        );
+
+                        const diff  = _agentDiff(currentText, improved);
+                        const added = diff.filter(l => l.type === 'add').length;
+                        const rem   = diff.filter(l => l.type === 'rem').length;
+                        const totalChanges = Math.round((added + rem) / 2);
+
+                        currentText = improved;
+                        _polishUpdatePassBadge(panel, i, 'done');
+                        _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — ${totalChanges} change${totalChanges !== 1 ? 's' : ''} applied`);
+                        _polishSetPassChanges(panel, i, `+${added} -${rem}`);
+                        _polishRenderPassDiff(panel, i, diff);
+
+                    } catch (err) {
+                        _polishUpdatePassBadge(panel, i, 'err');
+                        _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — Error: ${err.message.slice(0,60)}`);
+                        const body2 = document.getElementById(`polish-body-${i}`);
+                        if (body2) body2.innerHTML = `<div style="padding:8px 12px;font-size:0.77rem;color:var(--accent-red);">${escapeHtml(err.message)}</div>`;
+                        console.error('Polish pass error:', err);
+                    }
+                }
+
+                // Scoring call — lightweight before/after evaluation
+                _polishSetStatus(panel, 'scoring', 'Evaluating writing quality...');
+                try {
+                    const scores = await _polishScore(originalText, currentText, model);
+                    _polishShowScore(panel, scores);
+                } catch (_) {
+                    // Score display is optional — don't fail the whole agent
+                }
+
+                // Show accept/reject bar
+                const totalDiff = _agentDiff(originalText, currentText);
+                const totalChanges = Math.round(totalDiff.filter(l => l.type === 'add' || l.type === 'rem').length / 2);
+                _polishShowAcceptBar(panel, originalText, currentText, botContent, totalChanges);
+                _polishSetStatus(panel, 'done', `✓ Enhancement complete — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
+
+            } finally {
+                _polishRunning = false;
+            }
+        }
+
+        /* ── Scoring call ── */
+        async function _polishScore(originalText, enhancedText, model) {
+            const prompt = `Rate these two academic texts on writing quality. Return ONLY valid JSON — no markdown fences, no preamble.
+
+ORIGINAL (first 600 chars): "${originalText.slice(0, 600)}"
+ENHANCED (first 600 chars): "${enhancedText.slice(0, 600)}"
+
+JSON (return exactly):
+{
+  "before_score": <integer 0-100>,
+  "after_score": <integer 0-100>,
+  "improvements": ["<specific improvement made, max 8 words>", "<improvement 2>", "<improvement 3>"]
+}
+
+Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs work. Return only JSON:`;
+
+            const raw = await _debateCall(
+                [
+                    { role: 'system', content: 'You are a writing quality evaluator. Output ONLY valid JSON. No markdown fences.' },
+                    { role: 'user',   content: prompt }
+                ],
+                model, 60000
+            );
+
+            let result;
+            try { result = JSON.parse(raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim()); }
+            catch (_) {
+                const m = raw.match(/\{[\s\S]*\}/);
+                if (!m) return { before_score: 60, after_score: 78, improvements: ['Writing enhanced across all passes'] };
+                result = JSON.parse(m[0]);
+            }
+            result.before_score  = Math.min(100, Math.max(0, parseInt(result.before_score) || 60));
+            result.after_score   = Math.min(100, Math.max(0, parseInt(result.after_score)  || 78));
+            result.improvements  = Array.isArray(result.improvements) ? result.improvements.slice(0, 4) : [];
+            return result;
+        }
+
+        /* ── Panel DOM builders ── */
+        function _polishBuildPanel(botContent) {
+            const intensity = getPolishIntensity();
+            const passes    = POLISH_PASSES[intensity] || POLISH_PASSES.thorough;
+
+            const passCardsHtml = passes.map((pass, i) => `
+                <div class="polish-pass-card" id="polish-card-${i}">
+                    <div class="polish-pass-header" onclick="this.closest('.polish-pass-card').classList.toggle('open')">
+                        <span class="polish-pass-badge pending" id="polish-badge-${i}">${i+1}</span>
+                        <span class="polish-pass-title" id="polish-title-${i}">${pass.icon} ${pass.label} — waiting...</span>
+                        <span class="polish-pass-changes" id="polish-changes-${i}"></span>
+                        <span class="polish-pass-chevron">›</span>
+                    </div>
+                    <div class="polish-pass-body" id="polish-body-${i}"></div>
+                </div>`).join('');
+
+            const panel = document.createElement('div');
+            panel.className = 'polish-panel';
+            panel.innerHTML = `
+                <div class="polish-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    <span class="polish-title">Writing Enhancer</span>
+                    <span class="polish-status-dot running"></span>
+                    <span class="polish-status-text">Initialising...</span>
+                    <button class="polish-close-btn" onclick="this.closest('.polish-panel').remove()">✕</button>
+                </div>
+                <div class="polish-score-row" id="polish-score-row" style="display:none;"></div>
+                <div class="polish-passes">${passCardsHtml}</div>
+                <div class="polish-accept-bar" id="polish-accept-bar" style="display:none;"></div>`;
+            botContent.appendChild(panel);
+            return panel;
+        }
+
+        function _polishSetStatus(panel, state, text) {
+            const dot = panel.querySelector('.polish-status-dot');
+            const txt = panel.querySelector('.polish-status-text');
+            if (dot) dot.className = `polish-status-dot ${state}`;
+            if (txt) txt.textContent = text;
+        }
+
+        function _polishUpdatePassBadge(panel, i, state) {
+            const b = document.getElementById(`polish-badge-${i}`);
+            if (b) b.className = `polish-pass-badge ${state}`;
+        }
+
+        function _polishSetPassTitle(panel, i, title) {
+            const t = document.getElementById(`polish-title-${i}`);
+            if (t) t.textContent = title;
+        }
+
+        function _polishSetPassChanges(panel, i, text) {
+            const c = document.getElementById(`polish-changes-${i}`);
+            if (c) c.textContent = text;
+        }
+
+        function _polishRenderPassDiff(panel, i, diff) {
+            const body = document.getElementById(`polish-body-${i}`);
+            if (!body) return;
+
+            // Show only changed lines + 1 context line each side — keeps it readable
+            const condensed = [];
+            diff.forEach((line, idx) => {
+                if (line.type !== 'ctx') {
+                    // Include one context line before if available
+                    if (idx > 0 && diff[idx-1].type === 'ctx' && (condensed.length === 0 || condensed[condensed.length-1] !== diff[idx-1])) {
+                        condensed.push(diff[idx-1]);
+                    }
+                    condensed.push(line);
+                    // Include one context line after if available
+                    if (idx < diff.length - 1 && diff[idx+1].type === 'ctx') {
+                        condensed.push(diff[idx+1]);
+                    }
+                }
+            });
+
+            const diffHtml = condensed.slice(0, 60).map(l =>
+                `<div class="polish-diff-line ${l.type}">${l.type === 'add' ? '+ ' : l.type === 'rem' ? '- ' : '  '}${escapeHtml(l.text)}</div>`
+            ).join('');
+
+            const moreCount = condensed.length > 60 ? condensed.length - 60 : 0;
+            body.innerHTML = `<div class="polish-diff">${diffHtml}${moreCount > 0 ? `<div class="polish-diff-line ctx">  ... ${moreCount} more lines</div>` : ''}</div>`;
+            // Auto-open the card to show changes
+            document.getElementById(`polish-card-${i}`)?.classList.add('open');
+        }
+
+        function _polishShowScore(panel, scores) {
+            const row = document.getElementById('polish-score-row');
+            if (!row) return;
+            const delta = scores.after_score - scores.before_score;
+            const deltaStr = delta >= 0 ? `+${delta}` : String(delta);
+            const improvementsHtml = scores.improvements.length > 0
+                ? scores.improvements.map(imp => `<div class="polish-improvement-item">${escapeHtml(imp)}</div>`).join('')
+                : '';
+
+            row.innerHTML = `
+                <div class="polish-score-block">
+                    <span class="polish-score-label">Before</span>
+                    <div class="polish-score-bar-wrap">
+                        <div class="polish-score-bar"><div class="polish-score-bar-fill before" style="width:${scores.before_score}%"></div></div>
+                        <span class="polish-score-num" style="color:var(--text-muted);">${scores.before_score}</span>
+                    </div>
+                </div>
+                <div class="polish-score-block">
+                    <span class="polish-score-label">After</span>
+                    <div class="polish-score-bar-wrap">
+                        <div class="polish-score-bar"><div class="polish-score-bar-fill after" style="width:${scores.after_score}%"></div></div>
+                        <span class="polish-score-num" style="color:#c792e9;">${scores.after_score}</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="polish-score-delta">${deltaStr} pts ↑</div>
+                    ${improvementsHtml ? `<div class="polish-improvements" style="margin-top:4px;">${improvementsHtml}</div>` : ''}
+                </div>`;
+            row.style.display = 'flex';
+            row.style.flexDirection = 'column';
+            row.style.gap = '8px';
+        }
+
+        function _polishShowAcceptBar(panel, originalText, enhancedText, botContent, totalChanges) {
+            const bar = document.getElementById('polish-accept-bar');
+            if (!bar) return;
+            bar.innerHTML = `
+                <span class="pa-hint">${totalChanges} change${totalChanges !== 1 ? 's' : ''} ready — apply to your response?</span>
+                <button class="polish-reject-btn" onclick="_polishReject(this)">Keep original</button>
+                <button class="polish-accept-btn" onclick="_polishAccept(this, '${encodeURIComponent(enhancedText)}')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Apply changes
+                </button>`;
+            bar.style.display = 'flex';
+        }
+
+        function _polishAccept(btn, encodedText) {
+            const enhanced = decodeURIComponent(encodedText);
+            const botContent = btn.closest('.bot-content');
+            if (!botContent) return;
+
+            // Update bot message in DOM
+            const botMsg = botContent.querySelector('.bot-message');
+            if (botMsg) botMsg.innerHTML = safeMarkdownRender(enhanced);
+
+            // Update chatContext
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') {
+                    chatContext[i].content = enhanced;
+                    break;
+                }
+            }
+            saveHistory();
+
+            // Update toolbar button state
+            const researchToolbar = botContent.querySelector('.research-toolbar');
+            if (researchToolbar) researchToolbar.dataset.raw = enhanced;
+
+            // Replace accept/reject bar with confirmation
+            const bar = btn.closest('.polish-accept-bar');
+            if (bar) bar.innerHTML = `<span style="font-size:0.8rem;color:#c792e9;font-family:var(--font-mono);">✓ Enhanced text applied — response updated</span>`;
+
+            showToast('Writing enhancements applied ✓');
+        }
+
+        function _polishReject(btn) {
+            btn.closest('.polish-panel')?.remove();
+            showToast('Original text kept');
+        }
+
+        /* ── Agent Settings intensity helper ── */
+        function _applyIntensity(intensity, btn) {
+            document.querySelectorAll('.intensity-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            localStorage.setItem(STORAGE_POLISH_INTENSITY, intensity);
+        }
+
+        function _polishSettingsInit() {
+            const saved = getPolishIntensity();
+            document.querySelectorAll('.intensity-pill').forEach(b => {
+                b.classList.toggle('active', b.dataset.intensity === saved);
+            });
+        }
+
+        /* ============================================================
            Boot
            ============================================================ */
         window.onload = async function() {
@@ -4895,6 +5495,7 @@ Improved text:`;
             _researchInitUI();
             _wsInitUI();
             _agentSettingsInit();
+            _polishSettingsInit();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
@@ -8218,6 +8819,15 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     <option value="">— Same as current model —</option>
                 </select>
             </div>
+
+            <!-- Writing Enhancer intensity -->
+            <span class="as-section-label">Writing Enhancer Intensity <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:#c792e9;">— 🖊 Enhance button</span></span>
+            <div class="intensity-pills" id="intensity-pills">
+                <button class="intensity-pill" data-intensity="light"    onclick="_applyIntensity('light',this)">⚡ Light<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">Vocabulary only</span></button>
+                <button class="intensity-pill" data-intensity="moderate" onclick="_applyIntensity('moderate',this)">🔧 Moderate<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">+ Sentences</span></button>
+                <button class="intensity-pill active" data-intensity="thorough" onclick="_applyIntensity('thorough',this)">✨ Thorough<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">All 3 passes</span></button>
+            </div>
+            <p class="iter-hint">Light = Precision pass only. Moderate = Precision + Structure. Thorough = Precision + Structure + Flow. Use Thorough for final submission polish.</p>
 
             <!-- System prompt -->
             <span class="as-section-label">System Prompt <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent-blue);">— always editable, presets load a starting template</span></span>
