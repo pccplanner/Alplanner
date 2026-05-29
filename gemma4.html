@@ -2930,6 +2930,8 @@ RULE 4 — OUTPUT FORMAT
 
             // Populate debate model selectors
             _debatePopulateSelects();
+            // Refresh polish auto toggle
+            _refreshPolishAutoToggle(null, getPolishAutoEnabled());
 
             // Populate debate threshold slider
             const debThreshSlider = document.getElementById('debate-threshold-slider');
@@ -3045,6 +3047,8 @@ RULE 4 — OUTPUT FORMAT
             localStorage.removeItem(STORAGE_DEBATE_WRITER);
             localStorage.removeItem(STORAGE_DEBATE_REVIEWER);
             localStorage.removeItem(STORAGE_DEBATE_THRESHOLD);
+            localStorage.removeItem(STORAGE_POLISH_INTENSITY);
+            localStorage.removeItem(STORAGE_POLISH_AUTO);
 
             const slider = document.getElementById('iter-slider');
             const countEl = document.getElementById('iter-count');
@@ -4607,34 +4611,38 @@ Rewritten text:`;
         }
 
         /* Show a clear "pipeline complete" banner so the user knows all agents are done */
-        function _showPipelineComplete(botContent, debateOk, plagOk, debateError, plagError) {
+        function _showPipelineComplete(botContent, debateOk, plagOk, debateError, plagError, enhanceOk, enhanceError) {
             if (!botContent) return;
             botContent.querySelector('.pipeline-complete')?.remove();
 
             const banner = document.createElement('div');
             banner.className = 'pipeline-complete';
 
-            const debateLabel = debateOk  ? '✓ Debate reviewed'
-                              : debateError ? `✗ Debate error: ${debateError.slice(0, 60)}`
-                              : '— Debate skipped';
-            const plagLabel   = plagOk    ? '✓ Plagiarism checked'
-                              : plagError  ? `✗ Plagiarism error: ${plagError.slice(0, 60)}`
-                              : '— Plagiarism skipped';
+            const debateLabel  = debateOk   ? '✓ Debate reviewed'
+                               : debateError ? `✗ Debate: ${debateError.slice(0, 50)}`
+                               : '— Debate skipped';
+            const enhanceLabel = !getPolishAutoEnabled() ? null
+                               : enhanceOk  ? '✓ Writing enhanced'
+                               : enhanceError ? `✗ Enhance: ${enhanceError.slice(0, 50)}`
+                               : '— Enhance skipped';
+            const plagLabel    = plagOk     ? '✓ Plagiarism checked'
+                               : plagError   ? `✗ Plagiarism: ${plagError.slice(0, 50)}`
+                               : '— Plagiarism skipped';
 
-            const allOk = debateOk && plagOk;
-            const hasError = debateError || plagError;
-            banner.style.background = hasError
-                ? 'rgba(253,214,99,0.08)'   : 'rgba(129,201,149,0.08)';
-            banner.style.borderColor = hasError
-                ? 'rgba(253,214,99,0.3)'    : 'rgba(129,201,149,0.3)';
-            banner.style.color = hasError
-                ? 'var(--accent-yellow)'    : 'var(--accent-green)';
+            const allOk    = debateOk && plagOk && (!getPolishAutoEnabled() || enhanceOk);
+            const hasError = debateError || plagError || enhanceError;
+
+            banner.style.background  = hasError ? 'rgba(253,214,99,0.08)'  : 'rgba(129,201,149,0.08)';
+            banner.style.borderColor = hasError ? 'rgba(253,214,99,0.3)'   : 'rgba(129,201,149,0.3)';
+            banner.style.color       = hasError ? 'var(--accent-yellow)'   : 'var(--accent-green)';
+
+            const subParts = [debateLabel, enhanceLabel, plagLabel].filter(Boolean);
 
             banner.innerHTML = `
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${allOk ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg>
                 <div class="pc-text">
                     <span class="pc-title">${allOk ? 'All checks complete — ready to use' : 'Pipeline finished with issues'}</span>
-                    <span class="pc-sub">${escapeHtml(debateLabel)} · ${escapeHtml(plagLabel)}</span>
+                    <span class="pc-sub">${subParts.map(s => escapeHtml(s)).join(' · ')}</span>
                 </div>`;
             botContent.appendChild(banner);
             setTimeout(() => banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300);
@@ -5101,13 +5109,20 @@ Improved text:`;
            Three targeted passes: Precision → Structure → Flow
            Manual trigger only. Shows diff + accept/reject before applying.
            ============================================================ */
-        const STORAGE_POLISH_INTENSITY = 'aiproxy_polish_intensity';
+        const STORAGE_POLISH_INTENSITY   = 'aiproxy_polish_intensity';
+        const STORAGE_POLISH_AUTO        = 'aiproxy_polish_auto';
 
         let _polishRunning = false;
 
         function getPolishIntensity() {
             const v = localStorage.getItem(STORAGE_POLISH_INTENSITY);
             return ['light','moderate','thorough'].includes(v) ? v : 'thorough';
+        }
+
+        function getPolishAutoEnabled() {
+            // Default ON for University mode — user can disable in Agent Settings
+            const v = localStorage.getItem(STORAGE_POLISH_AUTO);
+            return v === null ? true : v === 'true';
         }
 
         const POLISH_PASSES = {
@@ -5540,11 +5555,27 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
             localStorage.setItem(STORAGE_POLISH_INTENSITY, intensity);
         }
 
+        function _togglePolishAuto(btn) {
+            const current = getPolishAutoEnabled();
+            const next = !current;
+            localStorage.setItem(STORAGE_POLISH_AUTO, next);
+            _refreshPolishAutoToggle(btn, next);
+        }
+
+        function _refreshPolishAutoToggle(btn, enabled) {
+            if (!btn) btn = document.getElementById('polish-auto-toggle');
+            if (!btn) return;
+            btn.style.background = enabled ? '#c792e9' : 'var(--border-color)';
+            const knob = btn.querySelector('span');
+            if (knob) knob.style.left = enabled ? '22px' : '3px';
+        }
+
         function _polishSettingsInit() {
             const saved = getPolishIntensity();
             document.querySelectorAll('.intensity-pill').forEach(b => {
                 b.classList.toggle('active', b.dataset.intensity === saved);
             });
+            _refreshPolishAutoToggle(null, getPolishAutoEnabled());
         }
 
         /* ============================================================
@@ -8351,12 +8382,12 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         const toolbarBtns = bc.querySelectorAll('.debate-check-btn, .plag-check-btn');
                         toolbarBtns.forEach(b => b.classList.add('running'));
 
-                        let debateOk = false, plagOk = false;
-                        let debateError = '', plagError = '';
+                        let debateOk = false, plagOk = false, enhanceOk = false;
+                        let debateError = '', plagError = '', enhanceError = '';
 
                         try {
-                            // Step 1: Debate — improves content quality
-                            showToast('Step 1/2: Debate Agent reviewing...');
+                            // Step 1: Debate — improves academic quality
+                            showToast('Step 1/3: Debate Agent reviewing...');
                             const debateCompleted = await _debateRun(fullResponseText, bc);
                             debateOk = debateCompleted === true;
                             const dp = bc.querySelector('.debate-panel');
@@ -8365,20 +8396,38 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             debateError = e.message || 'Unknown error';
                             console.error('Auto Debate error:', e);
                             _debateRunning = false;
-                            // Show the error visibly in the bot content
                             _debateShowSetupError(bc, debateError);
                         }
 
-                        // Brief pause between agents so mobile connection can breathe
                         await new Promise(r => setTimeout(r, 800));
 
-                        // Step 2: Plagiarism — check the (possibly rewritten) text
+                        // Step 2: Writing Enhancer — polish vocabulary, structure and flow
+                        if (getPolishAutoEnabled()) {
+                            let latestText = fullResponseText;
+                            for (let i = chatContext.length - 1; i >= 0; i--) {
+                                if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content; break; }
+                            }
+                            try {
+                                showToast('Step 2/3: Writing Enhancer polishing...');
+                                await _polishRun(latestText, bc, null);
+                                enhanceOk = true;
+                                const ep = bc.querySelector('.polish-panel');
+                                if (ep) ep.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            } catch (e) {
+                                enhanceError = e.message || 'Unknown error';
+                                console.error('Auto Enhance error:', e);
+                                _polishRunning = false;
+                            }
+                            await new Promise(r => setTimeout(r, 800));
+                        }
+
+                        // Step 3: Plagiarism — check the final enhanced text
                         let finalText = fullResponseText;
                         for (let i = chatContext.length - 1; i >= 0; i--) {
                             if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content; break; }
                         }
                         try {
-                            showToast('Step 2/2: Plagiarism Agent checking...');
+                            showToast(`Step ${getPolishAutoEnabled() ? '3/3' : '2/2'}: Plagiarism Agent checking...`);
                             await _plagRun(finalText, bc);
                             plagOk = true;
                             const pp = bc.querySelector('.plag-panel');
@@ -8389,8 +8438,8 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             _plagRunning = false;
                         }
 
-                        // Show a clear pipeline-complete banner so the user knows it's done
-                        _showPipelineComplete(bc, debateOk, plagOk, debateError, plagError);
+                        // Show pipeline complete banner
+                        _showPipelineComplete(bc, debateOk, plagOk, debateError, plagError, enhanceOk, enhanceError);
 
                         // Full UI reset after all agents complete
                         toolbarBtns.forEach(b => b.classList.remove('running'));
@@ -8641,11 +8690,17 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
             try {
                 await _debateRun(text, botContent);
-                let finalText = text;
+                let latestText = text;
                 for (let i = chatContext.length - 1; i >= 0; i--) {
-                    if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
+                    if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
                 }
-                await _plagRun(finalText, botContent);
+                if (getPolishAutoEnabled()) {
+                    await _polishRun(latestText, botContent, null);
+                    for (let i = chatContext.length - 1; i >= 0; i--) {
+                        if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content.replace(/\n\n\*-- connection interrupted --\*/, '').trim(); break; }
+                    }
+                }
+                await _plagRun(latestText, botContent);
                 btn.style.display = 'none';
             } catch (e) {
                 btn.disabled = false;
@@ -8889,6 +8944,20 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 <button class="intensity-pill active" data-intensity="thorough" onclick="_applyIntensity('thorough',this)">✨ Thorough<br><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">All 3 passes</span></button>
             </div>
             <p class="iter-hint">Light = Precision pass only. Moderate = Precision + Structure. Thorough = Precision + Structure + Flow. Use Thorough for final submission polish.</p>
+
+            <!-- Auto-enhance toggle -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:10px 14px;background:var(--surface-elev);border-radius:10px;border:1px solid var(--border-soft);">
+                <div>
+                    <div style="font-size:0.82rem;font-weight:600;color:var(--text-primary);">Auto-run after Debate</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Enhancer runs automatically in University mode pipeline</div>
+                </div>
+                <button id="polish-auto-toggle" onclick="_togglePolishAuto(this)"
+                    style="width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;
+                           transition:all 0.2s;flex-shrink:0;position:relative;background:#c792e9;">
+                    <span style="position:absolute;top:3px;left:22px;width:18px;height:18px;
+                                 border-radius:50%;background:#fff;transition:left 0.2s;display:block;"></span>
+                </button>
+            </div>
 
             <!-- System prompt -->
             <span class="as-section-label">System Prompt <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent-blue);">— always editable, presets load a starting template</span></span>
