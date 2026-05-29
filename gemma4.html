@@ -1382,6 +1382,43 @@
         #active-mode-chip:hover { background: rgba(253,214,99,0.22); }
 
         /* ── Agent Settings Modal content styles ── */
+        /* Agent selector toggle grid */
+        .agent-selector-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 8px; margin-bottom: 6px;
+        }
+        .asg-card {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            padding: 10px 6px; border-radius: 12px;
+            border: 1.5px solid var(--border-soft); background: var(--surface-elev);
+            cursor: pointer; transition: all 0.2s; user-select: none;
+            opacity: 0.45;
+        }
+        .asg-card.active {
+            border-color: var(--accent-blue); background: rgba(168,199,250,0.1);
+            opacity: 1;
+        }
+        .asg-card.active.university { border-color: #c792e9; background: rgba(199,146,233,0.1); }
+        .asg-card.active.security-card { border-color: var(--accent-red); background: rgba(242,139,130,0.1); }
+        .asg-card-icon { font-size: 1.2rem; line-height: 1; }
+        .asg-card-label {
+            font-size: 0.68rem; font-weight: 700; text-align: center;
+            color: var(--text-secondary); line-height: 1.3; font-family: var(--font-mono);
+            text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .asg-card.active .asg-card-label { color: var(--text-primary); }
+        .asg-card-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--border-color); transition: background 0.2s;
+        }
+        .asg-card.active .asg-card-dot { background: var(--accent-blue); }
+        .asg-card.active.university .asg-card-dot { background: #c792e9; }
+        .asg-card.active.security-card .asg-card-dot { background: var(--accent-red); }
+        .asg-group-label {
+            font-size: 0.7rem; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin: 14px 0 8px; font-family: var(--font-mono);
+        }
         .as-section-label {
             font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em;
             text-transform: uppercase; color: var(--text-muted);
@@ -3174,6 +3211,8 @@ RULE 4 — OUTPUT FORMAT
             _debatePopulateSelects();
             // Refresh polish auto toggle
             _refreshPolishAutoToggle(null, getPolishAutoEnabled());
+            // Sync agent selector cards
+            _agentSelectorInit();
 
             // Populate debate threshold slider
             const debThreshSlider = document.getElementById('debate-threshold-slider');
@@ -6612,8 +6651,40 @@ Fixed response:`;
         }
 
         /* ============================================================
-           Boot
+           Agent Selector — per-agent on/off toggles
            ============================================================ */
+        const AGENT_TOGGLE_KEYS = {
+            'code-review': 'aiproxy_agent_code_review',
+            'refactor':    'aiproxy_agent_refactor',
+            'security':    'aiproxy_agent_security',
+            'debate':      'aiproxy_agent_debate',
+            'enhance':     'aiproxy_agent_enhance',
+            'plagiarism':  'aiproxy_agent_plagiarism',
+        };
+
+        function getAgentEnabled(name) {
+            const key = AGENT_TOGGLE_KEYS[name]; if (!key) return true;
+            const v = localStorage.getItem(key);
+            // Security is OFF by default; all others ON by default
+            return name === 'security' ? v === 'true' : v !== 'false';
+        }
+
+        function _toggleAgentCard(name, card) {
+            const key = AGENT_TOGGLE_KEYS[name]; if (!key) return;
+            const current = getAgentEnabled(name);
+            const next = !current;
+            localStorage.setItem(key, next);
+            card.classList.toggle('active', next);
+            showToast(`${next ? '✓' : '✗'} ${name.charAt(0).toUpperCase()+name.slice(1).replace('-',' ')} agent ${next ? 'enabled' : 'disabled'}`);
+        }
+
+        function _agentSelectorInit() {
+            // Sync card states from localStorage
+            Object.keys(AGENT_TOGGLE_KEYS).forEach(name => {
+                const card = document.getElementById(`asg-${name}`);
+                if (card) card.classList.toggle('active', getAgentEnabled(name));
+            });
+        }
         window.onload = async function() {
             loadSnippets();
             _autoAgentInitUI();
@@ -6621,7 +6692,8 @@ Fixed response:`;
             _wsInitUI();
             _agentSettingsInit();
             _polishSettingsInit();
-            console.log('%c AI Pro Coder v54 — Coding Pipeline Ready ✓', 'color:#a8c7fa;font-weight:bold;font-size:14px;');
+            console.log('%c AI Pro Coder v63 — Agent Selector Ready ✓', 'color:#a8c7fa;font-weight:bold;font-size:14px;');
+            _agentSelectorInit();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
@@ -8982,18 +9054,20 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             let reviewOk=false, refactorOk=false;
             try {
                 // Phase 2: Code Review
+                if (getAgentEnabled('code-review')) {
                 _idePipelinePhase(2);
                 cmSetStatus('running','Phase 2: Code Review...');
-                showToast('Phase 2/3: Code Review...');
+                showToast('Phase 2: Code Review...');
                 const ok = await _codeReviewRun(wrappedCode, pipelineDiv);
                 reviewOk = ok === true;
                 feed.scrollTop = feed.scrollHeight;
                 await new Promise(r => setTimeout(r, 500));
+                }
                 // Phase 3: Refactor
+                if (getAgentEnabled('refactor')) {
                 _idePipelinePhase(3);
                 cmSetStatus('running','Phase 3: Refactoring...');
-                if (getRefactorAutoEnabled()) {
-                    showToast('Phase 3/3: Refactoring code...');
+                    showToast('Phase 3: Refactoring code...');
                     let latest = wrappedCode;
                     for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latest=chatContext[i].content;break;} }
                     await _refactorRun(latest, pipelineDiv, null, true);
@@ -9001,8 +9075,19 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     feed.scrollTop = feed.scrollHeight;
                     await new Promise(r => setTimeout(r, 500));
                 }
-                // Phase 4: Security — MANUAL ONLY (tap 🔒 Security button)
-                _idePipelinePhase(4); // mark as waiting (user taps manually)
+                // Phase 4: Security (only if enabled)
+                if (getAgentEnabled('security')) {
+                _idePipelinePhase(4);
+                cmSetStatus('running','Phase 4: Security Audit...');
+                showToast('Phase 4: Security Audit...');
+                let finalCode = wrappedCode;
+                for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalCode=chatContext[i].content;break;} }
+                await _securityRun(finalCode, pipelineDiv);
+                feed.scrollTop = feed.scrollHeight;
+                } else {
+                // Security off — mark phase as skipped
+                _idePipelinePhase(4);
+                }
             } finally {
                 const idx = chatContext.lastIndexOf(tempEntry);
                 if (idx > -1) chatContext.splice(idx, 1);
@@ -9581,57 +9666,57 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         let debateOk = false, plagOk = false, enhanceOk = false;
                         let debateError = '', plagError = '', enhanceError = '';
 
-                        try {
-                            // Step 1: Debate — improves academic quality
-                            showToast('Step 1/3: Debate Agent reviewing...');
-                            const debateCompleted = await _debateRun(fullResponseText, bc);
-                            debateOk = debateCompleted === true;
-                            const dp = bc.querySelector('.debate-panel');
-                            if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        } catch (e) {
-                            debateError = e.message || 'Unknown error';
-                            console.error('Auto Debate error:', e);
-                            _debateRunning = false;
-                            _debateShowSetupError(bc, debateError);
+                        // Step 1: Debate (if enabled)
+                        if (getAgentEnabled('debate')) {
+                            try {
+                                showToast('Debate Agent reviewing...');
+                                const debateCompleted = await _debateRun(fullResponseText, bc);
+                                debateOk = debateCompleted === true;
+                                const dp = bc.querySelector('.debate-panel');
+                                if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            } catch (e) {
+                                debateError = e.message || 'Unknown error';
+                                _debateRunning = false;
+                                _debateShowSetupError(bc, debateError);
+                            }
+                            await new Promise(r => setTimeout(r, 800));
                         }
 
-                        await new Promise(r => setTimeout(r, 800));
-
-                        // Step 2: Writing Enhancer — polish vocabulary, structure and flow
-                        if (getPolishAutoEnabled()) {
+                        // Step 2: Writing Enhancer (if enabled)
+                        if (getAgentEnabled('enhance')) {
                             let latestText = fullResponseText;
                             for (let i = chatContext.length - 1; i >= 0; i--) {
                                 if (chatContext[i].role === 'assistant') { latestText = chatContext[i].content; break; }
                             }
                             try {
-                                showToast('Step 2/3: Writing Enhancer polishing...');
-                                await _polishRun(latestText, bc, null, true); // autoApply=true — applies before Plagiarism runs
+                                showToast('Writing Enhancer polishing...');
+                                await _polishRun(latestText, bc, null, true);
                                 enhanceOk = true;
                                 const ep = bc.querySelector('.polish-panel');
                                 if (ep) ep.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                             } catch (e) {
                                 enhanceError = e.message || 'Unknown error';
-                                console.error('Auto Enhance error:', e);
                                 _polishRunning = false;
                             }
                             await new Promise(r => setTimeout(r, 800));
                         }
 
-                        // Step 3: Plagiarism — check the final enhanced text
-                        let finalText = fullResponseText;
-                        for (let i = chatContext.length - 1; i >= 0; i--) {
-                            if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content; break; }
-                        }
-                        try {
-                            showToast(`Step ${getPolishAutoEnabled() ? '3/3' : '2/2'}: Plagiarism Agent checking...`);
-                            await _plagRun(finalText, bc);
-                            plagOk = true;
-                            const pp = bc.querySelector('.plag-panel');
-                            if (pp) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        } catch (e) {
-                            plagError = e.message || 'Unknown error';
-                            console.error('Auto Plagiarism error:', e);
-                            _plagRunning = false;
+                        // Step 3: Plagiarism (if enabled)
+                        if (getAgentEnabled('plagiarism')) {
+                            let finalText = fullResponseText;
+                            for (let i = chatContext.length - 1; i >= 0; i--) {
+                                if (chatContext[i].role === 'assistant') { finalText = chatContext[i].content; break; }
+                            }
+                            try {
+                                showToast('Plagiarism Agent checking...');
+                                await _plagRun(finalText, bc);
+                                plagOk = true;
+                                const pp = bc.querySelector('.plag-panel');
+                                if (pp) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            } catch (e) {
+                                plagError = e.message || 'Unknown error';
+                                _plagRunning = false;
+                            }
                         }
 
                         // Show pipeline complete banner
@@ -9667,22 +9752,22 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         let reviewErr='', refactorErr='', securityErr='';
 
                         // Step 1: Code Review
+                        if (getAgentEnabled('code-review')) {
                         try {
-                            showToast('Step 1/3: Code Review...');
+                            showToast('Step 1: Code Review...');
                             const ok = await _codeReviewRun(fullResponseText, bc);
                             reviewOk = ok === true;
                             bc.querySelector('.code-review-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
                         } catch(e) { reviewErr=e.message||'Unknown'; _codeReviewRunning=false; }
-
-                        // Pause — longer if review had an error so user can read it
                         await new Promise(r => setTimeout(r, reviewErr ? 2000 : 600));
+                        }
 
                         // Step 2: Refactor (auto-apply)
-                        if (getRefactorAutoEnabled()) {
+                        if (getAgentEnabled('refactor')) {
                             let latestText = fullResponseText;
                             for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latestText=chatContext[i].content;break;} }
                             try {
-                                showToast('Step 2/3: Refactoring code...');
+                                showToast('Refactoring code...');
                                 await _refactorRun(latestText, bc, null, true);
                                 refactorOk = true;
                                 bc.querySelector('.refactor-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -9690,10 +9775,20 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             await new Promise(r => setTimeout(r, 600));
                         }
 
-                        // Step 3: Security Audit — MANUAL ONLY, not auto-run
-                        // User taps [🔒 Security] button to run manually
-                        reviewOk = reviewOk; // security skipped intentionally
-                        securityOk = false; securityErr = '';
+                        // Step 3: Security — only if enabled via Agent Selector
+                        if (getAgentEnabled('security')) {
+                            let finalText = fullResponseText;
+                            for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalText=chatContext[i].content;break;} }
+                            try {
+                                showToast('Security Audit...');
+                                await _securityRun(finalText, bc);
+                                securityOk = true;
+                                bc.querySelector('.security-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+                            } catch(e) { securityErr=e.message||'Unknown'; _securityRunning=false; }
+                        } else {
+                            // Security is manual — assignment already done above
+                            reviewOk = reviewOk; securityOk = false; securityErr = '';
+                        }
 
                         _showCodingPipelineComplete(bc, reviewOk, refactorOk, securityOk, reviewErr, refactorErr, securityErr);
                         setStreamingUiState(false); updateSendButtonState();
@@ -10096,6 +10191,49 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 </button>
             </div>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:18px;line-height:1.5;">Configure the agent's persona, behaviour, and how many fix iterations it can attempt.</p>
+
+            <!-- ── Active Agents Selector ── -->
+            <span class="as-section-label">Active Agents</span>
+            <p style="font-size:0.73rem;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">Tap to enable/disable. Only active agents run in the pipeline.</p>
+
+            <div class="asg-group-label">⚡ Coding Pipeline</div>
+            <div class="agent-selector-grid">
+                <div class="asg-card active" id="asg-code-review" onclick="_toggleAgentCard('code-review',this)" title="Code Review — Writer+Reviewer quality loop">
+                    <span class="asg-card-icon">🔍</span>
+                    <span class="asg-card-label">Code Review</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+                <div class="asg-card active" id="asg-refactor" onclick="_toggleAgentCard('refactor',this)" title="Refactor — Performance, Readability, Hardening">
+                    <span class="asg-card-icon">✨</span>
+                    <span class="asg-card-label">Refactor</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+                <div class="asg-card security-card" id="asg-security" onclick="_toggleAgentCard('security',this)" title="Security Audit — XSS, injection, secrets (manual by default)">
+                    <span class="asg-card-icon">🔒</span>
+                    <span class="asg-card-label">Security</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+            </div>
+
+            <div class="asg-group-label">🎓 University Pipeline</div>
+            <div class="agent-selector-grid">
+                <div class="asg-card university active" id="asg-debate" onclick="_toggleAgentCard('debate',this)" title="Debate — Writer+Reviewer academic quality loop">
+                    <span class="asg-card-icon">⚖️</span>
+                    <span class="asg-card-label">Debate</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+                <div class="asg-card university active" id="asg-enhance" onclick="_toggleAgentCard('enhance',this)" title="Writing Enhancer — Precision, Structure, Flow">
+                    <span class="asg-card-icon">🖊️</span>
+                    <span class="asg-card-label">Enhance</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+                <div class="asg-card university active" id="asg-plagiarism" onclick="_toggleAgentCard('plagiarism',this)" title="Plagiarism Check — similarity scan and rewrite">
+                    <span class="asg-card-icon">🛡️</span>
+                    <span class="asg-card-label">Plagiarism</span>
+                    <span class="asg-card-dot"></span>
+                </div>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border-soft);margin:18px 0 14px;">
 
             <!-- Preset selector -->
             <span class="as-section-label">Mode Preset</span>
