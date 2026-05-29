@@ -8597,11 +8597,18 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, 'AI call failed after auto-resume attempts.');
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Launching preview...`);
+            } else if (solved) {
+                const pipelineWillRun = getCodePipelineAutoEnabled();
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Running quality pipeline...' : ' Launching preview...'}`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
-                cmSetStatus('ok', 'Agent: all clear');
-                _agentLaunchPreview(lang);
+                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — starting pipeline...' : 'Agent: all clear');
+                if (pipelineWillRun) {
+                    // Defer preview until full pipeline completes (Phase 2-4)
+                    setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang, true), 1200);
+                } else {
+                    _agentLaunchPreview(lang);
+                }
                 if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Check Code tab for latest version.`);
@@ -8813,11 +8820,18 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, `AI call failed for model "${AVAILABLE_MODELS[currentModel] || currentModel}".`);
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}! Launching preview...`);
+            } else if (solved) {
+                const pipelineWillRun = getCodePipelineAutoEnabled();
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Running quality pipeline...' : ' Launching preview...'}`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
-                cmSetStatus('ok', 'Agent: all clear');
-                _agentLaunchPreview(lang);
+                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — starting pipeline...' : 'Agent: all clear');
+                if (pipelineWillRun) {
+                    // Defer preview until full pipeline completes (Phase 2-4)
+                    setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang, true), 1200);
+                } else {
+                    _agentLaunchPreview(lang);
+                }
                 if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Some errors may remain. Check the Code tab for the latest version.`);
@@ -8941,7 +8955,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             showToast(next ? 'Post-fix pipeline ON' : 'Post-fix pipeline OFF');
         }
         /* Run full 4-phase pipeline in the IDE modal agent feed */
-        async function _ideRunCodingPipeline(code, lang) {
+        async function _ideRunCodingPipeline(code, lang, showPreviewAtEnd = false) {
             if (!code || !getCodePipelineAutoEnabled()) { _idePipelinePhase(0); return; }
             const feed = document.getElementById('cm-agent-feed'); if (!feed) return;
             const wrappedCode = '```' + lang + '\n' + code + '\n```';
@@ -9008,6 +9022,11 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     const el=document.getElementById('cm-code-el');
                     if(el) el.innerHTML = hljs.highlight(codeModalState.code,{language:vl}).value;
                 }
+            }
+            // Now launch preview with the FINAL pipeline-polished code
+            if (showPreviewAtEnd) {
+                cmSetStatus('ok', 'Pipeline complete — launching preview...');
+                setTimeout(() => _agentLaunchPreview(lang), 600);
             }
         }
 
