@@ -1068,6 +1068,8 @@
         .agent-banner.giveup  { background: rgba(242,139,130,0.10); border: 1px solid rgba(242,139,130,0.25); color: var(--accent-red); }
         .agent-banner.info    { background: rgba(168,199,250,0.10); border: 1px solid rgba(168,199,250,0.25); color: var(--accent-blue); }
         .agent-banner svg { flex-shrink: 0; }
+
+        #cm-statusbar {
             display: flex; align-items: center; gap: 10px;
             padding: 5px 14px; background: #161718;
             border-top: 1px solid var(--border-soft);
@@ -5122,7 +5124,8 @@ Rewritten text:`;
             } catch (err) {
                 // Retry once on timeout/network abort
                 if (err.name === 'AbortError' || err.message === 'Fetch is aborted' ||
-                    err.message.includes('aborted') || err.message.includes('network')) {
+                    err.message.includes('aborted') || err.message.includes('network') ||
+                    err.message === 'Load failed' || err.name === 'TypeError') {
                     await new Promise(r => setTimeout(r, 2000)); // 2s pause before retry
                     return await attempt();
                 }
@@ -5967,8 +5970,14 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
                         saveHistory();
                         _crUpdateRoundBadge(round,'approved');
                     } catch(err) {
+                        // Clean up stuck progress indicator
                         for (let r=1;r<=CODE_REVIEW_MAX_ROUNDS;r++) { const p=document.getElementById(`cr-wp-${r}`); if(p) p.remove(); }
-                        _crSetStatus(panel,'err',`Writer failed: ${err.message}`); _crMarkBtn(botContent,'maxed'); completed=true; break;
+                        // Show clear error in the round body (not just the header)
+                        const errBody = document.getElementById(`cr-body-${round}`);
+                        if (errBody) errBody.innerHTML = `<div style="padding:8px 12px;font-size:0.77rem;color:var(--accent-red);font-family:var(--font-mono);">✗ Writer error: ${escapeHtml(err.message.slice(0,80))}<br><span style="color:var(--text-muted);font-size:0.7rem;margin-top:3px;display:block;">Best version (${bestScore}/100) kept. Pipeline continues to next step.</span></div>`;
+                        _crUpdateRoundBadge(round, 'err');
+                        _crSetStatus(panel,'err',`Writer failed — ${err.message.slice(0,50)}`);
+                        _crMarkBtn(botContent,'maxed'); completed=true; break;
                     }
                 }
             } finally {
@@ -9642,7 +9651,8 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             bc.querySelector('.code-review-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
                         } catch(e) { reviewErr=e.message||'Unknown'; _codeReviewRunning=false; }
 
-                        await new Promise(r => setTimeout(r, 600));
+                        // Pause — longer if review had an error so user can read it
+                        await new Promise(r => setTimeout(r, reviewErr ? 2000 : 600));
 
                         // Step 2: Refactor (auto-apply)
                         if (getRefactorAutoEnabled()) {
