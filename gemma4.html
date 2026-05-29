@@ -8597,19 +8597,21 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, 'AI call failed after auto-resume attempts.');
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-            } else if (solved) {
                 const pipelineWillRun = getCodePipelineAutoEnabled();
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Running quality pipeline...' : ' Launching preview...'}`);
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Closing — see chat for pipeline results.' : ' Launching preview...'}`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
-                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — starting pipeline...' : 'Agent: all clear');
+                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — closing modal...' : 'Agent: all clear');
                 if (pipelineWillRun) {
-                    // Defer preview until full pipeline completes (Phase 2-4)
-                    setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang, true), 1200);
+                    // Close modal so user sees the chat pipeline (Code Review/Refactor/Security)
+                    // The chat pipeline auto-triggered 1.8s after the code response — already running there
+                    setTimeout(() => {
+                        showToast('✓ Code fixed! Review pipeline running in chat...');
+                        closeCodeModal();
+                    }, 1800);
                 } else {
                     _agentLaunchPreview(lang);
                 }
-                if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Check Code tab for latest version.`);
                 _bgOnComplete(false, 'Max iterations reached.');
@@ -8820,19 +8822,20 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(false, `AI call failed for model "${AVAILABLE_MODELS[currentModel] || currentModel}".`);
                 cmSetStatus('err', 'AI call failed');
             } else if (solved) {
-            } else if (solved) {
                 const pipelineWillRun = getCodePipelineAutoEnabled();
-                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Running quality pipeline...' : ' Launching preview...'}`);
+                _agentBanner('success', `All errors resolved in ${iter} iteration${iter > 1 ? 's' : ''}!${pipelineWillRun ? ' Closing — see chat for pipeline results.' : ' Launching preview...'}`);
                 _agentShowWarnNote();
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
-                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — starting pipeline...' : 'Agent: all clear');
+                cmSetStatus('ok', pipelineWillRun ? 'Phase 1 complete — closing modal...' : 'Agent: all clear');
                 if (pipelineWillRun) {
-                    // Defer preview until full pipeline completes (Phase 2-4)
-                    setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang, true), 1200);
+                    // Close modal — chat pipeline (Code Review/Refactor/Security) handles the rest
+                    setTimeout(() => {
+                        showToast('✓ Code fixed! Review pipeline running in chat...');
+                        closeCodeModal();
+                    }, 1800);
                 } else {
                     _agentLaunchPreview(lang);
                 }
-                if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Some errors may remain. Check the Code tab for the latest version.`);
                 _bgOnComplete(false, `Max iterations reached. Some errors may still remain.`);
