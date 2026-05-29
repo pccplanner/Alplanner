@@ -4701,15 +4701,19 @@ Rewritten text:`;
             }
             if (!text) { showToast('No content to debate'); return; }
             btn.classList.add('running');
-            _debateRun(text, botContent).finally(() => btn.classList.remove('running'));
+            _debateRun(text, botContent).then(completed => {
+                btn.classList.remove('running');
+                btn.classList.toggle('approved', completed === true);
+            }).catch(() => btn.classList.remove('running'));
         }
 
-        /* ── Main debate loop ── */
+        /* ── Main debate loop — returns true if loop completed normally ── */
         async function _debateRun(text, botContent) {
             if (_debateRunning) {
                 _debateRunning = false; // reset and allow this run
             }
             _debateRunning = true;
+            let _loopCompleted = false; // set true only when loop exits via approved/maxed/writer-error (not outer throw)
 
             botContent.querySelector('.debate-panel')?.remove();
             const panel = _debateBuildPanel(botContent);
@@ -4764,6 +4768,7 @@ Rewritten text:`;
                         _debateSetStatus(panel, 'approved', `✓ Reviewer approved after round ${round} — Score: ${review.score}/100`);
                         _debateShowVerdict(panel, 'approved', `Approved by Reviewer in ${round} round${round>1?'s':''}. Score: ${review.score}/100`);
                         _debateMarkBtn(botContent, 'approved');
+                        _loopCompleted = true;
                         break;
                     }
 
@@ -4781,6 +4786,7 @@ Rewritten text:`;
                         _debateSetStatus(panel, 'maxed', `Max rounds reached. Best score: ${bestScore}/100 (threshold: ${threshold}/100)`);
                         _debateShowVerdict(panel, 'maxed', `Max rounds (${DEBATE_MAX_ROUNDS}) reached. Best version (${bestScore}/100) restored. Threshold: ${threshold}/100`);
                         _debateMarkBtn(botContent, 'maxed');
+                        _loopCompleted = true;
                         break;
                     }
 
@@ -4798,14 +4804,26 @@ Rewritten text:`;
                         saveHistory();
                         _debateUpdateRoundBadge(round, 'approved');
                     } catch (err) {
+                        // Clean up any stale round-card progress indicators
+                        for (let r = 1; r <= DEBATE_MAX_ROUNDS; r++) {
+                            const prog = document.getElementById(`debate-wp-${r}`);
+                            if (prog) prog.innerHTML = `<span style="color:var(--accent-red);font-size:0.72rem;">✗ Writer error: ${escapeHtml(err.message.slice(0,80))}</span>`;
+                        }
                         _debateSetStatus(panel, 'err', `Writer rewrite failed: ${err.message}`);
                         _debateMarkBtn(botContent, 'maxed');
+                        _loopCompleted = true; // loop exited with error — still counts as handled
                         break;
                     }
                 }
             } finally {
+                // Safety net: clean up any dangling progress indicators
+                for (let r = 1; r <= DEBATE_MAX_ROUNDS; r++) {
+                    const prog = document.getElementById(`debate-wp-${r}`);
+                    if (prog) prog.remove();
+                }
                 _debateRunning = false;
             }
+            return _loopCompleted;
         }
 
         /* ── Shared non-streaming API call for debate ──
@@ -4939,16 +4957,20 @@ Improved text:`;
             const body = document.getElementById(`debate-body-${round}`);
             if (body) body.innerHTML = `<div id="debate-wp-${round}" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);padding:6px 2px;display:flex;align-items:center;gap:8px;"><span style="animation:pulse 1s infinite ease-in-out;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent-blue);flex-shrink:0;"></span>Writer rewriting — please wait...</div>`;
 
-            const result = await _debateCall(
-                [
-                    { role: 'system', content: `${getActiveSystemPrompt()}\n\nYou are rewriting academic content to address reviewer feedback. Preserve all citations and References section exactly. Return only the improved text.` },
-                    { role: 'user',   content: prompt }
-                ],
-                model, 180000
-            );
-
-            const prog = document.getElementById(`debate-wp-${round}`);
-            if (prog) prog.remove();
+            let result;
+            try {
+                result = await _debateCall(
+                    [
+                        { role: 'system', content: `${getActiveSystemPrompt()}\n\nYou are rewriting academic content to address reviewer feedback. Preserve all citations and References section exactly. Return only the improved text.` },
+                        { role: 'user',   content: prompt }
+                    ],
+                    model, 180000
+                );
+            } finally {
+                // Always remove the progress indicator — whether call succeeded or threw
+                const prog = document.getElementById(`debate-wp-${round}`);
+                if (prog) prog.remove();
+            }
             return result;
         }
         /* ── Debate Panel DOM builders ── */
@@ -8296,8 +8318,8 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                         try {
                             // Step 1: Debate — improves content quality
                             showToast('Step 1/2: Debate Agent reviewing...');
-                            await _debateRun(fullResponseText, bc);
-                            debateOk = true;
+                            const debateCompleted = await _debateRun(fullResponseText, bc);
+                            debateOk = debateCompleted === true;
                             const dp = bc.querySelector('.debate-panel');
                             if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         } catch (e) {
