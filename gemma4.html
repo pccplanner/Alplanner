@@ -2751,6 +2751,12 @@ RULE 4 — OUTPUT FORMAT
             // Populate debate model selectors
             _debatePopulateSelects();
 
+            // Populate debate threshold slider
+            const debThreshSlider = document.getElementById('debate-threshold-slider');
+            const debThreshCount  = document.getElementById('debate-threshold-count');
+            if (debThreshSlider) debThreshSlider.value = getDebateThreshold();
+            if (debThreshCount)  debThreshCount.textContent = getDebateThreshold() + '/100';
+
             // Populate textarea — always editable
             const ta = document.getElementById('agent-system-prompt-input');
             const preset = localStorage.getItem(STORAGE_AGENT_PRESET_KEY) || 'coder';
@@ -2841,6 +2847,10 @@ RULE 4 — OUTPUT FORMAT
             if (writerSel)   { writerSel.value   ? localStorage.setItem(STORAGE_DEBATE_WRITER,   writerSel.value)   : localStorage.removeItem(STORAGE_DEBATE_WRITER);   }
             if (reviewerSel) { reviewerSel.value ? localStorage.setItem(STORAGE_DEBATE_REVIEWER, reviewerSel.value) : localStorage.removeItem(STORAGE_DEBATE_REVIEWER); }
 
+            // Save debate threshold
+            const debThreshSlider = document.getElementById('debate-threshold-slider');
+            if (debThreshSlider) localStorage.setItem(STORAGE_DEBATE_THRESHOLD, debThreshSlider.value);
+
             _agentSettingsUpdateModeChip();
             closeAgentSettings();
             const modeLabel = preset === 'custom' ? 'Custom' : (AGENT_PRESETS[preset]?.label || preset);
@@ -2854,6 +2864,7 @@ RULE 4 — OUTPUT FORMAT
             localStorage.removeItem(STORAGE_PLAG_THRESHOLD);
             localStorage.removeItem(STORAGE_DEBATE_WRITER);
             localStorage.removeItem(STORAGE_DEBATE_REVIEWER);
+            localStorage.removeItem(STORAGE_DEBATE_THRESHOLD);
 
             const slider = document.getElementById('iter-slider');
             const countEl = document.getElementById('iter-count');
@@ -4468,14 +4479,19 @@ Rewritten text:`;
            Pattern 1: Writer generates → Reviewer critiques →
            Writer rewrites → loop until approved or max rounds.
            ============================================================ */
-        const DEBATE_MAX_ROUNDS   = 3;
+        const DEBATE_MAX_ROUNDS       = 3;
         const STORAGE_DEBATE_WRITER   = 'aiproxy_debate_writer_model';
         const STORAGE_DEBATE_REVIEWER = 'aiproxy_debate_reviewer_model';
+        const STORAGE_DEBATE_THRESHOLD = 'aiproxy_debate_threshold';
 
         let _debateRunning = false;
 
         function getDebateWriterModel()   { return localStorage.getItem(STORAGE_DEBATE_WRITER)   || currentModel; }
         function getDebateReviewerModel() { return localStorage.getItem(STORAGE_DEBATE_REVIEWER) || currentModel; }
+        function getDebateThreshold()     {
+            const v = parseInt(localStorage.getItem(STORAGE_DEBATE_THRESHOLD), 10);
+            return (!isNaN(v) && v >= 60 && v <= 95) ? v : 75;
+        }
 
         /* Populate model dropdowns in Agent Settings from AVAILABLE_MODELS */
         function _debatePopulateSelects() {
@@ -4528,9 +4544,12 @@ Rewritten text:`;
             const reviewerModel = getDebateReviewerModel();
 
             let currentText = text;
+            let bestText    = text;
+            let bestScore   = 0;
 
             try {
                 for (let round = 1; round <= DEBATE_MAX_ROUNDS; round++) {
+                    const threshold = getDebateThreshold();
                     // ── REVIEWER critiques current text ──
                     _debateSetStatus(panel, 'reviewing', `Round ${round} — Reviewer (${_debateShortName(reviewerModel)}) analysing...`);
                     _debateAddRoundCard(panel, round);
@@ -4540,7 +4559,6 @@ Rewritten text:`;
                     try {
                         review = await _debateReview(currentText, reviewerModel);
                     } catch (err) {
-                        // If it's a timeout/abort, show a retrying message before failing
                         const isTimeout = err.name === 'AbortError' || err.message.includes('aborted') || err.message.includes('Fetch is aborted');
                         _debateUpdateRoundCard(round, 'err',
                             isTimeout ? `Reviewer timed out — increase timeout or use a faster model` : `Reviewer error: ${err.message}`,
@@ -4553,8 +4571,14 @@ Rewritten text:`;
                         break;
                     }
 
-                    const scoreColor = review.score >= 80 ? 'var(--accent-green)'
-                                     : review.score >= 55 ? 'var(--accent-yellow)'
+                    // Keep best version seen so far
+                    if (review.score > bestScore) {
+                        bestScore = review.score;
+                        bestText  = currentText;
+                    }
+
+                    const scoreColor = review.score >= threshold ? 'var(--accent-green)'
+                                     : review.score >= threshold * 0.8 ? 'var(--accent-yellow)'
                                      : 'var(--accent-red)';
                     _debateUpdateRoundCard(round,
                         review.approved ? 'approved' : 'rejected',
@@ -4571,8 +4595,18 @@ Rewritten text:`;
                     }
 
                     if (round === DEBATE_MAX_ROUNDS) {
-                        _debateSetStatus(panel, 'maxed', `Max rounds reached. Best score: ${review.score}/100`);
-                        _debateShowVerdict(panel, 'maxed', `Max rounds (${DEBATE_MAX_ROUNDS}) reached. Best score: ${review.score}/100 — manual review recommended.`);
+                        // Restore the best version seen across all rounds
+                        if (bestText !== currentText && bestScore > review.score) {
+                            currentText = bestText;
+                            const botMsg = botContent.querySelector('.bot-message');
+                            if (botMsg) botMsg.innerHTML = safeMarkdownRender(bestText);
+                            for (let i = chatContext.length - 1; i >= 0; i--) {
+                                if (chatContext[i].role === 'assistant') { chatContext[i].content = bestText; break; }
+                            }
+                            saveHistory();
+                        }
+                        _debateSetStatus(panel, 'maxed', `Max rounds reached. Best score: ${bestScore}/100 (threshold: ${threshold}/100)`);
+                        _debateShowVerdict(panel, 'maxed', `Max rounds (${DEBATE_MAX_ROUNDS}) reached. Best version (${bestScore}/100) restored. Threshold: ${threshold}/100`);
                         _debateMarkBtn(botContent, 'maxed');
                         break;
                     }
@@ -4583,14 +4617,10 @@ Rewritten text:`;
 
                     try {
                         currentText = await _debateRewrite(currentText, review.issues, writerModel, round);
-                        // Update bot message in DOM and chat context
                         const botMsg = botContent.querySelector('.bot-message');
                         if (botMsg) botMsg.innerHTML = safeMarkdownRender(currentText);
                         for (let i = chatContext.length - 1; i >= 0; i--) {
-                            if (chatContext[i].role === 'assistant') {
-                                chatContext[i].content = currentText;
-                                break;
-                            }
+                            if (chatContext[i].role === 'assistant') { chatContext[i].content = currentText; break; }
                         }
                         saveHistory();
                         _debateUpdateRoundBadge(round, 'approved');
@@ -4670,8 +4700,8 @@ JSON FORMAT (return exactly this structure):
   ]
 }
 
-Scoring: 85-100 Approve (well-cited, original, strong). 60-84 Reject (fixable). 0-59 Reject (major issues).
-Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON object:`;
+Scoring: ${getDebateThreshold()}-100 Approve (well-cited, original, strong). ${Math.round(getDebateThreshold()*0.75)}-${getDebateThreshold()-1} Reject (fixable). 0-${Math.round(getDebateThreshold()*0.75)-1} Reject (major issues).
+Set "approved": true ONLY if score >= ${getDebateThreshold()}. Max 6 issues. Return only the JSON object:`;
 
             let raw = '';
             for (let attempt = 1; attempt <= 2; attempt++) {
@@ -4700,7 +4730,7 @@ Set "approved": true ONLY if score >= 85. Max 6 issues. Return only the JSON obj
                 result = JSON.parse(m[0]);
             }
             result.score    = Math.min(100, Math.max(0, parseInt(result.score) || 50));
-            result.approved = result.score >= 85 || result.approved === true;
+            result.approved = result.score >= getDebateThreshold() || result.approved === true;
             result.summary  = String(result.summary || '').slice(0, 200);
             result.issues   = Array.isArray(result.issues) ? result.issues.slice(0, 6) : [];
             return result;
@@ -4773,7 +4803,7 @@ Improved text:`;
                         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         🔍 ${escapeHtml(_debateShortName(reviewerModel))}
                     </span>
-                    <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);margin-left:auto;">Max ${DEBATE_MAX_ROUNDS} rounds · Approve ≥ 85/100</span>
+                    <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);margin-left:auto;">Max ${DEBATE_MAX_ROUNDS} rounds · Approve ≥ ${getDebateThreshold()}/100</span>
                 </div>
                 <div class="debate-feed"></div>`;
             botContent.appendChild(panel);
@@ -8161,6 +8191,15 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             <!-- Debate model roles -->
             <span class="as-section-label">Debate Roles <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent-blue);">— Writer + Reviewer models</span></span>
             <p class="iter-hint" style="margin-top:-4px;">Writer generates the content. Reviewer critiques it. Writer rewrites. Loop repeats until Reviewer approves or max rounds are reached. Assign a larger model as Writer and a fast model as Reviewer for best results.</p>
+
+            <!-- Debate approval threshold -->
+            <span class="as-section-label">Debate Approval Threshold <span style="font-size:0.68rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent-yellow);">— min score to approve</span></span>
+            <div class="iter-slider-row">
+                <input type="range" class="iter-slider" id="debate-threshold-slider" min="60" max="95" value="75"
+                    oninput="document.getElementById('debate-threshold-count').textContent=this.value+'/100'">
+                <span class="iter-count-badge" id="debate-threshold-count" style="color:var(--accent-yellow);border-color:rgba(253,214,99,0.3);background:rgba(253,214,99,0.1);">75/100</span>
+            </div>
+            <p class="iter-hint">Reviewer approves the text when its score meets this threshold. Lower = easier to pass (recommended: 70–80 for most papers). Default 75 is a good balance. Higher values mean stricter academic writing standards.</p>
             <div class="role-select-row">
                 <span class="role-select-label">
                     <span class="role-dot" style="background:var(--accent-blue);"></span>
