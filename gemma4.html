@@ -5225,6 +5225,7 @@ Improved text:`
             }
             if (!text) { showToast('No content to enhance'); return; }
             btn.classList.add('running');
+            showToast('✨ Writing Enhancer starting...');
             _polishRun(text, botContent).finally(() => {
                 btn.classList.remove('running');
                 btn.classList.add('done');
@@ -5240,6 +5241,9 @@ Improved text:`
 
             botContent.querySelector('.polish-panel')?.remove();
             const panel = _polishBuildPanel(botContent);
+            // Scroll to panel immediately so user can see it started
+            setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+            showToast(`✨ Enhancing — ${getPolishIntensity()} mode (${(POLISH_PASSES[getPolishIntensity()]||POLISH_PASSES.thorough).length} passes)`);
 
             const intensity  = getPolishIntensity();
             const passes     = POLISH_PASSES[intensity] || POLISH_PASSES.thorough;
@@ -5301,6 +5305,8 @@ Improved text:`
                 const totalChanges = Math.round(totalDiff.filter(l => l.type === 'add' || l.type === 'rem').length / 2);
                 _polishShowAcceptBar(panel, originalText, currentText, botContent, totalChanges);
                 _polishSetStatus(panel, 'done', `✓ Enhancement complete — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
+                // Scroll to accept bar so user sees the decision prompt
+                setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
 
             } finally {
                 _polishRunning = false;
