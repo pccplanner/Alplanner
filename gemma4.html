@@ -6374,7 +6374,7 @@ Improved response:`
 
         /* ============================================================
            Security Audit Agent  (Plagiarism equivalent for coding)
-           Scans for vulnerabilities — auto-fixes High + Medium
+           Scans for vulnerabilities — auto-fixes HIGH severity only
            ============================================================ */
         const SECURITY_MAX_ITER = 2;
         let _securityRunning = false;
@@ -6404,7 +6404,7 @@ Improved response:`
                         _secUpdateIterCard(panel,iter,'err',`Scan failed: ${err.message}`,err.message,[]);
                         _secSetStatus(panel,'err',`Scan error: ${err.message}`); break;
                     }
-                    const passed=result.risk_level==='low'&&result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium').length===0;
+                    const passed=result.risk_level==='low'&&result.vulnerabilities.filter(v=>v.severity==='high').length===0;
                     _secPanelSetRisk(panel,result.risk_level,result.vuln_count);
                     _secUpdateIterCard(panel,iter,passed?'ok':'warn',
                         `${result.risk_level.toUpperCase()} Risk — ${result.vuln_count} ${result.vuln_count!==1?'vulnerabilities':'vulnerability'} found`,
@@ -6417,9 +6417,9 @@ Improved response:`
                         _secSetStatus(panel,'warn',`Max iterations — ${result.vuln_count} vulnerability${result.vuln_count!==1?'ies':'y'} remain`);
                         _secMarkBtn(botContent,'failed',result.vuln_count); break;
                     }
-                    _secSetStatus(panel,'scanning',`Fixing ${result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium').length} High/Medium vulnerabilities...`);
+                    _secSetStatus(panel,'scanning',`Fixing ${result.vulnerabilities.filter(v=>v.severity==='high').length} High severity vulnerabilities...`);
                     try {
-                        const fixed=await _secRewrite(currentText,result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium'));
+                        const fixed=await _secRewrite(currentText,result.vulnerabilities.filter(v=>v.severity==='high'));
                         currentText=fixed;
                         const bm=botContent.querySelector('.bot-message');if(bm) bm.innerHTML=safeMarkdownRender(currentText);
                         for(let i=chatContext.length-1;i>=0;i--){if(chatContext[i].role==='assistant'){chatContext[i].content=currentText;break;}}
@@ -6524,7 +6524,7 @@ Fixed response:`;
                     <span class="sec-risk-badge medium" id="sec-risk-badge">Scanning...</span>
                     <div class="sec-score-meta">
                         <div class="sec-vuln-count" id="sec-vuln-count" style="color:var(--text-muted);">Analysing code...</div>
-                        <div class="sec-threshold-note">Auto-fix: High + Medium · Max ${SECURITY_MAX_ITER} iterations</div>
+                        <div class="sec-threshold-note">Auto-fix: High only · Manual run · Max ${SECURITY_MAX_ITER} iterations</div>
                     </div>
                 </div>
                 <div class="sec-iter-feed"></div>`;
@@ -6598,9 +6598,10 @@ Fixed response:`;
             banner.className = 'pipeline-complete coding-pipeline-complete';
             const rl = reviewOk   ? '✓ Code reviewed'  : reviewErr   ? `✗ Review: ${reviewErr.slice(0,40)}`   : '— Review skipped';
             const rfl= refactorOk ? '✓ Refactored'      : refactorErr ? `✗ Refactor: ${refactorErr.slice(0,40)}` : getRefactorAutoEnabled() ? '— Refactor skipped' : null;
-            const sl = securityOk ? '✓ Security passed' : securityErr ? `✗ Security: ${securityErr.slice(0,40)}`: '— Security skipped';
-            const allOk = reviewOk && securityOk && (!getRefactorAutoEnabled() || refactorOk);
-            const hasErr = reviewErr || refactorErr || securityErr;
+            // Security is manual — show tap prompt, not an error
+            const sl = '🔒 Tap Security to audit';
+            const allOk = reviewOk && (!getRefactorAutoEnabled() || refactorOk); // security excluded from allOk
+            const hasErr = reviewErr || refactorErr;
             banner.style.background  = hasErr ? 'rgba(253,214,99,0.08)'  : 'rgba(168,199,250,0.08)';
             banner.style.borderColor = hasErr ? 'rgba(253,214,99,0.3)'   : 'rgba(168,199,250,0.3)';
             banner.style.color       = hasErr ? 'var(--accent-yellow)'   : 'var(--accent-blue)';
@@ -8972,18 +8973,18 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             // Phase separator banner — agent tab already active
             const sep = document.createElement('div');
             sep.className = 'agent-banner info'; sep.style.marginTop = '8px';
-            sep.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Phase 2 — Code Quality Pipeline</strong><br><span style="font-size:0.78rem;opacity:0.8;">Code Review &#8594; Refactor &#8594; Security Audit</span></span>';
+            sep.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Phase 2 — Code Quality Pipeline</strong><br><span style="font-size:0.78rem;opacity:0.8;">Code Review &#8594; Refactor (Security: manual only)</span></span>';
             feed.appendChild(sep); feed.scrollTop = feed.scrollHeight;
             const pipelineDiv = document.createElement('div');
             feed.appendChild(pipelineDiv);
             const tempEntry = { role:'assistant', content: wrappedCode };
             chatContext.push(tempEntry);
-            let reviewOk=false, refactorOk=false, securityOk=false;
+            let reviewOk=false, refactorOk=false;
             try {
                 // Phase 2: Code Review
                 _idePipelinePhase(2);
                 cmSetStatus('running','Phase 2: Code Review...');
-                showToast('Phase 2/4: Code Review...');
+                showToast('Phase 2/3: Code Review...');
                 const ok = await _codeReviewRun(wrappedCode, pipelineDiv);
                 reviewOk = ok === true;
                 feed.scrollTop = feed.scrollHeight;
@@ -8992,7 +8993,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _idePipelinePhase(3);
                 cmSetStatus('running','Phase 3: Refactoring...');
                 if (getRefactorAutoEnabled()) {
-                    showToast('Phase 3/4: Refactoring code...');
+                    showToast('Phase 3/3: Refactoring code...');
                     let latest = wrappedCode;
                     for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latest=chatContext[i].content;break;} }
                     await _refactorRun(latest, pipelineDiv, null, true);
@@ -9000,26 +9001,19 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     feed.scrollTop = feed.scrollHeight;
                     await new Promise(r => setTimeout(r, 500));
                 }
-                // Phase 4: Security
-                _idePipelinePhase(4);
-                cmSetStatus('running','Phase 4: Security Audit...');
-                showToast('Phase 4/4: Security Audit...');
-                let finalCode = wrappedCode;
-                for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalCode=chatContext[i].content;break;} }
-                await _securityRun(finalCode, pipelineDiv);
-                securityOk = true;
-                feed.scrollTop = feed.scrollHeight;
+                // Phase 4: Security — MANUAL ONLY (tap 🔒 Security button)
+                _idePipelinePhase(4); // mark as waiting (user taps manually)
             } finally {
                 const idx = chatContext.lastIndexOf(tempEntry);
                 if (idx > -1) chatContext.splice(idx, 1);
             }
-            // All phases done
+            // Phases 2-3 done — Phase 4 security is manual
             _idePipelinePhaseComplete();
-            const allOk = reviewOk && securityOk;
-            const parts = [reviewOk?'✓ Reviewed':'✗ Review', getRefactorAutoEnabled()?(refactorOk?'✓ Refactored':'✗ Refactor'):null, securityOk?'✓ Secure':'✗ Security'].filter(Boolean);
+            const allOk = reviewOk;
+            const parts = [reviewOk?'✓ Reviewed':'✗ Review', getRefactorAutoEnabled()?(refactorOk?'✓ Refactored':'✗ Refactor'):null, '🔒 Security: tap to run'].filter(Boolean);
             const banner = document.createElement('div');
             banner.className = 'agent-banner ' + (allOk?'success':'info');
-            banner.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong>Full pipeline complete</strong> — ' + parts.join(' · ') + '</span>';
+            banner.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span><strong>Pipeline complete</strong> — ' + parts.join(' · ') + '</span>';
             feed.appendChild(banner); feed.scrollTop = feed.scrollHeight;
             cmSetStatus(allOk?'ok':'err','Pipeline: ' + parts.join(' · '));
             // Update code panel with final refactored code
@@ -9696,15 +9690,10 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             await new Promise(r => setTimeout(r, 600));
                         }
 
-                        // Step 3: Security Audit
-                        let finalText = fullResponseText;
-                        for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalText=chatContext[i].content;break;} }
-                        try {
-                            showToast(`Step ${getRefactorAutoEnabled()?'3/3':'2/2'}: Security Audit...`);
-                            await _securityRun(finalText, bc);
-                            securityOk = true;
-                            bc.querySelector('.security-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
-                        } catch(e) { securityErr=e.message||'Unknown'; _securityRunning=false; }
+                        // Step 3: Security Audit — MANUAL ONLY, not auto-run
+                        // User taps [🔒 Security] button to run manually
+                        reviewOk = reviewOk; // security skipped intentionally
+                        securityOk = false; securityErr = '';
 
                         _showCodingPipelineComplete(bc, reviewOk, refactorOk, securityOk, reviewErr, refactorErr, securityErr);
                         setStreamingUiState(false); updateSendButtonState();
