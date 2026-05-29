@@ -5224,36 +5224,49 @@ Improved text:`
                 text = botMsg ? (botMsg.innerText || botMsg.textContent || '') : '';
             }
             if (!text) { showToast('No content to enhance'); return; }
+
+            // Immediately change button text so it's obvious something is happening
             btn.classList.add('running');
-            showToast('✨ Writing Enhancer starting...');
-            _polishRun(text, botContent).finally(() => {
+            btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> <span id="polish-btn-status">Starting...</span>';
+
+            _polishRun(text, botContent, btn).finally(() => {
                 btn.classList.remove('running');
                 btn.classList.add('done');
-                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Enhanced';
+                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> ✓ Enhanced';
             });
         }
 
         /* ── Main enhancement loop ── */
-        async function _polishRun(text, botContent) {
+        async function _polishRun(text, botContent, btn) {
             if (_polishRunning) { _polishRunning = false; }
             if (!currentModel) { showToast('No model selected'); return; }
             _polishRunning = true;
 
             botContent.querySelector('.polish-panel')?.remove();
             const panel = _polishBuildPanel(botContent);
-            // Scroll to panel immediately so user can see it started
-            setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
-            showToast(`✨ Enhancing — ${getPolishIntensity()} mode (${(POLISH_PASSES[getPolishIntensity()]||POLISH_PASSES.thorough).length} passes)`);
 
-            const intensity  = getPolishIntensity();
-            const passes     = POLISH_PASSES[intensity] || POLISH_PASSES.thorough;
-            const model      = getDebateWriterModel();
+            // Scroll to panel and lock auto-scroll while enhancing
+            userScrolledUp = true; // prevent auto-scroll from hijacking while we run
+            setTimeout(() => {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 150);
+
+            const intensity    = getPolishIntensity();
+            const passes       = POLISH_PASSES[intensity] || POLISH_PASSES.thorough;
+            const model        = getDebateWriterModel();
             const originalText = text;
-            let currentText  = text;
+            let currentText    = text;
+
+            // Helper to update the button text live
+            function _updateBtnText(msg) {
+                const statusEl = btn ? document.getElementById('polish-btn-status') : null;
+                if (statusEl) statusEl.textContent = msg;
+            }
 
             try {
                 for (let i = 0; i < passes.length; i++) {
                     const pass = passes[i];
+                    _updateBtnText(`Pass ${i+1}/${passes.length}: ${pass.label}...`);
                     _polishSetStatus(panel, 'running', `Pass ${i+1}/${passes.length} — ${pass.label}: ${pass.desc}...`);
                     _polishUpdatePassBadge(panel, i, 'running');
                     _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — running...`);
@@ -5281,17 +5294,20 @@ Improved text:`
                         _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — ${totalChanges} change${totalChanges !== 1 ? 's' : ''} applied`);
                         _polishSetPassChanges(panel, i, `+${added} -${rem}`);
                         _polishRenderPassDiff(panel, i, diff);
+                        _updateBtnText(`Pass ${i+1}/${passes.length} done ✓`);
 
                     } catch (err) {
                         _polishUpdatePassBadge(panel, i, 'err');
                         _polishSetPassTitle(panel, i, `${pass.icon} ${pass.label} — Error: ${err.message.slice(0,60)}`);
                         const body2 = document.getElementById(`polish-body-${i}`);
                         if (body2) body2.innerHTML = `<div style="padding:8px 12px;font-size:0.77rem;color:var(--accent-red);">${escapeHtml(err.message)}</div>`;
+                        _updateBtnText(`Pass ${i+1} failed`);
                         console.error('Polish pass error:', err);
                     }
                 }
 
                 // Scoring call — lightweight before/after evaluation
+                _updateBtnText('Scoring...');
                 _polishSetStatus(panel, 'scoring', 'Evaluating writing quality...');
                 try {
                     const scores = await _polishScore(originalText, currentText, model);
@@ -5305,11 +5321,13 @@ Improved text:`
                 const totalChanges = Math.round(totalDiff.filter(l => l.type === 'add' || l.type === 'rem').length / 2);
                 _polishShowAcceptBar(panel, originalText, currentText, botContent, totalChanges);
                 _polishSetStatus(panel, 'done', `✓ Enhancement complete — ${totalChanges} changes across ${passes.length} pass${passes.length !== 1 ? 'es' : ''}`);
+                _updateBtnText(`${totalChanges} changes — review below`);
                 // Scroll to accept bar so user sees the decision prompt
                 setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
 
             } finally {
-                _polishRunning = false;
+                _polishRunning  = false;
+                userScrolledUp = false; // restore auto-scroll
             }
         }
 
