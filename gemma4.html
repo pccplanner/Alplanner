@@ -5504,19 +5504,26 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
         function _polishShowAcceptBar(panel, originalText, enhancedText, botContent, totalChanges) {
             const bar = document.getElementById('polish-accept-bar');
             if (!bar) return;
+            // Store enhanced text in data attribute — NOT in onclick (Safari drops large inline handlers)
+            bar.dataset.enhancedText = enhancedText;
             bar.innerHTML = `
                 <span class="pa-hint">${totalChanges} change${totalChanges !== 1 ? 's' : ''} ready — apply to your response?</span>
                 <button class="polish-reject-btn" onclick="_polishReject(this)">Keep original</button>
-                <button class="polish-accept-btn" onclick="_polishAccept(this, '${encodeURIComponent(enhancedText)}')">
+                <button class="polish-accept-btn" onclick="_polishAccept(this)">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Apply changes
+                    ✓ Apply changes
                 </button>`;
             bar.style.display = 'flex';
         }
 
-        function _polishAccept(btn, encodedText) {
-            const enhanced = decodeURIComponent(encodedText);
-            const botContent = btn.closest('.bot-content');
+        function _polishAccept(btn) {
+            // Read enhanced text from data attribute on the bar — not from onclick parameter
+            const bar = btn.closest('.polish-accept-bar');
+            if (!bar) return;
+            const enhanced = bar.dataset.enhancedText;
+            if (!enhanced) { showToast('Error: enhanced text missing — try re-running Enhance'); return; }
+
+            const botContent = bar.closest('.bot-content');
             if (!botContent) return;
 
             // Update bot message in DOM
@@ -5532,13 +5539,12 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
             }
             saveHistory();
 
-            // Update toolbar button state
+            // Update toolbar raw markdown so view-switchers use enhanced version
             const researchToolbar = botContent.querySelector('.research-toolbar');
             if (researchToolbar) researchToolbar.dataset.raw = enhanced;
 
             // Replace accept/reject bar with confirmation
-            const bar = btn.closest('.polish-accept-bar');
-            if (bar) bar.innerHTML = `<span style="font-size:0.8rem;color:#c792e9;font-family:var(--font-mono);">✓ Enhanced text applied — response updated</span>`;
+            bar.innerHTML = `<span style="font-size:0.8rem;color:#c792e9;font-family:var(--font-mono);padding:4px 0;">✓ Enhanced text applied — response updated</span>`;
 
             showToast('Writing enhancements applied ✓');
         }
