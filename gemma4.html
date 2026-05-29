@@ -1753,6 +1753,200 @@
         .pipeline-complete .pc-sub { font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono); }
 
         /* ============================================================
+           Coding Pipeline Panels (Code Review · Refactor · Security)
+           ============================================================ */
+
+        /* ── Shared panel base ── */
+        .code-review-panel, .refactor-panel, .security-panel {
+            margin-top: 12px; background: var(--surface-elev);
+            border: 1px solid var(--border-soft); border-radius: 14px;
+            overflow: hidden; animation: fadeIn 0.3s ease;
+        }
+        .cr-header, .rf-header, .sec-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 9px 14px; background: #161718;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .cr-title, .rf-title, .sec-title {
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700;
+            letter-spacing: 0.05em; text-transform: uppercase; flex: 1;
+            color: var(--text-secondary);
+        }
+        .cr-status-dot, .rf-status-dot, .sec-status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--text-muted); flex-shrink: 0;
+        }
+        .cr-status-dot.reviewing, .rf-status-dot.running { background: var(--accent-blue); animation: pulse 1s infinite; }
+        .cr-status-dot.writing                           { background: #c792e9; animation: pulse 1s infinite; }
+        .cr-status-dot.approved, .sec-status-dot.ok     { background: var(--accent-green); }
+        .cr-status-dot.maxed, .sec-status-dot.warn      { background: var(--accent-yellow); }
+        .cr-status-dot.err, .rf-status-dot.err, .sec-status-dot.err { background: var(--accent-red); }
+        .sec-status-dot.scanning                         { background: var(--accent-blue); animation: pulse 1s infinite; }
+        .rf-status-dot.done                              { background: #c792e9; }
+        .cr-status-text, .rf-status-text, .sec-status-text {
+            font-size: 0.74rem; color: var(--text-muted);
+            font-family: var(--font-mono); flex: 2;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .cr-close-btn, .rf-close-btn, .sec-close-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            font-size: 0.78rem; transition: all 0.15s; flex-shrink: 0;
+        }
+        .cr-close-btn:hover, .rf-close-btn:hover, .sec-close-btn:hover
+            { background: var(--surface-hover); color: var(--text-primary); }
+
+        /* ── Code Review — blue theme ── */
+        .cr-models-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap;
+        }
+        .cr-feed, .rf-passes, .sec-iter-feed {
+            padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 7px;
+        }
+        .cr-round-card, .rf-pass-card, .sec-iter-card {
+            background: var(--surface-color); border: 1px solid var(--border-soft);
+            border-radius: 10px; overflow: hidden;
+        }
+        .cr-round-header, .rf-pass-header, .sec-iter-header {
+            display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+            cursor: pointer; user-select: none; transition: background 0.15s;
+        }
+        .cr-round-header:hover, .rf-pass-header:hover, .sec-iter-header:hover
+            { background: rgba(255,255,255,0.03); }
+        .cr-round-card.open .cr-round-header   { border-bottom: 1px solid var(--border-soft); }
+        .rf-pass-card.open .rf-pass-header     { border-bottom: 1px solid var(--border-soft); }
+        .sec-iter-card.open .sec-iter-header   { border-bottom: 1px solid var(--border-soft); }
+
+        .cr-round-badge, .rf-pass-badge, .sec-iter-badge {
+            width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+        }
+        .cr-round-badge.reviewing { background: var(--accent-blue);   color: #000; animation: pulse 0.8s infinite; }
+        .cr-round-badge.writing   { background: #c792e9;              color: #000; animation: pulse 0.8s infinite; }
+        .cr-round-badge.approved  { background: var(--accent-green);  color: #000; }
+        .cr-round-badge.rejected  { background: var(--accent-yellow); color: #000; }
+        .cr-round-badge.err       { background: var(--accent-red);    color: #fff; }
+        .rf-pass-badge.pending    { background: var(--border-color);  color: var(--text-muted); }
+        .rf-pass-badge.running    { background: #c792e9; color: #000; animation: pulse 0.8s infinite; }
+        .rf-pass-badge.done       { background: #c792e9; color: #000; }
+        .rf-pass-badge.err        { background: var(--accent-red); color: #fff; }
+        .sec-iter-badge.running   { background: var(--accent-yellow); color: #000; animation: pulse 0.8s infinite; }
+        .sec-iter-badge.ok        { background: var(--accent-green);  color: #000; }
+        .sec-iter-badge.warn      { background: var(--accent-yellow); color: #000; }
+        .sec-iter-badge.err       { background: var(--accent-red);    color: #fff; }
+
+        .cr-round-title, .rf-pass-title, .sec-iter-title {
+            flex: 1; font-size: 0.82rem; font-weight: 500; color: var(--text-primary);
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .cr-round-score, .rf-pass-changes { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+        .rf-pass-changes { color: #c792e9; white-space: nowrap; }
+        .cr-round-chevron, .rf-pass-chevron, .sec-iter-chevron
+            { color: var(--text-muted); font-size: 0.85rem; transition: transform 0.2s; flex-shrink: 0; }
+        .cr-round-card.open .cr-round-chevron,
+        .rf-pass-card.open .rf-pass-chevron,
+        .sec-iter-card.open .sec-iter-chevron { transform: rotate(90deg); }
+        .cr-round-body, .rf-pass-body, .sec-iter-body { display: none; padding: 10px 12px; }
+        .cr-round-card.open .cr-round-body   { display: block; }
+        .rf-pass-card.open .rf-pass-body     { display: block; }
+        .sec-iter-card.open .sec-iter-body   { display: block; }
+
+        /* Issue cards (code review) */
+        .cr-issue-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .cr-issue-item { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,0.2); }
+        .cr-issue-item.high   { border-left: 3px solid var(--accent-red); }
+        .cr-issue-item.medium { border-left: 3px solid var(--accent-yellow); }
+        .cr-issue-item.low    { border-left: 3px solid var(--accent-blue); }
+        .cr-issue-tag { flex-shrink: 0; font-size: 0.58rem; font-weight: 800; padding: 2px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 1px; }
+        .cr-issue-tag.bug           { background: rgba(242,139,130,0.2); color: var(--accent-red); }
+        .cr-issue-tag.architecture  { background: rgba(168,199,250,0.2); color: var(--accent-blue); }
+        .cr-issue-tag.performance   { background: rgba(253,214,99,0.2);  color: var(--accent-yellow); }
+        .cr-issue-tag.security      { background: rgba(242,139,130,0.2); color: var(--accent-red); }
+        .cr-issue-tag.readability   { background: rgba(129,201,149,0.2); color: var(--accent-green); }
+        .cr-issue-tag.error-handling{ background: rgba(168,199,250,0.15);color: var(--accent-blue); }
+        .cr-issue-content { flex: 1; min-width: 0; }
+        .cr-issue-text { font-size: 0.77rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 3px; word-break: break-word; font-family: var(--font-mono); }
+        .cr-issue-fix  { font-size: 0.71rem; color: var(--accent-green); line-height: 1.4; }
+        .cr-verdict { margin: 4px 12px 12px; padding: 9px 14px; border-radius: 10px; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; }
+        .cr-verdict.approved { background: rgba(129,201,149,0.1); color: var(--accent-green); border: 1px solid rgba(129,201,149,0.3); }
+        .cr-verdict.maxed    { background: rgba(253,214,99,0.1);  color: var(--accent-yellow); border: 1px solid rgba(253,214,99,0.3); }
+
+        /* Refactor score row */
+        .rf-score-row { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); }
+        .rf-diff { font-family: var(--font-mono); font-size: 0.76rem; max-height: 220px; overflow-y: auto; }
+        .rf-diff-line { padding: 2px 12px; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+        .rf-diff-line.add { background: rgba(199,146,233,0.1); color: #c792e9; }
+        .rf-diff-line.rem { background: rgba(242,139,130,0.08); color: var(--accent-red); }
+        .rf-diff-line.ctx { color: var(--text-muted); }
+        .rf-accept-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; border-top: 1px solid var(--border-soft);
+            background: rgba(199,146,233,0.05); flex-wrap: wrap;
+        }
+        .rf-accept-btn { background: #c792e9; color: #0d0e0f; border: none; border-radius: 16px; padding: 7px 18px; font-family: var(--font-main); font-size: 0.82rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; }
+        .rf-accept-btn:hover { background: #d4a8f0; }
+        .rf-reject-btn { background: transparent; border: 1px solid var(--border-color); border-radius: 16px; padding: 7px 16px; font-family: var(--font-main); font-size: 0.82rem; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
+        .rf-reject-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+        /* Security panel — red theme */
+        .sec-score-row { display: flex; align-items: center; gap: 16px; padding: 14px 18px; }
+        .sec-risk-badge { font-family: var(--font-mono); font-size: 0.88rem; font-weight: 700; padding: 6px 16px; border-radius: 20px; flex-shrink: 0; }
+        .sec-risk-badge.low      { background: rgba(129,201,149,0.15); color: var(--accent-green); border: 1px solid rgba(129,201,149,0.3); }
+        .sec-risk-badge.medium   { background: rgba(253,214,99,0.15);  color: var(--accent-yellow); border: 1px solid rgba(253,214,99,0.3); }
+        .sec-risk-badge.high     { background: rgba(242,139,130,0.15); color: var(--accent-red); border: 1px solid rgba(242,139,130,0.3); }
+        .sec-risk-badge.critical { background: rgba(242,139,130,0.25); color: #ff6b6b; border: 1px solid rgba(242,139,130,0.5); animation: errPulse 1.4s infinite; }
+        .sec-score-meta { flex: 1; min-width: 0; }
+        .sec-vuln-count { font-size: 0.88rem; font-weight: 700; margin-bottom: 4px; }
+        .sec-threshold-note { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); }
+        .sec-flag-list { display: flex; flex-direction: column; gap: 6px; }
+        .sec-flag-item { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,0.2); }
+        .sec-flag-item.high   { border-left: 3px solid var(--accent-red); }
+        .sec-flag-item.medium { border-left: 3px solid var(--accent-yellow); }
+        .sec-flag-risk { flex-shrink: 0; font-size: 0.6rem; font-weight: 800; padding: 2px 5px; border-radius: 4px; margin-top: 1px; letter-spacing: 0.04em; }
+        .sec-flag-risk.high   { background: rgba(242,139,130,0.2); color: var(--accent-red); }
+        .sec-flag-risk.medium { background: rgba(253,214,99,0.2);  color: var(--accent-yellow); }
+        .sec-flag-content { flex: 1; min-width: 0; }
+        .sec-flag-code   { font-size: 0.75rem; color: var(--accent-red); font-family: var(--font-mono); font-style: italic; margin-bottom: 3px; line-height: 1.4; word-break: break-all; }
+        .sec-flag-desc   { font-size: 0.71rem; color: var(--text-muted); margin-bottom: 3px; line-height: 1.4; }
+        .sec-flag-fix    { font-size: 0.71rem; color: var(--accent-green); line-height: 1.45; }
+
+        /* Toolbar buttons */
+        .code-review-btn, .refactor-btn, .security-btn {
+            background: transparent; border: 1px solid var(--border-soft);
+            border-radius: 14px; padding: 5px 11px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .code-review-btn { color: var(--accent-blue); background: rgba(168,199,250,0.08); border-color: rgba(168,199,250,0.3); }
+        .code-review-btn:hover  { background: rgba(168,199,250,0.18); border-color: rgba(168,199,250,0.5); }
+        .code-review-btn.running{ animation: aaBtnPulse 1.2s ease-in-out infinite; }
+        .code-review-btn.done   { background: rgba(129,201,149,0.1); border-color: rgba(129,201,149,0.4); color: var(--accent-green); }
+        .refactor-btn { color: #c792e9; background: rgba(199,146,233,0.08); border-color: rgba(199,146,233,0.3); }
+        .refactor-btn:hover  { background: rgba(199,146,233,0.18); border-color: rgba(199,146,233,0.5); }
+        .refactor-btn.running{ animation: aaBtnPulse 1.2s ease-in-out infinite; }
+        .refactor-btn.done   { background: rgba(129,201,149,0.1); border-color: rgba(129,201,149,0.4); color: var(--accent-green); }
+        .security-btn { color: var(--accent-red); background: rgba(242,139,130,0.08); border-color: rgba(242,139,130,0.3); }
+        .security-btn:hover  { background: rgba(242,139,130,0.18); border-color: rgba(242,139,130,0.5); }
+        .security-btn.running{ animation: aaBtnPulse 1.2s ease-in-out infinite; }
+        .security-btn.passed { background: rgba(129,201,149,0.1); border-color: rgba(129,201,149,0.4); color: var(--accent-green); }
+        .security-btn.failed { background: rgba(253,214,99,0.1);  border-color: rgba(253,214,99,0.4);  color: var(--accent-yellow); }
+
+        /* Coding toolbar */
+        .coding-toolbar {
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 10px 0 4px; border-top: 1px solid var(--border-soft); margin-top: 12px;
+        }
+        .coding-toolbar .ct-agent-bar {
+            display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+        }
+        .ct-enhance-btn {
+            flex: 1; justify-content: center; min-width: 120px;
+        }
+
+        /* ============================================================
            Writing Enhancer (Polish Agent) Panel
            ============================================================ */
         .polish-panel {
@@ -5635,6 +5829,693 @@ Scoring: 80-100 Publication-ready. 60-79 Good academic standard. 40-59 Needs wor
         }
 
         /* ============================================================
+           Code Review Agent  (Debate equivalent for coding)
+           Writer improves code → Reviewer critiques → loop until approved
+           ============================================================ */
+        const STORAGE_CODE_REVIEW_THRESHOLD = 'aiproxy_code_review_threshold';
+        const STORAGE_CODE_PIPELINE_AUTO    = 'aiproxy_code_pipeline_auto';
+        const CODE_REVIEW_MAX_ROUNDS        = 3;
+        let _codeReviewRunning = false;
+
+        function getCodeReviewThreshold() {
+            const v = parseInt(localStorage.getItem(STORAGE_CODE_REVIEW_THRESHOLD), 10);
+            return (!isNaN(v) && v >= 60 && v <= 95) ? v : 75;
+        }
+        function getCodePipelineAutoEnabled() {
+            const v = localStorage.getItem(STORAGE_CODE_PIPELINE_AUTO);
+            return v === null ? true : v === 'true';
+        }
+        function _isCodingPreset() {
+            const p = localStorage.getItem(STORAGE_AGENT_PRESET_KEY) || 'coder';
+            return ['coder','firebase','refactor','security','custom'].includes(p);
+        }
+        function _responseHasCode(text) {
+            return /```[\w]*\n[\s\S]*?```/.test(text);
+        }
+
+        function _codeReviewRunFromBtn(btn) {
+            const bc = btn.closest('.bot-content'); if (!bc) return;
+            let text = '';
+            for (let i = chatContext.length - 1; i >= 0; i--) {
+                if (chatContext[i].role === 'assistant') { text = chatContext[i].content; break; }
+            }
+            if (!text) { showToast('No content to review'); return; }
+            btn.classList.add('running');
+            _codeReviewRun(text, bc).then(ok => {
+                btn.classList.remove('running');
+                btn.classList.toggle('done', ok === true);
+            }).catch(() => btn.classList.remove('running'));
+        }
+
+        async function _codeReviewRun(text, botContent) {
+            if (_codeReviewRunning) { _codeReviewRunning = false; }
+            _codeReviewRunning = true;
+            botContent.querySelector('.code-review-panel')?.remove();
+            const panel = _crBuildPanel(botContent);
+            const writerModel   = getDebateWriterModel();
+            const reviewerModel = getDebateReviewerModel();
+            let currentText = text, bestText = text, bestScore = 0, completed = false;
+            try {
+                for (let round = 1; round <= CODE_REVIEW_MAX_ROUNDS; round++) {
+                    const threshold = getCodeReviewThreshold();
+                    _crSetStatus(panel, 'reviewing', `Round ${round} — Reviewer analysing code...`);
+                    _crAddRoundCard(panel, round);
+                    _crUpdateRoundBadge(round, 'reviewing');
+                    let review;
+                    try {
+                        review = await _crReview(currentText, reviewerModel);
+                    } catch (err) {
+                        _crUpdateRoundCard(round,'err',`Reviewer error: ${err.message}`,0,err.message,[]);
+                        _crSetStatus(panel,'err',`Reviewer failed: ${err.message}`);
+                        _crMarkBtn(botContent,'maxed'); break;
+                    }
+                    if (review.score > bestScore) { bestScore = review.score; bestText = currentText; }
+                    const sc = review.score >= threshold ? 'var(--accent-green)' : review.score >= threshold*0.8 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                    _crUpdateRoundCard(round, review.approved ? 'approved' : 'rejected',
+                        review.approved ? `✓ Approved — Score ${review.score}/100` : `✗ Rejected — Score ${review.score}/100 — ${review.issues.length} issue(s)`,
+                        review.score, review.summary, review.issues, sc);
+                    if (review.approved) {
+                        _crSetStatus(panel,'approved',`✓ Approved after round ${round} — Score: ${review.score}/100`);
+                        _crShowVerdict(panel,'approved',`Approved in ${round} round${round>1?'s':''}. Score: ${review.score}/100`);
+                        _crMarkBtn(botContent,'done'); completed = true; break;
+                    }
+                    if (round === CODE_REVIEW_MAX_ROUNDS) {
+                        if (bestText !== currentText && bestScore > review.score) {
+                            currentText = bestText;
+                            const bm = botContent.querySelector('.bot-message');
+                            if (bm) bm.innerHTML = safeMarkdownRender(bestText);
+                            for (let i = chatContext.length-1; i>=0; i--) { if (chatContext[i].role==='assistant') { chatContext[i].content=bestText; break; } }
+                            saveHistory();
+                        }
+                        _crSetStatus(panel,'maxed',`Max rounds reached. Best: ${bestScore}/100`);
+                        _crShowVerdict(panel,'maxed',`Max rounds (${CODE_REVIEW_MAX_ROUNDS}) reached. Best version (${bestScore}/100) restored.`);
+                        _crMarkBtn(botContent,'maxed'); completed = true; break;
+                    }
+                    _crSetStatus(panel,'writing',`Round ${round} — Writer fixing ${review.issues.length} issue(s)...`);
+                    _crUpdateRoundBadge(round,'writing');
+                    try {
+                        currentText = await _crRewrite(currentText, review.issues, writerModel, round);
+                        const bm = botContent.querySelector('.bot-message');
+                        if (bm) bm.innerHTML = safeMarkdownRender(currentText);
+                        for (let i=chatContext.length-1;i>=0;i--) { if (chatContext[i].role==='assistant') { chatContext[i].content=currentText; break; } }
+                        saveHistory();
+                        _crUpdateRoundBadge(round,'approved');
+                    } catch(err) {
+                        for (let r=1;r<=CODE_REVIEW_MAX_ROUNDS;r++) { const p=document.getElementById(`cr-wp-${r}`); if(p) p.remove(); }
+                        _crSetStatus(panel,'err',`Writer failed: ${err.message}`); _crMarkBtn(botContent,'maxed'); completed=true; break;
+                    }
+                }
+            } finally {
+                for (let r=1;r<=CODE_REVIEW_MAX_ROUNDS;r++) { const p=document.getElementById(`cr-wp-${r}`); if(p) p.remove(); }
+                _codeReviewRunning = false;
+            }
+            return completed;
+        }
+
+        async function _crReview(text, model) {
+            const threshold = getCodeReviewThreshold();
+            const prompt = `You are a senior software engineer reviewing code quality. Evaluate the code and explanations in this response. Return ONLY valid JSON — no markdown fences.
+
+RESPONSE TO REVIEW:
+"""
+${text.slice(0,4000)}
+"""
+
+JSON FORMAT:
+{
+  "approved": <true|false>,
+  "score": <integer 0-100>,
+  "summary": "<one sentence verdict>",
+  "issues": [
+    {
+      "type": "<bug|architecture|performance|security|readability|error-handling>",
+      "severity": "<high|medium|low>",
+      "text": "<the specific code or problem, max 120 chars>",
+      "fix": "<concrete fix instruction>"
+    }
+  ]
+}
+
+Scoring: ${threshold}-100 Approve (production-ready, correct, secure). ${Math.round(threshold*0.75)}-${threshold-1} Reject (fixable). 0-${Math.round(threshold*0.75)-1} Reject (major bugs/issues).
+"approved": true ONLY if score >= ${threshold}. Max 6 issues. Return only JSON:`;
+            let raw = await _debateCall(
+                [{role:'system',content:'You are a code reviewer. Output ONLY valid JSON. No markdown fences.'},{role:'user',content:prompt}],
+                model, 240000);
+            raw = raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+            let result;
+            try { result = JSON.parse(raw); } catch(_) { const m=raw.match(/\{[\s\S]*\}/); if(!m) throw new Error('Reviewer returned invalid JSON'); result=JSON.parse(m[0]); }
+            result.score   = Math.min(100,Math.max(0,parseInt(result.score)||50));
+            result.approved= result.score >= getCodeReviewThreshold() || result.approved===true;
+            result.summary = String(result.summary||'').slice(0,200);
+            result.issues  = Array.isArray(result.issues)?result.issues.slice(0,6):[];
+            return result;
+        }
+
+        async function _crRewrite(text, issues, model, round) {
+            const issueList = issues.map((iss,i)=>`${i+1}. [${(iss.type||'issue').toUpperCase()}] ${iss.text||''}\n   FIX: ${iss.fix||''}`).join('\n\n');
+            const prompt = `You are a senior software engineer fixing code based on reviewer feedback.
+
+REVIEWER ISSUES TO FIX:
+${issueList||'Improve overall code quality, correctness and best practices.'}
+
+STRICT RULES:
+1. Fix every issue listed
+2. Preserve all explanatory prose and comments
+3. Return the complete improved response (code + explanations)
+4. Do not break existing functionality — only improve quality
+5. No preamble or explanation — return only the improved response
+
+ORIGINAL:
+"""
+${text}
+"""
+Improved response:`;
+            const body = document.getElementById(`cr-body-${round}`);
+            if (body) body.innerHTML = `<div id="cr-wp-${round}" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);padding:6px 2px;display:flex;align-items:center;gap:8px;"><span style="animation:pulse 1s infinite ease-in-out;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent-blue);flex-shrink:0;"></span>Writer fixing — please wait...</div>`;
+            let result;
+            try {
+                result = await _debateCall(
+                    [{role:'system',content:'You are a software engineer fixing code issues. Return only the improved response.'},{role:'user',content:prompt}],
+                    model, 180000);
+            } finally { const p=document.getElementById(`cr-wp-${round}`); if(p) p.remove(); }
+            return result;
+        }
+
+        /* ── Code Review DOM builders ── */
+        function _crBuildPanel(botContent) {
+            const wm=getDebateWriterModel(), rm=getDebateReviewerModel();
+            const panel = document.createElement('div'); panel.className='code-review-panel';
+            panel.innerHTML=`
+                <div class="cr-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    <span class="cr-title">Code Review</span>
+                    <span class="cr-status-dot reviewing"></span>
+                    <span class="cr-status-text">Initialising...</span>
+                    <button class="cr-close-btn" onclick="this.closest('.code-review-panel').remove()">✕</button>
+                </div>
+                <div class="cr-models-row">
+                    <span class="debate-model-badge writer">✍️ ${escapeHtml(_debateShortName(wm))}</span>
+                    <span class="debate-vs">VS</span>
+                    <span class="debate-model-badge reviewer">🔍 ${escapeHtml(_debateShortName(rm))}</span>
+                    <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-muted);margin-left:auto;">Max ${CODE_REVIEW_MAX_ROUNDS} rounds · Approve ≥ ${getCodeReviewThreshold()}/100</span>
+                </div>
+                <div class="cr-feed"></div>`;
+            botContent.appendChild(panel); return panel;
+        }
+        function _crSetStatus(panel,state,text) {
+            const d=panel.querySelector('.cr-status-dot'),t=panel.querySelector('.cr-status-text');
+            if(d) d.className=`cr-status-dot ${state}`; if(t) t.textContent=text;
+        }
+        function _crAddRoundCard(panel,round) {
+            const feed=panel.querySelector('.cr-feed'); if(!feed) return;
+            const card=document.createElement('div'); card.className='cr-round-card open'; card.id=`cr-card-${round}`;
+            card.innerHTML=`<div class="cr-round-header" onclick="this.closest('.cr-round-card').classList.toggle('open')">
+                <span class="cr-round-badge reviewing" id="cr-badge-${round}">${round}</span>
+                <span class="cr-round-title" id="cr-title-${round}">Reviewing...</span>
+                <span class="cr-round-score" id="cr-score-${round}" style="color:var(--text-muted);">—/100</span>
+                <span class="cr-round-chevron">›</span>
+            </div><div class="cr-round-body" id="cr-body-${round}"></div>`;
+            feed.appendChild(card);
+        }
+        function _crUpdateRoundBadge(round,state) { const b=document.getElementById(`cr-badge-${round}`); if(b) b.className=`cr-round-badge ${state}`; }
+        function _crUpdateRoundCard(round,state,title,score,summary,issues,scoreColor) {
+            _crUpdateRoundBadge(round,state);
+            const t=document.getElementById(`cr-title-${round}`),s=document.getElementById(`cr-score-${round}`),b=document.getElementById(`cr-body-${round}`);
+            if(t) t.textContent=title; if(s) { s.textContent=`${score}/100`; s.style.color=scoreColor||'var(--text-muted)'; } if(!b) return;
+            const ih=(issues&&issues.length>0)?`<div class="cr-issue-list">${issues.map(iss=>`<div class="cr-issue-item ${iss.severity||'medium'}"><span class="cr-issue-tag ${iss.type||'readability'}">${(iss.type||'note').slice(0,8)}</span><div class="cr-issue-content"><div class="cr-issue-text">${escapeHtml((iss.text||'').slice(0,160))}</div>${iss.fix?`<div class="cr-issue-fix">→ ${escapeHtml(iss.fix)}</div>`:''}</div></div>`).join('')}</div>`:'';
+            b.innerHTML=`<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;">${escapeHtml(summary||'')}</div>${ih}`;
+        }
+        function _crShowVerdict(panel,type,text) {
+            const feed=panel.querySelector('.cr-feed'); if(!feed) return;
+            const v=document.createElement('div'); v.className=`cr-verdict ${type}`;
+            v.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${type==='approved'?'<polyline points="20 6 9 17 4 12"/>':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg>${escapeHtml(text)}`;
+            feed.after(v);
+        }
+        function _crMarkBtn(botContent,state) {
+            const btn=botContent.querySelector('.code-review-btn'); if(!btn) return;
+            btn.classList.remove('running','done','maxed'); btn.classList.add(state);
+            btn.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> ${state==='done'?'✓ Reviewed':'⚠ Re-review'}`;
+        }
+
+        /* ============================================================
+           Code Refactor Agent  (Writing Enhancer equivalent for coding)
+           Three passes: Performance → Readability → Hardening
+           ============================================================ */
+        const STORAGE_REFACTOR_INTENSITY = 'aiproxy_refactor_intensity';
+        const STORAGE_REFACTOR_AUTO      = 'aiproxy_refactor_auto';
+        let _refactorRunning = false;
+
+        function getRefactorIntensity() {
+            const v=localStorage.getItem(STORAGE_REFACTOR_INTENSITY);
+            return ['light','moderate','thorough'].includes(v)?v:'thorough';
+        }
+        function getRefactorAutoEnabled() {
+            const v=localStorage.getItem(STORAGE_REFACTOR_AUTO); return v===null?true:v==='true';
+        }
+
+        const REFACTOR_PASSES = {
+            light:[
+                {id:'performance',label:'Performance',icon:'⚡',desc:'Optimising algorithms and removing redundancy'}
+            ],
+            moderate:[
+                {id:'performance',label:'Performance',icon:'⚡',desc:'Optimising algorithms and removing redundancy'},
+                {id:'readability',label:'Readability', icon:'📖',desc:'Improving naming, comments and structure'}
+            ],
+            thorough:[
+                {id:'performance',label:'Performance',icon:'⚡',desc:'Optimising algorithms and removing redundancy'},
+                {id:'readability',label:'Readability', icon:'📖',desc:'Improving naming, comments and structure'},
+                {id:'hardening',  label:'Hardening',  icon:'🛡',desc:'Adding error handling, validation and edge cases'}
+            ]
+        };
+
+        const REFACTOR_SYSTEM = {
+            performance: 'You are a performance optimisation engineer. Improve algorithmic efficiency in code blocks only. Return ONLY the improved response — no preamble.',
+            readability: 'You are a code readability specialist. Improve naming and documentation in code blocks only. Return ONLY the improved response — no preamble.',
+            hardening:   'You are a defensive programming specialist. Add robustness to code blocks only. Return ONLY the improved response — no preamble.'
+        };
+
+        const REFACTOR_PROMPTS = {
+            performance: t=>`PERFORMANCE PASS — Optimise code blocks only. Preserve all prose text unchanged.
+
+OPTIMISATIONS TO APPLY:
+- Replace O(n²) with O(n) where possible (use Map/Set for lookups)
+- Remove redundant variables and computations
+- Cache repeated expensive operations
+- Eliminate unnecessary re-renders/re-calculations
+
+CODE BLOCKS ONLY — preserve all explanatory text.
+TEXT:
+"""
+${t}
+"""
+Improved response:`,
+            readability: t=>`READABILITY PASS — Improve code clarity in code blocks only. Preserve prose text.
+
+IMPROVEMENTS:
+- Rename single-letter variables (except loop counters) to descriptive names
+- Extract magic numbers as named constants
+- Add JSDoc comments to functions > 5 lines
+- Use consistent naming (camelCase/snake_case)
+- Break functions > 30 lines into helpers
+
+CODE BLOCKS ONLY — preserve all explanatory text.
+TEXT:
+"""
+${t}
+"""
+Improved response:`,
+            hardening: t=>`HARDENING PASS — Add defensive coding to code blocks only. Preserve prose text.
+
+HARDENING TO APPLY:
+- Add null/undefined checks before property access
+- Wrap async operations in try/catch with meaningful error messages
+- Add input validation for function parameters
+- Handle empty arrays/objects before iteration
+- Add fallback values for optional parameters
+
+CODE BLOCKS ONLY — preserve all explanatory text.
+TEXT:
+"""
+${t}
+"""
+Improved response:`
+        };
+
+        function _refactorRunFromBtn(btn) {
+            const bc=btn.closest('.bot-content'); if(!bc) return;
+            let text='';
+            for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant') { text=chatContext[i].content; break; } }
+            if(!text) { showToast('No content to refactor'); return; }
+            btn.classList.add('running');
+            btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> <span id="refactor-btn-status">Starting...</span>';
+            _refactorRun(text, bc, btn, false).finally(()=>{
+                btn.classList.remove('running'); btn.classList.add('done');
+                btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ✓ Refactored';
+            });
+        }
+
+        async function _refactorRun(text, botContent, btn, autoApply=false) {
+            if(_refactorRunning){_refactorRunning=false;}
+            if(!currentModel){showToast('No model selected');return;}
+            _refactorRunning=true;
+            botContent.querySelector('.refactor-panel')?.remove();
+            const panel=_rfBuildPanel(botContent);
+            userScrolledUp=true;
+            setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'nearest'}),150);
+            const intensity=getRefactorIntensity(),passes=REFACTOR_PASSES[intensity]||REFACTOR_PASSES.thorough;
+            const model=getDebateWriterModel(),originalText=text;
+            let currentText=text;
+            function _updBtn(msg){const s=btn?document.getElementById('refactor-btn-status'):null;if(s)s.textContent=msg;}
+            try {
+                for(let i=0;i<passes.length;i++){
+                    const pass=passes[i];
+                    _updBtn(`Pass ${i+1}/${passes.length}: ${pass.label}...`);
+                    _rfSetStatus(panel,'running',`Pass ${i+1}/${passes.length} — ${pass.label}: ${pass.desc}...`);
+                    _rfUpdatePassBadge(panel,i,'running');
+                    _rfSetPassTitle(panel,i,`${pass.icon} ${pass.label} — running...`);
+                    const body=document.getElementById(`rf-body-${i}`);
+                    if(body) body.innerHTML=`<div style="padding:10px 12px;font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono);display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#c792e9;flex-shrink:0;animation:pulse 1s infinite ease-in-out;"></span>${pass.desc}...</div>`;
+                    try {
+                        const improved=await _debateCall(
+                            [{role:'system',content:REFACTOR_SYSTEM[pass.id]},{role:'user',content:REFACTOR_PROMPTS[pass.id](currentText)}],
+                            model,180000);
+                        const diff=_agentDiff(currentText,improved);
+                        const added=diff.filter(l=>l.type==='add').length,rem=diff.filter(l=>l.type==='rem').length;
+                        const tc=Math.round((added+rem)/2);
+                        currentText=improved;
+                        _rfUpdatePassBadge(panel,i,'done');
+                        _rfSetPassTitle(panel,i,`${pass.icon} ${pass.label} — ${tc} change${tc!==1?'s':''} applied`);
+                        document.getElementById(`rf-changes-${i}`).textContent=`+${added} -${rem}`;
+                        _rfRenderPassDiff(panel,i,diff);
+                        _updBtn(`Pass ${i+1}/${passes.length} done ✓`);
+                    } catch(err) {
+                        _rfUpdatePassBadge(panel,i,'err');
+                        _rfSetPassTitle(panel,i,`${pass.icon} ${pass.label} — Error`);
+                        const b2=document.getElementById(`rf-body-${i}`);
+                        if(b2) b2.innerHTML=`<div style="padding:8px 12px;font-size:0.77rem;color:var(--accent-red);">${escapeHtml(err.message)}</div>`;
+                        _updBtn(`Pass ${i+1} failed`);
+                    }
+                }
+                const totalDiff=_agentDiff(originalText,currentText);
+                const totalChanges=Math.round(totalDiff.filter(l=>l.type==='add'||l.type==='rem').length/2);
+                if(autoApply){
+                    _rfApplyToContext(currentText,botContent);
+                    _rfShowRevertBar(panel,originalText,currentText,totalChanges);
+                    _rfSetStatus(panel,'done',`✓ Auto-applied — ${totalChanges} changes across ${passes.length} pass${passes.length!==1?'es':''}`);
+                    _updBtn(`Auto-applied ${totalChanges} changes`);
+                } else {
+                    _rfShowAcceptBar(panel,originalText,currentText,botContent,totalChanges);
+                    _rfSetStatus(panel,'done',`✓ Done — ${totalChanges} changes across ${passes.length} pass${passes.length!==1?'es':''}`);
+                    _updBtn(`${totalChanges} changes — review below`);
+                }
+                setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'nearest'}),200);
+            } finally { _refactorRunning=false; userScrolledUp=false; }
+        }
+
+        function _rfApplyToContext(code, botContent) {
+            const bm=botContent.querySelector('.bot-message'); if(bm) bm.innerHTML=safeMarkdownRender(code);
+            for(let i=chatContext.length-1;i>=0;i--){if(chatContext[i].role==='assistant'){chatContext[i].content=code;break;}}
+            const rt=botContent.querySelector('.coding-toolbar'); if(rt) rt.dataset.raw=code;
+            saveHistory();
+        }
+
+        /* Refactor DOM builders */
+        function _rfBuildPanel(botContent) {
+            const intensity=getRefactorIntensity(),passes=REFACTOR_PASSES[intensity]||REFACTOR_PASSES.thorough;
+            const cardsHtml=passes.map((pass,i)=>`
+                <div class="rf-pass-card" id="rf-card-${i}">
+                    <div class="rf-pass-header" onclick="this.closest('.rf-pass-card').classList.toggle('open')">
+                        <span class="rf-pass-badge pending" id="rf-badge-${i}">${i+1}</span>
+                        <span class="rf-pass-title" id="rf-title-${i}">${pass.icon} ${pass.label} — waiting...</span>
+                        <span class="rf-pass-changes" id="rf-changes-${i}"></span>
+                        <span class="rf-pass-chevron">›</span>
+                    </div>
+                    <div class="rf-pass-body" id="rf-body-${i}"></div>
+                </div>`).join('');
+            const panel=document.createElement('div'); panel.className='refactor-panel';
+            panel.innerHTML=`
+                <div class="rf-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    <span class="rf-title">Code Refactor</span>
+                    <span class="rf-status-dot running"></span>
+                    <span class="rf-status-text">Initialising...</span>
+                    <button class="rf-close-btn" onclick="this.closest('.refactor-panel').remove()">✕</button>
+                </div>
+                <div class="rf-score-row" id="rf-score-row" style="display:none;"></div>
+                <div class="rf-passes">${cardsHtml}</div>
+                <div class="rf-accept-bar" id="rf-accept-bar" style="display:none;"></div>`;
+            botContent.appendChild(panel); return panel;
+        }
+        function _rfSetStatus(panel,state,text){const d=panel.querySelector('.rf-status-dot'),t=panel.querySelector('.rf-status-text');if(d)d.className=`rf-status-dot ${state}`;if(t)t.textContent=text;}
+        function _rfUpdatePassBadge(panel,i,state){const b=document.getElementById(`rf-badge-${i}`);if(b)b.className=`rf-pass-badge ${state}`;}
+        function _rfSetPassTitle(panel,i,title){const t=document.getElementById(`rf-title-${i}`);if(t)t.textContent=title;}
+        function _rfRenderPassDiff(panel,i,diff){
+            const body=document.getElementById(`rf-body-${i}`);if(!body)return;
+            const condensed=[];
+            diff.forEach((line,idx)=>{
+                if(line.type!=='ctx'){
+                    if(idx>0&&diff[idx-1].type==='ctx') condensed.push(diff[idx-1]);
+                    condensed.push(line);
+                    if(idx<diff.length-1&&diff[idx+1].type==='ctx') condensed.push(diff[idx+1]);
+                }
+            });
+            body.innerHTML=`<div class="rf-diff">${condensed.slice(0,60).map(l=>`<div class="rf-diff-line ${l.type}">${l.type==='add'?'+ ':l.type==='rem'?'- ':'  '}${escapeHtml(l.text)}</div>`).join('')}</div>`;
+            document.getElementById(`rf-card-${i}`)?.classList.add('open');
+        }
+        function _rfShowAcceptBar(panel,originalText,enhancedText,botContent,totalChanges){
+            const bar=document.getElementById('rf-accept-bar');if(!bar)return;
+            bar.dataset.enhancedText=enhancedText;
+            bar.innerHTML=`<span style="flex:1;font-size:0.76rem;color:var(--text-muted);font-family:var(--font-mono);">${totalChanges} change${totalChanges!==1?'s':''} ready — apply?</span>
+                <button class="rf-reject-btn" onclick="_rfReject(this)">Keep original</button>
+                <button class="rf-accept-btn" onclick="_rfAccept(this)">✓ Apply changes</button>`;
+            bar.style.display='flex';
+        }
+        function _rfShowRevertBar(panel,originalText,enhancedText,totalChanges){
+            const bar=document.getElementById('rf-accept-bar');if(!bar)return;
+            bar.dataset.originalText=originalText;
+            bar.innerHTML=`<span style="flex:1;font-size:0.76rem;color:#c792e9;font-family:var(--font-mono);">✓ ${totalChanges} changes auto-applied</span>
+                <button class="rf-reject-btn" onclick="_rfRevert(this)">↩ Revert</button>`;
+            bar.style.display='flex';
+        }
+        function _rfAccept(btn){
+            const bar=btn.closest('.rf-accept-bar');if(!bar)return;
+            const enhanced=bar.dataset.enhancedText;if(!enhanced)return;
+            const bc=bar.closest('.bot-content');if(bc) _rfApplyToContext(enhanced,bc);
+            bar.innerHTML=`<span style="font-size:0.8rem;color:#c792e9;font-family:var(--font-mono);">✓ Refactored code applied</span>`;
+            showToast('Refactoring applied ✓');
+        }
+        function _rfReject(btn){btn.closest('.refactor-panel')?.remove();showToast('Original code kept');}
+        function _rfRevert(btn){
+            const bar=btn.closest('.rf-accept-bar');if(!bar)return;
+            const orig=bar.dataset.originalText;if(!orig)return;
+            const bc=bar.closest('.bot-content');if(bc) _rfApplyToContext(orig,bc);
+            bar.innerHTML=`<span style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">↩ Original code restored</span>`;
+            showToast('Original code restored');
+        }
+
+        /* ============================================================
+           Security Audit Agent  (Plagiarism equivalent for coding)
+           Scans for vulnerabilities — auto-fixes High + Medium
+           ============================================================ */
+        const SECURITY_MAX_ITER = 2;
+        let _securityRunning = false;
+
+        function _securityRunFromBtn(btn) {
+            const bc=btn.closest('.bot-content');if(!bc)return;
+            let text='';
+            for(let i=chatContext.length-1;i>=0;i--){if(chatContext[i].role==='assistant'){text=chatContext[i].content;break;}}
+            if(!text){showToast('No content to audit');return;}
+            btn.classList.add('running');
+            _securityRun(text,bc).finally(()=>btn.classList.remove('running'));
+        }
+
+        async function _securityRun(text, botContent) {
+            if(_securityRunning){_securityRunning=false;}
+            _securityRunning=true;
+            botContent.querySelector('.security-panel')?.remove();
+            const panel=_secBuildPanel(botContent);
+            let currentText=text;
+            try {
+                for(let iter=1;iter<=SECURITY_MAX_ITER;iter++){
+                    _secSetStatus(panel,'scanning',`Iteration ${iter} of ${SECURITY_MAX_ITER} — scanning for vulnerabilities...`);
+                    _secAddIterCard(panel,iter);
+                    let result;
+                    try { result=await _secAnalyze(currentText); }
+                    catch(err) {
+                        _secUpdateIterCard(panel,iter,'err',`Scan failed: ${err.message}`,err.message,[]);
+                        _secSetStatus(panel,'err',`Scan error: ${err.message}`); break;
+                    }
+                    const passed=result.risk_level==='low'&&result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium').length===0;
+                    _secPanelSetRisk(panel,result.risk_level,result.vuln_count);
+                    _secUpdateIterCard(panel,iter,passed?'ok':'warn',
+                        `${result.risk_level.toUpperCase()} Risk — ${result.vuln_count} vulnerability${result.vuln_count!==1?'ies':'y'} found`,
+                        result.summary, result.vulnerabilities);
+                    if(passed){
+                        _secSetStatus(panel,'ok','✓ No High/Medium vulnerabilities found');
+                        _secMarkBtn(botContent,'passed',result.vuln_count); break;
+                    }
+                    if(iter===SECURITY_MAX_ITER){
+                        _secSetStatus(panel,'warn',`Max iterations — ${result.vuln_count} vulnerability${result.vuln_count!==1?'ies':'y'} remain`);
+                        _secMarkBtn(botContent,'failed',result.vuln_count); break;
+                    }
+                    _secSetStatus(panel,'scanning',`Fixing ${result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium').length} High/Medium vulnerabilities...`);
+                    try {
+                        const fixed=await _secRewrite(currentText,result.vulnerabilities.filter(v=>v.severity==='high'||v.severity==='medium'));
+                        currentText=fixed;
+                        const bm=botContent.querySelector('.bot-message');if(bm) bm.innerHTML=safeMarkdownRender(currentText);
+                        for(let i=chatContext.length-1;i>=0;i--){if(chatContext[i].role==='assistant'){chatContext[i].content=currentText;break;}}
+                        saveHistory();
+                    } catch(err) { _secSetStatus(panel,'err',`Fix failed: ${err.message}`); break; }
+                }
+            } finally { _securityRunning=false; }
+        }
+
+        async function _secAnalyze(text) {
+            const prompt=`You are a security engineer auditing code. Return ONLY valid JSON — no markdown fences.
+
+CODE TO AUDIT:
+"""
+${text.slice(0,3500)}
+"""
+
+JSON FORMAT:
+{
+  "risk_level": "<low|medium|high|critical>",
+  "vuln_count": <integer>,
+  "summary": "<one sentence>",
+  "vulnerabilities": [
+    {
+      "type": "<xss|injection|hardcoded-secret|insecure-auth|csrf|data-exposure|insecure-storage|other>",
+      "severity": "<high|medium|low>",
+      "code": "<vulnerable code snippet, max 120 chars>",
+      "description": "<why it is vulnerable>",
+      "fix": "<concrete secure alternative>"
+    }
+  ]
+}
+
+Check for: XSS (innerHTML/eval/document.write), SQL/command injection, hardcoded API keys/passwords/tokens, insecure localStorage of sensitive data, missing input sanitisation, CSRF, exposed credentials.
+Return only JSON:`;
+            const resp=await fetch(VPS_OLLAMA_URL,{method:'POST',headers:apiHeaders(),body:JSON.stringify({model:currentModel,stream:false,messages:[{role:'system',content:'You are a security auditor. Output ONLY valid JSON. No markdown fences.'},{role:'user',content:prompt}]})});
+            if(!resp.ok) throw new Error(`API HTTP ${resp.status}`);
+            const data=await resp.json();
+            let raw=(data?.message?.content||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+            let result;
+            try{result=JSON.parse(raw);}catch(_){const m=raw.match(/\{[\s\S]*\}/);if(!m)throw new Error('Invalid JSON from model');result=JSON.parse(m[0]);}
+            result.risk_level=['low','medium','high','critical'].includes(result.risk_level)?result.risk_level:'medium';
+            result.vuln_count=Math.max(0,parseInt(result.vuln_count)||0);
+            result.summary=String(result.summary||'').slice(0,200);
+            result.vulnerabilities=Array.isArray(result.vulnerabilities)?result.vulnerabilities.slice(0,8):[];
+            return result;
+        }
+
+        async function _secRewrite(text, vulns) {
+            const vList=vulns.map((v,i)=>`${i+1}. [${(v.type||'issue').toUpperCase()}] ${v.code||''}\n   RISK: ${v.description||''}\n   FIX: ${v.fix||''}`).join('\n\n');
+            const prompt=`Fix these security vulnerabilities in the code. Return the complete improved response.
+
+VULNERABILITIES TO FIX:
+${vList}
+
+RULES:
+1. Fix only the vulnerabilities — do not change other code
+2. Preserve all explanatory prose text unchanged
+3. Do not reduce functionality — only harden security
+
+ORIGINAL:
+"""
+${text}
+"""
+Fixed response:`;
+            const resp=await fetch(VPS_OLLAMA_URL,{method:'POST',headers:apiHeaders(),body:JSON.stringify({model:currentModel,stream:false,messages:[{role:'system',content:'Fix security vulnerabilities in code. Return only the improved response.'},{role:'user',content:prompt}]})});
+            if(!resp.ok) throw new Error(`Rewrite API HTTP ${resp.status}`);
+            const data=await resp.json();
+            const out=(data?.message?.content||'').trim();
+            if(!out) throw new Error('Empty response from model');
+            return out;
+        }
+
+        /* Security DOM builders */
+        function _secBuildPanel(botContent) {
+            const panel=document.createElement('div'); panel.className='security-panel';
+            panel.innerHTML=`
+                <div class="sec-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span class="sec-title">Security Audit</span>
+                    <span class="sec-status-dot scanning"></span>
+                    <span class="sec-status-text">Initialising...</span>
+                    <button class="sec-close-btn" onclick="this.closest('.security-panel').remove()">✕</button>
+                </div>
+                <div class="sec-score-row">
+                    <span class="sec-risk-badge medium" id="sec-risk-badge">Scanning...</span>
+                    <div class="sec-score-meta">
+                        <div class="sec-vuln-count" id="sec-vuln-count" style="color:var(--text-muted);">Analysing code...</div>
+                        <div class="sec-threshold-note">Auto-fix: High + Medium · Max ${SECURITY_MAX_ITER} iterations</div>
+                    </div>
+                </div>
+                <div class="sec-iter-feed"></div>`;
+            botContent.appendChild(panel); return panel;
+        }
+        function _secSetStatus(panel,state,text){const d=panel.querySelector('.sec-status-dot'),t=panel.querySelector('.sec-status-text');if(d)d.className=`sec-status-dot ${state}`;if(t)t.textContent=text;}
+        function _secPanelSetRisk(panel,level,count){
+            const b=panel.querySelector('#sec-risk-badge'),c=panel.querySelector('#sec-vuln-count');
+            if(b){b.textContent=level.toUpperCase()+' Risk';b.className=`sec-risk-badge ${level}`;}
+            const color=level==='low'?'var(--accent-green)':level==='medium'?'var(--accent-yellow)':'var(--accent-red)';
+            if(c){c.textContent=`${count} vulnerability${count!==1?'ies':'y'} detected`;c.style.color=color;}
+        }
+        function _secAddIterCard(panel,iter){
+            const feed=panel.querySelector('.sec-iter-feed');if(!feed)return;
+            const card=document.createElement('div');card.className='sec-iter-card open';card.id=`sec-card-${iter}`;
+            card.innerHTML=`<div class="sec-iter-header" onclick="this.closest('.sec-iter-card').classList.toggle('open')"><span class="sec-iter-badge running">${iter}</span><span class="sec-iter-title" id="sec-title-${iter}">Scanning...</span><span class="sec-iter-chevron">›</span></div><div class="sec-iter-body" id="sec-body-${iter}"></div>`;
+            feed.appendChild(card);
+        }
+        function _secUpdateIterCard(panel,iter,state,title,summary,vulns){
+            const card=document.getElementById(`sec-card-${iter}`);
+            const badge=card?.querySelector('.sec-iter-badge'),titleEl=document.getElementById(`sec-title-${iter}`),body=document.getElementById(`sec-body-${iter}`);
+            if(badge) badge.className=`sec-iter-badge ${state}`;
+            if(titleEl) titleEl.textContent=title;
+            if(!body) return;
+            const vHtml=(vulns&&vulns.length>0)?`<div class="sec-flag-list">${vulns.map(v=>`<div class="sec-flag-item ${v.severity||'medium'}"><span class="sec-flag-risk ${v.severity||'medium'}">${(v.severity||'med').toUpperCase().slice(0,4)}</span><div class="sec-flag-content"><div class="sec-flag-code">${escapeHtml((v.code||'').slice(0,120))}</div><div class="sec-flag-desc">${escapeHtml(v.description||'')}</div>${v.fix?`<div class="sec-flag-fix">→ ${escapeHtml(v.fix)}</div>`:''}</div></div>`).join('')}</div>`:'';
+            body.innerHTML=`<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;">${escapeHtml(summary||'')}</div>${vHtml}`;
+        }
+        function _secMarkBtn(botContent,result,count){
+            const btn=botContent.querySelector('.security-btn');if(!btn)return;
+            btn.classList.remove('running','passed','failed');btn.classList.add(result);
+            btn.innerHTML=result==='passed'
+                ?`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ✓ Secure`
+                :`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ⚠ ${count} vuln${count!==1?'s':''}`;
+        }
+
+        /* ============================================================
+           Coding Toolbar + Pipeline Complete
+           ============================================================ */
+        function _addCodingToolbar(botContent, rawText) {
+            if (botContent.querySelector('.coding-toolbar')) return;
+            const toolbar = document.createElement('div');
+            toolbar.className = 'coding-toolbar';
+            toolbar.dataset.raw = rawText;
+            toolbar.innerHTML = `
+                <div class="ct-agent-bar">
+                    <button class="refactor-btn ct-enhance-btn" id="rf-btn-${Date.now()}"
+                        onclick="_refactorRunFromBtn(this)" title="Refactor — Performance, Readability, Hardening">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        ✨ Refactor Code
+                    </button>
+                    <button class="code-review-btn" id="cr-btn-${Date.now()}"
+                        onclick="_codeReviewRunFromBtn(this)" title="Code Review — bugs, architecture, quality">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        ⚡ Review
+                    </button>
+                    <button class="security-btn" id="sec-btn-${Date.now()}"
+                        onclick="_securityRunFromBtn(this)" title="Security Audit — XSS, injection, secrets">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        🔒 Security
+                    </button>
+                </div>`;
+            const actions = botContent.querySelector('.msg-actions');
+            if (actions) botContent.insertBefore(toolbar, actions);
+            else botContent.appendChild(toolbar);
+        }
+
+        function _showCodingPipelineComplete(botContent, reviewOk, refactorOk, securityOk, reviewErr, refactorErr, securityErr) {
+            if (!botContent) return;
+            botContent.querySelector('.coding-pipeline-complete')?.remove();
+            const banner = document.createElement('div');
+            banner.className = 'pipeline-complete coding-pipeline-complete';
+            const rl = reviewOk   ? '✓ Code reviewed'  : reviewErr   ? `✗ Review: ${reviewErr.slice(0,40)}`   : '— Review skipped';
+            const rfl= refactorOk ? '✓ Refactored'      : refactorErr ? `✗ Refactor: ${refactorErr.slice(0,40)}` : getRefactorAutoEnabled() ? '— Refactor skipped' : null;
+            const sl = securityOk ? '✓ Security passed' : securityErr ? `✗ Security: ${securityErr.slice(0,40)}`: '— Security skipped';
+            const allOk = reviewOk && securityOk && (!getRefactorAutoEnabled() || refactorOk);
+            const hasErr = reviewErr || refactorErr || securityErr;
+            banner.style.background  = hasErr ? 'rgba(253,214,99,0.08)'  : 'rgba(168,199,250,0.08)';
+            banner.style.borderColor = hasErr ? 'rgba(253,214,99,0.3)'   : 'rgba(168,199,250,0.3)';
+            banner.style.color       = hasErr ? 'var(--accent-yellow)'   : 'var(--accent-blue)';
+            const parts = [rl, rfl, sl].filter(Boolean);
+            banner.innerHTML=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${allOk?'<polyline points="20 6 9 17 4 12"/>':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}</svg><div class="pc-text"><span class="pc-title">${allOk?'Code pipeline complete — ready to use':'Pipeline finished with issues'}</span><span class="pc-sub">${parts.map(s=>escapeHtml(s)).join(' · ')}</span></div>`;
+            botContent.appendChild(banner);
+            setTimeout(()=>banner.scrollIntoView({behavior:'smooth',block:'nearest'}),300);
+        }
+
+        /* ============================================================
            Boot
            ============================================================ */
         window.onload = async function() {
@@ -7608,6 +8489,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
                 cmSetStatus('ok', 'Agent: all clear');
                 _agentLaunchPreview(lang);
+                if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Check Code tab for latest version.`);
                 _bgOnComplete(false, 'Max iterations reached.');
@@ -7819,6 +8701,7 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 _bgOnComplete(true, `Fixed in ${iter} iteration${iter > 1 ? 's' : ''} using ${AVAILABLE_MODELS[currentModel] || currentModel}.`);
                 cmSetStatus('ok', 'Agent: all clear');
                 _agentLaunchPreview(lang);
+                if (getCodePipelineAutoEnabled()) setTimeout(() => _ideRunCodingPipeline(codeModalState.code, lang), 1200);
             } else {
                 _agentBanner('giveup', `Max iterations (${getAgentMaxIter()}) reached. Some errors may remain. Check the Code tab for the latest version.`);
                 _bgOnComplete(false, `Max iterations reached. Some errors may still remain.`);
@@ -7898,6 +8781,70 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
                 'Download</button>';
             panel.insertBefore(bar, panel.firstChild);
+        }
+
+        /* Run Code Review → Refactor → Security in the IDE modal agent feed */
+        async function _ideRunCodingPipeline(code, lang) {
+            if (!code || !getCodePipelineAutoEnabled()) return;
+            const feed = document.getElementById('cm-agent-feed'); if (!feed) return;
+            // Wrap code in fence so agents can work on it
+            const wrappedCode = `\`\`\`${lang}\n${code}\n\`\`\``;
+            // Add a separator card
+            const sep = document.createElement('div');
+            sep.className = 'agent-banner info';
+            sep.style.marginTop = '8px';
+            sep.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Code Pipeline</strong> — Review · Refactor · Security running on fixed code...</span>`;
+            feed.appendChild(sep); feed.scrollTop = feed.scrollHeight;
+            // Create a synthetic botContent div in the feed for the agents to append panels to
+            const pipelineDiv = document.createElement('div');
+            pipelineDiv.style.cssText = 'padding:0;';
+            feed.appendChild(pipelineDiv); feed.scrollTop = feed.scrollHeight;
+
+            let reviewOk=false, refactorOk=false, securityOk=false;
+            // Simulate chatContext entry for agent reads
+            const tempEntry = { role:'assistant', content: wrappedCode };
+            chatContext.push(tempEntry);
+            try {
+                showToast('IDE Pipeline: Code Review...');
+                const ok = await _codeReviewRun(wrappedCode, pipelineDiv);
+                reviewOk = ok === true;
+                await new Promise(r => setTimeout(r, 500));
+                if (getRefactorAutoEnabled()) {
+                    showToast('IDE Pipeline: Refactoring...');
+                    // Get latest content (review may have updated it)
+                    let latest = wrappedCode;
+                    for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latest=chatContext[i].content;break;} }
+                    await _refactorRun(latest, pipelineDiv, null, true);
+                    refactorOk = true;
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                let finalCode = wrappedCode;
+                for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalCode=chatContext[i].content;break;} }
+                showToast('IDE Pipeline: Security Audit...');
+                await _securityRun(finalCode, pipelineDiv);
+                securityOk = true;
+            } finally {
+                // Remove temp entry
+                const idx = chatContext.lastIndexOf(tempEntry);
+                if (idx > -1) chatContext.splice(idx, 1);
+            }
+            // Update the code modal with final code if modified
+            const finalMsg = pipelineDiv.querySelector('.bot-message');
+            if (finalMsg) {
+                const finalContent = finalMsg.innerText || finalMsg.textContent;
+                const codeMatch = finalContent.match(/```[\w]*\n([\s\S]*?)```/);
+                if (codeMatch) {
+                    codeModalState.code = codeMatch[1].trim();
+                    const vl=(lang&&hljs.getLanguage(lang))?lang:'plaintext';
+                    document.getElementById('cm-code-el').innerHTML = hljs.highlight(codeModalState.code,{language:vl}).value;
+                }
+            }
+            const banner = document.createElement('div');
+            banner.className = `agent-banner ${(reviewOk&&securityOk)?'success':'info'}`;
+            const parts = [reviewOk?'✓ Reviewed':'✗ Review issue', getRefactorAutoEnabled()?(refactorOk?'✓ Refactored':'✗ Refactor issue'):null, securityOk?'✓ Secure':'✗ Security issue'].filter(Boolean);
+            banner.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Pipeline: ${parts.join(' · ')}</span>`;
+            feed.appendChild(banner); feed.scrollTop = feed.scrollHeight;
+            cmSetStatus(reviewOk&&securityOk?'ok':'err', `Pipeline: ${parts.join(' · ')}`);
         }
 
         function agentCollapseAll() {
@@ -8391,15 +9338,21 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                                 const bc = lastRow.querySelector('.bot-content');
                                 if (bc && !bc.querySelector('.research-toolbar')) {
                                     _addResearchToolbar(bc, fullResponseText);
-                                    // Show web sources if available
-                                    if (_wsLastSources.length > 0) {
-                                        _wsShowSources(bc, _wsLastSources);
-                                    }
+                                    if (_wsLastSources.length > 0) _wsShowSources(bc, _wsLastSources);
                                 }
                             }
-                        } catch(e) {
-                            console.error('Research toolbar error:', e);
-                        }
+                        } catch(e) { console.error('Research toolbar error:', e); }
+                    }, 100);
+                } else if (_isCodingPreset() && _responseHasCode(fullResponseText)) {
+                    // Coding mode: attach coding toolbar
+                    setTimeout(() => {
+                        try {
+                            const rows = document.querySelectorAll('#chat-container .bot-row');
+                            if (rows.length) {
+                                const bc = rows[rows.length-1].querySelector('.bot-content');
+                                if (bc) _addCodingToolbar(bc, fullResponseText);
+                            }
+                        } catch(e) { console.error('Coding toolbar error:', e); }
                     }, 100);
                 }
 
@@ -8509,7 +9462,60 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                     }, 1800);
                 }
 
-            } catch (error) {
+                // Coding pipeline: auto-run in coding preset when response has code
+                if (!_researchMode && _replyIsComplete &&
+                    _isCodingPreset() && _responseHasCode(fullResponseText) &&
+                    getCodePipelineAutoEnabled()) {
+                    _codeReviewRunning = false; _refactorRunning = false; _securityRunning = false;
+                    setTimeout(async () => {
+                        let bc = null;
+                        for (let attempt = 0; attempt < 5; attempt++) {
+                            const rows = document.querySelectorAll('#chat-container .bot-row');
+                            if (rows.length) { bc = rows[rows.length-1].querySelector('.bot-content'); if (bc) break; }
+                            await new Promise(r => setTimeout(r, 400));
+                        }
+                        if (!bc) return;
+
+                        let reviewOk=false, refactorOk=false, securityOk=false;
+                        let reviewErr='', refactorErr='', securityErr='';
+
+                        // Step 1: Code Review
+                        try {
+                            showToast('Step 1/3: Code Review...');
+                            const ok = await _codeReviewRun(fullResponseText, bc);
+                            reviewOk = ok === true;
+                            bc.querySelector('.code-review-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+                        } catch(e) { reviewErr=e.message||'Unknown'; _codeReviewRunning=false; }
+
+                        await new Promise(r => setTimeout(r, 600));
+
+                        // Step 2: Refactor (auto-apply)
+                        if (getRefactorAutoEnabled()) {
+                            let latestText = fullResponseText;
+                            for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){latestText=chatContext[i].content;break;} }
+                            try {
+                                showToast('Step 2/3: Refactoring code...');
+                                await _refactorRun(latestText, bc, null, true);
+                                refactorOk = true;
+                                bc.querySelector('.refactor-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+                            } catch(e) { refactorErr=e.message||'Unknown'; _refactorRunning=false; }
+                            await new Promise(r => setTimeout(r, 600));
+                        }
+
+                        // Step 3: Security Audit
+                        let finalText = fullResponseText;
+                        for (let i=chatContext.length-1;i>=0;i--) { if(chatContext[i].role==='assistant'){finalText=chatContext[i].content;break;} }
+                        try {
+                            showToast(`Step ${getRefactorAutoEnabled()?'3/3':'2/2'}: Security Audit...`);
+                            await _securityRun(finalText, bc);
+                            securityOk = true;
+                            bc.querySelector('.security-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+                        } catch(e) { securityErr=e.message||'Unknown'; _securityRunning=false; }
+
+                        _showCodingPipelineComplete(bc, reviewOk, refactorOk, securityOk, reviewErr, refactorErr, securityErr);
+                        setStreamingUiState(false); updateSendButtonState();
+                    }, 1800);
+                }
                 clearTimeout(timeoutId);
                 console.error('Stream error:', error);
 
