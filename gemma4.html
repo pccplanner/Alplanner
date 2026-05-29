@@ -8958,8 +8958,15 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
         async function _ideRunCodingPipeline(code, lang, showPreviewAtEnd = false) {
             if (!code || !getCodePipelineAutoEnabled()) { _idePipelinePhase(0); return; }
             const feed = document.getElementById('cm-agent-feed'); if (!feed) return;
+
+            // Switch to Agent tab and collapse Phase 1 cards to make room for Phase 2-4
+            cmSwitchTab('agent');
+            agentCollapseAll();
+            // Clear preview iframe so it doesn't show stale content behind the agent feed
+            const previewIframe = document.getElementById('cm-preview-iframe');
+            if (previewIframe) previewIframe.src = 'about:blank';
             const wrappedCode = '```' + lang + '\n' + code + '\n```';
-            // Phase separator banner
+            // Phase separator banner — agent tab already active
             const sep = document.createElement('div');
             sep.className = 'agent-banner info'; sep.style.marginTop = '8px';
             sep.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span><strong>Phase 2 — Code Quality Pipeline</strong><br><span style="font-size:0.78rem;opacity:0.8;">Code Review &#8594; Refactor &#8594; Security Audit</span></span>';
