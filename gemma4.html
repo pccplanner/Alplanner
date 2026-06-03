@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
-    <title>AI Pro Coder v54</title>
+    <title>AI Pro Coder v65</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1313,6 +1313,293 @@
             #research-banner-inline .rbi-text { display: none; }
         }
 
+        /* ============================================================
+           Thinking Mode button (mode bar)
+           ============================================================ */
+        #think-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            height: 34px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 17px; transition: all 0.2s;
+            padding: 0 10px; gap: 5px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            border: 1px solid var(--border-soft); flex-shrink: 0;
+        }
+        #think-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+        #think-btn.active {
+            background: rgba(199,146,233,0.15);
+            border-color: rgba(199,146,233,0.5);
+            color: #c792e9;
+            box-shadow: 0 0 8px rgba(199,146,233,0.2);
+        }
+        #think-btn .tk-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #c792e9; display: none;
+            box-shadow: 0 0 4px #c792e9;
+        }
+        #think-btn.active .tk-dot { display: block; animation: pulse 1.5s infinite ease-in-out; }
+
+        /* Thinking bubble — shown in bot message while reasoning streams */
+        .think-bubble {
+            display: flex; flex-direction: column; gap: 0;
+            background: rgba(199,146,233,0.07);
+            border: 1px solid rgba(199,146,233,0.25);
+            border-radius: 12px; margin-bottom: 12px;
+            overflow: hidden; animation: fadeIn 0.3s ease;
+        }
+        .think-bubble-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; cursor: pointer;
+            background: rgba(199,146,233,0.08);
+            border-bottom: 1px solid rgba(199,146,233,0.15);
+            user-select: none; transition: background 0.2s;
+        }
+        .think-bubble-header:hover { background: rgba(199,146,233,0.14); }
+        .think-bubble-label {
+            font-family: var(--font-mono); font-size: 0.73rem; font-weight: 700;
+            color: #c792e9; letter-spacing: 0.06em; text-transform: uppercase;
+            flex: 1;
+        }
+        .think-bubble-chevron {
+            color: rgba(199,146,233,0.6); font-size: 0.75rem;
+            transition: transform 0.2s; flex-shrink: 0;
+        }
+        .think-bubble.collapsed .think-bubble-chevron { transform: rotate(-90deg); }
+        .think-bubble-body {
+            font-family: var(--font-mono); font-size: 0.77rem;
+            color: rgba(199,146,233,0.75); padding: 10px 14px;
+            white-space: pre-wrap; line-height: 1.65;
+            max-height: 260px; overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .think-bubble.collapsed .think-bubble-body { display: none; }
+        .think-bubble-body .tk-stream-cursor {
+            display: inline-block; width: 2px; height: 12px;
+            background: #c792e9; animation: tkBlink 0.8s step-end infinite;
+            vertical-align: text-bottom; margin-left: 2px;
+        }
+        @keyframes tkBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+        /* ── Tools button (mode bar) ── */
+        #tools-btn {
+            background: transparent; color: var(--text-muted); border: none;
+            height: 34px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 17px; transition: all 0.2s;
+            padding: 0 10px; gap: 5px;
+            font-family: var(--font-main); font-size: 0.78rem; font-weight: 600;
+            border: 1px solid var(--border-soft); flex-shrink: 0;
+        }
+        #tools-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+        #tools-btn.active {
+            background: rgba(253,214,99,0.12);
+            border-color: rgba(253,214,99,0.45);
+            color: var(--accent-yellow);
+            box-shadow: 0 0 8px rgba(253,214,99,0.15);
+        }
+
+        /* ============================================================
+           Tools Panel Overlay
+           ============================================================ */
+        #tools-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+            z-index: 300; display: none; opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        #tools-overlay.visible { opacity: 1; }
+        #tools-panel {
+            position: fixed; right: -380px; top: 0;
+            width: min(360px, 92vw); height: 100dvh;
+            background: var(--surface-color); z-index: 310;
+            transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+            display: flex; flex-direction: column;
+            border-top-left-radius: 16px; border-bottom-left-radius: 16px;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        #tools-panel.open { right: 0; }
+        .tools-panel-header {
+            padding: 16px 18px 12px;
+            padding-top: calc(env(safe-area-inset-top, 12px) + 14px);
+            display: flex; align-items: center; gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .tools-panel-title {
+            font-size: 1rem; font-weight: 700; color: var(--text-primary); flex: 1;
+        }
+        .tools-panel-close {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 5px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .tools-panel-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .tools-panel-tabs {
+            display: flex; gap: 4px; padding: 10px 14px 0;
+            border-bottom: 1px solid var(--border-soft); flex-shrink: 0;
+        }
+        .tp-tab {
+            background: transparent; border: none; color: var(--text-secondary);
+            padding: 8px 14px; cursor: pointer; font-family: var(--font-main);
+            font-size: 0.85rem; font-weight: 500; position: relative;
+            transition: color 0.2s; border-radius: 8px 8px 0 0;
+        }
+        .tp-tab:hover { color: var(--text-primary); }
+        .tp-tab.active { color: var(--accent-yellow); }
+        .tp-tab.active::after {
+            content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+            height: 2px; background: var(--accent-yellow); border-radius: 2px 2px 0 0;
+        }
+        .tools-panel-body {
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            padding: 12px 14px;
+        }
+        /* Tool cards grid */
+        .tool-cards-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 10px; margin-bottom: 14px;
+        }
+        .tool-card {
+            background: var(--surface-elev); border: 1px solid var(--border-soft);
+            border-radius: 12px; padding: 14px 12px;
+            cursor: pointer; transition: all 0.2s;
+            display: flex; flex-direction: column; gap: 6px;
+            user-select: none;
+        }
+        .tool-card:hover {
+            background: var(--surface-hover);
+            border-color: rgba(253,214,99,0.35);
+            transform: translateY(-1px);
+        }
+        .tool-card.active {
+            border-color: var(--accent-yellow);
+            background: rgba(253,214,99,0.07);
+        }
+        .tool-card-icon { font-size: 1.4rem; line-height: 1; }
+        .tool-card-name {
+            font-size: 0.82rem; font-weight: 700; color: var(--text-primary);
+        }
+        .tool-card-desc {
+            font-size: 0.7rem; color: var(--text-muted); line-height: 1.4;
+        }
+        /* Active tool workspace */
+        #tool-workspace {
+            display: none; flex-direction: column; gap: 10px;
+        }
+        #tool-workspace.visible { display: flex; }
+        .tw-back-btn {
+            display: flex; align-items: center; gap: 6px;
+            background: transparent; border: none; cursor: pointer;
+            color: var(--text-secondary); font-family: var(--font-main);
+            font-size: 0.82rem; font-weight: 500; padding: 4px 0;
+            transition: color 0.2s;
+        }
+        .tw-back-btn:hover { color: var(--text-primary); }
+        .tw-title {
+            font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tw-input {
+            width: 100%; background: var(--bg-color);
+            border: 1px solid var(--border-color); border-radius: 10px;
+            color: var(--text-primary); font-family: var(--font-mono);
+            font-size: 0.82rem; padding: 10px 12px; resize: vertical;
+            min-height: 100px; outline: none; line-height: 1.55;
+            -webkit-appearance: none; box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .tw-input:focus { border-color: var(--accent-yellow); }
+        .tw-input-label {
+            font-size: 0.72rem; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px;
+        }
+        .tw-run-btn {
+            background: var(--accent-yellow); color: #0d0e0f;
+            border: none; border-radius: 20px; padding: 9px 22px;
+            font-family: var(--font-main); font-size: 0.88rem; font-weight: 700;
+            cursor: pointer; transition: all 0.2s; align-self: flex-end;
+        }
+        .tw-run-btn:hover { opacity: 0.85; }
+        .tw-run-btn:disabled {
+            background: var(--surface-hover); color: var(--text-muted); cursor: not-allowed;
+        }
+        .tw-output {
+            background: var(--bg-color); border: 1px solid var(--border-soft);
+            border-radius: 10px; padding: 12px 14px;
+            font-family: var(--font-mono); font-size: 0.79rem; color: var(--text-secondary);
+            white-space: pre-wrap; line-height: 1.6;
+            max-height: 320px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            display: none;
+        }
+        .tw-output.visible { display: block; }
+        .tw-output-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .tw-output-label {
+            font-size: 0.7rem; font-weight: 700; color: var(--accent-yellow);
+            text-transform: uppercase; letter-spacing: 0.07em;
+        }
+        .tw-copy-btn {
+            background: transparent; border: 1px solid var(--border-soft);
+            color: var(--text-muted); border-radius: 8px; padding: 3px 10px;
+            font-size: 0.72rem; cursor: pointer; font-family: var(--font-main);
+            transition: all 0.2s;
+        }
+        .tw-copy-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+        .tw-inject-btn {
+            background: transparent; border: 1px solid rgba(168,199,250,0.3);
+            color: var(--accent-blue); border-radius: 8px; padding: 3px 10px;
+            font-size: 0.72rem; cursor: pointer; font-family: var(--font-main);
+            transition: all 0.2s; margin-left: 6px;
+        }
+        .tw-inject-btn:hover { background: rgba(168,199,250,0.1); }
+        .tw-status {
+            font-size: 0.77rem; color: var(--accent-blue);
+            font-family: var(--font-mono); display: none; align-items: center; gap: 6px;
+        }
+        .tw-status.visible { display: flex; }
+        .tw-status-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--accent-blue);
+            animation: pulse 1s infinite ease-in-out; flex-shrink: 0;
+        }
+        /* Tool option rows */
+        .tw-option-row {
+            display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0;
+        }
+        .tw-opt-pill {
+            padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+            border: 1px solid var(--border-color); background: var(--surface-elev);
+            color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+        }
+        .tw-opt-pill:hover { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .tw-opt-pill.active {
+            background: rgba(253,214,99,0.12); border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+        /* History tab */
+        .th-item {
+            background: var(--surface-elev); border: 1px solid var(--border-soft);
+            border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .th-item:hover { border-color: var(--border-color); background: var(--surface-hover); }
+        .th-item-top {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+        }
+        .th-item-icon { font-size: 1rem; flex-shrink: 0; }
+        .th-item-name { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); flex:1; }
+        .th-item-time { font-size: 0.68rem; color: var(--text-muted); flex-shrink:0; }
+        .th-item-preview {
+            font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .th-empty {
+            text-align: center; color: var(--text-muted); font-size: 0.82rem;
+            padding: 32px 16px; line-height: 1.6;
+        }
+
         /* ── Web Search button ── */
         #websearch-btn {
             background: transparent; color: var(--text-muted); border: none;
@@ -2571,6 +2858,15 @@
         </button>
         <button id="agent-settings-btn" onclick="openAgentSettings()" title="Agent Settings — System Prompt &amp; Iterations">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </button>
+        <button id="think-btn" onclick="toggleThinkMode()" title="Deep Think Mode — extended chain-of-thought reasoning">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><path d="M12 8v4l3 3"/></svg>
+            <span id="think-label-text">Think</span>
+            <span class="tk-dot"></span>
+        </button>
+        <button id="tools-btn" onclick="openToolsPanel()" title="AI Tools — Code Explainer, Regex, SQL, Diff &amp; more">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>Tools</span>
         </button>
         <span id="active-mode-chip" onclick="openAgentSettings()" title="Active agent mode — click to change">
             <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -6980,14 +7276,459 @@ Return the complete updated code with the "${instruction}" feature fully integra
             bar.innerHTML=`<span style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">↩ Original code restored</span>`;
             showToast('Original code restored');
         }
-        window.onload = async function() {
+        /* ============================================================
+           THINKING MODE
+           Wraps every request with an extended chain-of-thought prefix.
+           The model is asked to output a <think>...</think> block first,
+           which is stripped from the final answer and rendered separately
+           as a collapsible "thinking bubble" above the response.
+           ============================================================ */
+
+        const STORAGE_THINK_MODE = 'aiproxy_think_mode';
+        let _thinkModeEnabled = false;
+
+        function _thinkInitUI() {
+            _thinkModeEnabled = localStorage.getItem(STORAGE_THINK_MODE) === '1';
+            _thinkUpdateBtn();
+        }
+
+        function _thinkUpdateBtn() {
+            const btn = document.getElementById('think-btn');
+            if (!btn) return;
+            btn.classList.toggle('active', _thinkModeEnabled);
+        }
+
+        function toggleThinkMode() {
+            _thinkModeEnabled = !_thinkModeEnabled;
+            localStorage.setItem(STORAGE_THINK_MODE, _thinkModeEnabled ? '1' : '0');
+            _thinkUpdateBtn();
+            showToast(_thinkModeEnabled ? '🧠 Think Mode ON' : 'Think Mode OFF');
+        }
+
+        /**
+         * Returns the augmented system prompt when Think Mode is active.
+         * Instructs the model to output a <think>…</think> block before
+         * the final response.
+         */
+        function _thinkWrapSystem(baseSystem) {
+            if (!_thinkModeEnabled) return baseSystem;
+            return baseSystem + `
+
+══════════════════════════════════════════
+THINK MODE — MANDATORY REASONING PROTOCOL
+══════════════════════════════════════════
+Before every response you MUST output an extended reasoning block:
+
+<think>
+STEP 1 — UNDERSTAND: Restate the user's request in your own words. Identify ambiguities.
+STEP 2 — DECOMPOSE: Break the problem into sub-problems. List them.
+STEP 3 — PLAN: For each sub-problem, state your approach and why.
+STEP 4 — EDGE CASES: Identify at least 2 edge cases or failure modes.
+STEP 5 — VALIDATE: Mentally test your planned solution against those edge cases.
+STEP 6 — CONCLUSION: State what your final answer will do and why it is correct.
+</think>
+
+After the </think> tag, provide your actual response normally.
+The <think> block is shown to the user as a collapsible reasoning trace — make it genuinely useful, not a placeholder.`;
+        }
+
+        /**
+         * Extracts the <think>…</think> block from a response string.
+         * Returns { thinking: string|null, answer: string }
+         */
+        function _thinkExtract(text) {
+            const match = text.match(/^[\s\S]*?<think>([\s\S]*?)<\/think>\s*/i);
+            if (match) {
+                return { thinking: match[1].trim(), answer: text.slice(match[0].length).trim() };
+            }
+            // fallback: check for unpaired opening tag (streaming incomplete)
+            const openOnly = text.match(/^[\s\S]*?<think>([\s\S]*)$/i);
+            if (openOnly) {
+                return { thinking: openOnly[1], answer: '', streaming: true };
+            }
+            return { thinking: null, answer: text };
+        }
+
+        /**
+         * Renders a thinking bubble DOM element.
+         * @param {string} thinkText  The reasoning text
+         * @param {boolean} streaming  If true, show cursor and "Thinking…" label
+         */
+        function _thinkRenderBubble(thinkText, streaming) {
+            const bubble = document.createElement('div');
+            bubble.className = 'think-bubble';
+            bubble.innerHTML = `
+                <div class="think-bubble-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:#c792e9;flex-shrink:0"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><path d="M12 8v4l3 3"/></svg>
+                    <span class="think-bubble-label">${streaming ? '🧠 Thinking…' : '🧠 Reasoning Trace'}</span>
+                    <span class="think-bubble-chevron">▾</span>
+                </div>
+                <div class="think-bubble-body" id="think-body-${Date.now()}">${escapeHtml(thinkText)}${streaming ? '<span class="tk-stream-cursor"></span>' : ''}</div>`;
+            return bubble;
+        }
+
+        /* ============================================================
+           TOOLS PANEL
+           A right-side slide-over with 8 standalone AI micro-tools.
+           Each tool calls the current model via VPS_OLLAMA_URL with
+           a focused single-turn prompt, then renders the result in
+           the workspace panel. Results are saved to a history list.
+           ============================================================ */
+
+        const STORAGE_TOOLS_HISTORY = 'aiproxy_tools_history';
+        let _toolsHistory = [];
+        let _currentTool  = null;
+        let _toolRunning  = false;
+
+        const TOOL_DEFS = {
+            explainer: {
+                icon: '🔍', name: 'Code Explainer', inputLabel: 'Paste your code',
+                placeholder: '// paste any code here...',
+                options: null,
+                systemPrompt: `You are an expert software teacher. Explain code in clear, concise plain English.
+Structure your explanation:
+1. ONE sentence summary of what the code does.
+2. **Key concepts** — bullet each important concept used.
+3. **Step-by-step walkthrough** — numbered, each step ≤ 2 sentences.
+4. **Gotchas / edge cases** — 1–3 bullets of non-obvious behaviours.
+Keep total response under 350 words.`,
+                buildPrompt: (input, opt) => `Explain this code:\n\n\`\`\`\n${input}\n\`\`\``
+            },
+            complexity: {
+                icon: '📊', name: 'Complexity Analyser', inputLabel: 'Paste your function or algorithm',
+                placeholder: 'function myAlgorithm(arr) { ... }',
+                options: null,
+                systemPrompt: `You are a computer science algorithms expert. Analyse code complexity rigorously.
+Always output:
+- **Time Complexity**: Big-O, with justification per loop/recursion.
+- **Space Complexity**: Big-O, with justification.
+- **Best / Average / Worst case** breakdown if they differ.
+- **Optimisation tip**: one concrete suggestion to improve complexity, or "already optimal".
+Be precise. No waffle.`,
+                buildPrompt: (input, opt) => `Analyse time and space complexity:\n\n\`\`\`\n${input}\n\`\`\``
+            },
+            regex: {
+                icon: '⚡', name: 'Regex Builder', inputLabel: 'Describe what you want to match',
+                placeholder: 'e.g. "match all email addresses" or "extract ISO dates from text"',
+                options: [
+                    { key: 'lang', label: 'Language', values: ['JavaScript', 'Python', 'PHP', 'Go', 'Java'] }
+                ],
+                systemPrompt: `You are a regular expression expert. Build precise, production-safe regex patterns.
+Output format:
+1. **Pattern**: \`/regex/flags\` (use the requested language's syntax)
+2. **Explanation**: annotated breakdown of each part.
+3. **Test examples**: 3 strings that MATCH and 2 that DO NOT match.
+4. **Caveats**: edge cases or known limitations of this pattern.`,
+                buildPrompt: (input, opt) => `Build a ${opt.lang || 'JavaScript'} regex for: "${input}"`
+            },
+            sql: {
+                icon: '🗄️', name: 'SQL Builder', inputLabel: 'Describe your query in plain English',
+                placeholder: 'e.g. "Find all users who signed up in the last 30 days with more than 5 orders"',
+                options: [
+                    { key: 'dialect', label: 'SQL Dialect', values: ['PostgreSQL', 'MySQL', 'SQLite', 'SQL Server', 'BigQuery'] }
+                ],
+                systemPrompt: `You are a senior database engineer. Convert natural language descriptions into clean, optimised SQL.
+Output:
+1. **SQL Query** — properly formatted with indentation.
+2. **Assumptions** — list any assumed table/column names.
+3. **Index suggestion** — one index that would speed this query up, if applicable.
+4. **Alternative approach** — if a simpler or more performant version exists.`,
+                buildPrompt: (input, opt) => `Write ${opt.dialect || 'PostgreSQL'} SQL for: "${input}"`
+            },
+            git: {
+                icon: '🌿', name: 'Git Helper', inputLabel: 'Describe what you want to do',
+                placeholder: 'e.g. "undo my last 3 commits but keep the file changes" or "cherry-pick a commit to main"',
+                options: null,
+                systemPrompt: `You are a Git expert. Provide exact, safe Git commands for the described task.
+Output:
+1. **Commands** — in a code block, one command per line with a short comment.
+2. **Step-by-step** — numbered explanation of what each command does.
+3. **⚠️ Warning** — flag any destructive operation (rebase, force push, reset --hard) with a caution note.
+4. **Undo** — how to reverse these changes if something goes wrong.`,
+                buildPrompt: (input) => `Give me Git commands to: "${input}"`
+            },
+            json: {
+                icon: '📋', name: 'JSON Formatter', inputLabel: 'Paste JSON to format & validate',
+                placeholder: '{"key":"value","arr":[1,2,3]}',
+                options: [
+                    { key: 'action', label: 'Action', values: ['Format & Validate', 'Explain Structure', 'Convert to TypeScript Interface', 'Extract Keys'] }
+                ],
+                systemPrompt: `You are a JSON and TypeScript expert.
+When asked to "Format & Validate": return the formatted JSON in a code block, then list any validation errors.
+When asked to "Explain Structure": describe the schema in plain English, field by field.
+When asked to "Convert to TypeScript Interface": generate a complete TypeScript interface.
+When asked to "Extract Keys": list all unique keys at every nesting level.`,
+                buildPrompt: (input, opt) => `${opt.action || 'Format & Validate'} this JSON:\n\n\`\`\`json\n${input}\n\`\`\``
+            },
+            diff: {
+                icon: '🔀', name: 'Diff Comparator', inputLabel: 'Paste the ORIGINAL version (Version A)',
+                placeholder: '// Original code or text...',
+                input2Label: 'Paste the MODIFIED version (Version B)',
+                placeholder2: '// Modified code or text...',
+                options: null,
+                systemPrompt: `You are a senior code reviewer. Compare two versions of code or text.
+Output:
+1. **Summary of changes** — 2–4 bullet points describing what changed at a high level.
+2. **Line-by-line diff** — use a unified diff format (- for removed, + for added).
+3. **Impact assessment** — what do these changes mean functionally? Any regressions?
+4. **Suggestions** — if any change looks problematic or could be improved, say so.`,
+                buildPrompt: (inputA, opt, inputB) => `Compare these two versions:\n\n**VERSION A (original):**\n\`\`\`\n${inputA}\n\`\`\`\n\n**VERSION B (modified):**\n\`\`\`\n${inputB}\n\`\`\``
+            },
+            apimock: {
+                icon: '🔌', name: 'API Mock Builder', inputLabel: 'Describe your API endpoint',
+                placeholder: 'e.g. "GET /api/users — returns a paginated list of users with id, name, email, createdAt, role"',
+                options: [
+                    { key: 'count', label: 'Records', values: ['3 records', '5 records', '10 records'] }
+                ],
+                systemPrompt: `You are an API design expert. Generate realistic mock JSON responses for API endpoints.
+Output:
+1. **Mock Response** — a realistic JSON response in a code block. Use plausible fake data (names, emails, IDs).
+2. **Schema** — a JSON Schema or TypeScript interface for the response.
+3. **Error Response** — a sample 400/404/500 error body for this endpoint.
+4. **cURL** — a sample cURL command to call this endpoint.`,
+                buildPrompt: (input, opt) => `Generate a mock API response for: "${input}". Return ${opt.count || '5 records'} if it's a list.`
+            }
+        };
+
+        function openToolsPanel() {
+            const overlay = document.getElementById('tools-overlay');
+            const panel   = document.getElementById('tools-panel');
+            overlay.style.display = 'block';
+            requestAnimationFrame(() => {
+                overlay.classList.add('visible');
+                panel.classList.add('open');
+            });
+            document.getElementById('tools-btn').classList.add('active');
+        }
+
+        function closeToolsPanel() {
+            const overlay = document.getElementById('tools-overlay');
+            const panel   = document.getElementById('tools-panel');
+            overlay.classList.remove('visible');
+            panel.classList.remove('open');
+            setTimeout(() => { overlay.style.display = 'none'; }, 280);
+            document.getElementById('tools-btn').classList.remove('active');
+        }
+
+        function _tpSwitchTab(tab, btn) {
+            document.querySelectorAll('.tp-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tp-tools-tab').style.display   = tab === 'tools'   ? '' : 'none';
+            document.getElementById('tp-history-tab').style.display = tab === 'history' ? '' : 'none';
+            if (tab === 'history') _tpRenderHistory();
+        }
+
+        function _tpLaunchTool(toolId) {
+            const def = TOOL_DEFS[toolId];
+            if (!def) return;
+            _currentTool = toolId;
+            document.getElementById('tool-grid-view').style.display = 'none';
+            const ws = document.getElementById('tool-workspace');
+            ws.classList.add('visible');
+
+            // Build option pills markup
+            let optionHTML = '';
+            if (def.options) {
+                def.options.forEach(opt => {
+                    const pills = opt.values.map((v,i) =>
+                        `<span class="tw-opt-pill${i===0?' active':''}" data-optkey="${opt.key}" data-optval="${v}" onclick="_tpSelectOpt(this,'${opt.key}')">${v}</span>`
+                    ).join('');
+                    optionHTML += `<div class="tw-input-label" style="margin-top:10px;">${opt.label}</div><div class="tw-option-row">${pills}</div>`;
+                });
+            }
+            const hasSecondInput = !!def.input2Label;
+
+            ws.innerHTML = `
+                <button class="tw-back-btn" onclick="_tpBackToGrid()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    All Tools
+                </button>
+                <div class="tw-title"><span>${def.icon}</span> ${def.name}</div>
+                ${optionHTML}
+                <div class="tw-input-label" style="margin-top:10px;">${def.inputLabel}</div>
+                <textarea class="tw-input" id="tw-input-a" placeholder="${def.placeholder}" rows="6"></textarea>
+                ${hasSecondInput ? `<div class="tw-input-label" style="margin-top:10px;">${def.input2Label}</div><textarea class="tw-input" id="tw-input-b" placeholder="${def.placeholder2}" rows="6"></textarea>` : ''}
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+                    <div class="tw-status" id="tw-status"><span class="tw-status-dot"></span><span id="tw-status-text">Running ${def.name}…</span></div>
+                    <button class="tw-run-btn" id="tw-run-btn" onclick="_tpRunTool()">▶ Run</button>
+                </div>
+                <div id="tw-output-wrap" style="display:none;">
+                    <div class="tw-output-header">
+                        <span class="tw-output-label">Result</span>
+                        <div>
+                            <button class="tw-inject-btn" onclick="_tpInjectToChat()" title="Send result to chat">↗ Send to Chat</button>
+                            <button class="tw-copy-btn" onclick="_tpCopyOutput()" title="Copy result">Copy</button>
+                        </div>
+                    </div>
+                    <div class="tw-output visible" id="tw-output"></div>
+                </div>`;
+        }
+
+        function _tpSelectOpt(el, key) {
+            document.querySelectorAll(`.tw-opt-pill[data-optkey="${key}"]`).forEach(p => p.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function _tpGetOpts() {
+            const opts = {};
+            document.querySelectorAll('.tw-opt-pill.active').forEach(p => {
+                opts[p.dataset.optkey] = p.dataset.optval;
+            });
+            return opts;
+        }
+
+        function _tpBackToGrid() {
+            document.getElementById('tool-grid-view').style.display = '';
+            const ws = document.getElementById('tool-workspace');
+            ws.classList.remove('visible');
+            ws.innerHTML = '';
+            _currentTool = null;
+        }
+
+        async function _tpRunTool() {
+            if (_toolRunning) return;
+            if (!currentModel) { showToast('No model selected'); return; }
+            const def = TOOL_DEFS[_currentTool];
+            if (!def) return;
+
+            const inputA = (document.getElementById('tw-input-a')?.value || '').trim();
+            const inputB = (document.getElementById('tw-input-b')?.value || '').trim();
+            if (!inputA) { showToast('Please paste some input first'); return; }
+
+            const opts = _tpGetOpts();
+            const userPrompt = def.buildPrompt(inputA, opts, inputB);
+
+            _toolRunning = true;
+            const runBtn = document.getElementById('tw-run-btn');
+            const status = document.getElementById('tw-status');
+            const outWrap = document.getElementById('tw-output-wrap');
+            const outEl   = document.getElementById('tw-output');
+            runBtn.disabled = true;
+            status.classList.add('visible');
+            outWrap.style.display = 'none';
+
+            try {
+                const resp = await fetch(VPS_OLLAMA_URL, {
+                    method: 'POST',
+                    headers: apiHeaders(),
+                    body: JSON.stringify({
+                        model: currentModel,
+                        stream: false,
+                        messages: [
+                            { role: 'system', content: def.systemPrompt },
+                            { role: 'user',   content: userPrompt }
+                        ]
+                    })
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                const resultText = data.message?.content || data.choices?.[0]?.message?.content || JSON.stringify(data);
+
+                // Render with markdown
+                outEl.innerHTML = DOMPurify.sanitize(marked.parse(resultText));
+                outEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+                outWrap.style.display = 'block';
+
+                // Save to history
+                _toolsHistory.unshift({
+                    tool: _currentTool, icon: def.icon, name: def.name,
+                    inputPreview: inputA.slice(0, 80),
+                    result: resultText, ts: Date.now()
+                });
+                if (_toolsHistory.length > 30) _toolsHistory.pop();
+                try { localStorage.setItem(STORAGE_TOOLS_HISTORY, JSON.stringify(_toolsHistory)); } catch (_) {}
+
+            } catch (err) {
+                outEl.textContent = `❌ Error: ${err.message}`;
+                outWrap.style.display = 'block';
+            } finally {
+                _toolRunning = false;
+                runBtn.disabled = false;
+                status.classList.remove('visible');
+            }
+        }
+
+        function _tpCopyOutput() {
+            const el = document.getElementById('tw-output');
+            if (!el) return;
+            navigator.clipboard.writeText(el.innerText || el.textContent || '').then(() => showToast('Copied!'));
+        }
+
+        function _tpInjectToChat() {
+            const el = document.getElementById('tw-output');
+            if (!el) return;
+            const text = el.innerText || el.textContent || '';
+            if (!text) return;
+            const def = TOOL_DEFS[_currentTool] || {};
+            const inputEl = document.getElementById('user-input');
+            inputEl.value = `[${def.name || 'Tool'} result]\n${text.slice(0, 2000)}`;
+            autoResizeInput();
+            closeToolsPanel();
+            inputEl.focus();
+            showToast('Result sent to chat input');
+        }
+
+        function _tpLoadHistory() {
+            try {
+                const raw = localStorage.getItem(STORAGE_TOOLS_HISTORY);
+                _toolsHistory = raw ? JSON.parse(raw) : [];
+            } catch (_) { _toolsHistory = []; }
+        }
+
+        function _tpRenderHistory() {
+            const list = document.getElementById('tp-history-list');
+            if (!list) return;
+            if (_toolsHistory.length === 0) {
+                list.innerHTML = '<div class="th-empty">No tool runs yet.<br>Use a tool above and results will appear here.</div>';
+                return;
+            }
+            list.innerHTML = _toolsHistory.map((h, i) => `
+                <div class="th-item" onclick="_tpRestoreHistory(${i})">
+                    <div class="th-item-top">
+                        <span class="th-item-icon">${h.icon || '🔧'}</span>
+                        <span class="th-item-name">${escapeHtml(h.name)}</span>
+                        <span class="th-item-time">${_tpRelTime(h.ts)}</span>
+                    </div>
+                    <div class="th-item-preview">${escapeHtml(h.inputPreview)}…</div>
+                </div>`).join('');
+        }
+
+        function _tpRelTime(ts) {
+            const s = Math.floor((Date.now() - ts) / 1000);
+            if (s < 60)  return 'just now';
+            if (s < 3600) return `${Math.floor(s/60)}m ago`;
+            if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+            return `${Math.floor(s/86400)}d ago`;
+        }
+
+        function _tpRestoreHistory(i) {
+            const h = _toolsHistory[i];
+            if (!h) return;
+            _tpSwitchTab('tools', document.querySelector('[data-tptab="tools"]'));
+            _tpLaunchTool(h.tool);
+            setTimeout(() => {
+                const outEl   = document.getElementById('tw-output');
+                const outWrap = document.getElementById('tw-output-wrap');
+                if (outEl && outWrap) {
+                    outEl.innerHTML = DOMPurify.sanitize(marked.parse(h.result));
+                    outEl.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+                    outWrap.style.display = 'block';
+                }
+            }, 80);
+        }
+
+        /* ============================================================
+           END Tools Panel
+           ============================================================ */
             loadSnippets();
             _autoAgentInitUI();
             _researchInitUI();
             _wsInitUI();
             _agentSettingsInit();
             _polishSettingsInit();
-            console.log('%c AI Pro Coder v64 — Feature Agent Ready ✓', 'color:#a8c7fa;font-weight:bold;font-size:14px;');
+            _thinkInitUI();
+            _tpLoadHistory();
+            console.log('%c AI Pro Coder v65 — Think Mode + Tools Panel Ready ✓', 'color:#c792e9;font-weight:bold;font-size:14px;');
             _agentSelectorInit();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
@@ -9775,6 +10516,16 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
             currentBotContent = botContent;
             currentBotMessageDiv = botMessageDiv;
+
+            // Think Mode: inject a live "Thinking…" bubble before the response streams in
+            let _liveThinkBubble = null;
+            let _liveThinkBody   = null;
+            if (_thinkModeEnabled) {
+                _liveThinkBubble = _thinkRenderBubble('', true);
+                botContent.insertBefore(_liveThinkBubble, botMessageDiv);
+                _liveThinkBody = _liveThinkBubble.querySelector('.think-bubble-body');
+            }
+
             requestAutoScroll(true);
 
             const outgoingMessages = trimChatContext(
@@ -9820,11 +10571,12 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
 
             // Prepend the active system prompt (research or coder/custom)
             const activeSystemPrompt = _researchMode ? RESEARCH_SYSTEM_PROMPT : getActiveSystemPrompt();
+            const thinkSystemPrompt  = _thinkWrapSystem(activeSystemPrompt);
             const wsSystemAddition = wsContextBlock
                 ? `\n\n---\n## REAL-TIME WEB SEARCH RESULTS — CITATION REQUIRED\nSources below MUST be cited. You are FORBIDDEN from writing any factual claim without citing one of these sources.\nRules:\n1. Use APA 7th in-text format: (Domain/Author, Year) — Year is in the "Year:" field, site name from "Domain:" field.\n2. Your response MUST end with ## References listing every cited source:\n   Site. (Year). *Title*. Domain. URL\n3. Number each reference matching the [N] index below.\n4. If you finish without a ## References section your output is INCOMPLETE.\n\n${wsContextBlock}`
                 : '';
             const messagesWithSystem = [
-                { role: 'system', content: activeSystemPrompt + wsSystemAddition },
+                { role: 'system', content: thinkSystemPrompt + wsSystemAddition },
                 ...outgoingMessages.filter(m => m.role !== 'system')
             ];
 
@@ -9880,6 +10632,27 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                             const json = JSON.parse(line);
                             if (json.message && json.message.content) {
                                 fullResponseText = mergeStreamChunk(fullResponseText, json.message.content);
+
+                                // Think Mode: while inside <think>…</think> update the live bubble
+                                if (_thinkModeEnabled && _liveThinkBody) {
+                                    const liveExtracted = _thinkExtract(fullResponseText);
+                                    if (liveExtracted.streaming) {
+                                        // Still inside <think> — update bubble, suppress main render
+                                        _liveThinkBody.textContent = liveExtracted.thinking;
+                                        const cur = _liveThinkBody.querySelector('.tk-stream-cursor') || document.createElement('span');
+                                        cur.className = 'tk-stream-cursor';
+                                        _liveThinkBody.appendChild(cur);
+                                        continue; // don't render partial <think> into main view
+                                    } else if (liveExtracted.thinking) {
+                                        // <think> closed — update bubble to final text, show answer
+                                        const label = _liveThinkBubble.querySelector('.think-bubble-label');
+                                        if (label) label.textContent = '🧠 Reasoning Trace';
+                                        _liveThinkBody.textContent = liveExtracted.thinking;
+                                        scheduleStreamRender(liveExtracted.answer, true);
+                                        continue;
+                                    }
+                                }
+
                                 scheduleStreamRender(fullResponseText, true);
                             }
                         } catch (_) { console.warn('Skipped incomplete stream chunk'); }
@@ -9890,9 +10663,42 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
                 pendingRenderStreaming = false;
                 doStreamRender();
 
-                chatContext.push({ role: 'assistant', content: fullResponseText });
+                // ── Think Mode: extract <think> block, strip it from stored response ──
+                let finalAnswerText = fullResponseText;
+                if (_thinkModeEnabled) {
+                    const extracted = _thinkExtract(fullResponseText);
+                    if (extracted.thinking) {
+                        finalAnswerText = extracted.answer || fullResponseText;
+                        // Re-render without the <think> block
+                        pendingRenderText = finalAnswerText;
+                        pendingRenderStreaming = false;
+                        doStreamRender();
+                    }
+                }
+
+                chatContext.push({ role: 'assistant', content: finalAnswerText });
                 botRow.remove();
-                addMessageVisual(fullResponseText, 'bot-message', chatContext.length - 1);
+                addMessageVisual(finalAnswerText, 'bot-message', chatContext.length - 1);
+
+                // If Think Mode active and we extracted reasoning, prepend bubble
+                if (_thinkModeEnabled) {
+                    const extracted2 = _thinkExtract(fullResponseText);
+                    if (extracted2.thinking) {
+                        setTimeout(() => {
+                            try {
+                                const rows = document.querySelectorAll('#chat-container .bot-row');
+                                if (rows.length) {
+                                    const bc = rows[rows.length - 1].querySelector('.bot-content');
+                                    if (bc) {
+                                        const bubble = _thinkRenderBubble(extracted2.thinking, false);
+                                        bc.insertBefore(bubble, bc.firstChild);
+                                    }
+                                }
+                            } catch(e) { console.warn('Think bubble render error:', e); }
+                        }, 60);
+                    }
+                }
+
                 saveHistory();
 
                 // Research mode: attach view-switcher to the last bot reply
@@ -10474,6 +11280,84 @@ The analysis must identify the ROOT CAUSE of each error — not just restate the
             }
         });
     </script>    <!-- Agent Settings Modal (System Prompt, Presets, Iterations) -->
+    <!-- ============================================================
+         Tools Panel — right-side slide-over
+         ============================================================ -->
+    <div id="tools-overlay" onclick="closeToolsPanel()"></div>
+    <div id="tools-panel">
+        <div class="tools-panel-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span class="tools-panel-title">AI Tools</span>
+            <button class="tools-panel-close" onclick="closeToolsPanel()" aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="tools-panel-tabs">
+            <button class="tp-tab active" data-tptab="tools" onclick="_tpSwitchTab('tools',this)">Tools</button>
+            <button class="tp-tab" data-tptab="history" onclick="_tpSwitchTab('history',this)">History</button>
+        </div>
+        <div class="tools-panel-body" id="tools-panel-body">
+            <!-- Tools Grid (default view) -->
+            <div id="tp-tools-tab">
+                <div id="tool-grid-view">
+                    <p style="font-size:0.75rem;color:var(--text-muted);margin:4px 0 14px;line-height:1.5;">Click a tool, paste your code or text, and get instant AI-powered results.</p>
+                    <div class="tool-cards-grid">
+                        <div class="tool-card" onclick="_tpLaunchTool('explainer')" title="Explain what code does in plain English">
+                            <span class="tool-card-icon">🔍</span>
+                            <span class="tool-card-name">Code Explainer</span>
+                            <span class="tool-card-desc">Plain-English breakdown of any code block</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('complexity')" title="Analyse time & space complexity">
+                            <span class="tool-card-icon">📊</span>
+                            <span class="tool-card-name">Complexity</span>
+                            <span class="tool-card-desc">Big-O time & space analysis</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('regex')" title="Build and explain regular expressions">
+                            <span class="tool-card-icon">⚡</span>
+                            <span class="tool-card-name">Regex Builder</span>
+                            <span class="tool-card-desc">Generate & explain regex patterns</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('sql')" title="Natural language to SQL query">
+                            <span class="tool-card-icon">🗄️</span>
+                            <span class="tool-card-name">SQL Builder</span>
+                            <span class="tool-card-desc">Natural language → SQL query</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('git')" title="Describe what you want to do and get Git commands">
+                            <span class="tool-card-icon">🌿</span>
+                            <span class="tool-card-name">Git Helper</span>
+                            <span class="tool-card-desc">Task description → Git commands</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('json')" title="Format, validate and explain JSON">
+                            <span class="tool-card-icon">📋</span>
+                            <span class="tool-card-name">JSON Formatter</span>
+                            <span class="tool-card-desc">Format, validate & explain JSON</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('diff')" title="Compare two code blocks and highlight changes">
+                            <span class="tool-card-icon">🔀</span>
+                            <span class="tool-card-name">Diff Comparator</span>
+                            <span class="tool-card-desc">Compare two code blocks</span>
+                        </div>
+                        <div class="tool-card" onclick="_tpLaunchTool('apimock')" title="Generate mock API responses from a schema">
+                            <span class="tool-card-icon">🔌</span>
+                            <span class="tool-card-name">API Mock</span>
+                            <span class="tool-card-desc">Endpoint spec → mock JSON response</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Tool Workspace (injected by JS) -->
+                <div id="tool-workspace"></div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="tp-history-tab" style="display:none;">
+                <div id="tp-history-list">
+                    <div class="th-empty">No tool runs yet.<br>Use a tool above and results will appear here.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="agent-settings-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:600;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
         <div style="background:var(--surface-color);border-radius:20px;padding:24px;max-width:480px;width:100%;border:1px solid var(--border-color);box-shadow:0 16px 48px rgba(0,0,0,0.65);max-height:90dvh;overflow-y:auto;position:relative;">
 
