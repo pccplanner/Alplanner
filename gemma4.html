@@ -3240,10 +3240,9 @@
         const VPS_OLLAMA_URL = `${API_BASE_URL}/api/chat`;
         const VPS_OLLAMA_TAGS_URL = `${API_BASE_URL}/api/tags`;
 
-        // Shared secret with your server.js PROXY_API_KEY env var.
-        // Leave empty ("") if the backend has auth disabled.
-        // Note: visible in the bundled HTML -- it's a deterrent, not a vault.
-        const API_KEY = 'M-oxxFLWyXUKAX_uTBWRhLlRxzG3xIP0_75gHcz8n-8';
+        // API key is fetched dynamically from /api/config at startup.
+        // No hardcoded secret — key is always read from server .env.
+        let API_KEY = '';
 
         // Sliding window: how many of the most-recent non-system messages
         // get sent upstream to Ollama. The full history stays in localStorage
@@ -7232,6 +7231,25 @@ Return the complete updated code with the "${instruction}" feature fully integra
             bar.innerHTML=`<span style="font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono);">↩ Original code restored</span>`;
             showToast('Original code restored');
         }
+        // Fetch API key + config from server at startup so no secret is hardcoded in HTML.
+        async function fetchServerConfig() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/config`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store'
+                });
+                if (!res.ok) throw new Error('Config fetch failed: ' + res.status);
+                const cfg = await res.json();
+                if (cfg && cfg.apiKey) {
+                    API_KEY = cfg.apiKey;
+                    console.log('%c Config loaded from VPS ✓', 'color:#81c995;font-weight:bold;');
+                }
+            } catch (e) {
+                console.warn('Could not fetch server config — API key not set:', e.message);
+            }
+        }
+
         window.onload = async function() {
             loadSnippets();
             _autoAgentInitUI();
@@ -7243,6 +7261,7 @@ Return the complete updated code with the "${instruction}" feature fully integra
             _tpLoadHistory();
             console.log('%c AI Pro Coder v65 — Think Mode + Tools Panel Ready ✓', 'color:#c792e9;font-weight:bold;font-size:14px;');
             _agentSelectorInit();
+            await fetchServerConfig();
             await loadActiveModelsFromServer();
             const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS_KEY);
             if (savedConversations) {
