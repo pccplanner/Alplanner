@@ -162,6 +162,7 @@
                         </button>
                         <button onclick="window.resetAssignments()" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-md font-bold">Reset</button>
                         <button onclick="window.toggleEditMode()" id="btn-edit-mode" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-yellow-500 text-white px-5 py-2.5 rounded-md font-semibold"><span id="edit-mode-text">Edit Cells</span></button>
+                        <button onclick="window.generateRoster()" id="btn-generate" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-md font-bold shadow-md transition-all transform hover:scale-105 whitespace-nowrap"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>Generate</button>
                         <button onclick="window.handleShuffle()" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-md font-semibold">Shuffle</button>
                         <button onclick="window.exportPDF()" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-gray-800 text-white px-5 py-2.5 rounded-md font-semibold">PDF</button>
                         <button onclick="window.sharePDF()" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-md font-semibold">Share</button>
@@ -170,6 +171,8 @@
                 
                 <div id="inputs-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3"></div>
             </div>
+
+            <div id="validation-panel" class="mb-4"></div>
 
             <div id="tables-wrapper" class="bg-white p-4 shadow-xl border border-gray-200 rounded-lg overflow-x-auto overflow-y-hidden transition-all duration-300">
                 <div id="tables-container" class="min-w-max pb-4 bg-white"></div>
@@ -486,6 +489,7 @@
                     if (data.assignments8) assignments8 = JSON.parse(JSON.stringify(data.assignments8));
                     if (data.assignments7) assignments7 = JSON.parse(JSON.stringify(data.assignments7));
                     if (data.assignments6) assignments6 = JSON.parse(JSON.stringify(data.assignments6));
+                    if (data.generatedGridJson) { try { generatedGrid = JSON.parse(data.generatedGridJson); } catch(e) { generatedGrid = null; } }
                     
                     updateRosterSizeUI();
                     
@@ -510,6 +514,7 @@
                         assignments6: JSON.parse(JSON.stringify(assignments6)),
                         cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)),
                         cellOverrides: JSON.parse(JSON.stringify(cellOverrides)),
+                        generatedGridJson: (generatedGrid && generatedGrid.date === rosterDate) ? JSON.stringify(generatedGrid) : null,
                         rosterSize: rosterSize, shiftSupervisor: shiftSupervisor, savedAt: new Date().toISOString()
                     };
                 }
@@ -517,6 +522,7 @@
                 await setDoc(docRef, {
                     masterStaffList: masterStaffList, assignments8: assignments8, assignments7: assignments7, assignments6: assignments6,
                     cnbAssignments: cnbAssignments, cellOverrides: cellOverrides, rosterSize: rosterSize, rosterDate: rosterDate,
+                    generatedGridJson: generatedGrid ? JSON.stringify(generatedGrid) : null,
                     shiftSupervisor: shiftSupervisor, lastUpdated: new Date().toISOString(), archiveHistory: archiveHistory 
                 });
                 updateCloudStatus("Synced with Cloud", "text-green-600");
@@ -596,7 +602,7 @@
         window.updateDate = function(val) {
             if (!val || val === rosterDate) return;
             const oldDate = rosterDate;
-            if (oldDate) { archiveHistory[oldDate] = { assignments8: JSON.parse(JSON.stringify(assignments8)), assignments7: JSON.parse(JSON.stringify(assignments7)), assignments6: JSON.parse(JSON.stringify(assignments6)), cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)), cellOverrides: JSON.parse(JSON.stringify(cellOverrides)), rosterSize: rosterSize, shiftSupervisor: shiftSupervisor, savedAt: new Date().toISOString() };
+            if (oldDate) { archiveHistory[oldDate] = { assignments8: JSON.parse(JSON.stringify(assignments8)), assignments7: JSON.parse(JSON.stringify(assignments7)), assignments6: JSON.parse(JSON.stringify(assignments6)), cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)), cellOverrides: JSON.parse(JSON.stringify(cellOverrides)), generatedGridJson: (generatedGrid && generatedGrid.date === oldDate) ? JSON.stringify(generatedGrid) : null, rosterSize: rosterSize, shiftSupervisor: shiftSupervisor, savedAt: new Date().toISOString() };
             }
             rosterDate = val;
             if (archiveHistory[rosterDate]) {
@@ -604,12 +610,13 @@
                 assignments8 = archive.assignments8 ? JSON.parse(JSON.stringify(archive.assignments8)) : {}; assignments7 = archive.assignments7 ? JSON.parse(JSON.stringify(archive.assignments7)) : {}; assignments6 = archive.assignments6 ?
                 JSON.parse(JSON.stringify(archive.assignments6)) : {};
                 cnbAssignments = archive.cnbAssignments ? JSON.parse(JSON.stringify(archive.cnbAssignments)) : {}; cellOverrides = archive.cellOverrides ? JSON.parse(JSON.stringify(archive.cellOverrides)) : {};
+                if (archive.generatedGridJson) { try { generatedGrid = JSON.parse(archive.generatedGridJson); } catch(e) { generatedGrid = null; } } else { generatedGrid = null; }
                 if (archive.rosterSize) rosterSize = archive.rosterSize; shiftSupervisor = archive.shiftSupervisor || "";
             } else {
                 assignments8 = {};
                 placeholders8.forEach(p => assignments8[p] = p); assignments7 = {}; placeholders7.forEach(p => assignments7[p] = p); assignments6 = {};
                 placeholders6.forEach(p => assignments6[p] = p);
-                cnbAssignments = {}; cellOverrides = {}; shiftSupervisor = "";
+                cnbAssignments = {}; cellOverrides = {}; shiftSupervisor = ""; generatedGrid = null;
             }
             const [y, m, d] = rosterDate.split('-');
             currentCalDate = new Date(y, m - 1, d);
@@ -692,6 +699,7 @@
         window.resetAssignments = function() {
             const placeholders = getPlaceholders();
             const activeAssignments = getActiveAssignments();
+            generatedGrid = null;
             placeholders.forEach(p => activeAssignments[p] = p); renderControls(); renderTables(); window.saveToDatabase();
         };
 
@@ -708,13 +716,14 @@
             const dateId = window.selectedArchiveDate;
             if (!dateId) return;
             if (rosterDate && rosterDate !== dateId) {
-                archiveHistory[rosterDate] = { assignments8: JSON.parse(JSON.stringify(assignments8)), assignments7: JSON.parse(JSON.stringify(assignments7)), assignments6: JSON.parse(JSON.stringify(assignments6)), cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)), cellOverrides: JSON.parse(JSON.stringify(cellOverrides)), rosterSize: rosterSize, shiftSupervisor: shiftSupervisor, savedAt: new Date().toISOString() };
+                archiveHistory[rosterDate] = { assignments8: JSON.parse(JSON.stringify(assignments8)), assignments7: JSON.parse(JSON.stringify(assignments7)), assignments6: JSON.parse(JSON.stringify(assignments6)), cnbAssignments: JSON.parse(JSON.stringify(cnbAssignments)), cellOverrides: JSON.parse(JSON.stringify(cellOverrides)), generatedGridJson: (generatedGrid && generatedGrid.date === rosterDate) ? JSON.stringify(generatedGrid) : null, rosterSize: rosterSize, shiftSupervisor: shiftSupervisor, savedAt: new Date().toISOString() };
             }
             const archive = archiveHistory[dateId];
             if (archive) {
                 if (archive.assignments8) assignments8 = JSON.parse(JSON.stringify(archive.assignments8));
                 if (archive.assignments7) assignments7 = JSON.parse(JSON.stringify(archive.assignments7));
                 if (archive.assignments6) assignments6 = JSON.parse(JSON.stringify(archive.assignments6));
+                if (archive.generatedGridJson) { try { generatedGrid = JSON.parse(archive.generatedGridJson); } catch(e) { generatedGrid = null; } } else { generatedGrid = null; }
                 cnbAssignments = archive.cnbAssignments ? JSON.parse(JSON.stringify(archive.cnbAssignments)) : {};
                 cellOverrides = archive.cellOverrides ? JSON.parse(JSON.stringify(archive.cellOverrides)) : {}; rosterSize = archive.rosterSize || 8; rosterDate = dateId; shiftSupervisor = archive.shiftSupervisor || "";
                 const [y, m, d] = dateId.split('-'); currentCalDate = new Date(y, m - 1, d);
@@ -736,11 +745,303 @@
         window.nextMonth = function() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); };
         window.goToToday = function() { currentCalDate = new Date(); renderCalendar(); };
         // ==========================================
+        //  AUTO-GENERATION ENGINE (Rule-Based, v14)
+        //  Hard rules: no placement during rest/privilege breaks,
+        //  no double-booking, HHMD cert enforced, balanced minutes.
+        //  Post priority when short-handed: HHMD > CID > GUARD > KIOSK > LOBBY C (dropped first).
+        // ==========================================
+        // [ENGINE-PURE-START]
+        const COL_TIMES = [null,[0,30],[30,60],[60,120],[120,180],[180,240],[240,270],[270,300],[300,330],[330,360],[360,420],[420,480],[480,540],[540,570],[570,600],[600,630],[630,660],[660,690]];
+        const LETTER_COLS = [2, 9, 16];
+        const LETTERS = ["V","E","R","T","I","C","A","L"];
+        const BREAK_WINDOW = [60, 630]; // 2100 - 0630 in minutes-from-2000
+
+        function minToClock(m){ const c=((1200+m)%1440+1440)%1440; return String(Math.floor(c/60)).padStart(2,'0')+String(c%60).padStart(2,'0'); }
+        function clockToMin(s){ s=String(s).replace(/[^0-9]/g,''); if(s.length<3) return null; if(s.length===3) s='0'+s; const h=parseInt(s.slice(0,2),10), mm=parseInt(s.slice(2,4),10); if(isNaN(h)||isNaN(mm)) return null; let v=(h*60+mm)-1200; while(v<0)v+=1440; return v%1440; }
+        function parseWindow(str){ if(!str) return null; const p=String(str).split('-').map(x=>x.trim()).filter(Boolean); if(p.length!==2) return null; const a=clockToMin(p[0]), b=clockToMin(p[1]); if(a===null||b===null||b<=a) return null; return [a,b]; }
+        function rangesOverlap(a,b){ return !!(a&&b&&a[0]<b[1]&&b[0]<a[1]); }
+        function rangeCovers(a,b){ return !!(a&&b&&a[0]<=b[0]&&a[1]>=b[1]); } // a fully covers b
+
+        function scheduleBreaks(pool, dateStr){
+            const N = pool.length;
+            const usable = BREAK_WINDOW[1]-BREAK_WINDOW[0];
+            const maxConc = Math.max(1, N-5);
+            let len = Math.floor(usable*maxConc/N/30)*30;
+            len = Math.max(60, Math.min(120, len));
+            // rotate break order daily so the same officer doesn't always get the same slot
+            let doy = 0;
+            try { const d=new Date(dateStr+"T00:00:00"); doy=Math.floor((d - new Date(d.getFullYear(),0,1))/864e5); } catch(e){}
+            const rot = pool.slice(doy%N).concat(pool.slice(0, doy%N));
+            const stride = (usable-len)/Math.max(1, N-1);
+            const breaks = {};
+            rot.forEach((id,i)=>{ let s=BREAK_WINDOW[0]+Math.round(i*stride/30)*30; if(s+len>BREAK_WINDOW[1]) s=BREAK_WINDOW[1]-len; breaks[id]=[s,s+len]; });
+            // safety: enforce max concurrency by nudging the latest-starting offender
+            for(let guard=0; guard<60; guard++){
+                let clean=true;
+                for(let t=BREAK_WINDOW[0]; t<BREAK_WINDOW[1]; t+=30){
+                    const onb = rot.filter(id=>breaks[id][0]<=t && breaks[id][1]>t);
+                    if(onb.length>maxConc){
+                        const v = onb.sort((a,b)=>breaks[b][0]-breaks[a][0])[0];
+                        let ns = breaks[v][0]+30; if(ns+len>BREAK_WINDOW[1]) ns=BREAK_WINDOW[1]-len;
+                        if(ns===breaks[v][0]) { clean=true; break; }
+                        breaks[v]=[ns,ns+len]; clean=false;
+                    }
+                }
+                if(clean) break;
+            }
+            return { breaks, len, order: rot };
+        }
+
+        function schedulePrivilege(order, breaks){
+            const cands=[120,150,300,330,420,450,480,510,540,570];
+            const priv={}; const used=new Set();
+            order.forEach(id=>{
+                for(const s of cands){
+                    if(used.has(s)) continue;
+                    if(rangesOverlap([s,s+30], breaks[id])) continue;
+                    used.add(s); priv[id]=[s,s+30]; break;
+                }
+            });
+            return priv;
+        }
+
+        function buildGeneratedGrid(opts){
+            const { pool, hhmdOK, dateStr, isWeekend } = opts;
+            const nCols = 18; // header + 17 time columns
+            const bk = scheduleBreaks(pool, dateStr);
+            const breaks = bk.breaks;
+            const privOrder = [...bk.order].reverse();
+            const priv = schedulePrivilege(privOrder, breaks);
+
+            const mk = (label)=>{ const r=new Array(nCols).fill(""); r[0]=label; return r; };
+            const t1 = [mk("CID/FOYER PASS COUNTER"),mk(""),mk(""),mk(""),mk(""),mk("KIOSK"),mk("LOBBY C"),mk("HHMD"),mk("GUARD HOUSE"),mk("VERTICAL PATROL")];
+            for(let c=1;c<nCols;c++) t1[9][c]="******";
+            const t2 = [mk("REPORT ROOM(BME)"), mk("CNB COUNTER")];
+            for(let c=1;c<nCols;c++){ t2[0][c]="******"; t2[1][c] = c<=3 ? "4834/4928" : "******"; }
+
+            const minutes={}, patrols={}, prevPost={};
+            pool.forEach(id=>{ minutes[id]=0; patrols[id]=0; prevPost[id]=null; });
+            let prevHHMD=null, hhmdStreak=0;
+
+            const onMainBreak=(id,c)=>rangesOverlap(breaks[id], COL_TIMES[c]);
+            const onPrivCover=(id,c)=>!!(priv[id] && rangeCovers(priv[id], COL_TIMES[c]));
+
+            for(let c=1;c<nCols;c++){
+                const I=COL_TIMES[c];
+                const dur=I[1]-I[0];
+                const eligible = pool.filter(id=>!onMainBreak(id,c) && !onPrivCover(id,c));
+
+                if(LETTER_COLS.includes(c)){
+                    for(let r=0;r<8;r++) t1[r][c]=LETTERS[r];
+                    t1[8][c]="";
+                    const cand=[...eligible].sort((a,b)=>(patrols[a]-patrols[b])||(minutes[a]-minutes[b])||(Math.random()-0.5));
+                    const pat=cand.length?cand[0]:"VACANT";
+                    t1[9][c]=pat;
+                    if(pat!=="VACANT"){ patrols[pat]++; minutes[pat]+=dur; prevPost[pat]="PATROL"; }
+                    // report room continues through letter columns on weekdays
+                    if(!isWeekend && c<=3){
+                        const rr=cand.find(id=>id!==pat);
+                        if(rr){ t2[0][c]=rr; minutes[rr]+=dur; prevPost[rr]="REPORT"; }
+                        else t2[0][c]="VACANT";
+                    }
+                    continue;
+                }
+
+                const assigned=new Set();
+                const pick=(cands, postKey)=>{
+                    const free=cands.filter(id=>!assigned.has(id));
+                    if(!free.length) return null;
+                    free.sort((a,b)=>{
+                        const sa=minutes[a]-(prevPost[a]===postKey?15:0)+Math.random()*5;
+                        const sb=minutes[b]-(prevPost[b]===postKey?15:0)+Math.random()*5;
+                        return sa-sb;
+                    });
+                    return free[0];
+                };
+                const result={};
+                // HHMD first (certification required, mild continuity for stability)
+                let h=null;
+                if(prevHHMD && hhmdOK[prevHHMD] && hhmdStreak<4 && eligible.includes(prevHHMD)) h=prevHHMD;
+                if(!h) h=pick(eligible.filter(id=>hhmdOK[id]), "HHMD");
+                if(h){ result.HHMD=h; assigned.add(h); hhmdStreak=(h===prevHHMD)?hhmdStreak+1:1; prevHHMD=h; }
+                else { result.HHMD=null; prevHHMD=null; hhmdStreak=0; }
+                // remaining posts by priority; LOBBY C is dropped first when short-handed
+                const others=['CID','GUARD','KIOSK','LOBBY'];
+                const freeCount=eligible.filter(id=>!assigned.has(id)).length;
+                const manned=others.slice(0, Math.min(others.length, freeCount));
+                others.forEach(pk=>{
+                    if(!manned.includes(pk)){ result[pk]=null; return; }
+                    const s=pick(eligible, pk); result[pk]=s; if(s) assigned.add(s);
+                });
+                // weekday report room (cols 1-3) comes from spare manpower
+                if(!isWeekend && c<=3){
+                    const rr=pick(eligible, "REPORT");
+                    if(rr){ t2[0][c]=rr; assigned.add(rr); minutes[rr]+=dur; prevPost[rr]="REPORT"; }
+                    else t2[0][c]="VACANT";
+                }
+                // any remaining spare officers reinforce CID/FOYER sub-rows
+                const extras=eligible.filter(id=>!assigned.has(id)).slice(0,4);
+                extras.forEach((id,k)=>{ t1[1+k][c]=id; minutes[id]+=dur; prevPost[id]="CID"; assigned.add(id); });
+
+                const put=(r,id,pk)=>{ t1[r][c]= id?id:"VACANT"; if(id){ minutes[id]+=dur; prevPost[id]=pk; } };
+                put(0,result.CID,"CID"); put(5,result.KIOSK,"KIOSK"); put(6,result.LOBBY,"LOBBY"); put(7,result.HHMD,"HHMD"); put(8,result.GUARD,"GUARD");
+            }
+
+            // breaks table (t3)
+            const r0=[{val:`MANPOWER: ${pool.length}`,colSpan:1}], r1=[{val:"BREAK TIME",colSpan:1}];
+            bk.order.forEach(id=>{ r0.push({val:id,colSpan:2}); r1.push({val:minToClock(breaks[id][0])+"-"+minToClock(breaks[id][1]),colSpan:2}); });
+            const r2=[{val:"PRIVILEGE BREAK",colSpan:1}], r3=[{val:"TIMING:",colSpan:1}];
+            privOrder.forEach(id=>{ r2.push({val:id,colSpan:1}); r3.push({val:priv[id]?(minToClock(priv[id][0])+"-"+minToClock(priv[id][1])):"",colSpan:1}); });
+            r2.push({val:"",colSpan:9}); r3.push({val:"",colSpan:9});
+            const t3=[r0,r1,r2,r3];
+
+            return { t1, t2, t3, breaks, priv, minutes, breakLen: bk.len };
+        }
+        // [ENGINE-PURE-END]
+
+        let generatedGrid = null;
+
+        window.generateRoster = function(){
+            const placeholders=getPlaceholders();
+            const aa=getActiveAssignments();
+            let pool=[]; const seen=new Set();
+            placeholders.forEach(p=>{ const id=aa[p]||p; if(id && id!=="VACANT" && !seen.has(id)){ seen.add(id); pool.push(id); } });
+            if(pool.length<rosterSize){
+                alert(`Auto-Generate needs ${rosterSize} unique staff in the slots above (currently ${pool.length}). Fill the slots or use "Apply to Roster" from the Attendance tab first.`);
+                return;
+            }
+            pool=pool.slice(0,rosterSize);
+            const hhmdOK={};
+            pool.forEach(id=>{ const s=masterStaffList.find(x=>x.id===id); hhmdOK[id]=!s||s.hhmd!==false; });
+            if(!pool.some(id=>hhmdOK[id])){ alert("None of the selected staff are HHMD-certified — the HHMD post cannot be manned. Update certifications in the Attendance tab."); return; }
+
+            const dayName=getDayName(rosterDate);
+            const isWeekend=(dayName==="SATURDAY"||dayName==="SUNDAY");
+            const g=buildGeneratedGrid({ pool, hhmdOK, dateStr: rosterDate, isWeekend });
+            generatedGrid={ date: rosterDate, size: rosterSize, t1: g.t1, t2: g.t2, t3: g.t3, breaks: g.breaks, priv: g.priv, minutes: g.minutes, breakLen: g.breakLen, generatedAt: new Date().toISOString() };
+            cellOverrides={};
+            renderControls(); renderTables(); window.saveToDatabase();
+        };
+
+        // ---------- VALIDATION ENGINE ----------
+        function getBreakMaps(datasets){
+            if(datasets.generated && generatedGrid && generatedGrid.date===rosterDate && generatedGrid.size===rosterSize){
+                const aa=getActiveAssignments();
+                const remap=(src)=>{ const out={}; Object.keys(src||{}).forEach(k=>{ out[aa[k]||k]=src[k]; }); return out; };
+                return { breaks: remap(generatedGrid.breaks), priv: remap(generatedGrid.priv) };
+            }
+            const breaks={}, priv={};
+            const aa=getActiveAssignments();
+            const map=v=>{ v=String(v||"").trim(); return aa[v]||v; };
+            const t3=datasets.t3Data;
+            try {
+                if(t3 && t3[0] && t3[1]){ for(let i=1;i<t3[0].length;i++){ const id=map(t3[0][i]&&t3[0][i].val); const w=parseWindow(t3[1][i]&&t3[1][i].val); if(id&&w) breaks[id]=w; } }
+                if(t3 && t3[2] && t3[3]){ for(let i=1;i<t3[2].length;i++){ const id=map(t3[2][i]&&t3[2][i].val); const w=parseWindow(t3[3][i]&&t3[3][i].val); if(id&&w) priv[id]=w; } }
+            } catch(e){}
+            return { breaks, priv };
+        }
+
+        function computeBreakViolations(datasets){
+            const { breaks, priv } = getBreakMaps(datasets);
+            const viol={ table1:new Set(), table2:new Set(), list:[] };
+            const aa=getActiveAssignments();
+            const resolve=(tId,r,c,val)=>{ const k=`t${tId}_${r}_${c}`; if(cellOverrides[k]!==undefined) return cellOverrides[k]; return String(val||"").split('/').map(v=>aa[v]||v).join('/'); };
+            const check=(tId,r,c,val)=>{
+                const I=COL_TIMES[c]; if(!I) return;
+                const res=resolve(tId,r,c,val); if(!res) return;
+                String(res).split('/').forEach(s=>{
+                    s=s.trim();
+                    if(!s||s==="******"||s==="VACANT"||LETTERS.includes(s)) return;
+                    const isBreak=breaks[s]&&rangesOverlap(breaks[s],I);
+                    const isPriv=priv[s]&&rangeCovers(priv[s],I);
+                    if(isBreak||isPriv){
+                        (tId===1?viol.table1:viol.table2).add(`${r}_${c}`);
+                        viol.list.push({ staff:s, col:c, type:isBreak?'BREAK':'PRIVILEGE' });
+                    }
+                });
+            };
+            datasets.t1Data.forEach((row,r)=>{
+                for(let c=1;c<row.length;c++){
+                    if(LETTER_COLS.includes(c) && r!==9) continue;
+                    if(r===9 && !LETTER_COLS.includes(c)) continue;
+                    check(1,r,c,row[c]);
+                }
+            });
+            if(datasets.t2Data[0]){ for(let c=1;c<datasets.t2Data[0].length;c++) check(2,0,c,datasets.t2Data[0][c]); }
+            return viol;
+        }
+
+        function renderValidationPanel(datasets, conflicts, bviol){
+            const el=document.getElementById('validation-panel'); if(!el) return;
+            const issues=[];
+            if(conflicts.totalClashes>0) issues.push({sev:'error', msg:`${conflicts.totalClashes} double-booking cell(s) — same officer at two points in one time slot.`});
+            if(bviol.list.length>0){
+                const uniq={};
+                bviol.list.forEach(v=>{ const key=v.staff+"_"+v.type; (uniq[key]=uniq[key]||{staff:v.staff,type:v.type,cols:[]}).cols.push(timeHeaders[v.col]); });
+                Object.values(uniq).forEach(u=>issues.push({sev:'error', msg:`${u.staff} is rostered during their ${u.type==='BREAK'?'rest break':'privilege break'}: ${u.cols.join(', ')}`}));
+            }
+            // HHMD certification check
+            const aa=getActiveAssignments();
+            if(datasets.t1Data[7]){
+                for(let c=1;c<datasets.t1Data[7].length;c++){
+                    if(LETTER_COLS.includes(c)) continue;
+                    const k=`t1_7_${c}`;
+                    const raw=cellOverrides[k]!==undefined?cellOverrides[k]:datasets.t1Data[7][c];
+                    String(raw||"").split('/').forEach(s=>{
+                        s=(aa[s.trim()]||s.trim());
+                        if(!s||s==="VACANT"||s==="******"||LETTERS.includes(s)) return;
+                        const st=masterStaffList.find(x=>x.id===s);
+                        if(st&&st.hhmd===false) issues.push({sev:'error', msg:`${s} is on HHMD at ${timeHeaders[c]} but is not HHMD-certified.`});
+                    });
+                }
+            }
+            // vacant critical posts (Lobby C intentionally excluded — droppable when short)
+            const critRows={0:'CID/FOYER',5:'KIOSK',7:'HHMD',8:'GUARD HOUSE'};
+            const vac=[];
+            Object.keys(critRows).forEach(rk=>{
+                const r=+rk;
+                if(!datasets.t1Data[r]) return;
+                for(let c=1;c<datasets.t1Data[r].length;c++){
+                    if(LETTER_COLS.includes(c)) continue;
+                    const k=`t1_${r}_${c}`;
+                    const v=cellOverrides[k]!==undefined?cellOverrides[k]:datasets.t1Data[r][c];
+                    if(v==="VACANT") vac.push(`${critRows[r]} @ ${timeHeaders[c]}`);
+                }
+            });
+            if(vac.length) issues.push({sev:'warn', msg:`Critical post vacant: ${vac.slice(0,5).join('; ')}${vac.length>5?` (+${vac.length-5} more)`:''}`});
+            // workload balance chips (generated rosters)
+            let chips='';
+            if(datasets.generated && generatedGrid && generatedGrid.minutes){
+                const m=generatedGrid.minutes; const vals=Object.values(m);
+                if(vals.length){
+                    const spread=Math.max(...vals)-Math.min(...vals);
+                    chips=`<div class="flex flex-wrap gap-1.5 mt-2 items-center"><span class="text-[10px] font-bold text-gray-500 uppercase">Duty hours:</span>`+
+                        Object.keys(m).map(id=>`<span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-300 text-[10px] font-bold text-slate-700">${id}: ${(m[id]/60).toFixed(1)}h</span>`).join('')+`</div>`;
+                    if(spread>90) issues.push({sev:'warn', msg:`Workload spread is ${Math.round(spread)} min between busiest and lightest officer. Regenerate to rebalance.`});
+                }
+            }
+            if(!issues.length){
+                el.innerHTML=`<div class="bg-green-50 border border-green-300 text-green-800 px-4 py-2.5 rounded-lg text-sm font-bold flex flex-col animate-fade-in"><div class="flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>All rules passed — no break violations, no double-bookings, all critical posts manned.</div>${chips}</div>`;
+            } else {
+                const rows=issues.map(i=>`<div class="flex items-start gap-2 ${i.sev==='error'?'text-red-700':'text-amber-700'}"><span class="font-bold">${i.sev==='error'?'✕':'⚠'}</span><span>${i.msg}</span></div>`).join('');
+                el.innerHTML=`<div class="bg-red-50 border border-red-300 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold space-y-1 animate-fade-in"><div class="font-bold text-red-800 mb-1">Roster rule check — ${issues.length} issue(s):</div>${rows}${chips}</div>`;
+            }
+        }
+
+        // ==========================================
         //  CORE ENGINE: DATASETS & LOCAL CLASH DETECTION
         // ==========================================
         function getCurrentTableDatasets() {
             const dayName = getDayName(rosterDate);
             const isWeekend = dayName === "SATURDAY" || dayName === "SUNDAY";
+            if (generatedGrid && generatedGrid.date === rosterDate && generatedGrid.size === rosterSize && generatedGrid.t1) {
+                return {
+                    t1Data: JSON.parse(JSON.stringify(generatedGrid.t1)),
+                    t2Data: JSON.parse(JSON.stringify(generatedGrid.t2)),
+                    t3Data: JSON.parse(JSON.stringify(generatedGrid.t3)),
+                    dayName, isWeekend, generated: true
+                };
+            }
             let t1Data, t2Data, t3Data;
             if (rosterSize === 8) { t1Data = JSON.parse(JSON.stringify(isWeekend ? table1Data_8_Weekend : table1Data_8_Weekday)); t2Data = JSON.parse(JSON.stringify(isWeekend ? table2Data_8_Weekend : table2Data_8_Weekday));
             t3Data = JSON.parse(JSON.stringify(isWeekend ? table3Data_8_Weekend : table3Data_8_Weekday)); } 
@@ -1188,6 +1489,7 @@
 
             const datasets = getCurrentTableDatasets();
             const conflicts = detectClashes(datasets);
+            const bviol = computeBreakViolations(datasets);
             const { t1Data, t2Data, t3Data, dayName, isWeekend } = datasets;
 
             const applyMapping = (val) => { if (!val) return val;
@@ -1228,11 +1530,13 @@
                     const isGrey = !isHeader && isGreyCell(rIdx, cIdx, cell);
                     const isVacant = mappedCell === "VACANT";
                     const isClash = conflicts.table1.has(`${rIdx}_${cIdx}`);
+                    const isBreakViol = bviol.table1.has(`${rIdx}_${cIdx}`);
                     
                     const rowSpan = (isHeader && rIdx === 0) ? 'rowspan="5"' : '';
                     let classes = `border p-1.5 font-bold tracking-tight whitespace-nowrap transition-colors duration-200 `;
                     if (isHeader) classes += `border-gray-400 bg-white text-left px-2 text-gray-700 min-w-[200px]`;
                     else if (isClash) classes += `border-red-600 bg-red-500 text-white shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]`;
+                    else if (isBreakViol) classes += `border-amber-500 bg-amber-300 text-amber-900 shadow-[inset_0_0_4px_rgba(0,0,0,0.2)]`;
                     else if (isVacant) classes += `border-gray-400 bg-red-100 text-red-700`;
                     else if (isGrey) classes += `border-gray-400 bg-[#b3b3b3] text-gray-900`;
                     else classes += `border-gray-400 bg-white text-gray-900`;
@@ -1277,6 +1581,7 @@
                             html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${tdClasses}"><input type="text" value="${cnbVal}" onchange="window.updateCNB(${cIdx}, this.value)" class="w-full h-full min-h-[30px] bg-transparent text-center focus:outline-none font-bold cursor-text px-1 ${isClash ? 'text-white placeholder-red-200' : 'focus:bg-blue-100 text-blue-600'}" /></td>`;
                         } else {
                             if (isClash) classes += `border-red-600 p-1.5 bg-red-500 text-white shadow-[inset_0_0_5px_rgba(0,0,0,0.3)]`;
+                            else if (bviol.table2.has(`${rIdx}_${cIdx}`)) classes += `border-amber-500 p-1.5 bg-amber-300 text-amber-900 shadow-[inset_0_0_4px_rgba(0,0,0,0.2)]`;
                             else classes += `border-gray-400 p-1.5 bg-white text-gray-900`;
                             html += `<td id="cell-t2-${rIdx}-${cIdx}" class="${classes}">${content}</td>`;
                         }
@@ -1318,6 +1623,7 @@
             html += `</tbody></table>`;
 
             container.innerHTML = html;
+            try { renderValidationPanel(datasets, conflicts, bviol); } catch(e) { console.error("Validation panel error:", e); }
         }
 
         function renderCalendar() {
